@@ -111,6 +111,7 @@ class PayslipLine(models.Model):
     class StandardLineKey(models.TextChoices):
         """Keys for auto-calculated standard lines."""
         GROSS_PAY = "gross_pay", "Gross pay"
+        FRITVALGSKONTO = "fritvalgskonto", "Fritvalgskonto"
         FERIETILLAEG = "ferietillaeg", "Ferietillæg"
         PENSION_EMPLOYEE = "pension_employee", "Own pension contribution"
         ATP_EMPLOYEE = "atp_employee", "ATP (employee)"
@@ -181,8 +182,8 @@ class PayslipLine(models.Model):
 
     def save(self, *args, **kwargs):
         from decimal import Decimal, ROUND_HALF_UP, ROUND_FLOOR, ROUND_CEILING
-        # Auto-calculate amount from quantity × rate if both are provided
-        if self.quantity is not None and self.rate is not None and not self.amount:
+        # Auto-calculate amount from quantity × rate for custom lines only
+        if not self.standard_line_key and self.quantity is not None and self.rate is not None and not self.amount:
             self.amount = self.quantity * self.rate
         # Apply rounding method
         if self.amount is not None:

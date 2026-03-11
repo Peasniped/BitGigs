@@ -51,7 +51,11 @@ class PayrollPeriodDetailView(View):
         )
         workplace = period.workplace
 
-        # Build payslip (reads existing lines — standard lines should already exist)
+        # Recalculate standard lines to reflect current data + custom adjustments
+        if not period.is_locked:
+            PayslipService.populate_standard_lines(period)
+
+        # Build payslip (reads existing lines)
         payslip = PayslipService.build_payslip(period)
 
         # Session summary for the period
@@ -59,9 +63,12 @@ class PayrollPeriodDetailView(View):
             period.start_date, period.end_date, workplace.id
         )
 
-        # Salary estimate
+        # Salary estimate (use tax pull date for profile lookup)
+        tax_pull_date = PayrollPeriodService.get_tax_pull_date(
+            workplace, period.end_date.year, period.end_date.month
+        )
         estimate = SalaryEstimateService.estimate(
-            workplace, summary.total_hours, as_of=period.start_date
+            workplace, summary.total_hours, as_of=tax_pull_date
         )
 
         # Flex time (salaried only)
@@ -109,15 +116,26 @@ class PayslipLineAddView(View):
             return redirect("payroll:period-detail", pk=period.pk)
 
         name = request.POST.get("name", "Custom line")
-        amount = request.POST.get("amount", "0")
-        line_type = request.POST.get("line_type", "pre_tax_deduct")
-        try:
-            from decimal import Decimal as D
-            amount_dec = D(amount.replace(",", "."))
-        except Exception:
-            amount_dec = Decimal("0")
+        quantity_str = request.POST.get("quantity", "").strip()
+        rate_str = request.POST.get("rate", "").strip()
+        raw_type = request.POST.get("line_type", "deduct")
+        line_type = "pre_tax_add" if raw_type == "add" else "pre_tax_deduct"
 
-        # Place after last standard line, before any existing custom lines
+        from decimal import Decimal as D, InvalidOperation
+
+        def parse_dk(s):
+            if not s:
+                return None
+            try:
+                return D(s.replace(".", "").replace(",", "."))
+            except (InvalidOperation, ValueError):
+                return None
+
+        quantity = parse_dk(quantity_str) or D("1")
+        rate = parse_dk(rate_str) or D("0")
+        amount = (quantity * rate).quantize(D("0.01"))
+
+        # Place after last line
         max_sort = PayslipLine.objects.filter(
             payroll_period=period
         ).aggregate(models.Max("sort_order"))["sort_order__max"] or 0
@@ -125,11 +143,53 @@ class PayslipLineAddView(View):
         PayslipLine.objects.create(
             payroll_period=period,
             name=name,
-            amount=amount_dec,
+            quantity=quantity,
+            rate=rate,
+            amount=amount,
             line_type=line_type,
             is_editable=True,
             sort_order=max_sort + 1,
         )
+        return redirect("payroll:period-detail", pk=period.pk)
+
+
+class PayslipLineEditView(View):
+    """Edit a custom (non-standard) payslip line."""
+
+    def post(self, request, period_pk, line_pk):
+        line = get_object_or_404(
+            PayslipLine, pk=line_pk, payroll_period_id=period_pk
+        )
+        if line.standard_line_key:
+            return redirect("payroll:period-detail", pk=period_pk)
+
+        period = line.payroll_period
+        if period.is_locked:
+            return redirect("payroll:period-detail", pk=period.pk)
+
+        from decimal import Decimal as D, InvalidOperation
+
+        def parse_dk(s):
+            if not s:
+                return None
+            try:
+                return D(s.replace(".", "").replace(",", "."))
+            except (InvalidOperation, ValueError):
+                return None
+
+        name = request.POST.get("name", line.name)
+        quantity = parse_dk(request.POST.get("quantity", "")) or D("1")
+        rate = parse_dk(request.POST.get("rate", "")) or D("0")
+        raw_type = request.POST.get("line_type", "add")
+        line_type = "pre_tax_add" if raw_type == "add" else "pre_tax_deduct"
+
+        line.name = name
+        line.quantity = quantity
+        line.rate = rate
+        line.amount = (quantity * rate).quantize(D("0.01"))
+        line.line_type = line_type
+        line.save()
+
         return redirect("payroll:period-detail", pk=period.pk)
 
 
@@ -155,6 +215,22 @@ class PayslipRecalculateView(View):
         if not period.is_locked:
             PayslipService.populate_standard_lines(period)
         return redirect("payroll:period-detail", pk=period.pk)
+
+
+class TaxPullDayUpdateView(View):
+    """AJAX endpoint to update the tax card pull day for a workplace."""
+
+    def post(self, request, period_pk):
+        period = get_object_or_404(PayrollPeriod, pk=period_pk)
+        try:
+            data = json.loads(request.body)
+            day = int(data.get("tax_pull_day", 18))
+            day = max(1, min(28, day))
+            period.workplace.tax_pull_day = day
+            period.workplace.save(update_fields=["tax_pull_day"])
+            return JsonResponse({"status": "ok", "tax_pull_day": day})
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return JsonResponse({"status": "error"}, status=400)
 
 
 class CommutingListView(View):

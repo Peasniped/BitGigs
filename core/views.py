@@ -81,7 +81,8 @@ class DashboardView(View):
                 (s.net_hours for s in sessions), Decimal("0")
             )
 
-            earned_est = SalaryEstimateService.estimate(wp, actual_hours, as_of=period_start)
+            tax_pull_date = PayrollPeriodService.get_tax_pull_date(wp, year, month)
+            earned_est = SalaryEstimateService.estimate(wp, actual_hours, as_of=tax_pull_date)
             total_earned_gross += earned_est.gross_pay
             if earned_est.tax_breakdown:
                 total_earned_net += earned_est.tax_breakdown.net_pay
@@ -92,7 +93,7 @@ class DashboardView(View):
             else:
                 expected_hours = wp.expected_weekly_hours * Decimal("4.33") if wp.expected_weekly_hours else actual_hours
 
-            expected_est = SalaryEstimateService.estimate(wp, expected_hours, as_of=period_start)
+            expected_est = SalaryEstimateService.estimate(wp, expected_hours, as_of=tax_pull_date)
             total_expected_gross += expected_est.gross_pay
             if expected_est.tax_breakdown:
                 total_expected_net += expected_est.tax_breakdown.net_pay
@@ -199,16 +200,19 @@ class SetupWizardView(View):
 
         tax_form = TaxProfileForm(prefix="tax")
         from workplaces.forms import WorkplaceForm
+        from workplaces.views import MONTH_CHOICES
         workplace_form = WorkplaceForm(prefix="wp")
         return render(
             request,
             "core/setup.html",
-            {"tax_form": tax_form, "workplace_form": workplace_form},
+            {"tax_form": tax_form, "workplace_form": workplace_form,
+             "month_choices": MONTH_CHOICES},
         )
 
     def post(self, request):
         tax_form = TaxProfileForm(request.POST, prefix="tax")
         from workplaces.forms import WorkplaceForm
+        from workplaces.views import MONTH_CHOICES
         workplace_form = WorkplaceForm(request.POST, prefix="wp")
 
         if tax_form.is_valid() and workplace_form.is_valid():
@@ -219,5 +223,6 @@ class SetupWizardView(View):
         return render(
             request,
             "core/setup.html",
-            {"tax_form": tax_form, "workplace_form": workplace_form},
+            {"tax_form": tax_form, "workplace_form": workplace_form,
+             "month_choices": MONTH_CHOICES},
         )

@@ -144,20 +144,36 @@ function initWorkplaceForm(formEl) {
   var salariedSection = formEl.querySelector('[data-section="salaried"]');
   var hourlySection = formEl.querySelector('[data-section="hourly"]');
 
+  // ---- Helpers to disable/enable all inputs in a section ----
+  function disableSectionInputs(section) {
+    if (!section) return;
+    section.querySelectorAll('input, select, textarea').forEach(function (el) {
+      el.disabled = true;
+    });
+  }
+  function enableSectionInputs(section) {
+    if (!section) return;
+    section.querySelectorAll('input, select, textarea').forEach(function (el) {
+      el.disabled = false;
+    });
+  }
+
   // ---- Employment type toggle ----
   function toggleEmploymentSections() {
     var checked = formEl.querySelector('[data-emp-type]:checked');
     var isSalaried = checked && checked.value === 'salaried';
-    if (salariedSection) salariedSection.style.display = isSalaried ? '' : 'none';
-    if (hourlySection) hourlySection.style.display = isSalaried ? 'none' : '';
+    if (salariedSection) {
+      salariedSection.style.display = isSalaried ? '' : 'none';
+      if (isSalaried) enableSectionInputs(salariedSection); else disableSectionInputs(salariedSection);
+    }
+    if (hourlySection) {
+      hourlySection.style.display = isSalaried ? 'none' : '';
+      if (isSalaried) disableSectionInputs(hourlySection); else enableSectionInputs(hourlySection);
+    }
 
     // Hidden payroll start: only included for salaried (value=1), hourly uses visible field
     var hiddenStart = formEl.querySelector('[data-hidden-payroll-start]');
     if (hiddenStart) hiddenStart.disabled = !isSalaried;
-
-    // Disable the visible payroll start if salaried
-    var visibleStart = hourlySection ? hourlySection.querySelector('input[type="number"]') : null;
-    if (visibleStart) visibleStart.disabled = isSalaried;
   }
   empRadios.forEach(function (r) { r.addEventListener('change', toggleEmploymentSections); });
   toggleEmploymentSections();
@@ -249,6 +265,27 @@ function initWorkplaceForm(formEl) {
   }
   calcPensionTotal();
 
+  // ---- Beskæftigelsesprocent calculation (hours per week / 37 * 100) ----
+  var beskæftigelseInput = formEl.querySelector('[data-calc-trigger="beskæftigelsesprocent"]');
+  var beskæftigelseDisplay = formEl.querySelector('[data-display="beskæftigelsesprocent"]');
+
+  function calcBeskæftigelsesprocent() {
+    if (!beskæftigelseDisplay) return;
+    var hours = beskæftigelseInput ? parseDanish(beskæftigelseInput.value) : 0;
+    if (hours) {
+      var percent = (hours / 37) * 100;
+      beskæftigelseDisplay.textContent = toDanish(percent.toFixed(1)) + ' %';
+    } else {
+      beskæftigelseDisplay.textContent = '–';
+    }
+  }
+
+  if (beskæftigelseInput) {
+    beskæftigelseInput.addEventListener('input', calcBeskæftigelsesprocent);
+    beskæftigelseInput.addEventListener('change', calcBeskæftigelsesprocent);
+  }
+  calcBeskæftigelsesprocent();
+
   // ---- Ferietillæg toggle: show/hide percent input ----
   var ferietillaegToggle = formEl.querySelector('[data-ferietillaeg-toggle]');
   var ferietillaegFields = formEl.querySelector('[data-ferietillaeg-fields]');
@@ -259,6 +296,52 @@ function initWorkplaceForm(formEl) {
   if (ferietillaegToggle) {
     ferietillaegToggle.addEventListener('change', toggleFerietillaeg);
     toggleFerietillaeg();
+  }
+
+  // ---- Ferietillæg payout month pill buttons ----
+  var ftPayoutHidden = formEl.querySelector('[data-ft-payout-hidden]');
+  var ftMonthBtns = formEl.querySelectorAll('[data-ft-month]');
+  function syncPayoutMonths() {
+    var selected = [];
+    ftMonthBtns.forEach(function(btn) {
+      if (btn.dataset.ftSelected === '1') {
+        selected.push(btn.dataset.ftMonth);
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-primary');
+      } else {
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-outline-secondary');
+      }
+    });
+    if (ftPayoutHidden) ftPayoutHidden.value = selected.join(',');
+  }
+  // Initialise selected state from hidden field
+  if (ftPayoutHidden && ftPayoutHidden.value) {
+    var initMonths = ftPayoutHidden.value.split(',');
+    ftMonthBtns.forEach(function(btn) {
+      if (initMonths.indexOf(btn.dataset.ftMonth) !== -1) {
+        btn.dataset.ftSelected = '1';
+      }
+    });
+    syncPayoutMonths();
+  }
+  ftMonthBtns.forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      btn.dataset.ftSelected = btn.dataset.ftSelected === '1' ? '0' : '1';
+      syncPayoutMonths();
+    });
+  });
+
+  // ---- Fritvalgskonto toggle: show/hide percent input ----
+  var fritvalgskontoToggle = formEl.querySelector('[data-fritvalgskonto-toggle]');
+  var fritvalgskontoFields = formEl.querySelector('[data-fritvalgskonto-fields]');
+  function toggleFritvalgskonto() {
+    if (!fritvalgskontoToggle || !fritvalgskontoFields) return;
+    fritvalgskontoFields.style.display = fritvalgskontoToggle.checked ? '' : 'none';
+  }
+  if (fritvalgskontoToggle) {
+    fritvalgskontoToggle.addEventListener('change', toggleFritvalgskonto);
+    toggleFritvalgskonto();
   }
 
   // ---- Vacation type: show/hide feriekonto note ----

@@ -1,7 +1,5 @@
 - Over time, average hours should be calculated (trailing 3-6 months? and should be used in expected pay calculations) -- This metric should be visible
 
-- There needs to be a back-button on the payslip editor.
-
 - There should be an input for expected contract end (if known). This should be taken into account in the expected pay calculations.
 
 A page that lets me configure studieaktivitet for each month in the year, and then it calculates and shows the limit for how much I can earn, and then sums up all my earnings for month basis and the year. It should have a progression bar that shows how close I am to the limit. It should also show the expected earnings for the rest of the year based on my current average, and how that affects the limit.

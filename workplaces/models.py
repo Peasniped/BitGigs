@@ -108,6 +108,15 @@ class Workplace(models.Model):
         choices=TaxCardType.choices,
         default=TaxCardType.HOVEDKORT,
     )
+    tax_pull_day = models.IntegerField(
+        default=18,
+        validators=[MinValueValidator(1), MaxValueValidator(28)],
+        help_text=(
+            "Day of the month when the employer pulls your tax card from SKAT. "
+            "Tax profile changes after this day take effect next month. "
+            "Typically between the 15th and 20th."
+        ),
+    )
 
     # Vacation
     vacation_type = models.CharField(
@@ -128,6 +137,10 @@ class Workplace(models.Model):
         decimal_places=2,
         default=0,
         help_text="Employer's pension contribution (%).",
+    )
+    fritvalgskonto_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable fritvalgskonto (flexible account).",
     )
     fritvalgskonto_percent = models.DecimalField(
         max_digits=5,
@@ -152,6 +165,12 @@ class Workplace(models.Model):
         decimal_places=2,
         default=Decimal("1.00"),
         help_text="Ferietillæg as % of yearly gross, typically ~1%.",
+    )
+    ferietillaeg_payout_months = models.CharField(
+        max_length=50,
+        default="5,8",
+        blank=True,
+        help_text="Comma-separated month numbers for payout (e.g. '5,8' for May & August).",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -212,7 +231,7 @@ class Workplace(models.Model):
         factor = (
             Decimal("1")
             + (self.ferietillaeg_percent / Decimal("100") if self.ferietillaeg_enabled else Decimal("0"))
-            + self.fritvalgskonto_percent / Decimal("100")
+            + (self.fritvalgskonto_percent / Decimal("100") if self.fritvalgskonto_enabled else Decimal("0"))
             - self.pension_employee_percent / Decimal("100")
         )
         return (self.hourly_rate * factor).quantize(Decimal("0.01"))
@@ -228,6 +247,33 @@ class Workplace(models.Model):
             return None
         employer = (self.hourly_rate * self.pension_employer_percent / Decimal("100")).quantize(Decimal("0.01"))
         return eff + employer
+
+    @property
+    def beskæftigelsesprocent(self):
+        """Employment percentage for salaried workers: weekly_hours / 37 * 100.
+        
+        Returns None if weekly_hours_fixed is not set or is None.
+        """
+        if self.weekly_hours_fixed is None:
+            return None
+        return (self.weekly_hours_fixed / Decimal("37") * Decimal("100")).quantize(Decimal("0.1"))
+
+    @property
+    def ferietillaeg_payout_month_list(self):
+        """Return list of month numbers when ferietillæg is paid out."""
+        if not self.ferietillaeg_payout_months:
+            return []
+        return [
+            int(m.strip())
+            for m in self.ferietillaeg_payout_months.split(",")
+            if m.strip().isdigit() and 1 <= int(m.strip()) <= 12
+        ]
+
+    @property
+    def ferietillaeg_payout_month_names(self):
+        """Return human-readable month names for payout months."""
+        import calendar as _cal
+        return [_cal.month_name[m] for m in self.ferietillaeg_payout_month_list]
 
     @property
     def vacation_days_per_month(self):

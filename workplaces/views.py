@@ -53,6 +53,12 @@ def _tax_profile_json():
     return ""
 
 
+# Month choices for ferietillæg payout picker (value matches what the
+# comma-separated CharField stores, label is the abbreviation).
+import calendar as _cal_mod
+MONTH_CHOICES = [(str(i), _cal_mod.month_abbr[i]) for i in range(1, 13)]
+
+
 def _avatar_for_name(name: str) -> tuple[str, str]:
     """Return (initials, hex_color) for a workplace name."""
     AVATAR_COLORS = [
@@ -105,7 +111,8 @@ class WorkplaceDetailView(View):
             date__lte=period_end,
         )
         actual_hours = sum((s.net_hours for s in sessions_in_period), Decimal("0"))
-        estimate = SalaryEstimateService.estimate(workplace, actual_hours, as_of=period_start)
+        tax_pull_date = PayrollPeriodService.get_tax_pull_date(workplace, year, month)
+        estimate = SalaryEstimateService.estimate(workplace, actual_hours, as_of=tax_pull_date)
 
         # Pension & fritvalgskonto from estimate
         pension_employee = estimate.employee_pension
@@ -209,6 +216,7 @@ class WorkplaceCreateView(View):
         form = WorkplaceForm()
         return render(request, "workplaces/workplace_form.html", {
             "form": form, "tax_profile_json": _tax_profile_json(),
+            "month_choices": MONTH_CHOICES,
         })
 
     def post(self, request):
@@ -218,6 +226,7 @@ class WorkplaceCreateView(View):
             return redirect("workplaces:workplace-list")
         return render(request, "workplaces/workplace_form.html", {
             "form": form, "tax_profile_json": _tax_profile_json(),
+            "month_choices": MONTH_CHOICES,
         })
 
 
@@ -228,7 +237,8 @@ class WorkplaceUpdateView(View):
         return render(
             request,
             "workplaces/workplace_form.html",
-            {"form": form, "workplace": workplace, "tax_profile_json": _tax_profile_json()},
+            {"form": form, "workplace": workplace, "tax_profile_json": _tax_profile_json(),
+             "month_choices": MONTH_CHOICES},
         )
 
     def post(self, request, pk):
@@ -240,7 +250,8 @@ class WorkplaceUpdateView(View):
         return render(
             request,
             "workplaces/workplace_form.html",
-            {"form": form, "workplace": workplace, "tax_profile_json": _tax_profile_json()},
+            {"form": form, "workplace": workplace, "tax_profile_json": _tax_profile_json(),
+             "month_choices": MONTH_CHOICES},
         )
 
 

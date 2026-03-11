@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load dk_filters %}
 {% block title %}Payroll Period {{ period.start_date }} — BitGigs{% endblock %}
 
 {% block content %}
@@ -31,10 +32,10 @@
     <div class="card h-100">
       <div class="card-header">Session Summary</div>
       <div class="card-body py-2" style="font-size:0.875rem;">
-        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Total hours</span><span class="fw-semibold">{{ summary.total_hours|floatformat:2 }}h</span></div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Total hours</span><span class="fw-semibold">{{ summary.total_hours|dk }}h</span></div>
         <div class="d-flex justify-content-between mb-1"><span class="text-muted">Working days</span><span>{{ summary.working_days }}</span></div>
-        <div class="d-flex justify-content-between mb-1"><span class="text-muted">On-site</span><span>{{ summary.on_site_hours|floatformat:1 }}h</span></div>
-        <div class="d-flex justify-content-between"><span class="text-muted">Remote</span><span>{{ summary.remote_hours|floatformat:1 }}h</span></div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">On-site</span><span>{{ summary.on_site_hours|dk:1 }}h</span></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">Remote</span><span>{{ summary.remote_hours|dk:1 }}h</span></div>
       </div>
     </div>
   </div>
@@ -44,12 +45,12 @@
     <div class="card h-100">
       <div class="card-header">Salary Estimate</div>
       <div class="card-body py-2" style="font-size:0.875rem;">
-        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Gross</span><span class="fw-semibold">{{ estimate.gross_pay|floatformat:2 }} DKK</span></div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Gross</span><span class="fw-semibold">{{ estimate.gross_pay|dk }} DKK</span></div>
         {% if estimate.tax_breakdown %}
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">AM-bidrag</span><span>{{ estimate.tax_breakdown.am_bidrag|floatformat:2 }} DKK</span></div>
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">A-skat</span><span>{{ estimate.tax_breakdown.a_skat|floatformat:2 }} DKK</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">AM-bidrag</span><span>{{ estimate.tax_breakdown.am_bidrag|dk }} DKK</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">A-skat</span><span>{{ estimate.tax_breakdown.a_skat|dk }} DKK</span></div>
           <hr class="my-1">
-          <div class="d-flex justify-content-between"><span class="text-muted">Net (est.)</span><span class="fw-semibold" style="color:#6366f1;">{{ estimate.tax_breakdown.net_pay|floatformat:2 }} DKK</span></div>
+          <div class="d-flex justify-content-between"><span class="text-muted">Net (est.)</span><span class="fw-semibold" style="color:#6366f1;">{{ estimate.tax_breakdown.net_pay|dk }} DKK</span></div>
         {% endif %}
       </div>
     </div>
@@ -61,15 +62,15 @@
     <div class="card h-100">
       <div class="card-header">Flex Time</div>
       <div class="card-body py-2" style="font-size:0.875rem;">
-        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Expected</span><span>{{ flex.expected_hours|floatformat:2 }}h</span></div>
-        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Actual</span><span>{{ flex.actual_hours|floatformat:2 }}h</span></div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Expected</span><span>{{ flex.expected_hours|dk }}h</span></div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Actual</span><span>{{ flex.actual_hours|dk }}h</span></div>
         <div class="d-flex justify-content-between mb-1">
           <span class="text-muted">This period</span>
-          <span class="{% if flex.flex_this_period >= 0 %}text-success{% else %}text-danger{% endif %}">{{ flex.flex_this_period|floatformat:2 }}h</span>
+          <span class="{% if flex.flex_this_period >= 0 %}text-success{% else %}text-danger{% endif %}">{{ flex.flex_this_period|dk }}h</span>
         </div>
         <div class="d-flex justify-content-between">
           <span class="text-muted">Total flex</span>
-          <span class="fw-semibold {% if flex.flex_total >= 0 %}text-success{% else %}text-danger{% endif %}">{{ flex.flex_total|floatformat:2 }}h</span>
+          <span class="fw-semibold {% if flex.flex_total >= 0 %}text-success{% else %}text-danger{% endif %}">{{ flex.flex_total|dk }}h</span>
         </div>
       </div>
     </div>
@@ -81,16 +82,45 @@
 <div class="card mb-4">
   <div class="card-header d-flex justify-content-between align-items-center">
     <span>Payslip Lines</span>
+    <div class="d-flex align-items-center gap-2">
+      {# Tax pull day inline setting #}
+      <span class="text-muted small me-2" data-tax-pull-display>
+        Tax card pull: <strong>{{ period.workplace.tax_pull_day }}th</strong>
+        <button class="btn btn-link btn-sm p-0 ms-1 text-muted" type="button"
+                data-tax-pull-edit-btn title="Change tax pull day">
+          <i class="bi bi-pencil" style="font-size:0.7rem;"></i>
+        </button>
+      </span>
+      <span data-tax-pull-editor style="display:none;" class="d-flex align-items-center gap-1">
+        <input type="number" min="1" max="28" value="{{ period.workplace.tax_pull_day }}"
+               class="form-control form-control-sm" style="width:60px;" data-tax-pull-input>
+        <button class="btn btn-sm btn-outline-primary py-0 px-1" type="button" data-tax-pull-save>
+          <i class="bi bi-check-lg"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-secondary py-0 px-1" type="button" data-tax-pull-cancel>
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </span>
+      {# Running totals toggle #}
+      <button class="btn btn-outline-secondary btn-sm" type="button" data-toggle-running-totals
+              title="Toggle running totals">
+        <i class="bi bi-calculator me-1"></i>Σ
+      </button>
+    </div>
   </div>
   <div class="card-body p-0">
     <table class="table table-sm mb-0" id="payslip-lines"
-           data-reorder-url="{% url 'payroll:payslip-reorder' period.pk %}">
+           data-reorder-url="{% url 'payroll:payslip-reorder' period.pk %}"
+           data-tax-pull-url="{% url 'payroll:tax-pull-day-update' period.pk %}">
       <thead>
         <tr>
           <th style="width:30px"></th>
-          <th>Name</th>
+          <th>Budget item</th>
+          <th class="text-end" style="width:110px">Basis</th>
+          <th class="text-end" style="width:100px">Rate</th>
           <th class="text-end" style="width:120px">Amount</th>
-          <th style="width:70px"></th>
+          <th class="text-end running-total-col" style="width:100px;display:none;">Running</th>
+          <th style="width:50px"></th>
         </tr>
       </thead>
       <tbody>
@@ -106,32 +136,59 @@
               <i class="bi bi-lock-fill text-muted" style="font-size:0.65rem;" title="Auto-calculated"></i>
             {% endif %}
           </td>
-          <td class="text-end">
-            {% if line.line_type == 'pre_tax_deduct' or line.line_type == 'post_tax_deduct' %}
-              <span class="text-danger">−{{ line.amount|floatformat:2 }}</span>
-            {% elif line.standard_line_key == 'fradrag_used' %}
-              <span class="text-muted">({{ line.amount|floatformat:2 }})</span>
-            {% elif line.standard_line_key == 'net_pay' %}
-              <span style="color:#16a34a;">{{ line.amount|floatformat:2 }} DKK</span>
-            {% else %}
-              {{ line.amount|floatformat:2 }}
+          <td class="text-end text-muted">
+            {% if line.quantity != None %}{{ line.quantity|dk }}{% endif %}
+          </td>
+          <td class="text-end text-muted">
+            {% if line.rate != None %}
+              {% if line.standard_line_key == 'pension_employee' or line.standard_line_key == 'am_bidrag' or line.standard_line_key == 'a_skat' or line.standard_line_key == 'ferietillaeg' or line.standard_line_key == 'fritvalgskonto' %}
+                {{ line.rate|dk }}%
+              {% elif line.line_type == 'pre_tax_deduct' or line.line_type == 'post_tax_deduct' %}
+                −{{ line.rate|dk }}
+              {% else %}
+                {{ line.rate|dk }}
+              {% endif %}
             {% endif %}
           </td>
           <td class="text-end">
+            {% if line.line_type == 'pre_tax_deduct' or line.line_type == 'post_tax_deduct' %}
+              <span class="text-danger">−{{ line.amount|dk }}</span>
+            {% elif line.standard_line_key == 'fradrag_used' %}
+              <span class="text-muted">({{ line.amount|dk }})</span>
+            {% elif line.standard_line_key == 'net_pay' %}
+              <span style="color:#16a34a;">{{ line.amount|dk }} DKK</span>
+            {% else %}
+              {{ line.amount|dk }}
+            {% endif %}
+          </td>
+          <td class="text-end running-total-col text-muted small" style="display:none;">
+            {{ line.running_subtotal|dk }}
+          </td>
+          <td class="text-end">
             {% if not line.standard_line_key and not period.is_locked %}
-              <form method="post" action="{% url 'payroll:payslip-delete-line' period.pk line.line_id %}" class="d-inline">
-                {% csrf_token %}
-                <button class="btn btn-sm btn-outline-danger py-0 px-1" type="submit" title="Remove"
-                        onclick="return confirm('Remove this line?')">
-                  <i class="bi bi-x-lg" style="font-size:0.7rem;"></i>
+              <div class="d-flex gap-1 justify-content-end">
+                <button class="btn btn-sm btn-outline-secondary py-0 px-1 edit-line-btn" type="button" title="Edit"
+                        data-line-id="{{ line.line_id }}"
+                        data-line-name="{{ line.name }}"
+                        data-line-qty="{{ line.quantity|dk }}"
+                        data-line-rate="{{ line.rate|dk }}"
+                        data-line-type="{% if line.line_type == 'pre_tax_add' or line.line_type == 'post_tax_add' %}add{% else %}deduct{% endif %}">
+                  <i class="bi bi-pencil" style="font-size:0.7rem;"></i>
                 </button>
-              </form>
+                <form method="post" action="{% url 'payroll:payslip-delete-line' period.pk line.line_id %}" class="d-inline">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger py-0 px-1" type="submit" title="Remove"
+                          onclick="return confirm('Remove this line?')">
+                    <i class="bi bi-x-lg" style="font-size:0.7rem;"></i>
+                  </button>
+                </form>
+              </div>
             {% endif %}
           </td>
         </tr>
         {% empty %}
         <tr>
-          <td colspan="4" class="text-center text-muted py-3">
+          <td colspan="7" class="text-center text-muted py-3">
             No payslip lines yet. Click "Recalculate" to generate standard lines.
           </td>
         </tr>
@@ -141,37 +198,45 @@
   </div>
 </div>
 
-<!-- Add custom line -->
+<!-- Add / Edit custom line -->
 {% if not period.is_locked %}
-<div class="card mb-4">
-  <div class="card-header">
-    <i class="bi bi-plus-circle me-1"></i>Add custom line
+<div class="card mb-4" id="custom-line-card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span id="custom-line-card-title">
+      <i class="bi bi-plus-circle me-1"></i>Add custom line
+    </span>
+    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="cancel-edit-btn" style="display:none;">
+      <i class="bi bi-x-lg me-1"></i>Cancel edit
+    </button>
   </div>
   <div class="card-body">
-    <form method="post" action="{% url 'payroll:payslip-add-line' period.pk %}" class="row g-2 align-items-end">
+    <form method="post" id="custom-line-form"
+          action="{% url 'payroll:payslip-add-line' period.pk %}"
+          data-add-url="{% url 'payroll:payslip-add-line' period.pk %}"
+          class="row g-2 align-items-end">
       {% csrf_token %}
-      <div class="col-12 col-md-4">
+      <div class="col-12 col-md-3">
         <label class="form-label small">Name</label>
-        <input type="text" name="name" class="form-control form-control-sm" required placeholder="e.g. Lunch deduction">
+        <input type="text" name="name" id="cl-name" class="form-control form-control-sm" required placeholder="e.g. Lunch deduction">
       </div>
       <div class="col-6 col-md-2">
-        <label class="form-label small">Amount (DKK)</label>
-        <input type="text" name="amount" class="form-control form-control-sm" required placeholder="0,00">
+        <label class="form-label small">Basis</label>
+        <input type="text" name="quantity" id="cl-quantity" class="form-control form-control-sm" placeholder="1" value="1">
       </div>
-      <div class="col-6 col-md-3">
-        <label class="form-label small">Type</label>
-        <select name="line_type" class="form-select form-select-sm">
-          <option value="pre_tax_deduct">Pre-tax deduction</option>
-          <option value="pre_tax_add">Pre-tax addition</option>
-          <option value="post_tax_deduct">Post-tax deduction</option>
-          <option value="post_tax_add">Post-tax addition</option>
-          <option value="info">Informational</option>
-        </select>
+      <div class="col-6 col-md-2">
+        <label class="form-label small">Rate (DKK)</label>
+        <input type="text" name="rate" id="cl-rate" class="form-control form-control-sm" required placeholder="0,00">
       </div>
-      <div class="col-12 col-md-3">
-        <button type="submit" class="btn btn-primary btn-sm w-100">
-          <i class="bi bi-plus-lg me-1"></i>Add line
-        </button>
+      <div class="col-6 col-md-2 d-flex align-items-end">
+        <div class="btn-group btn-group-sm w-100" role="group">
+          <input type="radio" class="btn-check" name="line_type" value="add" id="new_type_add" checked>
+          <label class="btn btn-outline-success" for="new_type_add"><i class="bi bi-plus-lg me-1"></i>Add</label>
+          <input type="radio" class="btn-check" name="line_type" value="deduct" id="new_type_deduct">
+          <label class="btn btn-outline-danger" for="new_type_deduct"><i class="bi bi-dash-lg me-1"></i>Deduct</label>
+        </div>
+      </div>
+      <div class="col-6 col-md-1 d-flex align-items-end">
+        <button type="submit" id="cl-submit" class="btn btn-primary btn-sm w-100">Apply</button>
       </div>
     </form>
   </div>
@@ -181,13 +246,63 @@
 
 {% block extra_js %}
 <script>
-// Payslip line drag-and-drop reorder (only custom lines have drag handles)
 (function() {
   var table = document.getElementById('payslip-lines');
   if (!table) return;
   var tbody = table.querySelector('tbody');
   if (!tbody) return;
 
+  // ---- Edit custom line via the add-form card ----
+  var card = document.getElementById('custom-line-card');
+  var form = document.getElementById('custom-line-form');
+  var cardTitle = document.getElementById('custom-line-card-title');
+  var cancelBtn2 = document.getElementById('cancel-edit-btn');
+  var nameInput = document.getElementById('cl-name');
+  var qtyInput = document.getElementById('cl-quantity');
+  var rateInput = document.getElementById('cl-rate');
+  var submitBtn = document.getElementById('cl-submit');
+  var addUrl = form ? form.dataset.addUrl : '';
+  var editingLineId = null;
+
+  function enterEditMode(btn) {
+    editingLineId = btn.dataset.lineId;
+    nameInput.value = btn.dataset.lineName;
+    qtyInput.value = btn.dataset.lineQty;
+    rateInput.value = btn.dataset.lineRate;
+    var isAdd = btn.dataset.lineType === 'add';
+    document.getElementById('new_type_add').checked = isAdd;
+    document.getElementById('new_type_deduct').checked = !isAdd;
+    // Update form action to edit endpoint
+    form.action = addUrl.replace('/add-line/', '/edit-line/' + editingLineId + '/');
+    cardTitle.innerHTML = '<i class="bi bi-pencil me-1"></i>Editing: ' + btn.dataset.lineName;
+    submitBtn.textContent = 'Save';
+    card.style.backgroundColor = '#fff8e1';
+    cancelBtn2.style.display = '';
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    nameInput.focus();
+  }
+
+  function exitEditMode() {
+    editingLineId = null;
+    nameInput.value = '';
+    qtyInput.value = '1';
+    rateInput.value = '';
+    document.getElementById('new_type_add').checked = true;
+    document.getElementById('new_type_deduct').checked = false;
+    form.action = addUrl;
+    cardTitle.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add custom line';
+    submitBtn.textContent = 'Apply';
+    card.style.backgroundColor = '';
+    cancelBtn2.style.display = 'none';
+  }
+
+  if (cancelBtn2) cancelBtn2.addEventListener('click', exitEditMode);
+
+  document.querySelectorAll('.edit-line-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() { enterEditMode(this); });
+  });
+
+  // ---- Drag-and-drop reorder (only custom lines have drag handles) ----
   var dragEl = null;
   tbody.querySelectorAll('tr').forEach(function(row) {
     var handle = row.querySelector('.drag-handle');
@@ -224,6 +339,64 @@
       }
     });
   });
+
+  // ---- Running totals toggle ----
+  var toggleBtn = document.querySelector('[data-toggle-running-totals]');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', function() {
+      var cols = document.querySelectorAll('.running-total-col');
+      var show = cols.length && cols[0].style.display === 'none';
+      cols.forEach(function(c) { c.style.display = show ? '' : 'none'; });
+      toggleBtn.classList.toggle('btn-outline-secondary', !show);
+      toggleBtn.classList.toggle('btn-primary', show);
+    });
+  }
+
+  // ---- Tax pull day inline editor ----
+  var display = document.querySelector('[data-tax-pull-display]');
+  var editor = document.querySelector('[data-tax-pull-editor]');
+  var editBtn = document.querySelector('[data-tax-pull-edit-btn]');
+  var input = document.querySelector('[data-tax-pull-input]');
+  var saveBtn = document.querySelector('[data-tax-pull-save]');
+  var cancelBtn = document.querySelector('[data-tax-pull-cancel]');
+  var pullUrl = table.dataset.taxPullUrl;
+
+  function showEditor() { display.style.display = 'none'; editor.style.display = ''; input.focus(); }
+  function hideEditor() { editor.style.display = 'none'; display.style.display = ''; }
+
+  if (editBtn) editBtn.addEventListener('click', showEditor);
+  if (cancelBtn) cancelBtn.addEventListener('click', hideEditor);
+  if (saveBtn && pullUrl) {
+    saveBtn.addEventListener('click', function() {
+      var day = parseInt(input.value, 10);
+      if (isNaN(day) || day < 1 || day > 28) return;
+      var cookie = document.cookie.split(';').find(function(c) { return c.trim().startsWith('csrftoken='); });
+      var token = cookie ? cookie.split('=')[1] : '';
+      fetch(pullUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': token },
+        body: JSON.stringify({ tax_pull_day: day }),
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.status === 'ok') {
+          var suffix = 'th';
+          if (day === 1 || day === 21) suffix = 'st';
+          else if (day === 2 || day === 22) suffix = 'nd';
+          else if (day === 3 || day === 23) suffix = 'rd';
+          display.innerHTML = 'Tax card pull: <strong>' + day + suffix + '</strong> '
+            + '<button class="btn btn-link btn-sm p-0 ms-1 text-muted" type="button" data-tax-pull-edit-btn title="Change tax pull day">'
+            + '<i class="bi bi-pencil" style="font-size:0.7rem;"></i></button>';
+          display.querySelector('[data-tax-pull-edit-btn]').addEventListener('click', showEditor);
+          hideEditor();
+        }
+      });
+    });
+  }
+  if (input) {
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
+      if (e.key === 'Escape') { hideEditor(); }
+    });
+  }
 })();
 </script>
 {% endblock %}

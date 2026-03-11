@@ -51,12 +51,16 @@ class ATPService:
     def get_active_config(as_of: date | None = None) -> ATPConfiguration | None:
         if as_of is None:
             as_of = date.today()
-        return (
+        config = (
             ATPConfiguration.objects
             .filter(effective_from__lte=as_of)
             .order_by("-effective_from")
             .first()
         )
+        if config is None:
+            # Fall back to the earliest available configuration
+            config = ATPConfiguration.objects.order_by("effective_from").first()
+        return config
 
     @classmethod
     def get_contributions(
@@ -84,14 +88,22 @@ class TaxCalculationService:
 
     @staticmethod
     def get_active_profile(as_of: date | None = None) -> TaxProfile | None:
-        """Return the tax profile effective on a given date."""
+        """Return the tax profile effective on a given date.
+
+        Falls back to the closest available profile if none is effective
+        on the requested date (e.g. profile created after the period start).
+        """
         if as_of is None:
             as_of = date.today()
-        return (
+        profile = (
             TaxProfile.objects.filter(effective_from__lte=as_of)
             .order_by("-effective_from")
             .first()
         )
+        if profile is None:
+            # Fall back to the earliest available profile
+            profile = TaxProfile.objects.order_by("effective_from").first()
+        return profile
 
     @classmethod
     def calculate(

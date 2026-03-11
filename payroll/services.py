@@ -58,6 +58,24 @@ class PayrollPeriodService:
 
         return start_date, end_date
 
+    @staticmethod
+    def get_tax_pull_date(workplace: Workplace, year: int, month: int) -> date:
+        """
+        Return the tax card pull date for a payroll period month.
+
+        Employers typically pull the employee's tax card from SKAT on a
+        specific day each month (default: the 15th).  Tax profile changes
+        made *before* this date are included; changes made *after* are not
+        effective until the following month.
+
+        The pull date is ``tax_pull_day`` of the month that the payroll
+        period corresponds to (clamped to the last day of that month).
+        """
+        import calendar as _cal
+        pull_day = workplace.tax_pull_day
+        last_day = _cal.monthrange(year, month)[1]
+        return date(year, month, min(pull_day, last_day))
+
     @classmethod
     def get_or_create_period(cls, workplace: Workplace, year: int, month: int):
         """Get or create the PayrollPeriod object for a workplace and month."""
@@ -71,6 +89,7 @@ class PayrollPeriodService:
         )
         if created:
             cls._populate_template_lines(period)
+            cls._carry_forward_custom_lines(period)
         return period, created
 
     @staticmethod
@@ -96,6 +115,42 @@ class PayrollPeriodService:
                 )
             )
         PayslipLine.objects.bulk_create(lines)
+
+
+    @staticmethod
+    def _carry_forward_custom_lines(period):
+        """Copy custom lines from the most recent previous period."""
+        from .models import PayslipLine, PayrollPeriod
+
+        prev_period = (
+            PayrollPeriod.objects
+            .filter(
+                workplace=period.workplace,
+                start_date__lt=period.start_date,
+            )
+            .order_by("-start_date")
+            .first()
+        )
+        if not prev_period:
+            return
+
+        custom_lines = PayslipLine.objects.filter(
+            payroll_period=prev_period,
+            standard_line_key__isnull=True,
+        ).order_by("sort_order")
+
+        for cl in custom_lines:
+            PayslipLine.objects.create(
+                payroll_period=period,
+                name=cl.name,
+                quantity=cl.quantity,
+                rate=cl.rate,
+                amount=cl.amount,
+                line_type=cl.line_type,
+                rounding_method=cl.rounding_method,
+                is_editable=True,
+                sort_order=cl.sort_order,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -130,8 +185,8 @@ class SalaryEstimateService:
         as_of: date | None = None,
     ) -> SalaryEstimate:
         if workplace.employment_type == Workplace.EmploymentType.HOURLY:
-            effective_rate = workplace.effective_hourly_rate or workplace.hourly_rate
-            gross = (total_hours * effective_rate).quantize(
+            base_rate = workplace.hourly_rate
+            gross = (total_hours * base_rate).quantize(
                 TWO_PLACES, ROUND_HALF_UP
             )
         else:
@@ -148,8 +203,14 @@ class SalaryEstimateService:
         ).quantize(TWO_PLACES, ROUND_HALF_UP)
 
         # ATP contributions based on monthly hours
+        # Salaried: use expected monthly hours (not actual logged hours)
+        if workplace.employment_type == Workplace.EmploymentType.SALARIED:
+            weekly = workplace.expected_weekly_hours or Decimal("37")
+            atp_hours = (weekly * Decimal("52") / Decimal("12")).quantize(TWO_PLACES)
+        else:
+            atp_hours = total_hours
         employee_atp, employer_atp = ATPService.get_contributions(
-            total_hours, as_of=as_of
+            atp_hours, as_of=as_of
         )
 
         tax_breakdown = TaxCalculationService.calculate(
@@ -289,6 +350,7 @@ class PayslipService:
 
     STANDARD_LINE_ORDER = [
         "gross_pay",
+        "fritvalgskonto",
         "ferietillaeg",
         "pension_employee",
         "atp_employee",
@@ -317,86 +379,314 @@ class PayslipService:
         )
         total_hours = sum((s.net_hours for s in sessions), Decimal("0"))
 
-        # Calculate salary estimate
-        estimate = SalaryEstimateService.estimate(
-            workplace, total_hours, as_of=period.start_date
+        # Tax pull date: the day the employer pulls the tax card from SKAT
+        tax_pull_date = PayrollPeriodService.get_tax_pull_date(
+            workplace, period.end_date.year, period.end_date.month
         )
-        tb = estimate.tax_breakdown
 
-        # Determine amounts for each standard line
+        # Calculate base salary estimate (before custom adjustments)
+        estimate = SalaryEstimateService.estimate(
+            workplace, total_hours, as_of=tax_pull_date
+        )
+
+        # Determine base amounts
         gross = estimate.gross_pay
         pension_emp = estimate.employee_pension
         atp_emp = estimate.employee_atp
 
-        am_bidrag = tb.am_bidrag if tb else Decimal("0")
-        fradrag = tb.monthly_deduction if tb else Decimal("0")
-        a_skat = tb.a_skat if tb else Decimal("0")
-        net_pay = tb.net_pay if tb else gross
+        # ── Fritvalgskonto ───────────────────────────────────────────
+        fritvalg = Decimal("0")
+        if (
+            getattr(workplace, "fritvalgskonto_enabled", False)
+            and workplace.fritvalgskonto_percent
+            and workplace.fritvalgskonto_percent > 0
+        ):
+            fritvalg = (
+                gross * workplace.fritvalgskonto_percent / Decimal("100")
+            ).quantize(TWO_PLACES)
 
-        total_tax = (am_bidrag + a_skat).quantize(TWO_PLACES)
-        subtotal = (gross - pension_emp - atp_emp - am_bidrag - a_skat).quantize(TWO_PLACES)
+        # ── Ferietillæg ─────────────────────────────────────────────
+        # Yearly gross estimate (for ferietillæg basis)
+        if workplace.employment_type == Workplace.EmploymentType.SALARIED:
+            yearly_gross_est = (workplace.monthly_salary or Decimal("0")) * 12
+        else:
+            weekly_hours = workplace.expected_weekly_hours or Decimal("37")
+            yearly_gross_est = weekly_hours * 52 * (workplace.hourly_rate or Decimal("0"))
 
-        # Ferietillæg: % of yearly gross / 12 (for monthly payslips)
+        payout_months = getattr(workplace, "ferietillaeg_payout_month_list", []) or []
+        num_payout_months = len(payout_months) or 1
+        period_month = period.end_date.month
+
         ferietillaeg = Decimal("0")
-        if getattr(workplace, 'ferietillaeg_enabled', False) and workplace.ferietillaeg_percent and workplace.ferietillaeg_percent > 0:
-            ferietillaeg = (gross * Decimal("12") * workplace.ferietillaeg_percent / Decimal("100") / Decimal("12")).quantize(TWO_PLACES)
+        ferietillaeg_name = "Ferietillæg"
+        if (
+            getattr(workplace, "ferietillaeg_enabled", False)
+            and workplace.ferietillaeg_percent
+            and workplace.ferietillaeg_percent > 0
+            and period_month in payout_months
+        ):
+            yearly_ft = (
+                yearly_gross_est * workplace.ferietillaeg_percent / Decimal("100")
+            ).quantize(TWO_PLACES)
+            ferietillaeg = (yearly_ft / num_payout_months).quantize(TWO_PLACES)
 
-        std_values = {
-            "gross_pay": {"name": "Gross pay", "amount": gross, "line_type": "pre_tax_add"},
-            "ferietillaeg": {"name": "Ferietillæg", "amount": ferietillaeg, "line_type": "info"},
-            "pension_employee": {"name": "Own pension contribution", "amount": pension_emp, "line_type": "pre_tax_deduct"},
-            "atp_employee": {"name": "ATP (employee)", "amount": atp_emp, "line_type": "pre_tax_deduct"},
-            "am_bidrag": {"name": "AM-bidrag (8%)", "amount": am_bidrag, "line_type": "pre_tax_deduct"},
-            "fradrag_used": {"name": "Benyttet fradrag", "amount": fradrag, "line_type": "info"},
-            "a_skat": {"name": "A-skat", "amount": a_skat, "line_type": "pre_tax_deduct"},
-            "total_tax": {"name": "Total taxation", "amount": total_tax, "line_type": "info"},
-            "subtotal": {"name": "Subtotal", "amount": subtotal, "line_type": "info"},
-            "net_pay": {"name": "Net pay", "amount": net_pay, "line_type": "info"},
-        }
+            # Build descriptive name with payout month list
+            import calendar as _cal
+            month_names = [_cal.month_abbr[m] for m in payout_months if 1 <= m <= 12]
+            ferietillaeg_name = f"Ferietillæg (paid out in {' & '.join(month_names)})"
 
-        # Get existing lines to preserve custom lines
+        # ── Custom line classification by position ───────────────────
+        # Query all existing lines to determine custom line positions.
+        # Lines placed before am_bidrag are pre-tax (affect AM-bidrag/A-skat).
+        # Lines placed at/after am_bidrag are post-tax (only affect net pay).
         existing_lines = list(
             PayslipLine.objects.filter(payroll_period=period).order_by("sort_order")
         )
         existing_std = {l.standard_line_key: l for l in existing_lines if l.standard_line_key}
         custom_lines = [l for l in existing_lines if not l.standard_line_key]
 
-        # Build standard lines: update existing or create new
-        sort_idx = 0
+        # Map each custom line to the standard key it sits after.
+        std_sort_positions = {
+            l.standard_line_key: l.sort_order
+            for l in existing_lines if l.standard_line_key
+        }
+        custom_positions = {}  # custom_line.pk -> after_std_key or None
+        for cl in custom_lines:
+            after_key = None
+            best_sort = -1
+            for sk, so in std_sort_positions.items():
+                if so < cl.sort_order and so > best_sort:
+                    best_sort = so
+                    after_key = sk
+            custom_positions[cl.pk] = after_key
+
+        # Auto-classify line_type based on position.
+        PRE_TAX_POSITIONS = {
+            None, "gross_pay", "fritvalgskonto", "ferietillaeg",
+            "pension_employee", "atp_employee",
+        }
+        for cl in custom_lines:
+            is_addition = cl.line_type in (
+                PayslipLine.LineType.PRE_TAX_ADD,
+                PayslipLine.LineType.POST_TAX_ADD,
+            )
+            is_pre_tax = custom_positions[cl.pk] in PRE_TAX_POSITIONS
+            if is_pre_tax:
+                want = PayslipLine.LineType.PRE_TAX_ADD if is_addition else PayslipLine.LineType.PRE_TAX_DEDUCT
+            else:
+                want = PayslipLine.LineType.POST_TAX_ADD if is_addition else PayslipLine.LineType.POST_TAX_DEDUCT
+            if cl.line_type != want:
+                cl.line_type = want
+                cl.save(update_fields=["line_type"])
+
+        # Sum pre-tax and post-tax custom adjustments.
+        custom_pre_add = sum(
+            (cl.amount or Decimal("0")) for cl in custom_lines
+            if cl.line_type == PayslipLine.LineType.PRE_TAX_ADD
+        )
+        custom_pre_deduct = sum(
+            (cl.amount or Decimal("0")) for cl in custom_lines
+            if cl.line_type == PayslipLine.LineType.PRE_TAX_DEDUCT
+        )
+        custom_post_add = sum(
+            (cl.amount or Decimal("0")) for cl in custom_lines
+            if cl.line_type == PayslipLine.LineType.POST_TAX_ADD
+        )
+        custom_post_deduct = sum(
+            (cl.amount or Decimal("0")) for cl in custom_lines
+            if cl.line_type == PayslipLine.LineType.POST_TAX_DEDUCT
+        )
+
+        # Adjusted gross includes fritvalgskonto, ferietillæg and custom pre-tax items
+        adjusted_gross = gross + fritvalg + ferietillaeg + custom_pre_add - custom_pre_deduct
+
+        # Recalculate tax on the adjusted gross
+        tb = TaxCalculationService.calculate(
+            adjusted_gross,
+            as_of=tax_pull_date,
+            tax_card_type=workplace.tax_card_type,
+            employee_pension=pension_emp,
+            employee_atp=atp_emp,
+        )
+
+        am_bidrag = tb.am_bidrag if tb else Decimal("0")
+        fradrag = tb.monthly_deduction if tb else Decimal("0")
+        a_skat = tb.a_skat if tb else Decimal("0")
+        net_pay = (tb.net_pay if tb else adjusted_gross) + custom_post_add - custom_post_deduct
+
+        total_tax = (am_bidrag + a_skat).quantize(TWO_PLACES)
+        subtotal = (adjusted_gross - pension_emp - atp_emp - am_bidrag - a_skat).quantize(TWO_PLACES)
+
+        # ── Basis / Rate for each standard line ─────────────────────
+        if workplace.employment_type == Workplace.EmploymentType.HOURLY:
+            gross_qty = total_hours
+            gross_rate = workplace.hourly_rate
+        else:
+            # Salaried: show hours worked and derived hourly rate
+            gross_qty = total_hours
+            weekly = workplace.expected_weekly_hours or Decimal("37")
+            monthly_norm = (weekly * Decimal("52") / Decimal("12")).quantize(TWO_PLACES)
+            gross_rate = ((workplace.monthly_salary or Decimal("0")) / monthly_norm).quantize(TWO_PLACES) if monthly_norm else None
+
+        # ATP hours basis (salaried: expected monthly, hourly: actual)
+        if workplace.employment_type == Workplace.EmploymentType.SALARIED:
+            weekly_h = workplace.expected_weekly_hours or Decimal("37")
+            atp_hours = (weekly_h * Decimal("52") / Decimal("12")).quantize(TWO_PLACES)
+        else:
+            atp_hours = total_hours
+
+        # Tax percentages from profile
+        am_pct = tb.am_bidrag / tb.am_basis * Decimal("100") if tb and tb.am_basis else Decimal("8")
+        combined_tax_pct = (tb.tax_percent + tb.church_tax_percent) if tb else Decimal("0")
+        taxable_income = tb.taxable_income if tb else Decimal("0")
+        am_basis = tb.am_basis if tb else gross
+
+        std_values = {
+            "gross_pay": {
+                "name": "Gross pay",
+                "quantity": gross_qty,
+                "rate": gross_rate,
+                "amount": gross,
+                "line_type": "pre_tax_add",
+            },
+            "fritvalgskonto": {
+                "name": "Fritvalgskonto",
+                "quantity": gross,
+                "rate": workplace.fritvalgskonto_percent if fritvalg else None,
+                "amount": fritvalg,
+                "line_type": "pre_tax_add",
+            },
+            "ferietillaeg": {
+                "name": ferietillaeg_name,
+                "quantity": yearly_gross_est.quantize(TWO_PLACES) if ferietillaeg else None,
+                "rate": workplace.ferietillaeg_percent if ferietillaeg else None,
+                "amount": ferietillaeg,
+                "line_type": "pre_tax_add",
+            },
+            "pension_employee": {
+                "name": "Own pension contribution",
+                "quantity": gross,
+                "rate": workplace.pension_employee_percent,
+                "amount": pension_emp,
+                "line_type": "pre_tax_deduct",
+            },
+            "atp_employee": {
+                "name": "ATP (employee)",
+                "quantity": atp_hours,
+                "rate": None,
+                "amount": atp_emp,
+                "line_type": "pre_tax_deduct",
+            },
+            "am_bidrag": {
+                "name": "AM-bidrag",
+                "quantity": am_basis.quantize(TWO_PLACES),
+                "rate": am_pct.quantize(TWO_PLACES),
+                "amount": am_bidrag,
+                "line_type": "pre_tax_deduct",
+            },
+            "fradrag_used": {
+                "name": "Benyttet fradrag",
+                "quantity": None,
+                "rate": None,
+                "amount": fradrag,
+                "line_type": "info",
+            },
+            "a_skat": {
+                "name": "A-skat",
+                "quantity": taxable_income.quantize(TWO_PLACES),
+                "rate": combined_tax_pct.quantize(TWO_PLACES),
+                "amount": a_skat,
+                "line_type": "pre_tax_deduct",
+            },
+            "total_tax": {
+                "name": "Total taxation",
+                "quantity": None,
+                "rate": None,
+                "amount": total_tax,
+                "line_type": "info",
+            },
+            "subtotal": {
+                "name": "Subtotal",
+                "quantity": None,
+                "rate": None,
+                "amount": subtotal,
+                "line_type": "info",
+            },
+            "net_pay": {
+                "name": "Net pay",
+                "quantity": None,
+                "rate": None,
+                "amount": net_pay,
+                "line_type": "info",
+            },
+        }
+
+        # Build/update standard lines first (in canonical order)
+        active_std_keys = []
         for key in cls.STANDARD_LINE_ORDER:
             vals = std_values[key]
-            # Skip ferietillæg if zero
-            if key == "ferietillaeg" and ferietillaeg == 0:
-                # If it existed before, delete it
+            # Skip fritvalgskonto / ferietillæg if zero
+            if key == "fritvalgskonto" and fritvalg == 0:
                 if key in existing_std:
                     existing_std[key].delete()
                 continue
+            if key == "ferietillaeg" and ferietillaeg == 0:
+                if key in existing_std:
+                    existing_std[key].delete()
+                continue
+            active_std_keys.append(key)
 
             if key in existing_std:
                 line = existing_std[key]
                 line.name = vals["name"]
+                line.quantity = vals["quantity"]
+                line.rate = vals["rate"]
                 line.amount = vals["amount"]
                 line.line_type = vals["line_type"]
                 line.is_editable = False
-                line.sort_order = sort_idx
-                line.save()
+                line.save(update_fields=["name", "quantity", "rate", "amount", "line_type", "is_editable"])
             else:
                 PayslipLine.objects.create(
                     payroll_period=period,
                     name=vals["name"],
+                    quantity=vals["quantity"],
+                    rate=vals["rate"],
                     amount=vals["amount"],
                     line_type=vals["line_type"],
                     standard_line_key=key,
                     is_editable=False,
-                    sort_order=sort_idx,
+                    sort_order=0,
                 )
+
+        # Interleave custom lines at their saved positions.
+        # Group custom lines by the standard key they follow.
+        from collections import defaultdict as _dd
+        customs_after = _dd(list)
+        for cl in custom_lines:
+            customs_after[custom_positions[cl.pk]].append(cl)
+
+        sort_idx = 0
+        # First emit any custom lines that precede all standard lines
+        for cl in customs_after.get(None, []):
+            cl.sort_order = sort_idx
+            cl.save(update_fields=["sort_order"])
             sort_idx += 1
 
-        # Re-sort custom lines after standard lines (preserving their relative order)
-        for custom_line in custom_lines:
-            custom_line.sort_order = sort_idx
-            custom_line.save(update_fields=["sort_order"])
+        for key in active_std_keys:
+            # Standard line
+            if key in existing_std:
+                existing_std[key].sort_order = sort_idx
+                existing_std[key].save(update_fields=["sort_order"])
+            else:
+                PayslipLine.objects.filter(
+                    payroll_period=period, standard_line_key=key
+                ).update(sort_order=sort_idx)
             sort_idx += 1
+            # Custom lines that sit after this standard key
+            for cl in customs_after.get(key, []):
+                cl.sort_order = sort_idx
+                cl.save(update_fields=["sort_order"])
+                sort_idx += 1
 
     @staticmethod
     def build_payslip(period) -> PayslipResult:
@@ -424,8 +714,10 @@ class PayslipService:
                 running -= amount
                 pre_tax_adjustments -= amount
             elif line.line_type == PayslipLine.LineType.POST_TAX_ADD:
+                running += amount
                 post_tax_adjustments += amount
             elif line.line_type == PayslipLine.LineType.POST_TAX_DEDUCT:
+                running -= amount
                 post_tax_adjustments -= amount
             # INFORMATIONAL lines don't affect running total
 
@@ -448,9 +740,12 @@ class PayslipService:
         result.pre_tax_total = pre_tax_adjustments.quantize(TWO_PLACES)
 
         # Calculate tax on the pre-tax total (gross salary)
+        tax_pull_date = PayrollPeriodService.get_tax_pull_date(
+            period.workplace, period.end_date.year, period.end_date.month
+        )
         result.tax_breakdown = TaxCalculationService.calculate(
             max(running, Decimal("0")),
-            as_of=period.start_date,
+            as_of=tax_pull_date,
             tax_card_type=period.workplace.tax_card_type,
         )
 

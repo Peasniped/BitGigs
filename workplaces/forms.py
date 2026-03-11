@@ -41,10 +41,12 @@ class WorkplaceForm(forms.ModelForm):
             "vacation_type",
             "pension_employee_percent",
             "pension_employer_percent",
+            "fritvalgskonto_enabled",
             "fritvalgskonto_percent",
             "fritvalgskonto_payout_type",
             "ferietillaeg_enabled",
             "ferietillaeg_percent",
+            "ferietillaeg_payout_months",
         ]
 
     def __init__(self, *args, **kwargs):
