@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Payroll Periods — BitGigs{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Payroll Periods</h2>
+</div>
+
+<!-- Generate new period -->
+<div class="card mb-4">
+  <div class="card-header">Generate Period</div>
+  <div class="card-body">
+    <form method="post" action="{% url 'payroll:period-generate' %}" class="row g-2 align-items-end">
+      {% csrf_token %}
+      <div class="col-auto">
+        <label class="form-label">Workplace</label>
+        <select name="workplace" class="form-select" required>
+          {% for wp in workplaces %}
+            <option value="{{ wp.pk }}">{{ wp.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label">Year</label>
+        <input type="number" name="year" class="form-control" value="{{ current_year|default:"2026" }}">
+      </div>
+      <div class="col-auto">
+        <label class="form-label">Month</label>
+        <input type="number" name="month" class="form-control" min="1" max="12" value="{{ current_month|default:"3" }}">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Generate</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Workplace</th>
+      <th>Period</th>
+      <th>Status</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for period in periods %}
+    <tr>
+      <td>{{ period.workplace.name }}</td>
+      <td>{{ period.start_date }} → {{ period.end_date }}</td>
+      <td>
+        {% if period.is_locked %}
+          <span class="badge bg-success">Locked</span>
+        {% else %}
+          <span class="badge bg-warning text-dark">Open</span>
+        {% endif %}
+      </td>
+      <td>
+        <a href="{% url 'payroll:period-detail' period.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4" class="text-muted">No payroll periods yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

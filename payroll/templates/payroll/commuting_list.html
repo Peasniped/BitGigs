@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Commuting Days — BitGigs{% endblock %}
+
+{% block content %}
+<h2>Commuting Days</h2>
+
+<div class="card mb-4">
+  <div class="card-header">Auto-update from Sessions</div>
+  <div class="card-body">
+    <form method="post" action="{% url 'payroll:commuting-update' %}" class="row g-2 align-items-end">
+      {% csrf_token %}
+      <div class="col-auto">
+        <label class="form-label">Workplace</label>
+        <select name="workplace" class="form-select" required>
+          {% for wp in records %}
+            <option value="{{ wp.workplace.pk }}">{{ wp.workplace.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label">Year</label>
+        <input type="number" name="year" class="form-control" value="2026">
+      </div>
+      <div class="col-auto">
+        <label class="form-label">Month</label>
+        <input type="number" name="month" class="form-control" min="1" max="12">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Update</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<table class="table">
+  <thead>
+    <tr><th>Workplace</th><th>Period</th><th>Commuting Days</th></tr>
+  </thead>
+  <tbody>
+    {% for r in records %}
+    <tr>
+      <td>{{ r.workplace.name }}</td>
+      <td>{{ r.year }}-{{ r.month|stringformat:"02d" }}</td>
+      <td>{{ r.commuting_days }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="3" class="text-muted">No commuting records yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

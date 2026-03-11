@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ grid.title }} — Calendar — BitGigs{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <a href="{% url 'calendar_view:month' %}?year={{ prev_year }}&month={{ prev_month }}{% if workplace_id %}&workplace={{ workplace_id }}{% endif %}"
+     class="btn btn-outline-secondary">← Prev</a>
+  <h2>{{ grid.title }}</h2>
+  <a href="{% url 'calendar_view:month' %}?year={{ next_year }}&month={{ next_month }}{% if workplace_id %}&workplace={{ workplace_id }}{% endif %}"
+     class="btn btn-outline-secondary">Next →</a>
+</div>
+
+<!-- Workplace filter -->
+<div class="mb-3">
+  <form method="get" class="d-inline">
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    <select name="workplace" class="form-select form-select-sm d-inline-block" style="width:auto"
+            onchange="this.form.submit()">
+      <option value="">All workplaces</option>
+      {% for wp in workplaces %}
+        <option value="{{ wp.pk }}" {% if workplace_id == wp.pk %}selected{% endif %}>{{ wp.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<table class="table table-bordered calendar-table">
+  <thead>
+    <tr>
+      {% for header in grid.day_headers %}
+        <th class="text-center">{{ header }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for week in grid.weeks %}
+    <tr>
+      {% for day in week.days %}
+      <td class="{% if not day.is_in_period %}bg-light text-muted{% endif %} {% if day.is_today %}border-primary border-2{% endif %} {% if day.is_weekend %}bg-light{% endif %}"
+          style="min-width:100px; height:80px; vertical-align:top; padding:4px;">
+        <div class="d-flex justify-content-between">
+          <small>
+            <a href="{% url 'worksessions:daily-overview' day.date.year day.date.month day.date.day %}"
+               class="{% if not day.is_in_period %}text-muted{% endif %}">
+              {{ day.date.day }}
+            </a>
+          </small>
+          {% if day.total_hours %}
+            <span class="badge bg-info">{{ day.total_hours|floatformat:1 }}h</span>
+          {% endif %}
+        </div>
+        {% for session in day.sessions %}
+          <small class="d-block text-truncate"
+                 title="{{ session.workplace.name }}: {{ session.start_time|time:'H:i' }}-{{ session.end_time|time:'H:i' }}">
+            {{ session.workplace.name|truncatechars:10 }}
+          </small>
+        {% endfor %}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — BitGigs{% endblock %}
+
+{% block content %}
+<!-- ===== Pay stat counters ===== -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-card__label">Earned (Gross)</div>
+      <div class="stat-card__value">{{ total_earned_gross|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">This period so far</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-card__label">Earned (Net)</div>
+      <div class="stat-card__value">{{ total_earned_net|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">After tax</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-card__label">Expected (Gross)</div>
+      <div class="stat-card__value">{{ total_expected_gross|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">Full period</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-card__label">Expected (Net)</div>
+      <div class="stat-card__value">{{ total_expected_net|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">After tax</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Calendar ===== -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center py-3">
+    <a href="?year={{ prev_year }}&month={{ prev_month }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-chevron-left"></i>
+    </a>
+    <span class="fs-6 fw-semibold text-dark">{{ grid.title }}</span>
+    <a href="?year={{ next_year }}&month={{ next_month }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-chevron-right"></i>
+    </a>
+  </div>
+  <div class="card-body p-2">
+    {% include "calendar_view/_calendar_component.html" with grid=grid clickable=False %}
+  </div>
+</div>
+
+<!-- ===== Workplace cards ===== -->
+<div class="section-title">Your Workplaces</div>
+<div class="d-flex flex-column gap-2 mb-4">
+  {% for item in workplace_data %}
+  <a href="{% url 'workplaces:workplace-detail' item.workplace.pk %}" class="workplace-card d-flex align-items-center gap-3 py-2 px-3"
+     {% if item.workplace.accent_color %}style="border-left:4px solid {{ item.workplace.accent_color }};"{% endif %}>
+    {% if item.workplace.custom_icon %}
+      <span class="workplace-avatar" style="background:{{ item.workplace.color|default:item.avatar_color }};width:36px;height:36px;overflow:hidden;">
+        <img src="{{ item.workplace.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+      </span>
+    {% elif item.workplace.icon %}
+      <span class="workplace-avatar" style="background:{{ item.workplace.color|default:item.avatar_color }};width:36px;height:36px;font-size:1rem;">
+        <i class="bi {{ item.workplace.icon }}"{% if item.workplace.accent_color %} style="color:{{ item.workplace.accent_color }}"{% endif %}></i>
+      </span>
+    {% else %}
+      <span class="workplace-avatar" style="background:{{ item.workplace.color|default:item.avatar_color }};width:36px;height:36px;font-size:0.8rem;">{{ item.avatar_initials }}</span>
+    {% endif %}
+    <span class="workplace-card__name me-auto">{{ item.workplace.name }}</span>
+    <div class="d-flex gap-4 align-items-center" style="font-size:0.85rem;">
+      <div class="text-center">
+        <small class="text-muted d-block" style="font-size:0.7rem;">Hours</small>
+        <span class="fw-semibold">{{ item.actual_hours|floatformat:1 }}</span>
+      </div>
+      <div class="text-center">
+        <small class="text-muted d-block" style="font-size:0.7rem;">Earned</small>
+        <span class="fw-semibold">{{ item.earned_gross|floatformat:0 }} DKK</span>
+      </div>
+      <div class="text-end">
+        <small class="text-muted d-block" style="font-size:0.7rem;">
+          {% if item.workplace.employment_type == 'hourly' %}Effective rate{% else %}Monthly{% endif %}
+        </small>
+        <span class="fw-semibold">
+          {% if item.workplace.employment_type == 'hourly' %}{{ item.workplace.effective_hourly_rate|floatformat:0 }} DKK/h{% else %}{{ item.workplace.monthly_salary|floatformat:0 }} DKK{% endif %}
+        </span>
+      </div>
+    </div>
+  </a>
+  {% empty %}
+  <div class="text-center text-muted py-5">
+    <i class="bi bi-building fs-1 d-block mb-2"></i>
+    No active workplaces yet. <a href="{% url 'workplaces:workplace-create' %}">Add one</a>.
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

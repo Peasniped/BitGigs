@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Vacation Balance — BitGigs{% endblock %}
+
+{% block content %}
+<h2>Vacation Balance</h2>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Workplace</th>
+      <th>Period</th>
+      <th>Carried Over</th>
+      <th>Accrued</th>
+      <th>Used</th>
+      <th>Balance</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for b in balances %}
+    <tr>
+      <td>{{ b.workplace.name }}</td>
+      <td>{{ b.year }}-{{ b.month|stringformat:"02d" }}</td>
+      <td>{{ b.carried_over_hours|floatformat:2 }}h</td>
+      <td>{{ b.accrued_hours|floatformat:2 }}h</td>
+      <td>{{ b.used_hours|floatformat:2 }}h</td>
+      <td><strong>{{ b.balance|floatformat:2 }}h</strong></td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" class="text-muted">No vacation balances tracked.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

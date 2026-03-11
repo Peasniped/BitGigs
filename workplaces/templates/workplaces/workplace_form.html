@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}{% if workplace %}Edit{% else %}New{% endif %} Workplace — BitGigs{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-10 col-lg-8">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-building me-2"></i>{% if workplace %}Edit {{ workplace.name }}{% else %}New Workplace{% endif %}
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          {% include "workplaces/_form_fields.html" with form=form %}
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary flex-fill">
+              <i class="bi bi-check-lg me-1"></i>Save
+            </button>
+            <a href="{% if workplace %}{% url 'workplaces:workplace-detail' workplace.pk %}{% else %}{% url 'workplaces:workplace-list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

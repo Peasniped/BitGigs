@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ year }}-{{ month|stringformat:"02d" }} — Monthly Overview — BitGigs{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <a href="{% url 'worksessions:monthly-overview' prev_year prev_month %}"
+     class="btn btn-outline-secondary">← {{ prev_year }}-{{ prev_month|stringformat:"02d" }}</a>
+  <h2>{{ year }}-{{ month|stringformat:"02d" }}</h2>
+  <a href="{% url 'worksessions:monthly-overview' next_year next_month %}"
+     class="btn btn-outline-secondary">{{ next_year }}-{{ next_month|stringformat:"02d" }} →</a>
+</div>
+
+{% for summary in summaries %}
+<div class="card mb-3">
+  <div class="card-header">
+    <strong>{{ summary.workplace_name }}</strong> —
+    {{ summary.total_hours|floatformat:2 }} hours over {{ summary.working_days }} day{{ summary.working_days|pluralize }}
+  </div>
+  <div class="card-body">
+    <div class="row text-center">
+      <div class="col">
+        <div class="fw-bold">{{ summary.on_site_hours|floatformat:1 }}</div>
+        <small class="text-muted">On-site</small>
+      </div>
+      <div class="col">
+        <div class="fw-bold">{{ summary.remote_hours|floatformat:1 }}</div>
+        <small class="text-muted">Remote</small>
+      </div>
+      <div class="col">
+        <div class="fw-bold">{{ summary.sick_hours|floatformat:1 }}</div>
+        <small class="text-muted">Sick</small>
+      </div>
+      <div class="col">
+        <div class="fw-bold">{{ summary.vacation_hours|floatformat:1 }}</div>
+        <small class="text-muted">Vacation</small>
+      </div>
+      <div class="col">
+        <div class="fw-bold">{{ summary.paid_absence_hours|floatformat:1 }}</div>
+        <small class="text-muted">Paid absence</small>
+      </div>
+    </div>
+  </div>
+</div>
+{% empty %}
+<p class="text-muted">No sessions this month.</p>
+{% endfor %}
+{% endblock %}

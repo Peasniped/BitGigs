@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Workplaces — BitGigs{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="mb-0">Workplaces</h2>
+  <a href="{% url 'workplaces:workplace-create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-lg me-1"></i>New Workplace
+  </a>
+</div>
+
+<div class="row g-3">
+  {% for wp in workplaces %}
+  <div class="col-12 col-sm-6 col-lg-4">
+    <a href="{% url 'workplaces:workplace-detail' wp.pk %}" class="workplace-card">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <span class="workplace-card__name">{{ wp.name }}</span>
+        <span class="workplace-card__type">{{ wp.get_employment_type_display }}</span>
+      </div>
+      {% if not wp.is_active %}<span class="badge bg-warning mb-2">Inactive</span>{% endif %}
+      <div class="d-flex gap-3" style="font-size:0.85rem;">
+        <div>
+          <small class="text-muted d-block">
+            {% if wp.employment_type == 'hourly' %}Eff. rate{% else %}Salary{% endif %}
+          </small>
+          <span class="fw-semibold">
+            {% if wp.employment_type == 'hourly' %}{{ wp.effective_hourly_rate }} DKK/h{% else %}{{ wp.monthly_salary }} DKK{% endif %}
+          </span>
+        </div>
+        <div>
+          <small class="text-muted d-block">Hours</small>
+          <span class="fw-semibold">
+            {% if wp.weekly_hours_fixed %}{{ wp.weekly_hours_fixed }}h/wk{% else %}{{ wp.weekly_hours_min }}–{{ wp.weekly_hours_max }}h{% endif %}
+          </span>
+        </div>
+        <div>
+          <small class="text-muted d-block">Tax</small>
+          <span class="fw-semibold">{{ wp.get_tax_card_type_display }}</span>
+        </div>
+      </div>
+    </a>
+  </div>
+  {% empty %}
+  <div class="col-12">
+    <div class="text-center text-muted py-5">
+      <i class="bi bi-building fs-1 d-block mb-2"></i>
+      No workplaces yet. <a href="{% url 'workplaces:workplace-create' %}">Create one</a> to get started!
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

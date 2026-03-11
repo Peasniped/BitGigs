@@ -1,0 +1,338 @@
+{# Reusable workplace form fields — include with: {% include "workplaces/_form_fields.html" with form=form %} #}
+{# Works with both standalone and prefixed forms (setup wizard). #}
+
+<div data-form="workplace" {% if tax_profile_json %}data-tax-profile="{{ tax_profile_json }}"{% endif %}>
+
+  {# ── Name + Active ─────────────────────────────── #}
+  <div class="row g-3 mb-3">
+    <div class="col">
+      <label for="{{ form.name.id_for_label }}" class="form-label fw-medium">Workplace name</label>
+      <input type="text" name="{{ form.name.html_name }}" id="{{ form.name.id_for_label }}"
+             value="{{ form.name.value|default_if_none:'' }}"
+             class="form-control {% if form.name.errors %}is-invalid{% endif %}"
+             maxlength="200" required>
+      {% for err in form.name.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+    </div>
+    <div class="col-auto d-flex align-items-end pb-1">
+      <div class="form-check form-switch">
+        <input type="checkbox" name="{{ form.is_active.html_name }}" id="{{ form.is_active.id_for_label }}"
+               class="form-check-input" {% if form.is_active.value %}checked{% endif %}>
+        <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Active</label>
+      </div>
+    </div>
+  </div>
+
+  {# ── Employment Type toggle ────────────────────── #}
+  <div class="mb-4">
+    <label class="form-label fw-medium d-block">Employment type</label>
+    <div class="btn-group w-100" role="group">
+      <input type="radio" class="btn-check" name="{{ form.employment_type.html_name }}"
+             id="{{ form.employment_type.id_for_label }}_sal" value="salaried" autocomplete="off"
+             data-emp-type="salaried"
+             {% if form.employment_type.value == 'salaried' or not form.employment_type.value %}checked{% endif %}>
+      <label class="btn btn-outline-primary" for="{{ form.employment_type.id_for_label }}_sal">
+        <i class="bi bi-briefcase me-1"></i>Salaried
+      </label>
+      <input type="radio" class="btn-check" name="{{ form.employment_type.html_name }}"
+             id="{{ form.employment_type.id_for_label }}_hr" value="hourly" autocomplete="off"
+             data-emp-type="hourly"
+             {% if form.employment_type.value == 'hourly' %}checked{% endif %}>
+      <label class="btn btn-outline-primary" for="{{ form.employment_type.id_for_label }}_hr">
+        <i class="bi bi-clock me-1"></i>Hourly
+      </label>
+    </div>
+    {% for err in form.employment_type.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+  </div>
+
+  {# ══════════════════════════════════════════════════ #}
+  {# SALARIED section                                   #}
+  {# ══════════════════════════════════════════════════ #}
+  <div data-section="salaried" {% if form.employment_type.value == 'hourly' %}style="display:none"{% endif %}>
+
+    {# Working time: Fuldtid / Deltid #}
+    <div class="mb-3">
+      <label class="form-label fw-medium d-block">Working time</label>
+      <div class="btn-group w-100" role="group">
+        <input type="radio" class="btn-check" name="{{ form.work_time_type.html_name }}"
+               id="{{ form.work_time_type.id_for_label }}_ft" value="fuldtid" autocomplete="off"
+               data-wtt="fuldtid"
+               {% if form.work_time_type.value == 'fuldtid' or not form.work_time_type.value %}checked{% endif %}>
+        <label class="btn btn-outline-secondary" for="{{ form.work_time_type.id_for_label }}_ft">
+          Fuldtid (160,33 h/mo)
+        </label>
+        <input type="radio" class="btn-check" name="{{ form.work_time_type.html_name }}"
+               id="{{ form.work_time_type.id_for_label }}_dt" value="deltid" autocomplete="off"
+               data-wtt="deltid"
+               {% if form.work_time_type.value == 'deltid' %}checked{% endif %}>
+        <label class="btn btn-outline-secondary" for="{{ form.work_time_type.id_for_label }}_dt">
+          Deltid
+        </label>
+      </div>
+    </div>
+
+    {# Deltid: hours per week #}
+    <div data-subsection="deltid-hours" class="mb-3"
+         {% if form.work_time_type.value != 'deltid' %}style="display:none"{% endif %}>
+      <label for="{{ form.weekly_hours_fixed.id_for_label }}" class="form-label">Hours per week</label>
+      <div class="input-group">
+        <input type="text" inputmode="decimal"
+               name="{{ form.weekly_hours_fixed.html_name }}" id="{{ form.weekly_hours_fixed.id_for_label }}"
+               value="{{ form.weekly_hours_fixed.value|default_if_none:'' }}"
+               class="form-control dk-number {% if form.weekly_hours_fixed.errors %}is-invalid{% endif %}">
+        <span class="input-group-text text-muted">h/week</span>
+        {% for err in form.weekly_hours_fixed.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+      </div>
+    </div>
+
+    {# Grundløn (monthly salary) #}
+    <div class="mb-3">
+      <label for="{{ form.monthly_salary.id_for_label }}" class="form-label">Grundløn</label>
+      <div class="input-group">
+        <input type="text" inputmode="decimal"
+               name="{{ form.monthly_salary.html_name }}" id="{{ form.monthly_salary.id_for_label }}"
+               value="{{ form.monthly_salary.value|default_if_none:'' }}"
+               class="form-control dk-number {% if form.monthly_salary.errors %}is-invalid{% endif %}"
+               data-calc-trigger="hourly-rate">
+        <span class="input-group-text text-muted">DKK/mo</span>
+        {% for err in form.monthly_salary.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+      </div>
+    </div>
+
+    {# Calculated hourly rate display #}
+    <div class="mb-3 p-2 rounded" style="background:#f8fafc;">
+      <div class="d-flex justify-content-between align-items-center">
+        <span class="text-muted small">Calculated hourly rate</span>
+        <span data-display="hourly-rate" class="fw-semibold" style="color:#6366f1;">–</span>
+      </div>
+    </div>
+
+  </div><!-- /salaried -->
+
+  {# ══════════════════════════════════════════════════ #}
+  {# HOURLY section                                     #}
+  {# ══════════════════════════════════════════════════ #}
+  <div data-section="hourly" {% if form.employment_type.value != 'hourly' %}style="display:none"{% endif %}>
+
+    {# Hourly rate #}
+    <div class="mb-3">
+      <label for="{{ form.hourly_rate.id_for_label }}" class="form-label">Hourly rate</label>
+      <div class="input-group">
+        <input type="text" inputmode="decimal"
+               name="{{ form.hourly_rate.html_name }}" id="{{ form.hourly_rate.id_for_label }}"
+               value="{{ form.hourly_rate.value|default_if_none:'' }}"
+               class="form-control dk-number {% if form.hourly_rate.errors %}is-invalid{% endif %}">
+        <span class="input-group-text text-muted">DKK/h</span>
+        {% for err in form.hourly_rate.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+      </div>
+    </div>
+
+    {# Hours type: Fixed / Variable #}
+    <div class="mb-3">
+      <label class="form-label fw-medium d-block">Working hours</label>
+      <div class="btn-group w-100" role="group">
+        <input type="radio" class="btn-check" name="{{ form.hours_type.html_name }}"
+               id="{{ form.hours_type.id_for_label }}_fx" value="fixed" autocomplete="off"
+               data-ht="fixed"
+               {% if form.hours_type.value == 'fixed' or not form.hours_type.value %}checked{% endif %}>
+        <label class="btn btn-outline-secondary" for="{{ form.hours_type.id_for_label }}_fx">
+          Fixed
+        </label>
+        <input type="radio" class="btn-check" name="{{ form.hours_type.html_name }}"
+               id="{{ form.hours_type.id_for_label }}_vr" value="variable" autocomplete="off"
+               data-ht="variable"
+               {% if form.hours_type.value == 'variable' %}checked{% endif %}>
+        <label class="btn btn-outline-secondary" for="{{ form.hours_type.id_for_label }}_vr">
+          Variable
+        </label>
+      </div>
+    </div>
+
+    {# Fixed hours #}
+    <div data-subsection="fixed-hours" class="mb-3"
+         {% if form.hours_type.value == 'variable' %}style="display:none"{% endif %}>
+      <label for="{{ form.weekly_hours_fixed.id_for_label }}_hourly" class="form-label">Hours per week</label>
+      <div class="input-group">
+        <input type="text" inputmode="decimal"
+               name="{{ form.weekly_hours_fixed.html_name }}" id="{{ form.weekly_hours_fixed.id_for_label }}_hourly"
+               value="{{ form.weekly_hours_fixed.value|default_if_none:'' }}"
+               class="form-control dk-number {% if form.weekly_hours_fixed.errors %}is-invalid{% endif %}">
+        <span class="input-group-text text-muted">h/week</span>
+        {% for err in form.weekly_hours_fixed.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+      </div>
+    </div>
+
+    {# Variable hours: min ── to ── max on same line #}
+    <div data-subsection="variable-hours" class="mb-3"
+         {% if form.hours_type.value != 'variable' %}style="display:none"{% endif %}>
+      <label class="form-label">Hours per week (range)</label>
+      <div class="d-flex align-items-center gap-2">
+        <div class="input-group">
+          <input type="text" inputmode="decimal"
+                 name="{{ form.weekly_hours_min.html_name }}" id="{{ form.weekly_hours_min.id_for_label }}"
+                 value="{{ form.weekly_hours_min.value|default_if_none:'' }}"
+                 class="form-control dk-number {% if form.weekly_hours_min.errors %}is-invalid{% endif %}"
+                 placeholder="Min">
+          <span class="input-group-text text-muted">h</span>
+        </div>
+        <span class="text-muted fw-medium">to</span>
+        <div class="input-group">
+          <input type="text" inputmode="decimal"
+                 name="{{ form.weekly_hours_max.html_name }}" id="{{ form.weekly_hours_max.id_for_label }}"
+                 value="{{ form.weekly_hours_max.value|default_if_none:'' }}"
+                 class="form-control dk-number {% if form.weekly_hours_max.errors %}is-invalid{% endif %}"
+                 placeholder="Max">
+          <span class="input-group-text text-muted">h</span>
+        </div>
+      </div>
+      {% for err in form.weekly_hours_min.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+      {% for err in form.weekly_hours_max.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+    </div>
+
+    {# Payroll period start (only for hourly) #}
+    <div class="mb-3">
+      <label for="{{ form.payroll_period_start_day.id_for_label }}" class="form-label">Payroll period start day</label>
+      <div class="input-group">
+        <input type="number" min="1" max="31"
+               name="{{ form.payroll_period_start_day.html_name }}"
+               id="{{ form.payroll_period_start_day.id_for_label }}"
+               value="{{ form.payroll_period_start_day.value|default_if_none:'1' }}"
+               class="form-control {% if form.payroll_period_start_day.errors %}is-invalid{% endif %}"
+               data-payroll-start>
+        <span class="input-group-text text-muted">of month</span>
+        {% for err in form.payroll_period_start_day.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="form-text" data-payroll-period-msg></div>
+    </div>
+
+  </div><!-- /hourly -->
+
+  {# ══════════════════════════════════════════════════ #}
+  {# COMMON section                                     #}
+  {# ══════════════════════════════════════════════════ #}
+  <hr class="my-4">
+
+  {# Tax card #}
+  <div class="mb-3">
+    <label for="{{ form.tax_card_type.id_for_label }}" class="form-label fw-medium">Tax card</label>
+    <select name="{{ form.tax_card_type.html_name }}" id="{{ form.tax_card_type.id_for_label }}"
+            class="form-select {% if form.tax_card_type.errors %}is-invalid{% endif %}"
+            data-tax-card-select>
+      {% for val, label in form.tax_card_type.field.choices %}
+        <option value="{{ val }}" {% if form.tax_card_type.value == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <div class="form-text" data-tax-card-desc></div>
+    {% for err in form.tax_card_type.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+  </div>
+
+  {# Vacation type #}
+  <div class="mb-3">
+    <label for="{{ form.vacation_type.id_for_label }}" class="form-label fw-medium">Vacation type</label>
+    <select name="{{ form.vacation_type.html_name }}" id="{{ form.vacation_type.id_for_label }}"
+            class="form-select {% if form.vacation_type.errors %}is-invalid{% endif %}">
+      {% for val, label in form.vacation_type.field.choices %}
+        <option value="{{ val }}" {% if form.vacation_type.value == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <div class="form-text" data-vacation-note="accrued" style="{% if form.vacation_type.value == 'feriekonto' %}display:none{% endif %}">
+      Vacation accrual: 2,08 days/month
+    </div>
+    <div class="form-text mt-1" data-vacation-note="feriekonto" style="{% if form.vacation_type.value != 'feriekonto' %}display:none{% endif %}">
+      <i class="bi bi-info-circle me-1"></i>12,5% of gross pay (before tax) is transferred to FerieKonto.
+    </div>
+    {% for err in form.vacation_type.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+  </div>
+
+  {# ── Pension (grouped) ─────────────────────────── #}
+  <div class="section-title mt-4">Pension</div>
+  <div class="d-flex align-items-end gap-2 mb-3 flex-wrap">
+    <div style="flex:1;min-width:120px;">
+      <label for="{{ form.pension_employer_percent.id_for_label }}" class="form-label small mb-1">Employer</label>
+      <div class="input-group">
+        <input type="text" inputmode="decimal"
+               name="{{ form.pension_employer_percent.html_name }}"
+               id="{{ form.pension_employer_percent.id_for_label }}"
+               value="{{ form.pension_employer_percent.value|default_if_none:'' }}"
+               class="form-control dk-number {% if form.pension_employer_percent.errors %}is-invalid{% endif %}"
+               data-pension-field="employer">
+        <span class="input-group-text text-muted">%</span>
+        {% for err in form.pension_employer_percent.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+      </div>
+    </div>
+    <span class="fw-bold text-muted pb-2">+</span>
+    <div style="flex:1;min-width:120px;">
+      <label for="{{ form.pension_employee_percent.id_for_label }}" class="form-label small mb-1">Your share</label>
+      <div class="input-group">
+        <input type="text" inputmode="decimal"
+               name="{{ form.pension_employee_percent.html_name }}"
+               id="{{ form.pension_employee_percent.id_for_label }}"
+               value="{{ form.pension_employee_percent.value|default_if_none:'' }}"
+               class="form-control dk-number {% if form.pension_employee_percent.errors %}is-invalid{% endif %}"
+               data-pension-field="employee">
+        <span class="input-group-text text-muted">%</span>
+        {% for err in form.pension_employee_percent.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+      </div>
+    </div>
+    <span class="fw-bold text-muted pb-2">=</span>
+    <div class="pb-2">
+      <span data-display="pension-total" class="fw-semibold" style="color:#6366f1;white-space:nowrap;">0 %</span>
+    </div>
+  </div>
+
+  {# Fritvalgskonto #}
+  <div class="mb-3">
+    <label for="{{ form.fritvalgskonto_percent.id_for_label }}" class="form-label fw-medium">Fritvalgskonto</label>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="input-group">
+          <input type="text" inputmode="decimal"
+                 name="{{ form.fritvalgskonto_percent.html_name }}"
+                 id="{{ form.fritvalgskonto_percent.id_for_label }}"
+                 value="{{ form.fritvalgskonto_percent.value|default_if_none:'' }}"
+                 class="form-control dk-number {% if form.fritvalgskonto_percent.errors %}is-invalid{% endif %}">
+          <span class="input-group-text text-muted">%</span>
+          {% for err in form.fritvalgskonto_percent.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+        </div>
+      </div>
+      <div class="col-md-6">
+        <select name="{{ form.fritvalgskonto_payout_type.html_name }}"
+                id="{{ form.fritvalgskonto_payout_type.id_for_label }}"
+                class="form-select {% if form.fritvalgskonto_payout_type.errors %}is-invalid{% endif %}">
+          {% for val, label in form.fritvalgskonto_payout_type.field.choices %}
+            <option value="{{ val }}" {% if form.fritvalgskonto_payout_type.value == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        {% for err in form.fritvalgskonto_payout_type.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {# Ferietillæg #}
+  <div class="mb-3" data-section-ferietillaeg>
+    <div class="form-check form-switch mb-2">
+      <input type="checkbox" class="form-check-input" role="switch"
+             name="{{ form.ferietillaeg_enabled.html_name }}"
+             id="{{ form.ferietillaeg_enabled.id_for_label }}"
+             data-ferietillaeg-toggle
+             {% if form.ferietillaeg_enabled.value %}checked{% endif %}>
+      <label class="form-check-label fw-medium" for="{{ form.ferietillaeg_enabled.id_for_label }}">Ferietillæg</label>
+    </div>
+    <div data-ferietillaeg-fields style="{% if not form.ferietillaeg_enabled.value %}display:none{% endif %}">
+      <div class="input-group">
+        <input type="text" inputmode="decimal"
+               name="{{ form.ferietillaeg_percent.html_name }}"
+               id="{{ form.ferietillaeg_percent.id_for_label }}"
+               value="{{ form.ferietillaeg_percent.value|default_if_none:'1,00' }}"
+               class="form-control dk-number {% if form.ferietillaeg_percent.errors %}is-invalid{% endif %}">
+        <span class="input-group-text text-muted">% of yearly gross</span>
+        {% for err in form.ferietillaeg_percent.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="form-text">Typically paid in May &amp; August.</div>
+    </div>
+  </div>
+
+  {# Hidden payroll_period_start_day for salaried (forced to 1) #}
+  <input type="hidden" name="{{ form.payroll_period_start_day.html_name }}"
+         data-hidden-payroll-start value="1">
+
+</div><!-- /data-form="workplace" -->

@@ -1,0 +1,961 @@
+{% extends "base.html" %}
+{% block title %}{{ workplace.name }} — BitGigs{% endblock %}
+
+{% block content %}
+{% if workplace.accent_color %}
+<!-- Accent banner -->
+<div class="workplace-accent-banner" style="background:{{ workplace.accent_color }};"></div>
+{% endif %}
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="d-flex align-items-center gap-3">
+    {% if workplace.custom_icon %}
+      <span class="workplace-avatar" id="wpAvatar" style="background:{{ workplace.color|default:avatar_color }};width:48px;height:48px;font-size:1.2rem;overflow:hidden;">
+        <img src="{{ workplace.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+      </span>
+    {% elif workplace.icon %}
+      <span class="workplace-avatar" id="wpAvatar" style="background:{{ workplace.color|default:avatar_color }};width:48px;height:48px;font-size:1.2rem;">
+        <i class="bi {{ workplace.icon }}"{% if workplace.accent_color %} style="color:{{ workplace.accent_color }}"{% endif %}></i>
+      </span>
+    {% else %}
+      <span class="workplace-avatar" id="wpAvatar" style="background:{{ workplace.color|default:avatar_color }};width:48px;height:48px;font-size:1.1rem;">{{ avatar_initials }}</span>
+    {% endif %}
+    <div>
+      <h2 class="mb-1">{{ workplace.name }}</h2>
+      <span class="workplace-card__type">{{ workplace.get_employment_type_display }}</span>
+      {% if not workplace.is_active %}<span class="badge bg-warning ms-2">Inactive</span>{% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#customizeModal" title="Customize appearance">
+      <i class="bi bi-palette"></i>
+    </button>
+    <a href="{% url 'workplaces:workplace-update' workplace.pk %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-pencil me-1"></i>Edit
+    </a>
+    <form method="post" action="{% url 'workplaces:workplace-delete' workplace.pk %}" class="d-inline">
+      {% csrf_token %}
+      <button class="btn btn-outline-danger btn-sm"
+              onclick="return confirm('Delete this workplace?')">
+        <i class="bi bi-trash me-1"></i>Delete
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Stat row -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-card__label">Hours worked</div>
+      <div class="stat-card__value">{{ actual_hours|floatformat:1 }}h</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-card__label">Gross Pay</div>
+      <div class="stat-card__value">{{ estimate.gross_pay|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-card__label">Net Pay</div>
+      <div class="stat-card__value">
+        {% if estimate.tax_breakdown %}
+          {{ estimate.tax_breakdown.net_pay|floatformat:0 }}
+        {% else %}
+          –
+        {% endif %}
+        <small class="stat-card__sub">DKK</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-card__label">Vacation</div>
+      <div class="stat-card__value">
+        {% if workplace.vacation_type == 'feriekonto' %}
+          12,5 <small class="stat-card__sub">%</small>
+        {% else %}
+          2.08 <small class="stat-card__sub">days/mo</small>
+        {% endif %}
+      </div>
+      <div class="stat-card__sub">
+        {% if workplace.vacation_type == 'feriekonto' %}FerieKonto{% else %}Accrued leave{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Pension & Fritvalgskonto -->
+{% if workplace.pension_total_percent or workplace.fritvalgskonto_percent %}
+<div class="row g-3 mb-4">
+  {% if workplace.pension_total_percent %}
+  <div class="col-12 col-md-4">
+    <div class="card">
+      <div class="card-header">Pension</div>
+      <div class="card-body py-2">
+        <div class="d-flex justify-content-between mb-1">
+          <small class="text-muted">Your contribution ({{ workplace.pension_employee_percent }}%)</small>
+          <span>{{ pension_employee|floatformat:2 }} DKK</span>
+        </div>
+        <div class="d-flex justify-content-between mb-1">
+          <small class="text-muted">Employer's ({{ workplace.pension_employer_percent }}%)</small>
+          <span>{{ pension_employer|floatformat:2 }} DKK</span>
+        </div>
+        <hr class="my-1">
+        <div class="d-flex justify-content-between fw-semibold">
+          <small>Total ({{ workplace.pension_total_percent }}%)</small>
+          <span>{{ pension_total|floatformat:2 }} DKK</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% if workplace.fritvalgskonto_percent %}
+  <div class="col-12 col-md-4">
+    <div class="card">
+      <div class="card-header">Fritvalgskonto</div>
+      <div class="card-body py-2">
+        <div class="d-flex justify-content-between">
+          <small class="text-muted">{{ workplace.fritvalgskonto_percent }}% of gross</small>
+          <span>{{ fritvalgskonto|floatformat:2 }} DKK</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Workplace info summary -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-4">
+    <div class="card">
+      <div class="card-header">Details</div>
+      <div class="card-body py-2" style="font-size:0.875rem;">
+        {% if workplace.employment_type == 'hourly' %}
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Base rate</span><span>{{ workplace.hourly_rate }} DKK/h</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Effective rate</span><span class="fw-semibold">{{ workplace.effective_hourly_rate }} DKK/h</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Total rate</span><span>{{ workplace.total_hourly_rate }} DKK/h</span></div>
+          <div class="form-text mt-0 mb-1" style="font-size:0.7rem;line-height:1.3;">Effective = base + ferietillæg + fritvalg − employee pension<br>Total = effective + employer pension</div>
+        {% else %}
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Salary</span><span>{{ workplace.monthly_salary }} DKK/mo</span></div>
+        {% endif %}
+        <div class="d-flex justify-content-between mb-1">
+          <span class="text-muted">Weekly hours</span>
+          <span>{% if workplace.weekly_hours_fixed %}{{ workplace.weekly_hours_fixed }}{% else %}{{ workplace.weekly_hours_min }}–{{ workplace.weekly_hours_max }}{% endif %}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Payroll start</span><span>Day {{ workplace.payroll_period_start_day }}</span></div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Tax card</span><span>{{ workplace.get_tax_card_type_display }}</span></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">Vacation</span><span>{{ workplace.get_vacation_type_display }}</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Payroll-period calendar -->
+<div class="row g-3 mb-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center py-3">
+        <a href="?year={{ prev_year }}&month={{ prev_month }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-chevron-left"></i>
+        </a>
+        <div class="d-flex align-items-center gap-2">
+          <button class="btn btn-sm btn-outline-secondary fw-semibold" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#monthPickerPanel"
+                  aria-expanded="false" aria-controls="monthPickerPanel"
+                  style="font-size:0.9rem;">
+            {{ grid.title }}
+            <i class="bi bi-calendar3 ms-1"></i>
+          </button>
+          {% if year != today.year or month != today.month %}
+            <a href="?year={{ today.year }}&month={{ today.month }}" class="btn btn-sm btn-primary" title="Go to current month">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Today
+            </a>
+          {% endif %}
+        </div>
+        <a href="?year={{ next_year }}&month={{ next_month }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-chevron-right"></i>
+        </a>
+      </div>
+      <!-- Month/year picker panel -->
+      <div class="collapse" id="monthPickerPanel">
+        <div class="card-body border-bottom py-3">
+          {% for yr, months in month_picker_by_year.items %}
+            <div class="{% if not forloop.first %}mt-2{% endif %}">
+              <span class="text-muted fw-semibold" style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.04em;">{{ yr }}</span>
+              <div class="d-flex flex-wrap gap-1 mt-1">
+                {% for mp in months %}
+                  <a href="?year={{ mp.year }}&month={{ mp.month }}"
+                     class="btn btn-sm {% if mp.is_selected %}btn-primary{% elif mp.is_current %}btn-outline-primary{% else %}btn-outline-secondary{% endif %}"
+                     style="font-size:0.75rem;min-width:3.2rem;">
+                    {{ mp.label }}
+                  </a>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+
+          <div class="mt-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#addMonthModal" style="font-size:0.75rem;">
+              <i class="bi bi-plus-lg me-1"></i>Add month
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-2">
+        {% include "calendar_view/_calendar_component.html" with grid=grid clickable=True workplace_id=workplace.pk %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Payslip editor shortcut -->
+<div class="row g-3 mb-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Payroll</span>
+        <form method="post" action="{% url 'payroll:period-generate' %}" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="workplace" value="{{ workplace.pk }}">
+          <input type="hidden" name="year" value="{{ year }}">
+          <input type="hidden" name="month" value="{{ month }}">
+          <button class="btn btn-sm btn-outline-primary" type="submit">
+            <i class="bi bi-file-earmark-text me-1"></i>Open payslip editor
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Day session modal -->
+<div class="modal fade day-panel-modal" id="dayModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="fw-semibold"><i class="bi bi-calendar-event me-2"></i><span id="dayModalDate">{{ selected_date }}</span></span>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="dayModalBody">
+        {% if selected_date %}
+          {% if day_sessions %}
+            {% for session in day_sessions %}
+            <div class="d-flex justify-content-between align-items-center py-2 {% if not forloop.last %}border-bottom{% endif %}">
+              <div>
+                <div class="fw-medium">{{ session.start_time|time:"H:i" }} – {{ session.end_time|time:"H:i" }}</div>
+                <small class="text-muted">{{ session.get_session_type_display }}{% if session.break_minutes %} · {{ session.break_minutes }}min break{% endif %}</small>
+              </div>
+              <div class="d-flex gap-1">
+                <span class="badge bg-primary bg-opacity-75">{{ session.net_hours|floatformat:1 }}h</span>
+                <a href="{% url 'worksessions:session-update' session.pk %}?next=workplace" class="btn btn-sm btn-outline-secondary py-0 px-1">
+                  <i class="bi bi-pencil" style="font-size:0.7rem;"></i>
+                </a>
+              </div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-muted mb-0">No sessions on this day.</p>
+          {% endif %}
+        {% else %}
+          <p class="text-muted mb-0">Click a day on the calendar.</p>
+        {% endif %}
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button id="dayModalAddBtn" class="btn btn-primary btn-sm {% if not selected_date %}d-none{% endif %}"
+                onclick="showSessionForm()">
+          <i class="bi bi-plus-lg me-1"></i>Add Session
+        </button>
+      </div>
+      <!-- Inline session creation form (hidden until "Add Session" is clicked) -->
+      <div id="sessionFormPanel" class="px-3 pb-3" style="display:none;">
+        <hr class="mt-0">
+        <h6 class="mb-3"><i class="bi bi-clock-history me-1"></i>New Session</h6>
+        <div id="sessionFormErrors" class="alert alert-danger small py-2 d-none"></div>
+        <form id="ajaxSessionForm">
+          <input type="hidden" name="workplace" value="{{ workplace.pk }}">
+          <input type="hidden" name="date" id="sessionFormDate" value="{{ selected_date|default:'' }}">
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label class="form-label small">Start time</label>
+              <input type="time" name="start_time" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label small">End time</label>
+              <input type="time" name="end_time" class="form-control form-control-sm" required>
+            </div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label class="form-label small">Break (min)</label>
+              <input type="number" name="break_minutes" class="form-control form-control-sm" value="0" min="0">
+            </div>
+            <div class="col-6">
+              <label class="form-label small">Type</label>
+              <select name="session_type" class="form-select form-select-sm">
+                <option value="on_site">On-site</option>
+                <option value="remote">Remote</option>
+                <option value="sick_leave">Sick leave</option>
+                <option value="paid_absence">Paid absence</option>
+                <option value="vacation">Vacation</option>
+              </select>
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">Notes</label>
+            <textarea name="notes" class="form-control form-control-sm" rows="2"></textarea>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm flex-fill">
+              <i class="bi bi-check-lg me-1"></i>Save
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="hideSessionForm()">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ Customize Modal ═══════ -->
+<div class="modal fade" id="customizeModal" tabindex="-1" aria-labelledby="customizeModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
+      <div class="modal-header border-bottom" style="border-color:#f1f5f9 !important;">
+        <h5 class="modal-title" id="customizeModalLabel"><i class="bi bi-palette me-2"></i>Customize Appearance</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="customizeErrors" class="alert alert-danger small py-2 d-none"></div>
+
+        {# ── Live Preview ── #}
+        <div class="text-center mb-3">
+          <div id="livePreview" class="d-inline-flex align-items-center justify-content-center"
+               style="width:72px;height:72px;border-radius:50%;background:{{ workplace.color|default:avatar_color }};color:#fff;font-weight:700;font-size:1.4rem;overflow:hidden;transition:background .2s;">
+            {% if workplace.custom_icon %}
+              <img src="{{ workplace.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;">
+            {% elif workplace.icon %}
+              <i class="bi {{ workplace.icon }}" style="font-size:1.6rem;"></i>
+            {% else %}
+              <span id="livePreviewInitials">{{ avatar_initials }}</span>
+            {% endif %}
+          </div>
+        </div>
+
+        {# ── Icon / Logo picker tabs ── #}
+        <ul class="nav nav-pills nav-justified mb-3 customize-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link {% if not workplace.custom_icon %}active{% endif %} py-1 px-2" id="tab-icons" data-bs-toggle="pill"
+                    data-bs-target="#pane-icons" type="button" role="tab">
+              <i class="bi bi-grid-3x3-gap me-1"></i>Icons
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link {% if workplace.custom_icon %}active{% endif %} py-1 px-2" id="tab-logo" data-bs-toggle="pill"
+                    data-bs-target="#pane-logo" type="button" role="tab">
+              <i class="bi bi-image me-1"></i>Custom Logo
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content">
+          {# ── Icons pane ── #}
+          <div class="tab-pane fade {% if not workplace.custom_icon %}show active{% endif %}" id="pane-icons" role="tabpanel">
+            <div class="d-flex flex-wrap gap-1 mb-2" id="modalIconPicker" data-icon-picker>
+              {% for icon_cls in icon_choices %}
+                <button type="button"
+                        class="btn btn-sm {% if workplace.icon == icon_cls %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+                        data-icon-option="{{ icon_cls }}" style="width:36px;height:36px;padding:0;"
+                        title="{{ icon_cls }}">
+                  <i class="bi {{ icon_cls }}"></i>
+                </button>
+              {% endfor %}
+              <button type="button"
+                      class="btn btn-sm {% if not workplace.icon and not workplace.custom_icon %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+                      data-icon-option="" style="width:36px;height:36px;padding:0;font-size:0.7rem;"
+                      title="None (initials)">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+          </div>
+
+          {# ── Custom Logo pane ── #}
+          <div class="tab-pane fade {% if workplace.custom_icon %}show active{% endif %}" id="pane-logo" role="tabpanel">
+            <div class="d-flex align-items-center gap-3 mb-2">
+              <div id="customIconPreview" class="d-flex align-items-center justify-content-center"
+                   style="width:64px;height:64px;border-radius:50%;background:#f1f5f9;overflow:hidden;flex-shrink:0;border:2px dashed #cbd5e1;{% if not workplace.custom_icon %}{% endif %}">
+                {% if workplace.custom_icon %}
+                  <img src="{{ workplace.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;">
+                {% else %}
+                  <i class="bi bi-image text-muted" style="font-size:1.4rem;"></i>
+                {% endif %}
+              </div>
+              <div>
+                <label class="btn btn-sm btn-outline-secondary mb-1" style="cursor:pointer;">
+                  <i class="bi bi-upload me-1"></i>Upload PNG / SVG
+                  <input type="file" id="customIconFile" accept=".png,.svg,image/png,image/svg+xml" class="d-none">
+                </label>
+                <button type="button" id="removeCustomIcon" class="btn btn-sm btn-outline-danger ms-1 {% if not workplace.custom_icon %}d-none{% endif %}"
+                        title="Remove custom logo">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+                <div class="form-text mt-0">PNG or SVG, max 512 KB.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <input type="hidden" id="customizeIconInput" value="{{ workplace.icon|default:'' }}">
+
+        {# ── Accent Colour picker ── #}
+        <hr class="my-3">
+        <label class="form-label fw-medium"><i class="bi bi-stars me-1" style="font-size:.75rem;vertical-align:middle;"></i>Accent Colour</label>
+        <p class="form-text mt-0 mb-2" style="font-size:.75rem;">Tints the icon and themes cards &amp; banners.</p>
+        <div class="d-flex flex-wrap gap-1 mb-2 align-items-center" id="modalAccentColorPicker" data-color-picker="accent">
+          {% for hex in accent_color_choices %}
+            <button type="button"
+                    class="btn btn-sm border-0 color-swatch {% if workplace.accent_color == hex %}ring-selected{% endif %}"
+                    data-color-option="{{ hex }}"
+                    style="width:28px;height:28px;padding:0;border-radius:50%;background:{{ hex }};"
+                    title="{{ hex }}">
+            </button>
+          {% endfor %}
+        </div>
+        <div class="d-flex align-items-center gap-2 mt-2">
+          <input type="color" id="accentColorWheel" class="form-control form-control-color" style="width:38px;height:38px;padding:2px;"
+                 value="{{ workplace.accent_color|default:'#6366f1' }}" title="Pick a custom accent colour">
+          <input type="text" id="accentColorHex" class="form-control form-control-sm" style="max-width:100px;font-family:monospace;"
+                 value="{{ workplace.accent_color|default:'' }}" placeholder="#hex" maxlength="7"
+                 pattern="^#[0-9a-fA-F]{6}$">
+          <button type="button" id="clearAccentColor" class="btn btn-sm btn-outline-secondary" title="Reset to default">
+            <i class="bi bi-arrow-counterclockwise"></i>
+          </button>
+        </div>
+        <input type="hidden" id="customizeAccentColorInput" value="{{ workplace.accent_color|default:'' }}">
+
+        {# ── Background Colour picker ── #}
+        <hr class="my-3">
+        <label class="form-label fw-medium"><i class="bi bi-circle-fill me-1" style="font-size:.65rem;vertical-align:middle;"></i>Background Colour</label>
+        <div class="d-flex flex-wrap gap-1 mb-2 align-items-center" id="modalBgColorPicker" data-color-picker="bg">
+          {% for hex in bg_color_choices %}
+            <button type="button"
+                    class="btn btn-sm border-0 color-swatch {% if workplace.color == hex %}ring-selected{% endif %}"
+                    data-color-option="{{ hex }}"
+                    style="width:28px;height:28px;padding:0;border-radius:50%;background:{{ hex }};"
+                    title="{{ hex }}">
+            </button>
+          {% endfor %}
+        </div>
+        <div class="d-flex align-items-center gap-2 mt-2">
+          <input type="color" id="bgColorWheel" class="form-control form-control-color" style="width:38px;height:38px;padding:2px;"
+                 value="{{ workplace.color|default:'#6366f1' }}" title="Pick a custom colour">
+          <input type="text" id="bgColorHex" class="form-control form-control-sm" style="max-width:100px;font-family:monospace;"
+                 value="{{ workplace.color|default:'' }}" placeholder="#hex" maxlength="7"
+                 pattern="^#[0-9a-fA-F]{6}$">
+          <button type="button" id="clearBgColor" class="btn btn-sm btn-outline-secondary" title="Reset to default">
+            <i class="bi bi-arrow-counterclockwise"></i>
+          </button>
+        </div>
+        <input type="hidden" id="customizeBgColorInput" value="{{ workplace.color|default:'' }}">
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="customizeSaveBtn">
+          <i class="bi bi-check-lg me-1"></i>Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ Crop Modal (sub-modal) ═══════ -->
+<div class="modal fade" id="cropModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
+      <div class="modal-header border-bottom" style="border-color:#f1f5f9 !important;">
+        <h6 class="modal-title"><i class="bi bi-crop me-2"></i>Crop &amp; Position</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0" style="background:#1e293b;">
+        <div id="cropContainer">
+          <img id="cropImage" src="" alt="" style="display:block;max-width:100%;">
+        </div>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <div class="d-flex align-items-center gap-2 flex-grow-1">
+          <i class="bi bi-dash text-muted"></i>
+          <input type="range" id="cropZoom" class="form-range flex-grow-1" min="0" max="3" step="0.01" value="0">
+          <i class="bi bi-plus text-muted"></i>
+        </div>
+        <div class="d-flex gap-2 ms-3">
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="cropFitBtn" title="Fit image inside circle">
+            <i class="bi bi-arrows-angle-contract me-1"></i>Fit
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary btn-sm" id="cropApplyBtn">
+            <i class="bi bi-check-lg me-1"></i>Apply
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ Add Month Modal ═══════ -->
+<div class="modal fade" id="addMonthModal" tabindex="-1" aria-labelledby="addMonthModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
+      <div class="modal-header border-bottom" style="border-color:#f1f5f9 !important;">
+        <h6 class="modal-title" id="addMonthModalLabel"><i class="bi bi-calendar-plus me-2"></i>Go to month</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="gotoMonth" class="form-label" style="font-size:0.8rem;">Month</label>
+          <select id="gotoMonth" class="form-select form-select-sm">
+            {% for m_num, m_name in all_months %}
+              <option value="{{ m_num }}" {% if m_num == month %}selected{% endif %}>{{ m_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="gotoYear" class="form-label" style="font-size:0.8rem;">Year</label>
+          <input type="number" id="gotoYear" class="form-control form-control-sm"
+                 value="{{ today.year }}" min="2020" max="2099">
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="gotoMonthBtn">
+          <i class="bi bi-arrow-right me-1"></i>Go
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Go-to-month navigation
+document.getElementById('gotoMonthBtn').addEventListener('click', function() {
+  var m = document.getElementById('gotoMonth').value;
+  var y = document.getElementById('gotoYear').value;
+  if (m && y) {
+    var url = new URL(window.location);
+    url.searchParams.set('year', y);
+    url.searchParams.set('month', m);
+    url.searchParams.delete('day');
+    window.location = url.toString();
+  }
+});
+
+// Calendar day click → open modal (with server reload for data)
+function onCalendarDayClick(el) {
+  var dateStr = el.dataset.date;
+  var url = new URL(window.location);
+  url.searchParams.set('day', dateStr);
+  window.location = url.toString();
+}
+
+// Show / hide the inline session creation form inside the day modal
+function showSessionForm() {
+  document.getElementById('sessionFormPanel').style.display = '';
+  document.getElementById('dayModalAddBtn').style.display = 'none';
+  document.getElementById('sessionFormErrors').classList.add('d-none');
+}
+function hideSessionForm() {
+  document.getElementById('sessionFormPanel').style.display = 'none';
+  document.getElementById('dayModalAddBtn').style.display = '';
+}
+
+{% if selected_date %}
+// Auto-open modal if a day is selected
+document.addEventListener('DOMContentLoaded', function() {
+  var modal = new bootstrap.Modal(document.getElementById('dayModal'));
+  modal.show();
+  // When modal closes, remove the day param from URL without reload
+  document.getElementById('dayModal').addEventListener('hidden.bs.modal', function() {
+    var url = new URL(window.location);
+    url.searchParams.delete('day');
+    window.history.replaceState({}, '', url.toString());
+    hideSessionForm();
+  });
+
+  // AJAX session create
+  var form = document.getElementById('ajaxSessionForm');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var formData = new FormData(this);
+      var errBox = document.getElementById('sessionFormErrors');
+      errBox.classList.add('d-none');
+
+      fetch('{% url "worksessions:session-create" %}', {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: formData,
+      })
+      .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, data: data}; }); })
+      .then(function(result) {
+        if (result.ok) {
+          // Reload with the day parameter to show the new session
+          window.location.reload();
+        } else {
+          // Show validation errors
+          var msgs = [];
+          for (var field in result.data.errors) {
+            msgs.push(result.data.errors[field].join(', '));
+          }
+          errBox.textContent = msgs.join(' | ');
+          errBox.classList.remove('d-none');
+        }
+      })
+      .catch(function() {
+        errBox.textContent = 'Something went wrong.';
+        errBox.classList.remove('d-none');
+      });
+    });
+  }
+});
+{% endif %}
+
+// ═══════ Customize Modal Logic ═══════
+(function() {
+  var modal = document.getElementById('customizeModal');
+  if (!modal) return;
+
+  var iconPicker    = document.getElementById('modalIconPicker');
+  var iconInput     = document.getElementById('customizeIconInput');
+  var bgColorPicker = document.getElementById('modalBgColorPicker');
+  var bgColorInput  = document.getElementById('customizeBgColorInput');
+  var bgColorWheel  = document.getElementById('bgColorWheel');
+  var bgColorHex    = document.getElementById('bgColorHex');
+  var clearBgColorBtn = document.getElementById('clearBgColor');
+  var accentColorPicker = document.getElementById('modalAccentColorPicker');
+  var accentColorInput  = document.getElementById('customizeAccentColorInput');
+  var accentColorWheel  = document.getElementById('accentColorWheel');
+  var accentColorHex    = document.getElementById('accentColorHex');
+  var clearAccentColorBtn = document.getElementById('clearAccentColor');
+  var saveBtn       = document.getElementById('customizeSaveBtn');
+  var errBox        = document.getElementById('customizeErrors');
+  var fileInput     = document.getElementById('customIconFile');
+  var previewBox    = document.getElementById('customIconPreview');
+  var removeBtn     = document.getElementById('removeCustomIcon');
+  var livePreview   = document.getElementById('livePreview');
+
+  // Cropper elements
+  var cropModalEl   = document.getElementById('cropModal');
+  var cropImage     = document.getElementById('cropImage');
+  var cropZoom      = document.getElementById('cropZoom');
+  var cropApplyBtn  = document.getElementById('cropApplyBtn');
+  var cropFitBtn    = document.getElementById('cropFitBtn');
+  var cropper       = null;
+  var cropBsModal   = null;
+
+  // State
+  var pendingFile   = null;       // cropped blob to upload
+  var pendingDataUrl = null;      // data-url of cropped image for preview
+  var willRemoveCustomIcon = false;
+  var currentMode   = '{{ workplace.custom_icon|yesno:"logo,icons" }}';  // 'icons' or 'logo'
+  var defaultColor  = '{{ avatar_color }}';
+
+  // ---- Live preview updater ----
+  function updatePreview() {
+    var bgColor = bgColorInput.value || defaultColor;
+    var accent  = accentColorInput.value || '';
+    livePreview.style.background = bgColor;
+
+    if (currentMode === 'logo' && pendingDataUrl) {
+      livePreview.innerHTML = '<img src="' + pendingDataUrl + '" alt="" style="width:100%;height:100%;object-fit:cover;">';
+    } else if (currentMode === 'logo' && !willRemoveCustomIcon && previewBox.querySelector('img')) {
+      var existingSrc = previewBox.querySelector('img').src;
+      livePreview.innerHTML = '<img src="' + existingSrc + '" alt="" style="width:100%;height:100%;object-fit:cover;">';
+    } else if (iconInput.value) {
+      var iconColor = accent ? 'color:' + accent : '';
+      livePreview.innerHTML = '<i class="bi ' + iconInput.value + '" style="font-size:1.6rem;' + iconColor + '"></i>';
+    } else {
+      livePreview.innerHTML = '<span>{{ avatar_initials }}</span>';
+    }
+  }
+
+  // ---- Tab switching ----
+  document.getElementById('tab-icons').addEventListener('shown.bs.tab', function() {
+    currentMode = 'icons';
+    // If we had a pending custom logo but switched to icons, clear it
+    // but keep it until save so user can switch back
+    updatePreview();
+  });
+  document.getElementById('tab-logo').addEventListener('shown.bs.tab', function() {
+    currentMode = 'logo';
+    updatePreview();
+  });
+
+  // ---- Icon Picker ----
+  iconPicker.querySelectorAll('[data-icon-option]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      iconInput.value = btn.dataset.iconOption;
+      iconPicker.querySelectorAll('[data-icon-option]').forEach(function(b) {
+        b.className = b.className.replace('btn-primary', 'btn-outline-secondary');
+      });
+      btn.className = btn.className.replace('btn-outline-secondary', 'btn-primary');
+      updatePreview();
+    });
+  });
+
+  // ---- Custom Icon Upload → open cropper ----
+  fileInput.addEventListener('change', function() {
+    var file = this.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {  // allow bigger before crop, final blob checked later
+      alert('File must be under 2 MB.');
+      this.value = '';
+      return;
+    }
+    // All image types (PNG, SVG, etc.) → open cropper
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      cropImage.src = e.target.result;
+      // Open crop modal
+      if (!cropBsModal) cropBsModal = new bootstrap.Modal(cropModalEl);
+      cropBsModal.show();
+    };
+    reader.readAsDataURL(file);
+    this.value = '';  // reset so same file can be re-selected
+  });
+
+  // ---- Cropper setup on modal show ----
+  cropModalEl.addEventListener('shown.bs.modal', function() {
+    if (cropper) cropper.destroy();
+    // Ensure the image is fully loaded before creating cropper
+    function initCropper() {
+      cropper = new Cropper(cropImage, {
+        aspectRatio: 1,
+        viewMode: 0,
+        dragMode: 'move',
+        cropBoxResizable: false,
+        cropBoxMovable: false,
+        toggleDragModeOnDblclick: false,
+        background: true,
+        modal: true,
+        guides: false,
+        center: true,
+        highlight: false,
+        autoCropArea: 0.85,
+        minCropBoxWidth: 100,
+        minCropBoxHeight: 100,
+        ready: function() {
+          // Calculate slider range from natural size
+          var imgData = cropper.getImageData();
+          var initRatio = imgData.width / imgData.naturalWidth;
+          cropZoom.min = (initRatio * 0.05).toFixed(4);
+          cropZoom.max = Math.max(3, initRatio * 3).toFixed(2);
+          cropZoom.step = '0.005';
+          cropZoom.value = initRatio.toFixed(4);
+          // Auto-fit on open
+          fitImageInCrop();
+        }
+      });
+    }
+    if (cropImage.complete && cropImage.naturalWidth > 0) {
+      initCropper();
+    } else {
+      cropImage.onload = function() { initCropper(); };
+    }
+  });
+
+  cropModalEl.addEventListener('hidden.bs.modal', function() {
+    if (cropper) { cropper.destroy(); cropper = null; }
+    cropImage.src = '';
+  });
+
+  // ---- Fit image inside crop box (by shortest side + margin) ----
+  function fitImageInCrop() {
+    if (!cropper) return;
+    var cropBox = cropper.getCropBoxData();
+    var imgData = cropper.getImageData();
+    var margin = 0.85; // 85% of crop box = 15% padding
+    var scaleW = (cropBox.width * margin) / imgData.naturalWidth;
+    var scaleH = (cropBox.height * margin) / imgData.naturalHeight;
+    var fitRatio = Math.min(scaleW, scaleH);
+    cropper.zoomTo(fitRatio);
+    // Center the image in the crop box
+    cropper.moveTo(
+      cropBox.left + (cropBox.width - imgData.naturalWidth * fitRatio) / 2,
+      cropBox.top + (cropBox.height - imgData.naturalHeight * fitRatio) / 2
+    );
+    cropZoom.value = fitRatio.toFixed(4);
+  }
+
+  cropFitBtn.addEventListener('click', fitImageInCrop);
+
+  // ---- Zoom slider ----
+  cropZoom.addEventListener('input', function() {
+    if (cropper) cropper.zoomTo(parseFloat(this.value));
+  });
+
+  // ---- Apply crop ----
+  cropApplyBtn.addEventListener('click', function() {
+    if (!cropper) return;
+    var canvas = cropper.getCroppedCanvas({
+      width: 256,
+      height: 256,
+      imageSmoothingEnabled: true,
+      imageSmoothingQuality: 'high',
+    });
+    canvas.toBlob(function(blob) {
+      if (!blob) return;
+      if (blob.size > 512 * 1024) {
+        alert('Cropped image is too large. Try zooming in more or use a smaller image.');
+        return;
+      }
+      pendingFile = new File([blob], 'icon.png', { type: 'image/png' });
+      pendingDataUrl = canvas.toDataURL('image/png');
+      willRemoveCustomIcon = false;
+
+      // Update UI
+      previewBox.innerHTML = '<img src="' + pendingDataUrl + '" alt="" style="width:100%;height:100%;object-fit:cover;">';
+      removeBtn.classList.remove('d-none');
+
+      // Deselect bootstrap icons
+      iconInput.value = '';
+      iconPicker.querySelectorAll('[data-icon-option]').forEach(function(b) {
+        b.className = b.className.replace('btn-primary', 'btn-outline-secondary');
+      });
+      var noneBtn = iconPicker.querySelector('[data-icon-option=""]');
+      if (noneBtn) noneBtn.className = noneBtn.className.replace('btn-outline-secondary', 'btn-primary');
+
+      updatePreview();
+      cropBsModal.hide();
+    }, 'image/png', 0.92);
+  });
+
+  // ---- Remove custom icon ----
+  removeBtn.addEventListener('click', function() {
+    pendingFile = null;
+    pendingDataUrl = null;
+    willRemoveCustomIcon = true;
+    fileInput.value = '';
+    previewBox.innerHTML = '<i class="bi bi-image text-muted" style="font-size:1.4rem;"></i>';
+    removeBtn.classList.add('d-none');
+    updatePreview();
+  });
+
+  // ---- Generic colour picker helper ----
+  function setupColorPicker(pickerEl, hiddenInput, wheelEl, hexEl, clearBtn) {
+    function selectPreset(hex) {
+      hiddenInput.value = hex;
+      wheelEl.value = hex || '#6366f1';
+      hexEl.value = hex;
+      pickerEl.querySelectorAll('[data-color-option]').forEach(function(b) {
+        b.classList.remove('ring-selected');
+      });
+      if (hex) {
+        var m = pickerEl.querySelector('[data-color-option="' + hex + '"]');
+        if (m) m.classList.add('ring-selected');
+      }
+      updatePreview();
+    }
+    pickerEl.querySelectorAll('[data-color-option]').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        selectPreset(btn.dataset.colorOption);
+      });
+    });
+    wheelEl.addEventListener('input', function() {
+      hiddenInput.value = this.value;
+      hexEl.value = this.value;
+      pickerEl.querySelectorAll('[data-color-option]').forEach(function(b) {
+        b.classList.remove('ring-selected');
+      });
+      var m = pickerEl.querySelector('[data-color-option="' + this.value + '"]');
+      if (m) m.classList.add('ring-selected');
+      updatePreview();
+    });
+    hexEl.addEventListener('input', function() {
+      var v = this.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+        hiddenInput.value = v;
+        wheelEl.value = v;
+        pickerEl.querySelectorAll('[data-color-option]').forEach(function(b) {
+          b.classList.remove('ring-selected');
+        });
+        var m = pickerEl.querySelector('[data-color-option="' + v.toLowerCase() + '"]');
+        if (m) m.classList.add('ring-selected');
+        updatePreview();
+      }
+    });
+    clearBtn.addEventListener('click', function() {
+      hiddenInput.value = '';
+      hexEl.value = '';
+      wheelEl.value = '#6366f1';
+      pickerEl.querySelectorAll('[data-color-option]').forEach(function(b) {
+        b.classList.remove('ring-selected');
+      });
+      updatePreview();
+    });
+  }
+
+  // Wire up both colour pickers
+  setupColorPicker(bgColorPicker, bgColorInput, bgColorWheel, bgColorHex, clearBgColorBtn);
+  setupColorPicker(accentColorPicker, accentColorInput, accentColorWheel, accentColorHex, clearAccentColorBtn);
+
+  // ---- Save ----
+  saveBtn.addEventListener('click', function() {
+    errBox.classList.add('d-none');
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+
+    var fd = new FormData();
+    // If user is on 'logo' tab and has a pending file, send it; clear bootstrap icon
+    if (currentMode === 'logo' && pendingFile) {
+      fd.append('custom_icon', pendingFile);
+      fd.append('icon', '');
+    } else if (currentMode === 'logo' && !willRemoveCustomIcon) {
+      // Keeping existing custom logo — don't touch icon/custom_icon fields
+      fd.append('icon', '');
+    } else {
+      fd.append('icon', iconInput.value);
+    }
+    fd.append('color', bgColorInput.value);
+    fd.append('accent_color', accentColorInput.value);
+    if (willRemoveCustomIcon && !pendingFile) {
+      fd.append('remove_custom_icon', '1');
+    }
+
+    fetch('{% url "workplaces:workplace-customize" workplace.pk %}', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: fd,
+    })
+    .then(function(resp) { return resp.json().then(function(d){ return {ok: resp.ok, data: d}; }); })
+    .then(function(result) {
+      if (result.ok) {
+        window.location.reload();
+      } else {
+        errBox.textContent = result.data.error || 'Something went wrong.';
+        errBox.classList.remove('d-none');
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Save';
+      }
+    })
+    .catch(function() {
+      errBox.textContent = 'Network error.';
+      errBox.classList.remove('d-none');
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Save';
+    });
+  });
+})();
+</script>
+{% endblock %}

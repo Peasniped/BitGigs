@@ -1,0 +1,80 @@
+{# Reusable tax profile form fields — include with: {% include "core/_taxprofile_form_fields.html" with form=form %} #}
+
+<div data-form="taxprofile">
+
+  {# Effective from #}
+  <div class="mb-3">
+    <label for="{{ form.effective_from.id_for_label }}" class="form-label fw-medium">Effective from</label>
+    <input type="date" name="{{ form.effective_from.html_name }}" id="{{ form.effective_from.id_for_label }}"
+           value="{{ form.effective_from.value|default_if_none:'' }}"
+           class="form-control {% if form.effective_from.errors %}is-invalid{% endif %}" required>
+    {% for err in form.effective_from.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+  </div>
+
+  {# Monthly deduction (personfradrag) #}
+  <div class="mb-3">
+    <label for="{{ form.monthly_deduction.id_for_label }}" class="form-label fw-medium">Monthly deduction (personfradrag)</label>
+    <div class="input-group">
+      <input type="text" inputmode="decimal"
+             name="{{ form.monthly_deduction.html_name }}" id="{{ form.monthly_deduction.id_for_label }}"
+             value="{{ form.monthly_deduction.value|default_if_none:'' }}"
+             class="form-control dk-number {% if form.monthly_deduction.errors %}is-invalid{% endif %}" required>
+      <span class="input-group-text text-muted">DKK</span>
+      {% for err in form.monthly_deduction.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+    </div>
+  </div>
+
+  {# Tax rate #}
+  <div class="mb-3">
+    <label for="{{ form.tax_percent.id_for_label }}" class="form-label fw-medium">Tax rate (trækprocent)</label>
+    <div class="input-group">
+      <input type="text" inputmode="decimal"
+             name="{{ form.tax_percent.html_name }}" id="{{ form.tax_percent.id_for_label }}"
+             value="{{ form.tax_percent.value|default_if_none:'' }}"
+             class="form-control dk-number {% if form.tax_percent.errors %}is-invalid{% endif %}" required>
+      <span class="input-group-text text-muted">%</span>
+      {% for err in form.tax_percent.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+    </div>
+  </div>
+
+  {# AM-bidrag #}
+  <div class="mb-3">
+    <label for="{{ form.am_bidrag_percent.id_for_label }}" class="form-label fw-medium">AM-bidrag</label>
+    <div class="input-group">
+      <input type="text" inputmode="decimal"
+             name="{{ form.am_bidrag_percent.html_name }}" id="{{ form.am_bidrag_percent.id_for_label }}"
+             value="{{ form.am_bidrag_percent.value|default_if_none:'8' }}"
+             class="form-control dk-number {% if form.am_bidrag_percent.errors %}is-invalid{% endif %}" required>
+      <span class="input-group-text text-muted">%</span>
+      {% for err in form.am_bidrag_percent.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+    </div>
+  </div>
+
+  {# ── Folkekirken toggle + church tax ────────────── #}
+  <div class="mb-3">
+    <div class="form-check form-switch" data-toggle-group="folkekirken">
+      <input type="checkbox" class="form-check-input"
+             name="{{ form.is_folkekirken_member.html_name }}"
+             id="{{ form.is_folkekirken_member.id_for_label }}"
+             data-toggle-trigger="folkekirken"
+             {% if form.is_folkekirken_member.value %}checked{% endif %}>
+      <label class="form-check-label fw-medium" for="{{ form.is_folkekirken_member.id_for_label }}">
+        Member of folkekirken
+      </label>
+    </div>
+  </div>
+
+  <div data-toggle-target="folkekirken" class="mb-3"
+       {% if not form.is_folkekirken_member.value %}style="display:none"{% endif %}>
+    <label for="{{ form.church_tax_percent.id_for_label }}" class="form-label">Church tax rate (kirkeskat)</label>
+    <div class="input-group">
+      <input type="text" inputmode="decimal"
+             name="{{ form.church_tax_percent.html_name }}" id="{{ form.church_tax_percent.id_for_label }}"
+             value="{{ form.church_tax_percent.value|default_if_none:'' }}"
+             class="form-control dk-number {% if form.church_tax_percent.errors %}is-invalid{% endif %}">
+      <span class="input-group-text text-muted">%</span>
+      {% for err in form.church_tax_percent.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+    </div>
+  </div>
+
+</div><!-- /data-form="taxprofile" -->

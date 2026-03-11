@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Payroll Period {{ period.start_date }} — BitGigs{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-1">{{ period.workplace.name }}</h2>
+    <span class="text-muted">
+      Period: {{ period.start_date }} → {{ period.end_date }}
+      {% if period.is_locked %}<span class="badge bg-success ms-2">Locked</span>{% endif %}
+    </span>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'workplaces:workplace-detail' period.workplace.pk %}?year={{ period.start_date.year }}&month={{ period.start_date.month }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Back to workplace
+    </a>
+    {% if not period.is_locked %}
+    <form method="post" action="{% url 'payroll:payslip-recalculate' period.pk %}" class="d-inline">
+      {% csrf_token %}
+      <button class="btn btn-outline-primary btn-sm" type="submit">
+        <i class="bi bi-arrow-clockwise me-1"></i>Recalculate
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Session Summary -->
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header">Session Summary</div>
+      <div class="card-body py-2" style="font-size:0.875rem;">
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Total hours</span><span class="fw-semibold">{{ summary.total_hours|floatformat:2 }}h</span></div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Working days</span><span>{{ summary.working_days }}</span></div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">On-site</span><span>{{ summary.on_site_hours|floatformat:1 }}h</span></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">Remote</span><span>{{ summary.remote_hours|floatformat:1 }}h</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Salary Estimate -->
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header">Salary Estimate</div>
+      <div class="card-body py-2" style="font-size:0.875rem;">
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Gross</span><span class="fw-semibold">{{ estimate.gross_pay|floatformat:2 }} DKK</span></div>
+        {% if estimate.tax_breakdown %}
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">AM-bidrag</span><span>{{ estimate.tax_breakdown.am_bidrag|floatformat:2 }} DKK</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">A-skat</span><span>{{ estimate.tax_breakdown.a_skat|floatformat:2 }} DKK</span></div>
+          <hr class="my-1">
+          <div class="d-flex justify-content-between"><span class="text-muted">Net (est.)</span><span class="fw-semibold" style="color:#6366f1;">{{ estimate.tax_breakdown.net_pay|floatformat:2 }} DKK</span></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Flex Time (salaried only) -->
+  {% if flex %}
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header">Flex Time</div>
+      <div class="card-body py-2" style="font-size:0.875rem;">
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Expected</span><span>{{ flex.expected_hours|floatformat:2 }}h</span></div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Actual</span><span>{{ flex.actual_hours|floatformat:2 }}h</span></div>
+        <div class="d-flex justify-content-between mb-1">
+          <span class="text-muted">This period</span>
+          <span class="{% if flex.flex_this_period >= 0 %}text-success{% else %}text-danger{% endif %}">{{ flex.flex_this_period|floatformat:2 }}h</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted">Total flex</span>
+          <span class="fw-semibold {% if flex.flex_total >= 0 %}text-success{% else %}text-danger{% endif %}">{{ flex.flex_total|floatformat:2 }}h</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Payslip Lines -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Payslip Lines</span>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-sm mb-0" id="payslip-lines"
+           data-reorder-url="{% url 'payroll:payslip-reorder' period.pk %}">
+      <thead>
+        <tr>
+          <th style="width:30px"></th>
+          <th>Name</th>
+          <th class="text-end" style="width:120px">Amount</th>
+          <th style="width:70px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in payslip.lines %}
+        <tr data-id="{{ line.line_id }}"
+            class="{% if line.standard_line_key == 'net_pay' %}table-success fw-bold{% elif line.standard_line_key == 'total_tax' or line.standard_line_key == 'subtotal' %}table-light{% elif line.standard_line_key == 'fradrag_used' %}text-muted{% endif %}">
+          <td class="{% if line.is_editable %}drag-handle{% endif %}" style="{% if line.is_editable %}cursor:grab{% endif %}">
+            {% if line.is_editable %}<i class="bi bi-grip-vertical text-muted"></i>{% endif %}
+          </td>
+          <td>
+            {{ line.name }}
+            {% if line.standard_line_key %}
+              <i class="bi bi-lock-fill text-muted" style="font-size:0.65rem;" title="Auto-calculated"></i>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            {% if line.line_type == 'pre_tax_deduct' or line.line_type == 'post_tax_deduct' %}
+              <span class="text-danger">−{{ line.amount|floatformat:2 }}</span>
+            {% elif line.standard_line_key == 'fradrag_used' %}
+              <span class="text-muted">({{ line.amount|floatformat:2 }})</span>
+            {% elif line.standard_line_key == 'net_pay' %}
+              <span style="color:#16a34a;">{{ line.amount|floatformat:2 }} DKK</span>
+            {% else %}
+              {{ line.amount|floatformat:2 }}
+            {% endif %}
+          </td>
+          <td class="text-end">
+            {% if not line.standard_line_key and not period.is_locked %}
+              <form method="post" action="{% url 'payroll:payslip-delete-line' period.pk line.line_id %}" class="d-inline">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" type="submit" title="Remove"
+                        onclick="return confirm('Remove this line?')">
+                  <i class="bi bi-x-lg" style="font-size:0.7rem;"></i>
+                </button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="4" class="text-center text-muted py-3">
+            No payslip lines yet. Click "Recalculate" to generate standard lines.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add custom line -->
+{% if not period.is_locked %}
+<div class="card mb-4">
+  <div class="card-header">
+    <i class="bi bi-plus-circle me-1"></i>Add custom line
+  </div>
+  <div class="card-body">
+    <form method="post" action="{% url 'payroll:payslip-add-line' period.pk %}" class="row g-2 align-items-end">
+      {% csrf_token %}
+      <div class="col-12 col-md-4">
+        <label class="form-label small">Name</label>
+        <input type="text" name="name" class="form-control form-control-sm" required placeholder="e.g. Lunch deduction">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small">Amount (DKK)</label>
+        <input type="text" name="amount" class="form-control form-control-sm" required placeholder="0,00">
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small">Type</label>
+        <select name="line_type" class="form-select form-select-sm">
+          <option value="pre_tax_deduct">Pre-tax deduction</option>
+          <option value="pre_tax_add">Pre-tax addition</option>
+          <option value="post_tax_deduct">Post-tax deduction</option>
+          <option value="post_tax_add">Post-tax addition</option>
+          <option value="info">Informational</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3">
+        <button type="submit" class="btn btn-primary btn-sm w-100">
+          <i class="bi bi-plus-lg me-1"></i>Add line
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Payslip line drag-and-drop reorder (only custom lines have drag handles)
+(function() {
+  var table = document.getElementById('payslip-lines');
+  if (!table) return;
+  var tbody = table.querySelector('tbody');
+  if (!tbody) return;
+
+  var dragEl = null;
+  tbody.querySelectorAll('tr').forEach(function(row) {
+    var handle = row.querySelector('.drag-handle');
+    if (!handle) return;
+
+    row.draggable = true;
+    row.addEventListener('dragstart', function() { dragEl = row; row.classList.add('table-active'); });
+    row.addEventListener('dragend', function() { if (dragEl) dragEl.classList.remove('table-active'); dragEl = null; });
+    row.addEventListener('dragover', function(e) { e.preventDefault(); });
+    row.addEventListener('drop', function(e) {
+      e.preventDefault();
+      if (dragEl && dragEl !== row) {
+        var rect = row.getBoundingClientRect();
+        if (e.clientY < rect.top + rect.height / 2) {
+          tbody.insertBefore(dragEl, row);
+        } else {
+          tbody.insertBefore(dragEl, row.nextSibling);
+        }
+        // POST new order
+        var order = [];
+        tbody.querySelectorAll('tr').forEach(function(r) {
+          if (r.dataset.id) order.push(r.dataset.id);
+        });
+        var reorderUrl = table.dataset.reorderUrl;
+        if (reorderUrl) {
+          var cookie = document.cookie.split(';').find(function(c) { return c.trim().startsWith('csrftoken='); });
+          var token = cookie ? cookie.split('=')[1] : '';
+          fetch(reorderUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': token },
+            body: JSON.stringify({ order: order }),
+          });
+        }
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

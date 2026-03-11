@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ date }} — Daily Overview — BitGigs{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <a href="{% url 'worksessions:daily-overview' prev_date.year prev_date.month prev_date.day %}"
+     class="btn btn-outline-secondary">← {{ prev_date }}</a>
+  <h2>{{ date }}</h2>
+  <a href="{% url 'worksessions:daily-overview' next_date.year next_date.month next_date.day %}"
+     class="btn btn-outline-secondary">{{ next_date }} →</a>
+</div>
+
+{% for summary in summaries %}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between">
+    <strong>{{ summary.workplace_name }}</strong>
+    <span>{{ summary.total_hours|floatformat:2 }} hours ({{ summary.session_count }} session{{ summary.session_count|pluralize }})</span>
+  </div>
+  <table class="table table-sm mb-0">
+    <thead>
+      <tr><th>Time</th><th>Break</th><th>Hours</th><th>Type</th></tr>
+    </thead>
+    <tbody>
+      {% for s in summary.sessions %}
+      <tr>
+        <td>{{ s.start_time|time:"H:i" }} – {{ s.end_time|time:"H:i" }}</td>
+        <td>{{ s.break_minutes }}m</td>
+        <td>{{ s.net_hours|floatformat:2 }}</td>
+        <td>{{ s.get_session_type_display }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% empty %}
+<p class="text-muted">No sessions on this day.</p>
+{% endfor %}
+
+<a href="{% url 'worksessions:session-create' %}?date={{ date|date:'Y-m-d' }}" class="btn btn-primary">
+  + Log Session for {{ date }}
+</a>
+{% endblock %}
