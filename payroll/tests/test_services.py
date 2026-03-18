@@ -76,6 +76,7 @@ class SalaryEstimateServiceTest(TestCase):
         estimate = SalaryEstimateService.estimate(wp, Decimal("80.00"))
         # 80 hours * 200 DKK = 16000
         self.assertEqual(estimate.gross_pay, Decimal("16000.00"))
+        self.assertEqual(estimate.taxable_gross, Decimal("16000.00"))
         self.assertIsNotNone(estimate.tax_breakdown)
 
     def test_salaried_estimate(self):
@@ -88,6 +89,45 @@ class SalaryEstimateServiceTest(TestCase):
         estimate = SalaryEstimateService.estimate(wp, Decimal("148.00"))
         # Salaried: gross is always monthly_salary regardless of hours
         self.assertEqual(estimate.gross_pay, Decimal("35000.00"))
+
+    def test_pension_basis_includes_fritvalg_and_feriepenge_for_feriekonto(self):
+        wp = Workplace.objects.create(
+            name="Pension Basis Job",
+            employment_type=Workplace.EmploymentType.HOURLY,
+            hourly_rate=Decimal("100.00"),
+            weekly_hours_fixed=Decimal("37.00"),
+            vacation_type=Workplace.VacationType.FERIEKONTO,
+            fritvalgskonto_enabled=True,
+            fritvalgskonto_percent=Decimal("5.00"),
+            pension_employee_percent=Decimal("2.00"),
+            pension_employer_percent=Decimal("10.00"),
+        )
+
+        estimate = SalaryEstimateService.estimate(wp, Decimal("100.00"))
+
+        # Gross: 10,000.00
+        # Fritvalgskonto (5%): 500.00
+        # Feriepenge/FerieKonto (12.5%): 1,250.00
+        # Pension basis: 11,750.00
+        self.assertEqual(estimate.pension_basis, Decimal("11750.00"))
+        self.assertEqual(estimate.employee_pension, Decimal("235.00"))
+        self.assertEqual(estimate.employer_pension, Decimal("1175.00"))
+
+    def test_taxable_gross_includes_fritvalgskonto(self):
+        wp = Workplace.objects.create(
+            name="Taxable Gross Job",
+            employment_type=Workplace.EmploymentType.HOURLY,
+            hourly_rate=Decimal("100.00"),
+            weekly_hours_fixed=Decimal("37.00"),
+            fritvalgskonto_enabled=True,
+            fritvalgskonto_percent=Decimal("5.00"),
+        )
+
+        estimate = SalaryEstimateService.estimate(wp, Decimal("100.00"))
+
+        self.assertEqual(estimate.gross_pay, Decimal("10000.00"))
+        self.assertEqual(estimate.fritvalgskonto, Decimal("500.00"))
+        self.assertEqual(estimate.taxable_gross, Decimal("10500.00"))
 
 
 class FlexTimeServiceTest(TestCase):

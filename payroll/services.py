@@ -15,6 +15,7 @@ from worksessions.models import WorkSession
 from core.services import TaxCalculationService, TaxBreakdown, ATPService
 
 TWO_PLACES = Decimal("0.01")
+FERIEPENGE_PERCENT = Decimal("12.50")
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +168,9 @@ class SalaryEstimate:
     total_hourly_rate: Decimal | None
     monthly_salary: Decimal | None
     gross_pay: Decimal
+    fritvalgskonto: Decimal
+    taxable_gross: Decimal
+    pension_basis: Decimal
     employee_pension: Decimal
     employer_pension: Decimal
     total_pension: Decimal
@@ -192,14 +196,38 @@ class SalaryEstimateService:
         else:
             gross = workplace.monthly_salary
 
+        fritvalg_basis = Decimal("0")
+        if (
+            getattr(workplace, "fritvalgskonto_enabled", False)
+            and workplace.fritvalgskonto_percent
+            and workplace.fritvalgskonto_percent > 0
+        ):
+            fritvalg_basis = (
+                gross * workplace.fritvalgskonto_percent / Decimal("100")
+            ).quantize(TWO_PLACES, ROUND_HALF_UP)
+
+        feriepenge_basis = Decimal("0")
+        if workplace.vacation_type == Workplace.VacationType.FERIEKONTO:
+            feriepenge_basis = (
+                gross * FERIEPENGE_PERCENT / Decimal("100")
+            ).quantize(TWO_PLACES, ROUND_HALF_UP)
+
+        taxable_gross = (gross + fritvalg_basis).quantize(
+            TWO_PLACES, ROUND_HALF_UP
+        )
+
+        pension_basis = (gross + fritvalg_basis + feriepenge_basis).quantize(
+            TWO_PLACES, ROUND_HALF_UP
+        )
+
         # Employee pension (deducted before tax)
         employee_pension = (
-            gross * workplace.pension_employee_percent / Decimal("100")
+            pension_basis * workplace.pension_employee_percent / Decimal("100")
         ).quantize(TWO_PLACES, ROUND_HALF_UP)
 
         # Employer pension
         employer_pension = (
-            gross * workplace.pension_employer_percent / Decimal("100")
+            pension_basis * workplace.pension_employer_percent / Decimal("100")
         ).quantize(TWO_PLACES, ROUND_HALF_UP)
 
         # ATP contributions based on monthly hours
@@ -214,7 +242,7 @@ class SalaryEstimateService:
         )
 
         tax_breakdown = TaxCalculationService.calculate(
-            gross,
+            taxable_gross,
             as_of=as_of,
             tax_card_type=workplace.tax_card_type,
             employee_pension=employee_pension,
@@ -230,6 +258,9 @@ class SalaryEstimateService:
             total_hourly_rate=workplace.total_hourly_rate,
             monthly_salary=workplace.monthly_salary,
             gross_pay=gross,
+            fritvalgskonto=fritvalg_basis,
+            taxable_gross=taxable_gross,
+            pension_basis=pension_basis,
             employee_pension=employee_pension,
             employer_pension=employer_pension,
             total_pension=employee_pension + employer_pension,
@@ -565,7 +596,7 @@ class PayslipService:
             },
             "pension_employee": {
                 "name": "Own pension contribution",
-                "quantity": gross,
+                "quantity": estimate.pension_basis,
                 "rate": workplace.pension_employee_percent,
                 "amount": pension_emp,
                 "line_type": "pre_tax_deduct",

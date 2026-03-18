@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load dk_filters %}
 {% block title %}{{ grid.title }} — Payroll Calendar — BitGigs{% endblock %}
 
 {% block content %}
@@ -37,7 +38,7 @@
             </a>
           </small>
           {% if day.total_hours %}
-            <span class="badge bg-info">{{ day.total_hours|floatformat:1 }}h</span>
+            <span class="badge bg-info">{{ day.total_hours|dk }}h</span>
           {% endif %}
         </div>
         {% for session in day.sessions %}

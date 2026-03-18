@@ -83,7 +83,7 @@ class DashboardView(View):
 
             tax_pull_date = PayrollPeriodService.get_tax_pull_date(wp, year, month)
             earned_est = SalaryEstimateService.estimate(wp, actual_hours, as_of=tax_pull_date)
-            total_earned_gross += earned_est.gross_pay
+            total_earned_gross += earned_est.taxable_gross
             if earned_est.tax_breakdown:
                 total_earned_net += earned_est.tax_breakdown.net_pay
 
@@ -94,16 +94,16 @@ class DashboardView(View):
                 expected_hours = wp.expected_weekly_hours * Decimal("4.33") if wp.expected_weekly_hours else actual_hours
 
             expected_est = SalaryEstimateService.estimate(wp, expected_hours, as_of=tax_pull_date)
-            total_expected_gross += expected_est.gross_pay
+            total_expected_gross += expected_est.taxable_gross
             if expected_est.tax_breakdown:
                 total_expected_net += expected_est.tax_breakdown.net_pay
 
             workplace_data.append({
                 "workplace": wp,
                 "actual_hours": actual_hours,
-                "earned_gross": earned_est.gross_pay,
-                "earned_net": earned_est.tax_breakdown.net_pay if earned_est.tax_breakdown else earned_est.gross_pay,
-                "expected_gross": expected_est.gross_pay,
+                "earned_gross": earned_est.taxable_gross,
+                "earned_net": earned_est.tax_breakdown.net_pay if earned_est.tax_breakdown else earned_est.taxable_gross,
+                "expected_gross": expected_est.taxable_gross,
                 "avatar_initials": _avatar_for_name(wp.name)[0],
                 "avatar_color": _avatar_for_name(wp.name)[1],
             })

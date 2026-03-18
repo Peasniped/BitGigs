@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load dk_filters %}
 {% block title %}{{ workplace.name }} — BitGigs{% endblock %}
 
 {% block content %}
@@ -49,13 +50,13 @@
   <div class="col-6 col-md-3">
     <div class="stat-card">
       <div class="stat-card__label">Hours worked</div>
-      <div class="stat-card__value">{{ actual_hours|floatformat:1 }}h</div>
+      <div class="stat-card__value">{{ actual_hours|dk }}h</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="stat-card">
       <div class="stat-card__label">Gross Pay</div>
-      <div class="stat-card__value">{{ estimate.gross_pay|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__value">{{ estimate.taxable_gross|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
     </div>
   </div>
   <div class="col-6 col-md-3">
@@ -251,7 +252,7 @@
                 <small class="text-muted">{{ session.get_session_type_display }}{% if session.break_minutes %} · {{ session.break_minutes }}min break{% endif %}</small>
               </div>
               <div class="d-flex gap-1">
-                <span class="badge bg-primary bg-opacity-75">{{ session.net_hours|floatformat:1 }}h</span>
+                <span class="badge bg-primary bg-opacity-75">{{ session.net_hours|dk }}h</span>
                 <a href="{% url 'worksessions:session-update' session.pk %}?next=workplace" class="btn btn-sm btn-outline-secondary py-0 px-1">
                   <i class="bi bi-pencil" style="font-size:0.7rem;"></i>
                 </a>

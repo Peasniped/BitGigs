@@ -117,9 +117,7 @@ class WorkplaceDetailView(View):
         # Pension & fritvalgskonto from estimate
         pension_employee = estimate.employee_pension
         pension_employer = estimate.employer_pension
-        fritvalgskonto = Decimal("0")
-        if estimate.gross_pay:
-            fritvalgskonto = (estimate.gross_pay * workplace.fritvalgskonto_percent / Decimal("100")).quantize(Decimal("0.01"))
+        fritvalgskonto = estimate.fritvalgskonto
 
         # Selected day sessions (if a day is clicked)
         selected_date = request.GET.get("day")
