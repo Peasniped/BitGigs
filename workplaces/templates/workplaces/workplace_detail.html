@@ -140,7 +140,6 @@
           <div class="d-flex justify-content-between mb-1"><span class="text-muted">Base rate</span><span>{{ workplace.hourly_rate }} DKK/h</span></div>
           <div class="d-flex justify-content-between mb-1"><span class="text-muted">Effective rate</span><span class="fw-semibold">{{ workplace.effective_hourly_rate }} DKK/h</span></div>
           <div class="d-flex justify-content-between mb-1"><span class="text-muted">Total rate</span><span>{{ workplace.total_hourly_rate }} DKK/h</span></div>
-          <div class="form-text mt-0 mb-1" style="font-size:0.7rem;line-height:1.3;">Effective = base + ferietillæg + fritvalg − employee pension<br>Total = effective + employer pension</div>
         {% else %}
           <div class="d-flex justify-content-between mb-1"><span class="text-muted">Salary</span><span>{{ workplace.monthly_salary }} DKK/mo</span></div>
         {% endif %}
