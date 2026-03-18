@@ -1,3 +1,18 @@
+Workplace calendar:
+- The colors indicating which days in the first/last week of the payroll period are included or not should be a bit less subtle.
+- Work sessions for days that are before the start or after the end of the payroll period should not be put on the calendar. ie. with a payroll period of 20th to the 19th, right now, i can see a work session dated the 17th of the previous period, because it is in the same week as the starting date. (does that make sense?)
+- When clicking the calendar, the modal should appear as a pop-up just over the date you clicked, and not block the entire screen.
+- If no work sessions are on the current day, it should automatically open the dialogue to add a new session
+- There should be a date field, so you can change it if you click the wrong date
+- At the top of the add work session form, there should be a small banner showing which workplace you are adding a session for.
+- In the add work session form, it should show the session time in minutes and decimal with and without the break
+- When you are done adding a work session, you should be returned to the workplace dashboard, not the main dashboard.
+
+- In the workplace settings, there should be a break policy configuration, where you can pick:
+-- Break time is paid
+-- Break time is static (ie you can only enter yes/no in the work session configuration, and the break numbers are static)
+-- Break time is variable and should be entered manually every time (like it is now)
+
 - Over time, average hours should be calculated (trailing 3-6 months? and should be used in expected pay calculations) -- This metric should be visible
 
 - There should be an input for expected contract end (if known). This should be taken into account in the expected pay calculations.
