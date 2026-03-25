@@ -5,6 +5,7 @@ Global accross the entire codebase and ui:
 Main Dashboard
 - A banner at the top of the page should show for each workplace, if any shifts are ready for approval.
 - Move the workplace cards to just under the stat-cards
+- The message "2 shifts in February belong to March payroll (19,70h)" is nice, but maybe you can click to expand, so it shows the shifts and the hours?
 
 Workplace dashboard:
 - The month picker should be at the top, just under the workplace name.
