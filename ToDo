@@ -1,22 +1,43 @@
+Global accross the entire codebase and ui:
+- Rename "Worksession" / "Session" to shift.
+- Make sure planned / approved shift is used throughout. 
+
+Main Dashboard
+- A banner at the top of the page should show for each workplace, if any shifts are ready for approval.
+- Move the workplace cards to just under the stat-cards
+
+Workplace dashboard:
+- The month picker should be at the top, just under the workplace name.
+- Edit Workplace, Customize Appearance, Delete, and Payslip editor should be moved to a hamburger menu that is located where the delete button is (top/left in the same level as the company name/logo)
+- Back-button: if you change the month, the back button should not go back to the month you were on before, it should go back to the main dashboard or workplaces overview.
+- The tables are a bit cluttered. Their position should automatically changed according to what is configured for the workplace. They should go from top/left to bottom/right in the following order:
+1. Details
+2. Feriepenge / Flexkonto
+3. Pension
+4. Fritvalgskonto
+- In the details table, it should calculate base / effective / total hourly wage
+- In the details table, please put a hr below the wages and the weekly hours
+
 Workplace calendar:
-- The colors indicating which days in the first/last week of the payroll period are included or not should be a bit less subtle.
-- Work sessions for days that are before the start or after the end of the payroll period should not be put on the calendar. ie. with a payroll period of 20th to the 19th, right now, i can see a work session dated the 17th of the previous period, because it is in the same week as the starting date. (does that make sense?)
-- When clicking the calendar, the modal should appear as a pop-up just over the date you clicked, and not block the entire screen.
-- If no work sessions are on the current day, it should automatically open the dialogue to add a new session
+- Work shifts for days that are before the start or after the end of the payroll period should be greyed out on the calendar. -- just like on the planning calendar
+- When clicking the calendar, currently it opens a modal, i would like this to appear as a pop-up just over the date you clicked (like the pick-workplace-popup on the planning calendar)
+- If no work shifts are already on the current day, it should automatically open the dialogue to add a new shift
 - There should be a date field, so you can change it if you click the wrong date
-- At the top of the add work session form, there should be a small banner showing which workplace you are adding a session for.
-- In the add work session form, it should show the session time in minutes and decimal with and without the break
-- When you are done adding a work session, you should be returned to the workplace dashboard, not the main dashboard.
+- At the top of the add work shift form, there should be a small banner showing which workplace you are adding a shift for.
+- In the add work shift form, it should show the shift time in minutes and decimal with and without the break
+- When you are done adding a work shift, you should be returned to the workplace dashboard, not the main dashboard.
 
 - In the workplace settings, there should be a break policy configuration, where you can pick:
 -- Break time is paid
--- Break time is static (ie you can only enter yes/no in the work session configuration, and the break numbers are static)
+-- Break time is static (ie you can only enter yes/no in the work shift configuration, and the break numbers are static)
 -- Break time is variable and should be entered manually every time (like it is now)
 
-- Over time, average hours should be calculated (trailing 3-6 months? and should be used in expected pay calculations) -- This metric should be visible
+Analytics page:
+- Average hours per month/week should be calculated (trailing over a configurable amount of months)
+- Expected income for the entire year and each month.
+- There should be an input for expected contract end for a workplace (optional). This should be taken into account in the expected pay calculations., ie if my contract ends in june, that workplace earns me nothing in july.
 
-- There should be an input for expected contract end (if known). This should be taken into account in the expected pay calculations.
-
+SU-page:
 A page that lets me configure studieaktivitet for each month in the year, and then it calculates and shows the limit for how much I can earn, and then sums up all my earnings for month basis and the year. It should have a progression bar that shows how close I am to the limit. It should also show the expected earnings for the rest of the year based on my current average, and how that affects the limit.
 - Then it should have a message like "You are trending to have an income of xx which is above the limit of yy for this year. Please work less." or "Everything looks good, you are trending to have an income of xx which is below the limit of yy for this year. Keep it up!" or "You are very close to the limit, you are trending to have an income of xx which is just below the limit of yy for this year. Be careful with how much you work the rest of the year!"
 - It should also have a section that shows fast inkomst (salaried jobs) vs hourly income, and if close to or over the limit, it should suggest maximum weekly/monthly hours for hourly jobs to stay under the limit.
