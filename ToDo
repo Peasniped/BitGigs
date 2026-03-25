@@ -2,6 +2,9 @@ Global accross the entire codebase and ui:
 - Rename "Worksession" / "Session" to shift.
 - Make sure planned / approved shift is used throughout. 
 
+All Calendars:
+- Change to list view where each shift is a row in a list/table
+
 Main Dashboard
 - A banner at the top of the page should show for each workplace, if any shifts are ready for approval.
 - Move the workplace cards to just under the stat-cards
