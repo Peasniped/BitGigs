@@ -22,6 +22,9 @@ Workplace dashboard:
 - In the details table, it should calculate base / effective / total hourly wage
 - In the details table, please put a hr below the wages and the weekly hours
 
+Payslip Editor
+- Buttons to change month
+
 Workplace calendar:
 - Work shifts for days that are before the start or after the end of the payroll period should be greyed out on the calendar. -- just like on the planning calendar
 - When clicking the calendar, currently it opens a modal, i would like this to appear as a pop-up just over the date you clicked (like the pick-workplace-popup on the planning calendar)
