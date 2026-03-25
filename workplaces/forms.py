@@ -47,6 +47,13 @@ class WorkplaceForm(forms.ModelForm):
             "ferietillaeg_enabled",
             "ferietillaeg_percent",
             "ferietillaeg_payout_months",
+            "default_shift_start_time",
+            "default_shift_end_time",
+            "default_shift_break_minutes",
+            "default_shift_type",
+            "hour_goal_type",
+            "hour_goal_min",
+            "hour_goal_max",
         ]
 
     def __init__(self, *args, **kwargs):
@@ -114,5 +121,14 @@ class WorkplaceForm(forms.ModelForm):
                 cleaned["weekly_hours_max"] = None
                 if not cleaned.get("weekly_hours_fixed"):
                     self.add_error("weekly_hours_fixed", "Hours per week is required.")
+
+        # Hour goal range validation
+        goal_min = cleaned.get("hour_goal_min")
+        goal_max = cleaned.get("hour_goal_max")
+        goal_mode = self.data.get("goalMode", "target")
+        if goal_mode == "range" and goal_min is not None and goal_max is None:
+            self.add_error("hour_goal_max", "Max is required when using range mode.")
+        if goal_min is not None and goal_max is not None and goal_min >= goal_max:
+            self.add_error("hour_goal_max", "Max must be greater than min.")
 
         return cleaned

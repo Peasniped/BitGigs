@@ -90,12 +90,17 @@ class WorkplaceDetailView(View):
     def get(self, request, pk):
         from calendar_view.services import CalendarService
         from payroll.services import PayrollPeriodService, SalaryEstimateService
-        from worksessions.models import WorkSession
+        from core.services import TaxCalculationService
+        from worksessions.models import WorkSession, PlannedShift
 
         workplace = get_object_or_404(Workplace, pk=pk)
         today = date.today()
-        year = int(request.GET.get("year", today.year))
-        month = int(request.GET.get("month", today.month))
+
+        # Determine which payroll month "today" belongs to for this workplace
+        today_payroll_year, today_payroll_month = PayrollPeriodService.get_payroll_month(workplace, today)
+
+        year = int(request.GET.get("year", today_payroll_year))
+        month = int(request.GET.get("month", today_payroll_month))
 
         # Avatar
         avatar_initials, avatar_color = _avatar_for_name(workplace.name)
@@ -111,8 +116,30 @@ class WorkplaceDetailView(View):
             date__lte=period_end,
         )
         actual_hours = sum((s.net_hours for s in sessions_in_period), Decimal("0"))
+        avg_hours_per_week = (actual_hours / Decimal("4.33")).quantize(Decimal("0.01"))
         tax_pull_date = PayrollPeriodService.get_tax_pull_date(workplace, year, month)
         estimate = SalaryEstimateService.estimate(workplace, actual_hours, as_of=tax_pull_date)
+
+        # Feriepenge calculation (only for feriekonto workplaces)
+        feriepenge_gross = Decimal("0")
+        feriepenge_am = Decimal("0")
+        feriepenge_a_skat = Decimal("0")
+        feriepenge_net = Decimal("0")
+        feriepenge_rate = Decimal("0")
+        if workplace.vacation_type == Workplace.VacationType.FERIEKONTO:
+            feriepenge_rate = Decimal("12.50")
+            feriepenge_gross = (estimate.gross_pay * feriepenge_rate / Decimal("100")).quantize(Decimal("0.01"))
+            # Taxed with AM-bidrag and A-skat, no fradrag (like bikort)
+            feriepenge_tax = TaxCalculationService.calculate(
+                feriepenge_gross,
+                as_of=tax_pull_date,
+                tax_card_type="bikort",
+                employee_pension=Decimal("0"),
+                employee_atp=Decimal("0"),
+            )
+            feriepenge_am = feriepenge_tax.am_bidrag
+            feriepenge_a_skat = feriepenge_tax.a_skat
+            feriepenge_net = feriepenge_tax.net_pay
 
         # Pension & fritvalgskonto from estimate
         pension_employee = estimate.employee_pension
@@ -177,6 +204,29 @@ class WorkplaceDetailView(View):
         # All month names for the "go to month" dropdown
         all_months = [(i, cal_mod.month_name[i]) for i in range(1, 13)]
 
+        # Pending planned shifts (for approval banner + modal)
+        pending_shifts = list(
+            PlannedShift.objects.filter(
+                workplace=workplace,
+                status=PlannedShift.Status.PLANNED,
+                date__lte=today,
+            ).order_by("date", "start_time")
+        )
+        pending_shifts_count = len(pending_shifts)
+        pending_shifts_json = json.dumps([
+            {
+                "id": s.pk,
+                "date": s.date.isoformat(),
+                "start_time": s.start_time.strftime("%H:%M"),
+                "end_time": s.end_time.strftime("%H:%M"),
+                "break_minutes": s.break_minutes,
+                "session_type": s.session_type,
+                "session_type_display": s.get_session_type_display(),
+                "net_hours": str(s.net_hours.quantize(Decimal("0.01"))),
+            }
+            for s in pending_shifts
+        ])
+
         return render(
             request,
             "workplaces/workplace_detail.html",
@@ -190,7 +240,13 @@ class WorkplaceDetailView(View):
                 "next_year": next_year,
                 "next_month": next_month,
                 "actual_hours": actual_hours,
+                "avg_hours_per_week": avg_hours_per_week,
                 "estimate": estimate,
+                "feriepenge_rate": feriepenge_rate,
+                "feriepenge_gross": feriepenge_gross,
+                "feriepenge_am": feriepenge_am,
+                "feriepenge_a_skat": feriepenge_a_skat,
+                "feriepenge_net": feriepenge_net,
                 "pension_employee": pension_employee,
                 "pension_employer": pension_employer,
                 "pension_total": pension_employee + pension_employer,
@@ -202,9 +258,13 @@ class WorkplaceDetailView(View):
                 "month_picker_by_year": month_picker_by_year,
                 "all_months": all_months,
                 "today": today,
+                "today_payroll_year": today_payroll_year,
+                "today_payroll_month": today_payroll_month,
                 "icon_choices": ICON_CHOICES,
                 "bg_color_choices": BG_COLOR_CHOICES,
                 "accent_color_choices": ACCENT_COLOR_CHOICES,
+                "pending_shifts_count": pending_shifts_count,
+                "pending_shifts_json": pending_shifts_json,
             },
         )
 

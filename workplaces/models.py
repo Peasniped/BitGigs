@@ -173,6 +173,53 @@ class Workplace(models.Model):
         help_text="Comma-separated month numbers for payout (e.g. '5,8' for May & August).",
     )
 
+    # Default shift (used when planning)
+    default_shift_start_time = models.TimeField(
+        null=True, blank=True,
+        help_text="Default start time for planned shifts.",
+    )
+    default_shift_end_time = models.TimeField(
+        null=True, blank=True,
+        help_text="Default end time for planned shifts.",
+    )
+    default_shift_break_minutes = models.PositiveIntegerField(
+        default=0,
+        help_text="Default break time in minutes for planned shifts.",
+    )
+    default_shift_type = models.CharField(
+        max_length=15,
+        choices=[
+            ("on_site", "On-site"),
+            ("remote", "Remote"),
+            ("sick_leave", "Sick leave (with pay)"),
+            ("paid_absence", "Paid absence"),
+            ("vacation", "Vacation"),
+        ],
+        default="on_site",
+        help_text="Default session type for planned shifts.",
+    )
+
+    # Hour goal (optional, for planning mode)
+    class HourGoalType(models.TextChoices):
+        WEEKLY = "weekly", "Per week"
+        MONTHLY = "monthly", "Per month"
+
+    hour_goal_type = models.CharField(
+        max_length=10,
+        choices=HourGoalType.choices,
+        blank=True,
+        default="",
+        help_text="Whether the hour goal is per week or per month. Leave blank to disable.",
+    )
+    hour_goal_min = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Minimum hours goal (or exact goal if max is blank).",
+    )
+    hour_goal_max = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Maximum hours goal (leave blank for a fixed target instead of range).",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

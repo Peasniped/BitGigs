@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% load dk_filters %}
+{% block title %}Approve Shifts — {{ workplace.name }} — BitGigs{% endblock %}
+
+{% block content %}
+{% if workplace.accent_color %}
+<div class="workplace-accent-banner" style="background:{{ workplace.accent_color }};"></div>
+{% endif %}
+
+<div class="d-flex align-items-center gap-3 mb-4">
+  {% if workplace.custom_icon %}
+    <span class="workplace-avatar" style="background:{{ workplace.color|default:avatar_color }};width:40px;height:40px;overflow:hidden;">
+      <img src="{{ workplace.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+    </span>
+  {% elif workplace.icon %}
+    <span class="workplace-avatar" style="background:{{ workplace.color|default:avatar_color }};width:40px;height:40px;font-size:1rem;">
+      <i class="bi {{ workplace.icon }}"{% if workplace.accent_color %} style="color:{{ workplace.accent_color }}"{% endif %}></i>
+    </span>
+  {% else %}
+    <span class="workplace-avatar" style="background:{{ workplace.color|default:avatar_color }};width:40px;height:40px;">{{ avatar_initials }}</span>
+  {% endif %}
+  <div>
+    <h3 class="mb-0">Approve Planned Shifts</h3>
+    <small class="text-muted">{{ workplace.name }}</small>
+  </div>
+</div>
+
+{% if shifts %}
+<form method="post" action="{% url 'calendar_view:approve-shifts' workplace.pk %}" id="approveForm">
+  {% csrf_token %}
+
+  <div class="card mb-3">
+    <div class="card-body p-0">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr class="table-light">
+            <th style="width:40px;" class="text-center">
+              <input type="checkbox" id="selectAll" title="Select all">
+            </th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Duration</th>
+            <th>Type</th>
+            <th>Notes</th>
+            <th style="width:40px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for shift in shifts %}
+          <tr data-shift-id="{{ shift.pk }}">
+            <td class="text-center">
+              <input type="checkbox" name="shift_ids" value="{{ shift.pk }}" class="shift-check">
+            </td>
+            <td>
+              <span class="fw-medium" data-field="date">{{ shift.date|date:"D, M d" }}</span>
+            </td>
+            <td><span data-field="time">{{ shift.start_time|time:"H:i" }} – {{ shift.end_time|time:"H:i" }}</span></td>
+            <td>
+              <span class="badge bg-primary bg-opacity-75" data-field="hours">{{ shift.net_hours|dk }}h</span>
+              {% if shift.break_minutes %}
+                <small class="text-muted ms-1" data-field="break">({{ shift.break_minutes }}min break)</small>
+              {% endif %}
+            </td>
+            <td><span class="badge bg-light text-dark" data-field="type">{{ shift.get_session_type_display }}</span></td>
+            <td><small class="text-muted" data-field="notes">{{ shift.notes|truncatechars:40 }}</small></td>
+            <td>
+              <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 edit-shift-btn" data-shift-id="{{ shift.pk }}" title="Edit shift">
+                <i class="bi bi-pencil" style="font-size:0.7rem;"></i>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-check2-all me-1"></i>Approve Selected
+    </button>
+    <a href="{% url 'workplaces:workplace-detail' workplace.pk %}" class="btn btn-outline-secondary">
+      Cancel
+    </a>
+  </div>
+</form>
+
+<!-- Edit Shift Modal (Approve page) -->
+<div class="modal fade" id="editShiftModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Planned Shift</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="editErrors" class="alert alert-danger small py-2 d-none"></div>
+        <input type="hidden" id="editShiftId">
+        <div class="mb-2">
+          <label class="form-label small">Date</label>
+          <input type="date" id="editDate" class="form-control form-control-sm" required>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label small">Start time</label>
+            <input type="time" id="editStart" class="form-control form-control-sm" required>
+          </div>
+          <div class="col-6">
+            <label class="form-label small">End time</label>
+            <input type="time" id="editEnd" class="form-control form-control-sm" required>
+          </div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label small">Break (min)</label>
+            <input type="number" id="editBreak" class="form-control form-control-sm" value="0" min="0">
+          </div>
+          <div class="col-6">
+            <label class="form-label small">Type</label>
+            <select id="editType" class="form-select form-select-sm">
+              <option value="on_site">On-site</option>
+              <option value="remote">Remote</option>
+              <option value="sick_leave">Sick leave</option>
+              <option value="paid_absence">Paid absence</option>
+              <option value="vacation">Vacation</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small">Notes</label>
+          <textarea id="editNotes" class="form-control form-control-sm" rows="2"></textarea>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-primary btn-sm flex-fill" id="editSaveBtn">
+            <i class="bi bi-check-lg me-1"></i>Save Changes
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% else %}
+<div class="text-center text-muted py-5">
+  <i class="bi bi-check-circle fs-1 d-block mb-2"></i>
+  No planned shifts to approve.
+  <div class="mt-3">
+    <a href="{% url 'workplaces:workplace-detail' workplace.pk %}" class="btn btn-outline-secondary btn-sm">
+      Back to {{ workplace.name }}
+    </a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  // Select All
+  document.getElementById('selectAll').addEventListener('change', function() {
+    document.querySelectorAll('.shift-check').forEach(function(cb) {
+      cb.checked = document.getElementById('selectAll').checked;
+    });
+  });
+
+  var CSRF = getCsrfToken();
+  var editModal = new bootstrap.Modal(document.getElementById('editShiftModal'));
+  var UPDATE_URL_TEMPLATE = '{% url "calendar_view:planned-shift-update-api" pk=0 %}';
+
+  // Pencil edit buttons
+  document.querySelectorAll('.edit-shift-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      var shiftId = parseInt(btn.dataset.shiftId);
+      var url = UPDATE_URL_TEMPLATE.replace('/0/', '/' + shiftId + '/');
+
+      // Fetch current shift data
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({}),
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        if (!data.ok) return;
+        var s = data.shift;
+        document.getElementById('editShiftId').value = s.id;
+        document.getElementById('editDate').value = s.date;
+        document.getElementById('editStart').value = s.start_time;
+        document.getElementById('editEnd').value = s.end_time;
+        document.getElementById('editBreak').value = s.break_minutes;
+        document.getElementById('editType').value = s.session_type;
+        document.getElementById('editNotes').value = s.notes;
+        document.getElementById('editErrors').classList.add('d-none');
+        editModal.show();
+      });
+    });
+  });
+
+  // Save edits
+  document.getElementById('editSaveBtn').addEventListener('click', function() {
+    var shiftId = document.getElementById('editShiftId').value;
+    if (!shiftId) return;
+    var url = UPDATE_URL_TEMPLATE.replace('/0/', '/' + shiftId + '/');
+    var body = {
+      date: document.getElementById('editDate').value,
+      start_time: document.getElementById('editStart').value,
+      end_time: document.getElementById('editEnd').value,
+      break_minutes: parseInt(document.getElementById('editBreak').value) || 0,
+      session_type: document.getElementById('editType').value,
+      notes: document.getElementById('editNotes').value,
+    };
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify(body),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (!data.ok) {
+        document.getElementById('editErrors').textContent = data.error || 'Error saving.';
+        document.getElementById('editErrors').classList.remove('d-none');
+        return;
+      }
+      // Update the table row in-place
+      var s = data.shift;
+      var row = document.querySelector('tr[data-shift-id="' + s.id + '"]');
+      if (row) {
+        var dateObj = new Date(s.date + 'T00:00:00');
+        var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        row.querySelector('[data-field="date"]').textContent = days[dateObj.getDay()] + ', ' + months[dateObj.getMonth()] + ' ' + String(dateObj.getDate()).padStart(2,'0');
+        row.querySelector('[data-field="time"]').textContent = s.start_time + ' – ' + s.end_time;
+        row.querySelector('[data-field="hours"]').textContent = s.net_hours.replace('.',',') + 'h';
+        var breakEl = row.querySelector('[data-field="break"]');
+        if (breakEl) {
+          breakEl.textContent = s.break_minutes ? '(' + s.break_minutes + 'min break)' : '';
+        }
+        row.querySelector('[data-field="type"]').textContent = s.session_type_display;
+        row.querySelector('[data-field="notes"]').textContent = s.notes ? s.notes.substring(0, 40) : '';
+      }
+      editModal.hide();
+    });
+  });
+})();
+</script>
+{% endblock %}

@@ -1,6 +1,35 @@
 {% extends "base.html" %}
 {% block title %}{% if workplace %}Edit{% else %}New{% endif %} Workplace — BitGigs{% endblock %}
 
+{% block extra_css %}
+{% with accent=workplace.accent_color|default:"#6366f1" %}
+<style>
+  .accent-btn-group .btn-check:checked + .btn {
+    background: linear-gradient(135deg, {{ accent }}, {{ accent }}cc) !important;
+    border-color: {{ accent }} !important;
+    color: #fff !important;
+  }
+  .accent-btn-group .btn-outline-primary,
+  .accent-btn-group .btn-outline-secondary {
+    border-color: {{ accent }}55;
+    color: {{ accent }};
+  }
+  .accent-btn-group .btn-outline-primary:hover,
+  .accent-btn-group .btn-outline-secondary:hover {
+    background: {{ accent }}15;
+  }
+  .form-check-input:checked {
+    background-color: {{ accent }} !important;
+    border-color: {{ accent }} !important;
+  }
+  .form-check-input:focus {
+    border-color: {{ accent }}88 !important;
+    box-shadow: 0 0 0 .25rem {{ accent }}25 !important;
+  }
+</style>
+{% endwith %}
+{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-12 col-md-10 col-lg-8">

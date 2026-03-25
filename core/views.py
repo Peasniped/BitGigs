@@ -35,7 +35,7 @@ class DashboardView(View):
         from workplaces.models import Workplace
         from calendar_view.services import CalendarService
         from payroll.services import SalaryEstimateService, PayrollPeriodService
-        from worksessions.models import WorkSession
+        from worksessions.models import WorkSession, PlannedShift
 
         # Setup redirect — if no tax profile or workplaces exist, go to setup wizard
         has_tax = TaxProfile.objects.exists()
@@ -65,11 +65,91 @@ class DashboardView(View):
         workplace_data = []
         total_earned_gross = Decimal("0")
         total_earned_net = Decimal("0")
-        total_expected_gross = Decimal("0")
-        total_expected_net = Decimal("0")
+        total_planned_gross = Decimal("0")
+        total_planned_net = Decimal("0")
+
+        # Hour goal aggregation
+        total_goal_min = Decimal("0")
+        total_goal_max = Decimal("0")
+        total_planned_hours = Decimal("0")
+        total_approved_hours = Decimal("0")
+        has_any_goal = False
+
+        # Collect payroll period boundaries for calendar indication
+        period_boundaries = []
+        # Cross-period shift info for banners
+        cross_period_info = []
 
         for wp in workplaces:
             period_start, period_end = PayrollPeriodService.get_period_dates(wp, year, month)
+            period_boundaries.append({
+                "workplace_name": wp.name,
+                "color": wp.accent_color or wp.color or "#6366f1",
+                "start": period_start.isoformat(),
+                "end": period_end.isoformat(),
+            })
+
+            # Check for sessions in previous month that belong to THIS payroll period
+            import calendar as _cal_mod2
+            first_of_month = date(year, month, 1)
+            if period_start < first_of_month:
+                prev_sessions = WorkSession.objects.filter(
+                    workplace=wp,
+                    date__gte=period_start,
+                    date__lt=first_of_month,
+                )
+                prev_planned = PlannedShift.objects.filter(
+                    workplace=wp,
+                    date__gte=period_start,
+                    date__lt=first_of_month,
+                    status=PlannedShift.Status.PLANNED,
+                )
+                count = prev_sessions.count() + prev_planned.count()
+                hours = sum((s.net_hours for s in prev_sessions), Decimal("0"))
+                hours += sum((p.net_hours for p in prev_planned), Decimal("0"))
+                if count > 0:
+                    prev_month_name = _cal_mod2.month_name[period_start.month]
+                    cross_period_info.append({
+                        "workplace": wp.name,
+                        "color": wp.accent_color or wp.color or "#6366f1",
+                        "count": count,
+                        "hours": hours,
+                        "direction": "prev",
+                        "other_month": prev_month_name,
+                        "payroll_month": _cal_mod2.month_name[month],
+                    })
+
+            # Check for sessions in THIS month that belong to NEXT payroll period
+            last_of_month = date(year, month, _cal_mod2.monthrange(year, month)[1])
+            if period_end < last_of_month:
+                next_sessions = WorkSession.objects.filter(
+                    workplace=wp,
+                    date__gt=period_end,
+                    date__lte=last_of_month,
+                )
+                next_planned = PlannedShift.objects.filter(
+                    workplace=wp,
+                    date__gt=period_end,
+                    date__lte=last_of_month,
+                    status=PlannedShift.Status.PLANNED,
+                )
+                count = next_sessions.count() + next_planned.count()
+                hours = sum((s.net_hours for s in next_sessions), Decimal("0"))
+                hours += sum((p.net_hours for p in next_planned), Decimal("0"))
+                if count > 0:
+                    if month == 12:
+                        nm = 1
+                    else:
+                        nm = month + 1
+                    cross_period_info.append({
+                        "workplace": wp.name,
+                        "color": wp.accent_color or wp.color or "#6366f1",
+                        "count": count,
+                        "hours": hours,
+                        "direction": "next",
+                        "other_month": _cal_mod2.month_name[month],
+                        "payroll_month": _cal_mod2.month_name[nm],
+                    })
 
             # Actual hours worked so far in this period
             sessions = WorkSession.objects.filter(
@@ -80,6 +160,18 @@ class DashboardView(View):
             actual_hours = sum(
                 (s.net_hours for s in sessions), Decimal("0")
             )
+            avg_hours_per_week = (actual_hours / Decimal("4.33")).quantize(Decimal("0.01"))
+
+            # Planned hours (not yet approved)
+            planned_hours = sum(
+                (p.net_hours for p in PlannedShift.objects.filter(
+                    workplace=wp,
+                    date__gte=period_start,
+                    date__lte=period_end,
+                    status=PlannedShift.Status.PLANNED,
+                )),
+                Decimal("0"),
+            )
 
             tax_pull_date = PayrollPeriodService.get_tax_pull_date(wp, year, month)
             earned_est = SalaryEstimateService.estimate(wp, actual_hours, as_of=tax_pull_date)
@@ -87,23 +179,32 @@ class DashboardView(View):
             if earned_est.tax_breakdown:
                 total_earned_net += earned_est.tax_breakdown.net_pay
 
-            # Expected full-month estimate
-            if wp.employment_type == Workplace.EmploymentType.SALARIED:
-                expected_hours = wp.expected_weekly_hours * Decimal("4.33") if wp.expected_weekly_hours else Decimal("148")
-            else:
-                expected_hours = wp.expected_weekly_hours * Decimal("4.33") if wp.expected_weekly_hours else actual_hours
+            # Planned estimate (planned shifts only)
+            planned_est = SalaryEstimateService.estimate(wp, planned_hours, as_of=tax_pull_date)
+            total_planned_gross += planned_est.taxable_gross
+            if planned_est.tax_breakdown:
+                total_planned_net += planned_est.tax_breakdown.net_pay
 
-            expected_est = SalaryEstimateService.estimate(wp, expected_hours, as_of=tax_pull_date)
-            total_expected_gross += expected_est.taxable_gross
-            if expected_est.tax_breakdown:
-                total_expected_net += expected_est.tax_breakdown.net_pay
+            # Hour goal aggregation (convert weekly to monthly)
+            if wp.hour_goal_type and wp.hour_goal_min:
+                has_any_goal = True
+                goal_min = wp.hour_goal_min
+                goal_max = wp.hour_goal_max or Decimal("0")
+                if wp.hour_goal_type == "weekly":
+                    goal_min = goal_min * Decimal("4.33")
+                    goal_max = goal_max * Decimal("4.33") if goal_max else Decimal("0")
+                total_goal_min += goal_min
+                total_goal_max += goal_max
+            total_planned_hours += planned_hours
+            total_approved_hours += actual_hours
 
             workplace_data.append({
                 "workplace": wp,
                 "actual_hours": actual_hours,
+                "avg_hours_per_week": avg_hours_per_week,
                 "earned_gross": earned_est.taxable_gross,
                 "earned_net": earned_est.tax_breakdown.net_pay if earned_est.tax_breakdown else earned_est.taxable_gross,
-                "expected_gross": expected_est.taxable_gross,
+                "planned_gross": planned_est.taxable_gross,
                 "avatar_initials": _avatar_for_name(wp.name)[0],
                 "avatar_color": _avatar_for_name(wp.name)[1],
             })
@@ -122,8 +223,20 @@ class DashboardView(View):
                 "workplace_data": workplace_data,
                 "total_earned_gross": total_earned_gross,
                 "total_earned_net": total_earned_net,
-                "total_expected_gross": total_expected_gross,
-                "total_expected_net": total_expected_net,
+                "total_planned_gross": total_planned_gross,
+                "total_planned_net": total_planned_net,
+                "total_combined_gross": total_earned_gross + total_planned_gross,
+                "total_combined_net": total_earned_net + total_planned_net,
+                "has_any_goal": has_any_goal,
+                "total_goal_min": total_goal_min,
+                "total_goal_max": total_goal_max,
+                "total_planned_hours": total_planned_hours,
+                "total_approved_hours": total_approved_hours,
+                "goal_bar_max": total_goal_max if total_goal_max else total_goal_min,
+                "goal_approved_pct": int(total_approved_hours * 100 / (total_goal_max or total_goal_min)) if has_any_goal and (total_goal_max or total_goal_min) else 0,
+                "goal_planned_pct": int(total_planned_hours * 100 / (total_goal_max or total_goal_min)) if has_any_goal and (total_goal_max or total_goal_min) else 0,
+                "cross_period_info": cross_period_info,
+                "today": today,
             },
         )
 

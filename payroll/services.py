@@ -60,6 +60,27 @@ class PayrollPeriodService:
         return start_date, end_date
 
     @staticmethod
+    def get_payroll_month(workplace: Workplace, d: date) -> tuple[int, int]:
+        """
+        Return (year, month) of the payroll period that contains date *d*.
+
+        For start_day == 1 this is simply d's calendar month.
+        For start_day == 20 the period for month M runs from (M-1)/20 to M/19,
+        so any date on or after the 20th belongs to the *next* calendar month's
+        payroll.
+        """
+        start_day = workplace.payroll_period_start_day
+        if start_day == 1:
+            return d.year, d.month
+
+        # If d.day >= start_day, today is in the *next* month's payroll period
+        if d.day >= start_day:
+            if d.month == 12:
+                return d.year + 1, 1
+            return d.year, d.month + 1
+        return d.year, d.month
+
+    @staticmethod
     def get_tax_pull_date(workplace: Workplace, year: int, month: int) -> date:
         """
         Return the tax card pull date for a payroll period month.

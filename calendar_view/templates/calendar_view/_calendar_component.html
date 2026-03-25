@@ -28,14 +28,10 @@
             {% endif %}
           </div>
           {% for session in day.sessions %}
-            <div class="calendar-day__session text-truncate" title="{{ session.workplace.name }}: {{ session.start_time|time:'H:i' }}-{{ session.end_time|time:'H:i' }}">
-              <small>
-                {% if not workplace_id %}
-                  <span class="fw-medium">{{ session.workplace.name|truncatechars:8 }}</span>
-                {% endif %}
-                {{ session.start_time|time:"H:i" }}–{{ session.end_time|time:"H:i" }}
-              </small>
-            </div>
+            {% include "calendar_view/_shift_chip.html" with item=session is_planned=False %}
+          {% endfor %}
+          {% for shift in day.planned_shifts %}
+            {% include "calendar_view/_shift_chip.html" with item=shift is_planned=True draggable=False %}
           {% endfor %}
         </td>
         {% endfor %}

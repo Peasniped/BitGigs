@@ -5,34 +5,48 @@
 {% block content %}
 <!-- ===== Pay stat counters ===== -->
 <div class="row g-3 mb-4">
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">
     <div class="stat-card">
-      <div class="stat-card__label">Earned (Gross)</div>
+      <div class="stat-card__label">Planned</div>
+      <div class="stat-card__value">{{ total_planned_gross|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">Net {{ total_planned_net|floatformat:0 }} DKK</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">
+    <div class="stat-card">
+      <div class="stat-card__label">Earned</div>
       <div class="stat-card__value">{{ total_earned_gross|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
-      <div class="stat-card__sub">This period so far</div>
+      <div class="stat-card__sub">Net {{ total_earned_net|floatformat:0 }} DKK</div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">
     <div class="stat-card">
-      <div class="stat-card__label">Earned (Net)</div>
-      <div class="stat-card__value">{{ total_earned_net|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
-      <div class="stat-card__sub">After tax</div>
+      <div class="stat-card__label">Total</div>
+      <div class="stat-card__value">{{ total_combined_gross|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">Net {{ total_combined_net|floatformat:0 }} DKK</div>
     </div>
   </div>
+  {% if has_any_goal %}
   <div class="col-6 col-md-3">
-    <div class="stat-card">
-      <div class="stat-card__label">Expected (Gross)</div>
-      <div class="stat-card__value">{{ total_expected_gross|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
-      <div class="stat-card__sub">Full period</div>
+    <div class="stat-card" style="position:relative;overflow:hidden;padding-bottom: 1.0 rem;">
+      <div class="stat-card__label">Hour Goal</div>
+      <div class="stat-card__value" style="font-size:1.05rem;">{{ total_planned_hours|floatformat:2 }}h <small class="stat-card__sub">+</small> {{ total_approved_hours|floatformat:2 }}h <small class="stat-card__sub">/ {{ total_goal_min|floatformat:0 }}{% if total_goal_max %}–{{ total_goal_max|floatformat:0 }}{% endif %}h</small></div>
+      <div class="stat-card__sub" style="visibility:hidden;">&nbsp;</div>
+      <div class="goal-bar" style="position:absolute;bottom:0;left:0;right:0;height:10px;background:#e2e8f0;display:flex;">
+        <div class="goal-bar__seg" style="width:{{ goal_approved_pct }}%;background:#22c55e;"
+             data-goal-color="#22c55e" data-goal-label="Approved: {{ total_approved_hours|floatformat:1 }}h"></div>
+        <div class="goal-bar__seg" style="width:{{ goal_planned_pct }}%;background:#3b82f6;"
+             data-goal-color="#3b82f6" data-goal-label="Planned: {{ total_planned_hours|floatformat:1 }}h"></div>
+        <div class="goal-bar__seg" style="flex:1;"
+             data-goal-color="#94a3b8" data-goal-label="Goal: {{ total_goal_min|floatformat:0 }}{% if total_goal_max %}–{{ total_goal_max|floatformat:0 }}{% endif %}h"></div>
+      </div>
+    </div>
+    <div class="goal-tooltip" id="goalTooltip" style="display:none;position:fixed;z-index:1000;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;color:#fff;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.18);white-space:nowrap;">
+      <span class="goal-tooltip__dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle;"></span>
+      <span class="goal-tooltip__text"></span>
     </div>
   </div>
-  <div class="col-6 col-md-3">
-    <div class="stat-card">
-      <div class="stat-card__label">Expected (Net)</div>
-      <div class="stat-card__value">{{ total_expected_net|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
-      <div class="stat-card__sub">After tax</div>
-    </div>
-  </div>
+  {% endif %}
 </div>
 
 <!-- ===== Calendar ===== -->
@@ -41,11 +55,28 @@
     <a href="?year={{ prev_year }}&month={{ prev_month }}" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-chevron-left"></i>
     </a>
-    <span class="fs-6 fw-semibold text-dark">{{ grid.title }}</span>
+    <div class="d-flex align-items-center gap-2">
+      <span class="fs-6 fw-semibold text-dark">{{ grid.title }}</span>
+      {% if year != today.year or month != today.month %}
+        <a href="?year={{ today.year }}&month={{ today.month }}" class="btn btn-sm btn-primary" title="Go to current month">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Today
+        </a>
+      {% endif %}
+    </div>
     <a href="?year={{ next_year }}&month={{ next_month }}" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-chevron-right"></i>
     </a>
   </div>
+  {% for info in cross_period_info %}
+  <div class="px-3 py-2 border-bottom d-flex align-items-center gap-2" style="background:#f8fafc;font-size:0.8rem;">
+    <span style="width:8px;height:8px;border-radius:50%;background:{{ info.color }};flex-shrink:0;"></span>
+    {% if info.direction == "prev" %}
+      <span><strong>{{ info.count }}</strong> shift{{ info.count|pluralize }} in {{ info.other_month }} belong{{ info.count|pluralize:"s," }} to <strong>{{ info.payroll_month }} payroll</strong> ({{ info.hours|dk }}h)</span>
+    {% else %}
+      <span><strong>{{ info.count }}</strong> shift{{ info.count|pluralize }} in {{ info.other_month }} belong{{ info.count|pluralize:"s," }} to <strong>{{ info.payroll_month }} payroll</strong> ({{ info.hours|dk }}h)</span>
+    {% endif %}
+  </div>
+  {% endfor %}
   <div class="card-body p-2">
     {% include "calendar_view/_calendar_component.html" with grid=grid clickable=False %}
   </div>
@@ -53,8 +84,9 @@
 
 <!-- ===== Workplace cards ===== -->
 <div class="section-title">Your Workplaces</div>
-<div class="d-flex flex-column gap-2 mb-4">
+<div class="row g-2 mb-4">
   {% for item in workplace_data %}
+  <div class="col-12 col-md-6 col-lg-4">
   <a href="{% url 'workplaces:workplace-detail' item.workplace.pk %}" class="workplace-card d-flex align-items-center gap-3 py-2 px-3"
      {% if item.workplace.accent_color %}style="border-left:4px solid {{ item.workplace.accent_color }};"{% endif %}>
     {% if item.workplace.custom_icon %}
@@ -75,6 +107,10 @@
         <span class="fw-semibold">{{ item.actual_hours|dk }}</span>
       </div>
       <div class="text-center">
+        <small class="text-muted d-block" style="font-size:0.7rem;">Hrs/wk</small>
+        <span class="fw-semibold">{{ item.avg_hours_per_week|dk }}</span>
+      </div>
+      <div class="text-center">
         <small class="text-muted d-block" style="font-size:0.7rem;">Earned</small>
         <span class="fw-semibold">{{ item.earned_gross|floatformat:0 }} DKK</span>
       </div>
@@ -88,11 +124,44 @@
       </div>
     </div>
   </a>
+  </div>
   {% empty %}
-  <div class="text-center text-muted py-5">
+  <div class="col-12 text-center text-muted py-5">
     <i class="bi bi-building fs-1 d-block mb-2"></i>
     No active workplaces yet. <a href="{% url 'workplaces:workplace-create' %}">Add one</a>.
   </div>
   {% endfor %}
 </div>
 {% endblock %}
+
+{% if has_any_goal %}
+{% block extra_js %}
+<script>
+(function() {
+  var tip = document.getElementById('goalTooltip');
+  if (!tip) return;
+  var dot = tip.querySelector('.goal-tooltip__dot');
+  var txt = tip.querySelector('.goal-tooltip__text');
+
+  document.querySelectorAll('.goal-bar__seg').forEach(function(seg) {
+    seg.addEventListener('mouseenter', function(e) {
+      dot.style.background = seg.dataset.goalColor;
+      txt.textContent = seg.dataset.goalLabel;
+      tip.style.background = '#1e293b';
+      tip.style.display = '';
+      positionTip(e);
+    });
+    seg.addEventListener('mousemove', positionTip);
+    seg.addEventListener('mouseleave', function() {
+      tip.style.display = 'none';
+    });
+  });
+
+  function positionTip(e) {
+    tip.style.left = (e.clientX + 10) + 'px';
+    tip.style.top = (e.clientY - 32) + 'px';
+  }
+})();
+</script>
+{% endblock %}
+{% endif %}

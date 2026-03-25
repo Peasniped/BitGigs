@@ -13,7 +13,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from core.models import UserSettings
-from worksessions.models import WorkSession
+from worksessions.models import WorkSession, PlannedShift
 
 
 @dataclass
@@ -22,6 +22,7 @@ class CalendarDay:
     is_in_period: bool  # Whether the day falls within the target period
     is_today: bool
     sessions: list = field(default_factory=list)
+    planned_shifts: list = field(default_factory=list)
     total_hours: Decimal = Decimal("0")
 
     @property
@@ -91,6 +92,7 @@ class CalendarService:
         period_end: date,
         title: str,
         workplace_id: int | None = None,
+        include_planned: bool = True,
     ) -> CalendarGrid:
         week_start = cls.get_week_start()
         day_headers = cls._get_day_headers(week_start)
@@ -112,6 +114,18 @@ class CalendarService:
         for s in qs:
             sessions_by_date[s.date].append(s)
 
+        # Fetch planned shifts (only those still in PLANNED status)
+        planned_by_date = defaultdict(list)
+        if include_planned:
+            pqs = PlannedShift.objects.filter(
+                date__gte=grid_start, date__lte=grid_end,
+                status=PlannedShift.Status.PLANNED,
+            ).select_related("workplace")
+            if workplace_id:
+                pqs = pqs.filter(workplace_id=workplace_id)
+            for p in pqs:
+                planned_by_date[p.date].append(p)
+
         today = date.today()
         weeks = []
         current = grid_start
@@ -119,13 +133,16 @@ class CalendarService:
             week = CalendarWeek()
             for _ in range(7):
                 day_sessions = sessions_by_date.get(current, [])
+                day_planned = planned_by_date.get(current, [])
                 total = sum((s.net_hours for s in day_sessions), Decimal("0"))
+                total += sum((p.net_hours for p in day_planned), Decimal("0"))
                 week.days.append(
                     CalendarDay(
                         date=current,
                         is_in_period=(period_start <= current <= period_end),
                         is_today=(current == today),
                         sessions=day_sessions,
+                        planned_shifts=day_planned,
                         total_hours=total,
                     )
                 )
@@ -177,3 +194,38 @@ class CalendarService:
         title = f"{month_name} ({start_date} to {end_date})"
 
         return cls._build_grid(start_date, end_date, title, workplace_id)
+
+    @classmethod
+    def planning_calendar(
+        cls,
+        year: int,
+        month: int,
+    ) -> CalendarGrid:
+        """
+        Planning calendar that shows the union of all active workplace payroll
+        periods for the selected month.  This ensures that every date belonging
+        to *any* workplace's period is visible.
+        """
+        from workplaces.models import Workplace
+        from payroll.services import PayrollPeriodService
+
+        workplaces = Workplace.objects.filter(is_active=True)
+
+        # Start with the calendar month as the baseline range
+        first_day = date(year, month, 1)
+        last_day = date(year, month, calendar.monthrange(year, month)[1])
+        range_start = first_day
+        range_end = last_day
+
+        # Expand to cover every workplace's payroll period for this month
+        for wp in workplaces:
+            ps, pe = PayrollPeriodService.get_period_dates(wp, year, month)
+            if ps < range_start:
+                range_start = ps
+            if pe > range_end:
+                range_end = pe
+
+        month_name = calendar.month_name[month]
+        title = f"{month_name} {year}"
+
+        return cls._build_grid(range_start, range_end, title)

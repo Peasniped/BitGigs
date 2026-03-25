@@ -8,6 +8,13 @@
 <div class="workplace-accent-banner" style="background:{{ workplace.accent_color }};"></div>
 {% endif %}
 
+<!-- Back button -->
+<div class="mb-3">
+  <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary btn-sm" onclick="if(history.length>1){history.back();return false;}">
+    <i class="bi bi-arrow-left me-1"></i>Back
+  </a>
+</div>
+
 <!-- Header -->
 <div class="d-flex justify-content-between align-items-center mb-4">
   <div class="d-flex align-items-center gap-3">
@@ -45,21 +52,41 @@
   </div>
 </div>
 
+<!-- Pending shifts approval banner -->
+{% if pending_shifts_count %}
+<div class="alert d-flex align-items-center gap-2 py-2 border-0 shadow-sm mb-4" style="background:#dcfce7;color:#166534;">
+  <i class="bi bi-calendar-check fs-5"></i>
+  <span>
+    <strong>{{ pending_shifts_count }} shift{{ pending_shifts_count|pluralize }} to approve</strong>
+    — planned shifts for today and earlier are awaiting approval.
+  </span>
+  <button type="button" class="btn btn-sm btn-success ms-auto" data-bs-toggle="modal" data-bs-target="#approveModal">
+    <i class="bi bi-check2-all me-1"></i>Review & Approve
+  </button>
+</div>
+{% endif %}
+
 <!-- Stat row -->
 <div class="row g-3 mb-4">
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md">
     <div class="stat-card">
       <div class="stat-card__label">Hours worked</div>
       <div class="stat-card__value">{{ actual_hours|dk }}h</div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md">
+    <div class="stat-card">
+      <div class="stat-card__label">Avg hours/week</div>
+      <div class="stat-card__value">{{ avg_hours_per_week|dk }}h</div>
+    </div>
+  </div>
+  <div class="col-6 col-md">
     <div class="stat-card">
       <div class="stat-card__label">Gross Pay</div>
       <div class="stat-card__value">{{ estimate.taxable_gross|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md">
     <div class="stat-card">
       <div class="stat-card__label">Net Pay</div>
       <div class="stat-card__value">
@@ -72,25 +99,25 @@
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md">
     <div class="stat-card">
       <div class="stat-card__label">Vacation</div>
       <div class="stat-card__value">
         {% if workplace.vacation_type == 'feriekonto' %}
-          12,5 <small class="stat-card__sub">%</small>
+          {{ feriepenge_net|floatformat:0 }} <small class="stat-card__sub">DKK</small>
         {% else %}
-          2.08 <small class="stat-card__sub">days/mo</small>
+          2,08 <small class="stat-card__sub">days/mo</small>
         {% endif %}
       </div>
       <div class="stat-card__sub">
-        {% if workplace.vacation_type == 'feriekonto' %}FerieKonto{% else %}Accrued leave{% endif %}
+        {% if workplace.vacation_type == 'feriekonto' %}FerieKonto (net){% else %}Accrued leave{% endif %}
       </div>
     </div>
   </div>
 </div>
 
 <!-- Pension & Fritvalgskonto -->
-{% if workplace.pension_total_percent or workplace.fritvalgskonto_percent %}
+{% if workplace.pension_total_percent or workplace.fritvalgskonto_percent or workplace.vacation_type == 'feriekonto' %}
 <div class="row g-3 mb-4">
   {% if workplace.pension_total_percent %}
   <div class="col-12 col-md-4">
@@ -122,6 +149,36 @@
         <div class="d-flex justify-content-between">
           <small class="text-muted">{{ workplace.fritvalgskonto_percent }}% of gross</small>
           <span>{{ fritvalgskonto|floatformat:2 }} DKK</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% if workplace.vacation_type == 'feriekonto' %}
+  <div class="col-12 col-md-4">
+    <div class="card">
+      <div class="card-header">Feriepenge</div>
+      <div class="card-body py-2">
+        <div class="d-flex justify-content-between mb-1">
+          <small class="text-muted">Rate</small>
+          <span>{{ feriepenge_rate }}%</span>
+        </div>
+        <div class="d-flex justify-content-between mb-1">
+          <small class="text-muted">Gross</small>
+          <span>{{ feriepenge_gross|floatformat:2 }} DKK</span>
+        </div>
+        <div class="d-flex justify-content-between mb-1">
+          <small class="text-muted">AM-bidrag</small>
+          <span>−{{ feriepenge_am|floatformat:2 }} DKK</span>
+        </div>
+        <div class="d-flex justify-content-between mb-1">
+          <small class="text-muted">A-skat</small>
+          <span>−{{ feriepenge_a_skat|floatformat:2 }} DKK</span>
+        </div>
+        <hr class="my-1">
+        <div class="d-flex justify-content-between fw-semibold">
+          <small>Net</small>
+          <span>{{ feriepenge_net|floatformat:2 }} DKK</span>
         </div>
       </div>
     </div>
@@ -171,8 +228,8 @@
             {{ grid.title }}
             <i class="bi bi-calendar3 ms-1"></i>
           </button>
-          {% if year != today.year or month != today.month %}
-            <a href="?year={{ today.year }}&month={{ today.month }}" class="btn btn-sm btn-primary" title="Go to current month">
+          {% if year != today_payroll_year or month != today_payroll_month %}
+            <a href="?year={{ today_payroll_year }}&month={{ today_payroll_month }}" class="btn btn-sm btn-primary" title="Go to current month">
               <i class="bi bi-arrow-counterclockwise me-1"></i>Today
             </a>
           {% endif %}
@@ -537,6 +594,112 @@
     </div>
   </div>
 </div>
+
+<!-- ═══════ Approve Shifts Modal ═══════ -->
+{% if pending_shifts_count %}
+<div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
+      <div class="modal-header border-bottom" style="border-color:#f1f5f9 !important;">
+        <h5 class="modal-title" id="approveModalLabel">
+          <i class="bi bi-check2-all me-2" style="color:#16a34a;"></i>Review & Approve Shifts
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="p-3 pb-1">
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="approveSelectAll" checked>
+            <label class="form-check-label small fw-medium" for="approveSelectAll">Select all</label>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0" id="approveTable">
+            <thead class="table-light">
+              <tr>
+                <th style="width:36px;"></th>
+                <th class="small text-muted">Date</th>
+                <th class="small text-muted">Start</th>
+                <th class="small text-muted">End</th>
+                <th class="small text-muted">Type</th>
+                <th class="small text-muted text-end">Hours</th>
+                <th style="width:32px;"></th>
+              </tr>
+            </thead>
+            <tbody id="approveTableBody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-2">
+        <span class="me-auto small text-muted" id="approveSelectedCount"></span>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success btn-sm" id="approveConfirmBtn">
+          <i class="bi bi-check2-all me-1"></i>Approve Selected
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══════ Edit Shift Modal (from approve) ═══════ -->
+<div class="modal fade" id="editApproveShiftModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Planned Shift</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="editApproveErrors" class="alert alert-danger small py-2 d-none"></div>
+        <input type="hidden" id="editApproveShiftId">
+        <div class="mb-2">
+          <label class="form-label small">Date</label>
+          <input type="date" id="editApproveDate" class="form-control form-control-sm" required>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label small">Start time</label>
+            <input type="time" id="editApproveStart" class="form-control form-control-sm" required>
+          </div>
+          <div class="col-6">
+            <label class="form-label small">End time</label>
+            <input type="time" id="editApproveEnd" class="form-control form-control-sm" required>
+          </div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label small">Break (min)</label>
+            <input type="number" id="editApproveBreak" class="form-control form-control-sm" value="0" min="0">
+          </div>
+          <div class="col-6">
+            <label class="form-label small">Type</label>
+            <select id="editApproveType" class="form-select form-select-sm">
+              <option value="on_site">On-site</option>
+              <option value="remote">Remote</option>
+              <option value="sick_leave">Sick leave</option>
+              <option value="paid_absence">Paid absence</option>
+              <option value="vacation">Vacation</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small">Notes</label>
+          <textarea id="editApproveNotes" class="form-control form-control-sm" rows="2"></textarea>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-primary btn-sm flex-fill" id="editApproveSaveBtn">
+            <i class="bi bi-check-lg me-1"></i>Save Changes
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -957,5 +1120,161 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 })();
+
+// ═══════ Approve Modal Logic ═══════
+{% if pending_shifts_count %}
+(function() {
+  var SHIFTS = {{ pending_shifts_json|safe }};
+  var tbody = document.getElementById('approveTableBody');
+  var selectAll = document.getElementById('approveSelectAll');
+  var countSpan = document.getElementById('approveSelectedCount');
+
+  function renderTable() {
+    tbody.innerHTML = '';
+    SHIFTS.forEach(function(s) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><input type="checkbox" class="form-check-input approve-cb" value="' + s.id + '" checked></td>' +
+        '<td class="small">' + s.date + '</td>' +
+        '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.start_time + '" data-field="start_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
+        '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.end_time + '" data-field="end_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
+        '<td><select class="form-select form-select-sm py-0" data-field="session_type" data-id="' + s.id + '" style="width:7rem;">' +
+          '<option value="on_site"' + (s.session_type==='on_site'?' selected':'') + '>On-site</option>' +
+          '<option value="remote"' + (s.session_type==='remote'?' selected':'') + '>Remote</option>' +
+          '<option value="sick_leave"' + (s.session_type==='sick_leave'?' selected':'') + '>Sick leave</option>' +
+          '<option value="paid_absence"' + (s.session_type==='paid_absence'?' selected':'') + '>Paid absence</option>' +
+          '<option value="vacation"' + (s.session_type==='vacation'?' selected':'') + '>Vacation</option>' +
+        '</select></td>' +
+        '<td class="small text-end hours-cell">' + s.net_hours.replace('.',',') + 'h</td>' +
+        '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 edit-approve-btn" data-shift-id="' + s.id + '" title="Edit shift"><i class="bi bi-pencil" style="font-size:0.65rem;"></i></button></td>';
+      tbody.appendChild(tr);
+    });
+    updateCount();
+    // Attach pencil click handlers
+    tbody.querySelectorAll('.edit-approve-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        openEditApproveModal(parseInt(btn.dataset.shiftId));
+      });
+    });
+  }
+
+  function updateCount() {
+    var checked = tbody.querySelectorAll('.approve-cb:checked').length;
+    countSpan.textContent = checked + ' of ' + SHIFTS.length + ' selected';
+  }
+
+  selectAll.addEventListener('change', function() {
+    tbody.querySelectorAll('.approve-cb').forEach(function(cb) { cb.checked = selectAll.checked; });
+    updateCount();
+  });
+  tbody.addEventListener('change', function(e) {
+    if (e.target.classList.contains('approve-cb')) updateCount();
+  });
+
+  document.getElementById('approveConfirmBtn').addEventListener('click', function() {
+    var btn = this;
+    var ids = [];
+    tbody.querySelectorAll('.approve-cb:checked').forEach(function(cb) { ids.push(parseInt(cb.value)); });
+    if (ids.length === 0) return;
+
+    // Collect inline edits
+    var edits = [];
+    ids.forEach(function(id) {
+      var edit = { id: id };
+      var fields = tbody.querySelectorAll('[data-id="' + id + '"]');
+      fields.forEach(function(f) { edit[f.dataset.field] = f.value; });
+      edits.push(edit);
+    });
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Approving…';
+
+    fetch('{% url "calendar_view:approve-shifts" workplace.pk %}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken(),
+      },
+      body: JSON.stringify({ shift_ids: ids, edits: edits }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) {
+        window.location.reload();
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Approve Selected';
+      }
+    })
+    .catch(function() {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Approve Selected';
+    });
+  });
+
+  renderTable();
+
+  // ═══════ Edit Shift from Approve Modal ═══════
+  var editApproveModal = new bootstrap.Modal(document.getElementById('editApproveShiftModal'));
+  var UPDATE_URL = '{% url "calendar_view:planned-shift-update-api" pk=0 %}';
+
+  function openEditApproveModal(shiftId) {
+    var url = UPDATE_URL.replace('/0/', '/' + shiftId + '/');
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+      body: JSON.stringify({}),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (!data.ok) return;
+      var s = data.shift;
+      document.getElementById('editApproveShiftId').value = s.id;
+      document.getElementById('editApproveDate').value = s.date;
+      document.getElementById('editApproveStart').value = s.start_time;
+      document.getElementById('editApproveEnd').value = s.end_time;
+      document.getElementById('editApproveBreak').value = s.break_minutes;
+      document.getElementById('editApproveType').value = s.session_type;
+      document.getElementById('editApproveNotes').value = s.notes;
+      document.getElementById('editApproveErrors').classList.add('d-none');
+      editApproveModal.show();
+    });
+  }
+
+  document.getElementById('editApproveSaveBtn').addEventListener('click', function() {
+    var shiftId = document.getElementById('editApproveShiftId').value;
+    if (!shiftId) return;
+    var url = UPDATE_URL.replace('/0/', '/' + shiftId + '/');
+    var body = {
+      date: document.getElementById('editApproveDate').value,
+      start_time: document.getElementById('editApproveStart').value,
+      end_time: document.getElementById('editApproveEnd').value,
+      break_minutes: parseInt(document.getElementById('editApproveBreak').value) || 0,
+      session_type: document.getElementById('editApproveType').value,
+      notes: document.getElementById('editApproveNotes').value,
+    };
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+      body: JSON.stringify(body),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (!data.ok) {
+        document.getElementById('editApproveErrors').textContent = data.error || 'Error saving.';
+        document.getElementById('editApproveErrors').classList.remove('d-none');
+        return;
+      }
+      // Update local SHIFTS array and re-render
+      var s = data.shift;
+      for (var i = 0; i < SHIFTS.length; i++) {
+        if (SHIFTS[i].id === s.id) {
+          SHIFTS[i] = s;
+          break;
+        }
+      }
+      editApproveModal.hide();
+      renderTable();
+    });
+  });
+})();
+{% endif %}
 </script>
 {% endblock %}

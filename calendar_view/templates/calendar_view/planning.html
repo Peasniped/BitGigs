@@ -1,0 +1,1196 @@
+{% extends "base.html" %}
+{% load dk_filters %}
+{% block title %}Planning Mode — BitGigs{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Workplace cards strip */
+  .wp-strip { display:flex; flex-wrap:wrap; gap:0.75rem; justify-content:center; }
+  .wp-card {
+    cursor: grab;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 0.6rem 1rem;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.85rem;
+    transition: box-shadow 0.2s, transform 0.2s;
+    user-select: none;
+    min-width: 160px;
+    position: relative;
+    overflow: hidden;
+  }
+  .wp-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform:translateY(-1px); }
+  .wp-card:active { cursor:grabbing; }
+  .wp-card .wp-avatar {
+    width:32px; height:32px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:0.7rem; font-weight:700; color:#fff;
+    flex-shrink:0; overflow:hidden;
+  }
+  .wp-card__info { display:flex; flex-direction:column; }
+  .wp-card__hours { font-size:0.72rem; color:#64748b; }
+  .wp-card__progress {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 4px;
+    background: #e2e8f0;
+    overflow: hidden;
+  }
+  .wp-card__progress-fill {
+    height: 100%;
+    transition: width 0.3s;
+  }
+  .wp-card__gear {
+    position:absolute; top:4px; right:6px;
+    font-size:0.7rem; color:#94a3b8;
+    cursor:pointer; transition:color 0.15s;
+  }
+  .wp-card__gear:hover { color:#6366f1; }
+
+  /* Planning calendar */
+  .planning-calendar .calendar-day { min-height:6rem; transition:background 0.15s, outline 0.15s; }
+  .planning-calendar .calendar-day.drag-over-invalid { background:rgba(239,68,68,.10) !important; outline:2px dashed #ef4444; outline-offset:-2px; }
+  .planning-calendar .calendar-day.in-period-highlight { background:rgba(34,197,94,.06) !important; outline:2px dashed rgba(34,197,94,.35); outline-offset:-2px; }
+  .planning-calendar .calendar-day.in-period-highlight.drag-over { background:rgba(34,197,94,.14) !important; outline:2px solid rgba(34,197,94,.5); outline-offset:-2px; }
+
+  /* Prior-period shift chips: greyed out, not interactive */
+  .shift-chip--prior-period {
+    opacity: 0.45;
+    cursor: default !important;
+    pointer-events: none;
+    filter: grayscale(0.6);
+  }
+
+  /* Days outside all workplace periods: no hover/plus, grey tint */
+  .planning-calendar .planning-day--no-create { cursor: default; background: #f0f0f0 !important; }
+  .planning-calendar .planning-day--no-create:hover { background: #f0f0f0 !important; }
+  /* Suppress global hover bg on planning days — overlay handles it */
+  .planning-calendar .calendar-day--clickable:hover { background: inherit !important; }
+
+  /* Grey out all shift/session chips on non-period days */
+  .planning-day--no-create .shift-chip {
+    opacity: 0.4;
+    filter: grayscale(0.6);
+    pointer-events: none;
+  }
+
+  /* Frosted overlay + centered "+" on hover (only on empty space) */
+  .day-hover-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(241, 240, 255, 0.45);
+    backdrop-filter: blur(1px);
+    -webkit-backdrop-filter: blur(1px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+    z-index: 3;
+    border-radius: 3px;
+  }
+  .day-hover-overlay .day-hover-plus {
+    font-size: 1.8rem;
+    font-weight: 300;
+    color: #6366f1;
+    line-height: 1;
+    opacity: 0.7;
+  }
+  /* Show overlay only when hovering the td itself, hide when hovering a chip */
+  .planning-calendar .calendar-day:not(.planning-day--no-create):hover .day-hover-overlay {
+    opacity: 1;
+  }
+  .planning-calendar .calendar-day:not(.planning-day--no-create) .shift-chip:hover ~ .day-hover-overlay,
+  .planning-calendar .calendar-day:not(.planning-day--no-create) .planned-shifts-container:hover ~ .day-hover-overlay {
+    opacity: 0;
+  }
+  /* When hovering over a chip, suppress the overlay + indicator via JS class */
+  .planning-calendar .calendar-day.chip-hover .day-hover-overlay { opacity: 0 !important; }
+  .planning-calendar .calendar-day.chip-hover .day-wp-indicator { opacity: 0 !important; }
+
+  /* Keep date number and indicator above the blur overlay */
+  .planning-calendar .calendar-day > .d-flex { position: relative; z-index: 4; }
+
+  /* Day indicator badge: single workplace logo or multi "..." */
+  .day-wp-indicator {
+    position: absolute;
+    bottom: 3px;
+    right: 4px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.45rem;
+    font-weight: 700;
+    color: #fff;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+    z-index: 4;
+  }
+  .day-wp-indicator img { width: 100%; height: 100%; object-fit: cover; }
+  .day-wp-indicator--multi {
+    background: #94a3b8;
+    font-size: 0.7rem;
+    letter-spacing: -1px;
+    color: #fff;
+  }
+  .planning-calendar .calendar-day:not(.chip-hover):hover .day-wp-indicator { opacity: 0.85; }
+
+  /* Grey out hour badge on out-of-period days */
+  .planning-day--no-create .calendar-day__hours {
+    background: #94a3b8 !important;
+    opacity: 0.5;
+  }
+
+  /* Workplace picker popup */
+  .wp-picker {
+    position: absolute;
+    z-index: 1050;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.6rem;
+    box-shadow: 0 8px 24px rgba(0,0,0,.15);
+    padding: 0.35rem;
+    min-width: 160px;
+    display: none;
+  }
+  .wp-picker.show { display: block; }
+  .wp-picker__item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0.4rem;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 500;
+    transition: background 0.12s;
+    border: none;
+    background: transparent;
+    width: 100%;
+    text-align: left;
+  }
+  .wp-picker__item:hover { filter: brightness(0.95); }
+  .wp-picker__avatar {
+    width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.5rem; font-weight: 700; color: #fff;
+    flex-shrink: 0; overflow: hidden;
+  }
+  .wp-picker__avatar img { width: 100%; height: 100%; object-fit: cover; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0"><i class="bi bi-calendar2-week me-2"></i>Planning Mode</h2>
+</div>
+
+<!-- Workplace cards (horizontal, centered, draggable) -->
+<div class="wp-strip mb-3" id="wpStrip">
+  {% for wp in workplaces %}
+  <div class="wp-card" draggable="true" data-workplace-id="{{ wp.pk }}">
+    {% if wp.custom_icon %}
+      <span class="wp-avatar" style="background:{{ wp.color|default:'#6366f1' }};">
+        <img src="{{ wp.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;">
+      </span>
+    {% elif wp.icon %}
+      <span class="wp-avatar" style="background:{{ wp.color|default:'#6366f1' }};">
+        <i class="bi {{ wp.icon }}" style="font-size:0.75rem;"></i>
+      </span>
+    {% else %}
+      <span class="wp-avatar" style="background:{{ wp.color|default:'#6366f1' }};">
+        {{ wp.name|truncatechars:2 }}
+      </span>
+    {% endif %}
+    <div class="wp-card__info">
+      <span class="fw-medium">{{ wp.name }}</span>
+      <span class="wp-card__hours" data-wp-hours="{{ wp.pk }}">–</span>
+    </div>
+    <i class="bi bi-gear wp-card__gear" data-wp-gear="{{ wp.pk }}" title="Default shift settings"></i>
+    <div class="wp-card__progress" data-wp-progress="{{ wp.pk }}" style="display:none;">
+      <div class="wp-card__progress-fill"></div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Calendar -->
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center py-3">
+    <a href="?year={{ prev_year }}&month={{ prev_month }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-chevron-left"></i>
+    </a>
+    <div class="d-flex align-items-center gap-2">
+      <span class="fs-6 fw-semibold text-dark">{{ grid.title }}</span>
+      {% if year != today.year or month != today.month %}
+        <a href="?year={{ today.year }}&month={{ today.month }}" class="btn btn-sm btn-primary" title="Go to current month">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Today
+        </a>
+      {% endif %}
+    </div>
+    <a href="?year={{ next_year }}&month={{ next_month }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-chevron-right"></i>
+    </a>
+  </div>
+  <div class="card-body p-2">
+    <div class="planning-calendar">
+      <table class="table table-bordered calendar-table mb-0">
+        <thead>
+          <tr class="table-light">
+            {% for header in grid.day_headers %}
+              <th class="text-center small text-uppercase text-muted py-2">{{ header }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for week in grid.weeks %}
+          <tr>
+            {% for day in week.days %}
+            <td class="calendar-day calendar-day--clickable {% if not day.is_in_period %}calendar-day--outside{% endif %} {% if day.is_today %}calendar-day--today{% endif %} {% if day.is_weekend %}calendar-day--weekend{% endif %}"
+                data-date="{{ day.date|date:'Y-m-d' }}">
+              <div class="d-flex justify-content-between align-items-start mb-1">
+                <span class="calendar-day__number">{{ day.date.day }}</span>
+                {% if day.total_hours %}
+                  <span class="badge bg-primary bg-opacity-75 calendar-day__hours">{{ day.total_hours|dk }}h</span>
+                {% endif %}
+              </div>
+              <!-- Existing work sessions (editable from planning view) -->
+              {% for session in day.sessions %}
+                {% include "calendar_view/_shift_chip.html" with item=session is_planned=False editable_session=True %}
+              {% endfor %}
+              <!-- Planned shifts -->
+              <div class="planned-shifts-container" data-date="{{ day.date|date:'Y-m-d' }}">
+              {% for shift in day.planned_shifts %}
+                {% include "calendar_view/_shift_chip.html" with item=shift is_planned=True draggable=True %}
+              {% endfor %}
+              </div>
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Shift Modal -->
+<div class="modal fade" id="shiftModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-calendar-plus me-2"></i><span id="shiftModalTitle">Plan Shift</span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Workplace banner -->
+        <div class="d-flex align-items-center gap-2 p-2 mb-3 rounded" id="shiftModalBanner"
+             style="background:#f1f5f9;">
+          <span class="wp-avatar" id="shiftModalAvatar" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:#fff;"></span>
+          <span class="fw-medium" id="shiftModalWorkplace"></span>
+        </div>
+
+        <div id="shiftModalErrors" class="alert alert-danger small py-2 d-none"></div>
+        <div id="shiftApprovedBanner" class="alert alert-info small py-2 d-none">
+          <i class="bi bi-check-circle-fill me-1"></i>This shift has been approved and converted to a work session. Changes here will update the work session.
+        </div>
+
+        <form id="shiftForm">
+          <input type="hidden" id="shiftWorkplaceId">
+          <input type="hidden" id="shiftId">
+          <input type="hidden" id="shiftIsSession" value="">
+
+          <div class="mb-2">
+            <label class="form-label small">Date</label>
+            <input type="date" id="shiftDate" class="form-control form-control-sm" required>
+          </div>
+          <div class="row g-2" id="shiftTimeRow">
+            <div class="col-6">
+              <label class="form-label small">Start time</label>
+              <input type="time" id="shiftStart" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label small">End time</label>
+              <input type="time" id="shiftEnd" class="form-control form-control-sm" required>
+            </div>
+          </div>
+          <div id="shiftModalOverlap" class="small py-1 mb-2 d-none" style="color:#b45309;">
+            <i class="bi bi-exclamation-triangle me-1"></i><span id="shiftOverlapText"></span>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label class="form-label small">Break (min)</label>
+              <input type="number" id="shiftBreak" class="form-control form-control-sm" value="0" min="0">
+            </div>
+            <div class="col-6">
+              <label class="form-label small">Type</label>
+              <select id="shiftType" class="form-select form-select-sm">
+                <option value="on_site">On-site</option>
+                <option value="remote">Remote</option>
+                <option value="sick_leave">Sick leave</option>
+                <option value="paid_absence">Paid absence</option>
+                <option value="vacation">Vacation</option>
+              </select>
+            </div>
+          </div>
+          <!-- Live time calculation -->
+          <div class="mb-2 text-muted small">
+            Duration: <span id="shiftDuration">–</span>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">Notes</label>
+            <textarea id="shiftNotes" class="form-control form-control-sm" rows="2"></textarea>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm flex-fill">
+              <i class="bi bi-check-lg me-1"></i><span id="shiftSaveLabel">Save Shift</span>
+            </button>
+            <button type="button" class="btn btn-outline-danger btn-sm d-none" id="shiftDeleteBtn">
+              <i class="bi bi-trash"></i>
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Default Shift Config Modal -->
+<div class="modal fade" id="defaultShiftModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-gear me-2"></i>Default Shift</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex align-items-center gap-2 mb-3" id="defBanner"></div>
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="form-text mb-0" id="defDescription"></span>
+          <div class="form-check form-switch mb-0">
+            <input type="checkbox" class="form-check-input" role="switch" id="defToggle">
+          </div>
+        </div>
+        <div id="defFields">
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label small">Start</label>
+            <input type="time" class="form-control form-control-sm" id="defStart">
+          </div>
+          <div class="col-6">
+            <label class="form-label small">End</label>
+            <input type="time" class="form-control form-control-sm" id="defEnd">
+          </div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label small">Break (min)</label>
+            <input type="number" class="form-control form-control-sm" id="defBreak" value="0" min="0">
+          </div>
+          <div class="col-6">
+            <label class="form-label small">Type</label>
+            <select class="form-select form-select-sm" id="defType">
+              <option value="on_site">On-site</option>
+              <option value="remote">Remote</option>
+              <option value="sick_leave">Sick leave</option>
+              <option value="paid_absence">Paid absence</option>
+              <option value="vacation">Vacation</option>
+            </select>
+          </div>
+        </div>
+        </div>
+        <button class="btn btn-sm btn-primary w-100" id="saveDefaultShift">
+          <i class="bi bi-check-lg me-1"></i>Save Default
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Workplace Picker Popup -->
+<div class="wp-picker" id="wpPicker"></div>
+
+<!-- Period Warning Modal -->
+<div class="modal fade" id="periodWarningModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content" style="border-radius:var(--card-radius);border:2px solid #fca5a5;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);background:#fef2f2;">
+      <div class="modal-header border-0 pb-0" style="background:transparent;">
+        <span class="fw-semibold" style="color:#dc3545;"><i class="bi bi-exclamation-triangle me-2"></i>Wrong payroll period</span>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body pt-2" style="background:transparent;">
+        <p class="small" id="periodWarningText"></p>
+        <p class="small text-muted mb-3" id="periodWarningHint"></p>
+        <a href="#" class="btn btn-sm btn-primary w-100" id="periodWarningGoBtn">
+          <i class="bi bi-arrow-right me-1"></i><span id="periodWarningGoBtnLabel">Go</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const WORKPLACES = {{ workplace_json|safe }};
+  const CSRF = getCsrfToken();
+  const API_BASE = '{% url "calendar_view:planned-shift-api" %}';
+  const MONTH_NAMES = {{ month_names_json|safe }};
+  const CURRENT_YEAR = {{ year }};
+  const CURRENT_MONTH = {{ month }};
+
+  const wpMap = {};
+  WORKPLACES.forEach(function(wp) { wpMap[wp.id] = wp; });
+
+  // Show monthly hours + goal on cards
+  WORKPLACES.forEach(function(wp) {
+    var el = document.querySelector('[data-wp-hours="' + wp.id + '"]');
+    if (!el) return;
+    var h = parseFloat(wp.total_hours.replace(',','.')) || 0;
+    var hStr = h.toFixed(2).replace('.',',') + 'h';
+
+    // Compute monthly goal for display (convert weekly → monthly with ×4.33)
+    var goalMin = wp.hour_goal_min ? parseFloat(wp.hour_goal_min) : 0;
+    var goalMax = wp.hour_goal_max ? parseFloat(wp.hour_goal_max) : 0;
+    if (wp.hour_goal_type === 'weekly') {
+      goalMin = goalMin * 4.33;
+      goalMax = goalMax ? goalMax * 4.33 : 0;
+    }
+
+    if (goalMin > 0) {
+      var goalStr;
+      if (goalMax > 0) {
+        goalStr = goalMin.toFixed(0) + '–' + goalMax.toFixed(0) + 'h';
+      } else {
+        goalStr = goalMin.toFixed(0) + 'h';
+      }
+      el.textContent = hStr + ' / ' + goalStr;
+
+      // Color: green if in range, amber if below, red if over max
+      var target = goalMax > 0 ? goalMax : goalMin;
+      if (h >= goalMin && (goalMax <= 0 || h <= goalMax)) {
+        el.style.color = '#16a34a';
+      } else if (h < goalMin) {
+        el.style.color = '#94a3b8';
+      } else {
+        el.style.color = '#dc2626';
+      }
+
+      // Progress bar
+      var barEl = document.querySelector('[data-wp-progress="' + wp.id + '"]');
+      if (barEl) {
+        barEl.style.display = '';
+        var fill = barEl.querySelector('.wp-card__progress-fill');
+        var barMax = goalMax > 0 ? goalMax : goalMin;
+        var pct = Math.min((h / barMax) * 100, 100);
+        fill.style.width = pct + '%';
+        // Blue if under target/lower, green if at/over lower limit
+        fill.style.background = h >= goalMin ? '#22c55e' : '#3b82f6';
+      }
+    } else {
+      el.textContent = hStr + ' this period';
+    }
+  });
+
+  // Track which workplace is being dragged
+  var draggedWorkplaceId = null;
+
+  // ----- Drag from workplace cards -----
+  document.querySelectorAll('.wp-card[draggable]').forEach(function(card) {
+    card.addEventListener('dragstart', function(e) {
+      var wpId = parseInt(card.dataset.workplaceId);
+      draggedWorkplaceId = wpId;
+      e.dataTransfer.setData('text/plain', JSON.stringify({
+        type: 'new-shift',
+        workplace_id: wpId,
+      }));
+      e.dataTransfer.effectAllowed = 'move';
+      highlightPeriodDays(wpId);
+    });
+    card.addEventListener('dragend', function() {
+      draggedWorkplaceId = null;
+      clearPeriodHighlights();
+    });
+  });
+
+  // ----- Gear icon → default shift modal -----
+  document.querySelectorAll('[data-wp-gear]').forEach(function(icon) {
+    icon.addEventListener('click', function(e) {
+      e.stopPropagation();
+      openDefaultShiftModal(parseInt(icon.dataset.wpGear));
+    });
+  });
+
+  // ----- Mark prior-period chips & set up drag/click for current-period chips -----
+  document.querySelectorAll('.shift-chip--planned[draggable]').forEach(function(chip) {
+    var td = chip.closest('td[data-date]');
+    var wpId = parseInt(chip.dataset.workplaceId);
+    var dateStr = td ? td.dataset.date : '';
+
+    // Grey-out chips that belong to a prior (or future) payroll period
+    if (wpId && dateStr && !isInPeriod(wpId, dateStr)) {
+      chip.classList.add('shift-chip--prior-period');
+      chip.removeAttribute('draggable');
+      return; // skip drag/click handlers for prior-period chips
+    }
+
+    chip.addEventListener('dragstart', function(e) {
+      e.stopPropagation();
+      var shiftId = parseInt(chip.dataset.shiftId);
+      draggedWorkplaceId = wpId;
+      e.dataTransfer.setData('text/plain', JSON.stringify({
+        type: 'move-shift',
+        shift_id: shiftId,
+        workplace_id: wpId,
+      }));
+      e.dataTransfer.effectAllowed = 'move';
+      highlightPeriodDays(wpId);
+    });
+    chip.addEventListener('dragend', function() {
+      draggedWorkplaceId = null;
+      clearPeriodHighlights();
+    });
+
+    // Click to edit
+    chip.addEventListener('click', function(e) {
+      e.stopPropagation();
+      openEditShiftModal(parseInt(chip.dataset.shiftId));
+    });
+  });
+
+  // ----- Click approved sessions to edit -----
+  document.querySelectorAll('.shift-chip--editable-session[data-session-id]').forEach(function(chip) {
+    chip.addEventListener('click', function(e) {
+      e.stopPropagation();
+      openEditSessionModal(parseInt(chip.dataset.sessionId));
+    });
+  });
+
+  // ----- Mark out-of-period days + add day indicators -----
+  document.querySelectorAll('.planning-calendar .calendar-day[data-date]').forEach(function(td) {
+    var dateStr = td.dataset.date;
+    var validWps = WORKPLACES.filter(function(wp) { return isInPeriod(wp.id, dateStr); });
+    if (validWps.length === 0) {
+      td.classList.add('planning-day--no-create');
+      return;
+    }
+
+    // Add frosted overlay with centered "+"
+    var overlay = document.createElement('div');
+    overlay.className = 'day-hover-overlay';
+    overlay.innerHTML = '<span class="day-hover-plus">+</span>';
+    td.appendChild(overlay);
+
+    // Add bottom-right indicator
+    if (validWps.length === 1) {
+      var wp = validWps[0];
+      var ind = document.createElement('span');
+      ind.className = 'day-wp-indicator';
+      ind.style.background = wp.color || '#6366f1';
+      if (wp.custom_icon_url) {
+        ind.innerHTML = '<img src="' + wp.custom_icon_url + '" alt="">';
+      } else if (wp.icon) {
+        ind.innerHTML = '<i class="bi ' + wp.icon + '" style="font-size:0.5rem;"></i>';
+      } else {
+        ind.textContent = wp.initials;
+      }
+      td.appendChild(ind);
+    } else {
+      var ind = document.createElement('span');
+      ind.className = 'day-wp-indicator day-wp-indicator--multi';
+      ind.textContent = '\u2026';
+      td.appendChild(ind);
+    }
+  });
+
+  // ----- Toggle chip-hover class so overlay hides when hovering a chip -----
+  document.querySelectorAll('.planning-calendar .shift-chip').forEach(function(chip) {
+    chip.addEventListener('mouseenter', function() {
+      var td = chip.closest('.calendar-day');
+      if (td) td.classList.add('chip-hover');
+    });
+    chip.addEventListener('mouseleave', function() {
+      var td = chip.closest('.calendar-day');
+      if (td) td.classList.remove('chip-hover');
+    });
+  });
+
+  // ----- Period highlight helpers -----
+  function highlightPeriodDays(wpId) {
+    var wp = wpMap[wpId];
+    if (!wp || !wp.period_start || !wp.period_end) return;
+    var accentRgb = wp.accent_color ? hexToRgb(wp.accent_color) : null;
+    document.querySelectorAll('.planning-calendar .calendar-day[data-date]').forEach(function(td) {
+      var d = td.dataset.date;
+      if (d >= wp.period_start && d <= wp.period_end) {
+        td.classList.add('in-period-highlight');
+        if (accentRgb) td.style.setProperty('--wp-accent-rgb', accentRgb);
+      }
+    });
+  }
+
+  function clearPeriodHighlights() {
+    document.querySelectorAll('.in-period-highlight').forEach(function(td) {
+      td.classList.remove('in-period-highlight');
+      td.style.removeProperty('--wp-accent-rgb');
+    });
+  }
+
+  function isInPeriod(wpId, dateStr) {
+    var wp = wpMap[wpId];
+    if (!wp || !wp.period_start || !wp.period_end) return true;
+    return dateStr >= wp.period_start && dateStr <= wp.period_end;
+  }
+
+  /**
+   * For a date outside the current months payroll period, figure out which
+   * payroll month it actually belongs to and return a user-friendly message.
+   */
+  function ordinalSuffix(n) {
+    var s = ['th','st','nd','rd'];
+    var v = n % 100;
+    return n + (s[(v-20)%10] || s[v] || s[0]);
+  }
+
+  function outOfPeriodMessage(wpId, dateStr) {
+    var wp = wpMap[wpId];
+    var parts = dateStr.split('-');
+    var day = parseInt(parts[2]);
+    var dateMonth = parseInt(parts[1]);
+    var dateYear = parseInt(parts[0]);
+
+    var targetMonth, targetYear;
+    if (dateStr > wp.period_end) {
+      targetMonth = CURRENT_MONTH + 1;
+      targetYear = CURRENT_YEAR;
+      if (targetMonth > 12) { targetMonth = 1; targetYear++; }
+    } else {
+      targetMonth = CURRENT_MONTH - 1;
+      targetYear = CURRENT_YEAR;
+      if (targetMonth < 1) { targetMonth = 12; targetYear--; }
+    }
+    var targetName = MONTH_NAMES[String(targetMonth)];
+
+    return {
+      text: 'You are trying to plan a shift at ' + wp.name + ' for the ' + ordinalSuffix(day) + ' ' + MONTH_NAMES[String(dateMonth)] +
+        ', which belongs to the ' + targetName + ' payroll.',
+      hint: 'Please change the calendar to ' + targetName + ' to plan this shift.',
+      targetMonth: targetMonth,
+      targetYear: targetYear,
+      targetName: targetName,
+    };
+  }
+
+  function hexToRgb(hex) {
+    var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return m ? parseInt(m[1],16)+','+parseInt(m[2],16)+','+parseInt(m[3],16) : null;
+  }
+
+  // ----- Drop targets (calendar days) -----
+  document.querySelectorAll('.planning-calendar .calendar-day[data-date]').forEach(function(td) {
+    td.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (draggedWorkplaceId) {
+        if (isInPeriod(draggedWorkplaceId, td.dataset.date)) {
+          td.classList.add('drag-over');
+        } else {
+          td.classList.add('drag-over-invalid');
+        }
+      }
+    });
+    td.addEventListener('dragleave', function() {
+      td.classList.remove('drag-over', 'drag-over-invalid');
+    });
+    td.addEventListener('drop', function(e) {
+      e.preventDefault();
+      td.classList.remove('drag-over', 'drag-over-invalid');
+      var raw = e.dataTransfer.getData('text/plain');
+      if (!raw) return;
+      try { var data = JSON.parse(raw); } catch(_) { return; }
+      var targetDate = td.dataset.date;
+
+      if (data.type === 'new-shift') {
+        if (!isInPeriod(data.workplace_id, targetDate)) {
+          var info = outOfPeriodMessage(data.workplace_id, targetDate);
+          document.getElementById('periodWarningText').textContent = info.text;
+          document.getElementById('periodWarningHint').textContent = info.hint;
+          document.getElementById('periodWarningGoBtnLabel').textContent = 'Go to ' + info.targetName;
+          document.getElementById('periodWarningGoBtn').href = '?year=' + info.targetYear + '&month=' + info.targetMonth;
+          new bootstrap.Modal(document.getElementById('periodWarningModal')).show();
+          return;
+        }
+        openNewShiftModal(data.workplace_id, targetDate);
+      } else if (data.type === 'move-shift') {
+        // Block moves outside the shift's workplace period
+        var moveWpId = data.workplace_id;
+        if (moveWpId && !isInPeriod(moveWpId, targetDate)) {
+          var info = outOfPeriodMessage(moveWpId, targetDate);
+          document.getElementById('periodWarningText').textContent = info.text;
+          document.getElementById('periodWarningHint').textContent = info.hint;
+          document.getElementById('periodWarningGoBtnLabel').textContent = 'Go to ' + info.targetName;
+          document.getElementById('periodWarningGoBtn').href = '?year=' + info.targetYear + '&month=' + info.targetMonth;
+          new bootstrap.Modal(document.getElementById('periodWarningModal')).show();
+          return;
+        }
+        moveShift(data.shift_id, targetDate);
+      }
+    });
+
+    // Click on empty day
+    td.addEventListener('click', function(e) {
+      if (e.target.closest('.shift-chip--planned') || e.target.closest('.shift-chip--approved') || e.target.closest('.wp-picker')) return;
+      hideWpPicker();
+      var dateStr = td.dataset.date;
+      // Find which workplaces cover this date
+      var validWps = WORKPLACES.filter(function(wp) { return isInPeriod(wp.id, dateStr); });
+      if (validWps.length === 0) {
+        // Outside all periods — show warning for the first workplace
+        if (WORKPLACES.length > 0) {
+          var info = outOfPeriodMessage(WORKPLACES[0].id, dateStr);
+          document.getElementById('periodWarningText').textContent = info.text;
+          document.getElementById('periodWarningHint').textContent = info.hint;
+          document.getElementById('periodWarningGoBtnLabel').textContent = 'Go to ' + info.targetName;
+          document.getElementById('periodWarningGoBtn').href = '?year=' + info.targetYear + '&month=' + info.targetMonth;
+          new bootstrap.Modal(document.getElementById('periodWarningModal')).show();
+        }
+        return;
+      }
+      if (validWps.length === 1) {
+        openNewShiftModal(validWps[0].id, dateStr);
+      } else {
+        showWpPicker(td, dateStr, validWps);
+      }
+    });
+  });
+
+  // ----- Workplace picker popup -----
+  var wpPickerEl = document.getElementById('wpPicker');
+
+  function showWpPicker(td, dateStr, validWps) {
+    wpPickerEl.innerHTML = '';
+    validWps.forEach(function(wp) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'wp-picker__item';
+      var accent = wp.accent_color || wp.color || '#6366f1';
+      var rgb = hexToRgb(accent) || '99,102,241';
+      btn.style.background = 'rgba(' + rgb + ',0.15)';
+
+      var avatarHtml;
+      if (wp.custom_icon_url) {
+        avatarHtml = '<span class="wp-picker__avatar" style="background:' + (wp.color || '#6366f1') + ';"><img src="' + wp.custom_icon_url + '" alt=""></span>';
+      } else if (wp.icon) {
+        avatarHtml = '<span class="wp-picker__avatar" style="background:' + (wp.color || '#6366f1') + ';"><i class="bi ' + wp.icon + '" style="font-size:0.55rem;"></i></span>';
+      } else {
+        avatarHtml = '<span class="wp-picker__avatar" style="background:' + (wp.color || '#6366f1') + ';">' + wp.initials + '</span>';
+      }
+      btn.innerHTML = avatarHtml + '<span>' + wp.name + '</span>';
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        hideWpPicker();
+        openNewShiftModal(wp.id, dateStr);
+      });
+      wpPickerEl.appendChild(btn);
+    });
+
+    // Position near the clicked cell
+    var rect = td.getBoundingClientRect();
+    wpPickerEl.style.position = 'fixed';
+    wpPickerEl.style.left = rect.left + 'px';
+    wpPickerEl.style.top = (rect.bottom + 4) + 'px';
+    wpPickerEl.classList.add('show');
+  }
+
+  function hideWpPicker() {
+    wpPickerEl.classList.remove('show');
+  }
+
+  // Close picker when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.wp-picker') && !e.target.closest('.calendar-day')) {
+      hideWpPicker();
+    }
+  });
+
+  // ----- Modal logic -----
+  var shiftModal = new bootstrap.Modal(document.getElementById('shiftModal'));
+
+  // Auto-focus start time hour position when modal opens
+  document.getElementById('shiftModal').addEventListener('shown.bs.modal', function() {
+    var startEl = document.getElementById('shiftStart');
+    startEl.focus();
+    startEl.setSelectionRange(0, 2);
+  });
+
+  function openNewShiftModal(workplaceId, dateStr) {
+    var wp = wpMap[workplaceId];
+    if (!wp) return;
+    document.getElementById('shiftModalTitle').textContent = 'Plan Shift';
+    document.getElementById('shiftSaveLabel').textContent = 'Save Shift';
+    document.getElementById('shiftDeleteBtn').classList.add('d-none');
+    document.getElementById('shiftId').value = '';
+    document.getElementById('shiftIsSession').value = '';
+    document.getElementById('shiftWorkplaceId').value = workplaceId;
+    document.getElementById('shiftDate').value = dateStr;
+    document.getElementById('shiftStart').value = wp.default_start || '';
+    document.getElementById('shiftEnd').value = wp.default_end || '';
+    document.getElementById('shiftBreak').value = wp.default_break ?? 0;
+    document.getElementById('shiftType').value = wp.default_type || 'on_site';
+    document.getElementById('shiftNotes').value = '';
+    document.getElementById('shiftModalErrors').classList.add('d-none');
+    document.getElementById('shiftModalOverlap').classList.add('d-none');
+    document.getElementById('shiftApprovedBanner').classList.add('d-none');
+    document.getElementById('shiftTimeRow').style.outline = '';
+    updateModalBanner(wp);
+    calcShiftDuration();
+    checkOverlapsLive();
+    shiftModal.show();
+  }
+
+  function openEditShiftModal(shiftId) {
+    var chip = document.querySelector('[data-shift-id="' + shiftId + '"]');
+    if (!chip) return;
+    var url = '{% url "calendar_view:planned-shift-update-api" pk=0 %}'.replace('/0/', '/' + shiftId + '/');
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({}),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (!data.ok) return;
+      var s = data.shift;
+      var wp = wpMap[s.workplace_id];
+      document.getElementById('shiftModalTitle').textContent = 'Edit Planned Shift';
+      document.getElementById('shiftSaveLabel').textContent = 'Update Shift';
+      document.getElementById('shiftDeleteBtn').classList.remove('d-none');
+      document.getElementById('shiftId').value = s.id;
+      document.getElementById('shiftIsSession').value = '';
+      document.getElementById('shiftWorkplaceId').value = s.workplace_id;
+      document.getElementById('shiftDate').value = s.date;
+      document.getElementById('shiftStart').value = s.start_time;
+      document.getElementById('shiftEnd').value = s.end_time;
+      document.getElementById('shiftBreak').value = s.break_minutes;
+      document.getElementById('shiftType').value = s.session_type;
+      document.getElementById('shiftNotes').value = s.notes;
+      document.getElementById('shiftModalErrors').classList.add('d-none');
+      document.getElementById('shiftModalOverlap').classList.add('d-none');
+      document.getElementById('shiftApprovedBanner').classList.add('d-none');
+      document.getElementById('shiftTimeRow').style.outline = '';
+      if (wp) updateModalBanner(wp);
+      calcShiftDuration();
+      checkOverlapsLive();
+      shiftModal.show();
+    });
+  }
+
+  function openEditSessionModal(sessionId) {
+    var url = '{% url "calendar_view:session-update-api" pk=0 %}'.replace('/0/', '/' + sessionId + '/');
+    fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+      if (!data.ok) return;
+      var s = data.session;
+      var wp = wpMap[s.workplace_id];
+      document.getElementById('shiftModalTitle').textContent = 'Edit Approved Shift';
+      document.getElementById('shiftSaveLabel').textContent = 'Update Session';
+      document.getElementById('shiftDeleteBtn').classList.remove('d-none');
+      document.getElementById('shiftId').value = '';
+      document.getElementById('shiftIsSession').value = s.id;
+      document.getElementById('shiftWorkplaceId').value = s.workplace_id;
+      document.getElementById('shiftDate').value = s.date;
+      document.getElementById('shiftStart').value = s.start_time;
+      document.getElementById('shiftEnd').value = s.end_time;
+      document.getElementById('shiftBreak').value = s.break_minutes;
+      document.getElementById('shiftType').value = s.session_type;
+      document.getElementById('shiftNotes').value = s.notes;
+      document.getElementById('shiftModalErrors').classList.add('d-none');
+      document.getElementById('shiftModalOverlap').classList.add('d-none');
+      document.getElementById('shiftTimeRow').style.outline = '';
+      document.getElementById('shiftApprovedBanner').classList.remove('d-none');
+      if (wp) updateModalBanner(wp);
+      calcShiftDuration();
+      checkOverlapsLive();
+      shiftModal.show();
+    });
+  }
+
+  function updateModalBanner(wp) {
+    var avatar = document.getElementById('shiftModalAvatar');
+    avatar.style.background = wp.color || '#6366f1';
+    if (wp.custom_icon_url) {
+      avatar.innerHTML = '<img src="' + wp.custom_icon_url + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
+    } else if (wp.icon) {
+      avatar.innerHTML = '<i class="bi ' + wp.icon + '" style="font-size:0.7rem;"></i>';
+    } else {
+      avatar.textContent = wp.initials;
+    }
+    document.getElementById('shiftModalWorkplace').textContent = wp.name;
+  }
+
+  // ----- Live overlap check -----
+  var overlapTimer = null;
+  function checkOverlapsLive() {
+    clearTimeout(overlapTimer);
+    overlapTimer = setTimeout(doOverlapCheck, 300);
+  }
+
+  function doOverlapCheck() {
+    var dateVal = document.getElementById('shiftDate').value;
+    var startVal = document.getElementById('shiftStart').value;
+    var endVal = document.getElementById('shiftEnd').value;
+    var excludeId = document.getElementById('shiftId').value;
+    var isSession = document.getElementById('shiftIsSession').value;
+    if (!dateVal || !startVal || !endVal) {
+      document.getElementById('shiftModalOverlap').classList.add('d-none');
+      document.getElementById('shiftTimeRow').style.outline = '';
+      return;
+    }
+    var url = '{% url "calendar_view:check-overlaps" %}?date=' +
+      encodeURIComponent(dateVal) + '&start=' + encodeURIComponent(startVal) +
+      '&end=' + encodeURIComponent(endVal);
+    if (excludeId) url += '&exclude=' + excludeId;
+    if (isSession) url += '&exclude_session=' + isSession;
+    fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+      var box = document.getElementById('shiftModalOverlap');
+      var timeRow = document.getElementById('shiftTimeRow');
+      if (data.overlaps && data.overlaps.length > 0) {
+        var parts = data.overlaps.map(function(o) {
+          return o.workplace + ' (' + o.start + '–' + o.end + ')';
+        });
+        document.getElementById('shiftOverlapText').textContent = 'Overlaps with: ' + parts.join(', ');
+        box.classList.remove('d-none');
+        timeRow.style.outline = '2px solid #f59e0b';
+        timeRow.style.outlineOffset = '2px';
+        timeRow.style.borderRadius = '6px';
+      } else {
+        box.classList.add('d-none');
+        timeRow.style.outline = '';
+      }
+    }).catch(function() {});
+  }
+
+  // ----- Duration calculation + time validation -----
+  var saveBtn = document.querySelector('#shiftForm button[type="submit"]');
+
+  function calcShiftDuration() {
+    var start = document.getElementById('shiftStart').value;
+    var end = document.getElementById('shiftEnd').value;
+    var brk = parseInt(document.getElementById('shiftBreak').value) || 0;
+    var display = document.getElementById('shiftDuration');
+    var startEl = document.getElementById('shiftStart');
+    var endEl = document.getElementById('shiftEnd');
+
+    if (!start || !end) {
+      display.textContent = '–';
+      startEl.classList.remove('is-invalid');
+      endEl.classList.remove('is-invalid');
+      saveBtn.disabled = false;
+      return;
+    }
+
+    var sp = start.split(':').map(Number);
+    var ep = end.split(':').map(Number);
+    var grossMin = (ep[0]*60+ep[1]) - (sp[0]*60+sp[1]);
+
+    if (grossMin <= 0) {
+      display.textContent = 'End time must be after start time';
+      display.style.color = '#dc3545';
+      startEl.classList.add('is-invalid');
+      endEl.classList.add('is-invalid');
+      saveBtn.disabled = true;
+      return;
+    }
+
+    display.style.color = '';
+    startEl.classList.remove('is-invalid');
+    endEl.classList.remove('is-invalid');
+    saveBtn.disabled = false;
+
+    var netMin = Math.max(grossMin - brk, 0);
+    var grossH = (grossMin/60).toFixed(2).replace('.',',');
+    var grossHM = Math.floor(grossMin/60) + 'h ' + (grossMin%60) + 'm';
+    if (brk > 0) {
+      display.textContent = grossHM + ' gross (' + grossH + 'h) · ' + (netMin/60).toFixed(2).replace('.',',') + 'h net (after ' + brk + 'min break)';
+    } else {
+      display.textContent = grossHM + ' (' + grossH + 'h)';
+    }
+  }
+  ['shiftStart', 'shiftEnd', 'shiftBreak'].forEach(function(id) {
+    var el = document.getElementById(id);
+    el.addEventListener('input', function() { calcShiftDuration(); checkOverlapsLive(); });
+    el.addEventListener('change', function() { calcShiftDuration(); checkOverlapsLive(); });
+  });
+  document.getElementById('shiftDate').addEventListener('change', checkOverlapsLive);
+
+  // ----- Form submit -----
+  document.getElementById('shiftForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var shiftId = document.getElementById('shiftId').value;
+    var sessionId = document.getElementById('shiftIsSession').value;
+    var url;
+
+    var body = {
+      workplace_id: parseInt(document.getElementById('shiftWorkplaceId').value),
+      date: document.getElementById('shiftDate').value,
+      start_time: document.getElementById('shiftStart').value,
+      end_time: document.getElementById('shiftEnd').value,
+      break_minutes: parseInt(document.getElementById('shiftBreak').value) || 0,
+      session_type: document.getElementById('shiftType').value,
+      notes: document.getElementById('shiftNotes').value,
+    };
+
+    if (sessionId) {
+      url = '{% url "calendar_view:session-update-api" pk=0 %}'.replace('/0/', '/' + sessionId + '/');
+    } else if (shiftId) {
+      url = '{% url "calendar_view:planned-shift-update-api" pk=0 %}'.replace('/0/', '/' + shiftId + '/');
+    } else {
+      url = API_BASE;
+    }
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify(body),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (!data.ok) {
+        document.getElementById('shiftModalErrors').textContent = data.error || 'Error saving shift.';
+        document.getElementById('shiftModalErrors').classList.remove('d-none');
+        return;
+      }
+      shiftModal.hide();
+      location.reload();
+    });
+  });
+
+  // ----- Delete button -----
+  document.getElementById('shiftDeleteBtn').addEventListener('click', function() {
+    var shiftId = document.getElementById('shiftId').value;
+    var sessionId = document.getElementById('shiftIsSession').value;
+    var url;
+    if (sessionId) {
+      if (!confirm('Delete this approved work session?')) return;
+      url = '{% url "calendar_view:session-update-api" pk=0 %}'.replace('/0/', '/' + sessionId + '/');
+    } else {
+      if (!shiftId || !confirm('Delete this planned shift?')) return;
+      url = '{% url "calendar_view:planned-shift-update-api" pk=0 %}'.replace('/0/', '/' + shiftId + '/');
+    }
+    fetch(url, {
+      method: 'DELETE',
+      headers: { 'X-CSRFToken': CSRF },
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.ok) { shiftModal.hide(); location.reload(); }
+    });
+  });
+
+  // ----- Move shift (drag to new date) -----
+  function moveShift(shiftId, newDate) {
+    var url = '{% url "calendar_view:planned-shift-update-api" pk=0 %}'.replace('/0/', '/' + shiftId + '/');
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ date: newDate }),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.ok) {
+        if (data.overlaps && data.overlaps.length > 0) {
+          // Time conflict on the target date — open editor so user can adjust
+          openEditShiftModal(shiftId);
+        } else {
+          location.reload();
+        }
+      }
+    });
+  }
+
+  // ----- Default shift config modal -----
+  var defModal = new bootstrap.Modal(document.getElementById('defaultShiftModal'));
+  var defWorkplaceId = null;
+
+  function openDefaultShiftModal(wpId) {
+    var wp = wpMap[wpId];
+    if (!wp) return;
+    defWorkplaceId = wpId;
+    var banner = document.getElementById('defBanner');
+    banner.innerHTML = '<span class="wp-avatar" style="background:' + (wp.color||'#6366f1') +
+      ';width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-weight:700;color:#fff;">' +
+      wp.initials + '</span><strong class="small">' + wp.name + '</strong>';
+    var hasDefault = !!(wp.default_start && wp.default_end);
+    document.getElementById('defToggle').checked = hasDefault;
+    document.getElementById('defFields').style.display = hasDefault ? '' : 'none';
+    document.getElementById('saveDefaultShift').style.display = hasDefault ? '' : 'none';
+    updateDefDescription(hasDefault);
+    document.getElementById('defStart').value = wp.default_start || '';
+    document.getElementById('defEnd').value = wp.default_end || '';
+    document.getElementById('defBreak').value = wp.default_break || 0;
+    document.getElementById('defType').value = wp.default_type || 'on_site';
+    defModal.show();
+  }
+
+  function updateDefDescription(on) {
+    document.getElementById('defDescription').textContent = on
+      ? 'New shifts will be pre-filled with these values.'
+      : 'New shifts will not be pre-filled.';
+  }
+
+  document.getElementById('defToggle').addEventListener('change', function() {
+    document.getElementById('defFields').style.display = this.checked ? '' : 'none';
+    document.getElementById('saveDefaultShift').style.display = this.checked ? '' : 'none';
+    updateDefDescription(this.checked);
+    if (!this.checked) {
+      document.getElementById('defStart').value = '';
+      document.getElementById('defEnd').value = '';
+      document.getElementById('defBreak').value = 0;
+      document.getElementById('defType').value = 'on_site';
+      saveDefaultShift(true);
+    }
+  });
+
+  function saveDefaultShift(autoClose) {
+    if (!defWorkplaceId) return;
+    var wp = wpMap[defWorkplaceId];
+    var body = {
+      start_time: document.getElementById('defStart').value,
+      end_time: document.getElementById('defEnd').value,
+      break_minutes: parseInt(document.getElementById('defBreak').value) || 0,
+      session_type: document.getElementById('defType').value,
+    };
+    var url = '{% url "calendar_view:default-shift-api" pk=0 %}'.replace('/0/', '/' + defWorkplaceId + '/');
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify(body),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.ok) {
+        wp.default_start = body.start_time;
+        wp.default_end = body.end_time;
+        wp.default_break = body.break_minutes;
+        wp.default_type = body.session_type;
+        if (autoClose) {
+          defModal.hide();
+        } else {
+          var btn = document.getElementById('saveDefaultShift');
+          btn.textContent = 'Saved!';
+          btn.classList.replace('btn-primary', 'btn-success');
+          setTimeout(function() {
+            btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Save Default';
+            btn.classList.replace('btn-success', 'btn-primary');
+            defModal.hide();
+          }, 800);
+        }
+      }
+    });
+  }
+
+  document.getElementById('saveDefaultShift').addEventListener('click', function() {
+    saveDefaultShift(false);
+  });
+})();
+</script>
+{% endblock %}
