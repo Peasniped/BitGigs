@@ -19,11 +19,13 @@ Workplace dashboard:
 2. Feriepenge / Flexkonto
 3. Pension
 4. Fritvalgskonto
-- In the details table, it should calculate base / effective / total hourly wage
+- In the details table, it should calculate base / effective / total hourly wage for salaried positions
 - In the details table, please put a hr below the wages and the weekly hours
 
 Payslip Editor
 - Buttons to change month
+
+- In the navbar, color the page you are currently on, to help with navigation / knowing where you are
 
 Workplace calendar:
 - Work shifts for days that are before the start or after the end of the payroll period should be greyed out on the calendar. -- just like on the planning calendar
