@@ -41,6 +41,28 @@ Workplace calendar:
 -- Break time is static (ie you can only enter yes/no in the work shift configuration, and the break numbers are static)
 -- Break time is variable and should be entered manually every time (like it is now)
 
+Commuting page:
+- The page is broken, the workplace dropdown is empty and it breaks the page.
+- - Just auto-update, when the page is loaded.
+- I want to:
+1. select a year (auto-select current year)
+2. See, broken down by workplace, how many commuting days for each month.
+3. The months can be folded out, letting you see the individual days, listing: day, from, to
+Example:
+[ Select 2026 ]
+
+[logo] Microslop Corp:
+> January: 3 days
+>> 1st - 7:58-16:02
+>> 3rd - 8:05-16:06
+>> 12th - 8:02-15:45
+
+[logo] Gameboy Interactive:
+> January: 2 days
+>> 2nd - 7:02-15:12
+>> 18th - 8:34-13:27
+
+
 Analytics page:
 - Average hours per month/week should be calculated (trailing over a configurable amount of months)
 - Expected income for the entire year and each month.
