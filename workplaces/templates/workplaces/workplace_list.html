@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load dk_filters %}
 {% block title %}Workplaces — BitGigs{% endblock %}
 
 {% block content %}
@@ -12,37 +13,37 @@
 <div class="row g-3">
   {% for wp in workplaces %}
   <div class="col-12 col-sm-6 col-lg-4">
-    <a href="{% url 'workplaces:workplace-detail' wp.pk %}" class="workplace-card d-flex align-items-center gap-3 py-2 px-3"
+    <a href="{% url 'workplaces:workplace-detail' wp.pk %}" class="workplace-card d-flex flex-column align-items-center text-center py-3 px-3"
        {% if wp.accent_color %}style="border-left:4px solid {{ wp.accent_color }};"{% endif %}>
       {% if wp.custom_icon %}
-        <span class="workplace-avatar" style="background:{{ wp.color|default:'#6366f1' }};width:36px;height:36px;overflow:hidden;">
+        <span class="workplace-avatar" style="background:{{ wp.color|default:'#6366f1' }};width:44px;height:44px;overflow:hidden;">
           <img src="{{ wp.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
         </span>
       {% elif wp.icon %}
-        <span class="workplace-avatar" style="background:{{ wp.color|default:'#6366f1' }};width:36px;height:36px;font-size:1rem;">
+        <span class="workplace-avatar" style="background:{{ wp.color|default:'#6366f1' }};width:44px;height:44px;font-size:1.1rem;">
           <i class="bi {{ wp.icon }}"{% if wp.accent_color %} style="color:{{ wp.accent_color }}"{% endif %}></i>
         </span>
       {% else %}
-        <span class="workplace-avatar" style="background:{{ wp.color|default:'#6366f1' }};width:36px;height:36px;font-size:0.8rem;">{{ wp.name|truncatechars:2 }}</span>
+        <span class="workplace-avatar" style="background:{{ wp.color|default:'#6366f1' }};width:44px;height:44px;font-size:0.85rem;">{{ wp.name|truncatechars:2 }}</span>
       {% endif %}
-      <span class="workplace-card__name me-auto">{{ wp.name }}</span>
-      {% if not wp.is_active %}<span class="badge bg-warning">Inactive</span>{% endif %}
-      <div class="d-flex gap-3 align-items-center" style="font-size:0.85rem;">
-        <div>
+      <span class="workplace-card__name fw-semibold mt-2">{{ wp.name }}</span>
+      {% if not wp.is_active %}<span class="badge bg-warning mt-1">Inactive</span>{% endif %}
+      <div class="d-flex gap-3 mt-2" style="font-size:0.85rem;">
+        <div class="text-center">
           <small class="text-muted d-block" style="font-size:0.7rem;">
             {% if wp.employment_type == 'hourly' %}Eff. rate{% else %}Salary{% endif %}
           </small>
           <span class="fw-semibold">
-            {% if wp.employment_type == 'hourly' %}{{ wp.effective_hourly_rate }} DKK/h{% else %}{{ wp.monthly_salary }} DKK{% endif %}
+            {% if wp.employment_type == 'hourly' %}{{ wp.effective_hourly_rate|dk }} DKK/h{% else %}{{ wp.monthly_salary|dk }} DKK{% endif %}
           </span>
         </div>
-        <div>
+        <div class="text-center">
           <small class="text-muted d-block" style="font-size:0.7rem;">Hours</small>
           <span class="fw-semibold">
-            {% if wp.weekly_hours_fixed %}{{ wp.weekly_hours_fixed }}h/wk{% else %}{{ wp.weekly_hours_min }}–{{ wp.weekly_hours_max }}h{% endif %}
+            {% if wp.weekly_hours_fixed %}{{ wp.weekly_hours_fixed|dk }}h/wk{% else %}{{ wp.weekly_hours_min|dk }}–{{ wp.weekly_hours_max|dk }}h{% endif %}
           </span>
         </div>
-        <div>
+        <div class="text-center">
           <small class="text-muted d-block" style="font-size:0.7rem;">Tax</small>
           <span class="fw-semibold">{{ wp.get_tax_card_type_display }}</span>
         </div>

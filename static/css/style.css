@@ -133,6 +133,12 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: #1e293b; }
   text-decoration: none;
 }
 
+.today-shift-banner:hover {
+  box-shadow: var(--card-hover-shadow);
+  transform: translateY(-1px);
+  border-color: #93c5fd !important;
+}
+
 /* ---- Workplace accent banner on detail page ---- */
 .workplace-accent-banner {
   height: 5px;

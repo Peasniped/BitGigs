@@ -4,13 +4,14 @@ Global accross the entire codebase and ui:
 
 All Calendars:
 - Change to list view where each shift is a row in a list/table
+- If i change my hourly/monthly rate, it changes the pay amount backwards. Like with the tax profiles, it should only count from now and forward.
 
 Main Dashboard
 - A banner at the top of the page should show for each workplace, if any shifts are ready for approval.
-- Move the workplace cards to just under the stat-cards
-- The message "2 shifts in February belong to March payroll (19,70h)" is nice, but maybe you can click to expand, so it shows the shifts and the hours?
+- The message "2 shifts in February belong to March payroll (19,70h)" is nice, but maybe you can click to expand, so it shows the shifts/dates and the hours?
 
 Workplace dashboard:
+- Add a button that includes planned shifts in the stats etc.
 - The month picker should be at the top, just under the workplace name.
 - Edit Workplace, Customize Appearance, Delete, and Payslip editor should be moved to a hamburger menu that is located where the delete button is (top/left in the same level as the company name/logo)
 - Back-button: if you change the month, the back button should not go back to the month you were on before, it should go back to the main dashboard or workplaces overview.
@@ -25,6 +26,9 @@ Workplace dashboard:
 Payslip Editor
 - Buttons to change month
 - Add the net hourly wage (net pay / total hours)
+- Net pay is always in the bottom and gross pay is always in the top
+- Custom lines default placement: Deductions are placed after subtotal(after tax), additions are placed just under gross pay
+- Automatic recalculation after each change (when creating/removing or moving a custom line.) -- remove the button.
 
 - In the navbar, color the page you are currently on, to help with navigation / knowing where you are
 

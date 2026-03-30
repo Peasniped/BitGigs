@@ -284,6 +284,8 @@ class PlannedShiftUpdateAPIView(View):
             shift.session_type = data["session_type"]
         if "notes" in data:
             shift.notes = data["notes"]
+        if "arrival_confirmed" in data:
+            shift.arrival_confirmed = bool(data["arrival_confirmed"])
 
         if shift.start_time >= shift.end_time:
             return JsonResponse({"ok": False, "error": "End time must be after start time."}, status=400)
@@ -302,6 +304,33 @@ class PlannedShiftUpdateAPIView(View):
         shift = get_object_or_404(PlannedShift, pk=pk, status=PlannedShift.Status.PLANNED)
         shift.delete()
         return JsonResponse({"ok": True})
+
+
+class BulkDeleteShiftsView(View):
+    """Delete all planned shifts for a workplace within a payroll period."""
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"ok": False, "error": "Invalid JSON."}, status=400)
+
+        workplace_id = data.get("workplace_id")
+        period_start = data.get("period_start")
+        period_end = data.get("period_end")
+
+        if not all([workplace_id, period_start, period_end]):
+            return JsonResponse({"ok": False, "error": "Missing required fields."}, status=400)
+
+        shifts = PlannedShift.objects.filter(
+            workplace_id=int(workplace_id),
+            status=PlannedShift.Status.PLANNED,
+            date__gte=date.fromisoformat(period_start),
+            date__lte=date.fromisoformat(period_end),
+        )
+        count = shifts.count()
+        shifts.delete()
+        return JsonResponse({"ok": True, "deleted": count})
 
 
 class DefaultShiftAPIView(View):
@@ -445,6 +474,45 @@ class ApproveShiftsView(View):
         messages.success(request, f"{approved_count} shift(s) approved and converted to work sessions.")
         from django.shortcuts import redirect
         return redirect("workplaces:workplace-detail", pk=workplace_id)
+
+
+class BulkApproveShiftsView(View):
+    """Approve planned shifts across all workplaces (JSON API for dashboard)."""
+
+    def post(self, request):
+        if request.content_type != "application/json":
+            return JsonResponse({"ok": False, "error": "JSON required."}, status=400)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"ok": False, "error": "Invalid JSON."}, status=400)
+
+        shift_ids = data.get("shift_ids", [])
+        edits = {str(e["id"]): e for e in data.get("edits", [])}
+
+        approved_count = 0
+        for sid in shift_ids:
+            try:
+                shift = PlannedShift.objects.get(
+                    pk=int(sid),
+                    status=PlannedShift.Status.PLANNED,
+                )
+                edit = edits.get(str(sid))
+                if edit:
+                    if "start_time" in edit:
+                        shift.start_time = time.fromisoformat(edit["start_time"])
+                    if "end_time" in edit:
+                        shift.end_time = time.fromisoformat(edit["end_time"])
+                    if "session_type" in edit:
+                        shift.session_type = edit["session_type"]
+                    shift.save()
+                shift.approve()
+                approved_count += 1
+            except PlannedShift.DoesNotExist:
+                continue
+
+        return JsonResponse({"ok": True, "approved_count": approved_count})
 
 
 def _check_overlaps(shift_date, start_time, end_time, exclude_shift_pk=None, exclude_session_pk=None):

@@ -81,7 +81,7 @@ function calcSessionTotal() {
   const mins = totalMin % 60;
   const decHours = (totalMin / 60).toFixed(2);
 
-  display.textContent = hours + 'h ' + mins + 'm (' + decHours + 'h)';
+  display.textContent = hours + 'h ' + mins + 'm (' + toDanish(decHours) + 'h)';
 }
 
 document.addEventListener('DOMContentLoaded', function() {

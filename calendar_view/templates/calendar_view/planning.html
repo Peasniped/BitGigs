@@ -20,7 +20,6 @@
     user-select: none;
     min-width: 160px;
     position: relative;
-    overflow: hidden;
   }
   .wp-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform:translateY(-1px); }
   .wp-card:active { cursor:grabbing; }
@@ -38,6 +37,7 @@
     height: 4px;
     background: #e2e8f0;
     overflow: hidden;
+    border-radius: 0 0 0.75rem 0.75rem;
   }
   .wp-card__progress-fill {
     height: 100%;
@@ -111,6 +111,169 @@
   /* When hovering over a chip, suppress the overlay + indicator via JS class */
   .planning-calendar .calendar-day.chip-hover .day-hover-overlay { opacity: 0 !important; }
   .planning-calendar .calendar-day.chip-hover .day-wp-indicator { opacity: 0 !important; }
+
+  /* Copy-paste mode */
+  body.copy-mode .shift-chip--planned { cursor: copy; }
+  body.copy-mode .shift-chip--planned:hover { outline: 2px solid #6366f1; outline-offset: 1px; border-radius: 6px; }
+  body.copy-mode .shift-chip--copied { outline: 2px solid #22c55e !important; outline-offset: 1px; border-radius: 6px; background: rgba(34,197,94,.08); }
+  body.copy-mode .planning-calendar .calendar-day:not(.planning-day--no-create) { cursor: copy; }
+
+  /* Delete mode */
+  body.delete-mode .shift-chip--planned { cursor: pointer; }
+  body.delete-mode .shift-chip--planned:hover { outline: 2px solid #ef4444; outline-offset: 1px; border-radius: 6px; background: rgba(239,68,68,.08); }
+  body.delete-mode .day-hover-overlay { display: none !important; }
+
+  /* Delete-all mode */
+  body.delete-all-mode .shift-chip--planned { cursor: pointer; }
+  body.delete-all-mode .shift-chip--planned:hover { outline: 2px solid #dc2626; outline-offset: 1px; border-radius: 6px; background: rgba(220,38,38,.12); }
+  body.delete-all-mode .day-hover-overlay { display: none !important; }
+  body.delete-all-mode .wp-card { cursor: pointer; }
+
+  /* Fast-create-stamp selected card */
+  .wp-card--selected { box-shadow: 0 0 0 2.5px #6366f1, 0 4px 12px rgba(99,102,241,.3); transform: translateY(-1px); }
+  body.fast-create-stamp .wp-card { cursor: pointer; }
+
+  /* No-defaults red shake */
+  @keyframes wp-card-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(4px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(3px); }
+  }
+  .wp-card--no-defaults {
+    animation: wp-card-shake 0.4s ease;
+    box-shadow: 0 0 0 2.5px #dc2626, 0 4px 12px rgba(220,38,38,.3) !important;
+  }
+  .wp-card__no-defaults-tip {
+    position: absolute;
+    top: -32px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #dc2626;
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 20;
+    box-shadow: 0 2px 8px rgba(220,38,38,.3);
+  }
+  .wp-card__no-defaults-tip::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid #dc2626;
+  }
+
+  /* Power Edit toolbar */
+  .power-toolbar {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1rem;
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg, #818cf8 0%, #6366f1 30%, #7c3aed 70%, #a855f7 100%);
+    box-shadow: 0 4px 20px rgba(99,102,241,.25), inset 0 1px 0 rgba(255,255,255,.15);
+    position: relative;
+    overflow: hidden;
+  }
+  .power-toolbar.show { display: flex; }
+  /* Decorative stars */
+  .power-toolbar::before {
+    content: '\2726  \2605  \2726';
+    position: absolute;
+    left: 12px;
+    font-size: 0.6rem;
+    color: rgba(255,255,255,.3);
+    letter-spacing: 4px;
+    pointer-events: none;
+  }
+  .power-toolbar::after {
+    content: '\2726  \2605  \2726';
+    position: absolute;
+    right: 12px;
+    font-size: 0.6rem;
+    color: rgba(255,255,255,.3);
+    letter-spacing: 4px;
+    pointer-events: none;
+  }
+  .power-toolbar__btn {
+    border: 1.5px solid rgba(255,255,255,.35);
+    background: rgba(255,255,255,.12);
+    color: #fff;
+    border-radius: 0.5rem;
+    padding: 0.35rem 0.85rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    backdrop-filter: blur(4px);
+    white-space: nowrap;
+  }
+  .power-toolbar__btn:hover {
+    background: rgba(255,255,255,.22);
+    border-color: rgba(255,255,255,.5);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+  }
+  .power-toolbar__btn.active {
+    background: rgba(255,255,255,.85);
+    color: #4f46e5;
+    border-color: #fff;
+    box-shadow: 0 2px 10px rgba(255,255,255,.3);
+  }
+  .power-toolbar__btn.active:hover {
+    background: rgba(255,255,255,.95);
+  }
+  .power-toolbar__sep {
+    width: 1px;
+    height: 22px;
+    background: rgba(255,255,255,.2);
+    margin: 0 0.25rem;
+  }
+  .power-toolbar__hint {
+    color: rgba(255,255,255,.75);
+    font-size: 0.72rem;
+    font-weight: 500;
+    margin-left: 0.35rem;
+    white-space: nowrap;
+  }
+  .power-toolbar__close {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    border: none;
+    background: rgba(255,255,255,.15);
+    color: rgba(255,255,255,.7);
+    font-size: 0.65rem;
+    line-height: 1;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: all 0.15s;
+    z-index: 5;
+  }
+  .power-toolbar__close:hover {
+    background: rgba(255,255,255,.35);
+    color: #fff;
+  }
+  body.fast-create-stamp .planning-calendar .calendar-day--clickable { cursor: crosshair; }
 
   /* Keep date number and indicator above the blur overlay */
   .planning-calendar .calendar-day > .d-flex { position: relative; z-index: 4; }
@@ -191,6 +354,9 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h2 class="mb-0"><i class="bi bi-calendar2-week me-2"></i>Planning Mode</h2>
+  <button type="button" class="btn btn-sm btn-outline-primary" id="powerEditToggle">
+    <i class="bi bi-lightning-charge-fill me-1"></i>Power Edit
+  </button>
 </div>
 
 <!-- Workplace cards (horizontal, centered, draggable) -->
@@ -220,6 +386,30 @@
     </div>
   </div>
   {% endfor %}
+</div>
+
+<!-- Power Edit Toolbar -->
+<div class="power-toolbar mb-3" id="powerToolbar">
+  <button type="button" class="power-toolbar__btn" id="peCreateBtn" title="Toggle fast create: drop workplace cards to instantly create default shifts">
+    <i class="bi bi-lightning-charge"></i>
+    <span id="peCreateLabel">Fast Create</span>
+  </button>
+  <div class="power-toolbar__sep"></div>
+  <button type="button" class="power-toolbar__btn" id="peCopyBtn" title="Copy a shift, then click days to paste">
+    <i class="bi bi-copy"></i>
+    Copy
+  </button>
+  <div class="power-toolbar__sep"></div>
+  <button type="button" class="power-toolbar__btn" id="peDeleteBtn" title="Click shifts to delete them instantly">
+    <i class="bi bi-trash3"></i>
+    Delete
+  </button>
+  <button type="button" class="power-toolbar__btn" id="peDeleteAllBtn" title="Delete all shifts for a workplace in this period" style="display:none;">
+    <i class="bi bi-trash3-fill"></i>
+    Delete All
+  </button>
+  <span class="power-toolbar__hint" id="peHint"></span>
+  <button type="button" class="power-toolbar__close" id="peCloseBtn" title="Close toolbar">&times;</button>
 </div>
 
 <!-- Calendar -->
@@ -298,6 +488,9 @@
           <span class="fw-medium" id="shiftModalWorkplace"></span>
         </div>
 
+        <div id="shiftModalFastCreateWarn" class="alert alert-warning small py-2 d-none">
+          <i class="bi bi-lightning-charge me-1"></i><strong>Fast Create failed</strong> — this workplace has no default shift configured. Set defaults via the <i class="bi bi-gear"></i> icon on the workplace card.
+        </div>
         <div id="shiftModalErrors" class="alert alert-danger small py-2 d-none"></div>
         <div id="shiftApprovedBanner" class="alert alert-info small py-2 d-none">
           <i class="bi bi-check-circle-fill me-1"></i>This shift has been approved and converted to a work session. Changes here will update the work session.
@@ -457,7 +650,7 @@
     var el = document.querySelector('[data-wp-hours="' + wp.id + '"]');
     if (!el) return;
     var h = parseFloat(wp.total_hours.replace(',','.')) || 0;
-    var hStr = h.toFixed(2).replace('.',',') + 'h';
+    var hStr = toDanish(h.toFixed(2)) + 'h';
 
     // Compute monthly goal for display (convert weekly → monthly with ×4.33)
     var goalMin = wp.hour_goal_min ? parseFloat(wp.hour_goal_min) : 0;
@@ -470,9 +663,9 @@
     if (goalMin > 0) {
       var goalStr;
       if (goalMax > 0) {
-        goalStr = goalMin.toFixed(0) + '–' + goalMax.toFixed(0) + 'h';
+        goalStr = toDanish(goalMin.toFixed(0)) + '–' + toDanish(goalMax.toFixed(0)) + 'h';
       } else {
-        goalStr = goalMin.toFixed(0) + 'h';
+        goalStr = toDanish(goalMin.toFixed(0)) + 'h';
       }
       el.textContent = hStr + ' / ' + goalStr;
 
@@ -505,10 +698,398 @@
   // Track which workplace is being dragged
   var draggedWorkplaceId = null;
 
+  // ----- Power Edit modes -----
+  var fastCreateMode = false;
+  var copyMode = false;
+  var deleteMode = false;
+  var copiedShift = null;
+  var powerToolbar = document.getElementById('powerToolbar');
+  var powerEditToggle = document.getElementById('powerEditToggle');
+  var peCreateBtn = document.getElementById('peCreateBtn');
+  var peCreateLabel = document.getElementById('peCreateLabel');
+  var peCopyBtn = document.getElementById('peCopyBtn');
+  var peDeleteBtn = document.getElementById('peDeleteBtn');
+  var peDeleteAllBtn = document.getElementById('peDeleteAllBtn');
+  var peHint = document.getElementById('peHint');
+  var peCloseBtn = document.getElementById('peCloseBtn');
+  var deleteAllMode = false;
+  var fastCreateWpId = null;
+  var BULK_DELETE_URL = '{% url "calendar_view:bulk-delete-shifts" %}';
+
+  function exitAllModes() {
+    copyMode = false;
+    deleteMode = false;
+    deleteAllMode = false;
+    copiedShift = null;
+    fastCreateWpId = null;
+    document.body.classList.remove('copy-mode', 'delete-mode', 'delete-all-mode', 'fast-create-stamp');
+    peCopyBtn.classList.remove('active');
+    peDeleteBtn.classList.remove('active');
+    peDeleteAllBtn.classList.remove('active');
+    peDeleteAllBtn.style.display = 'none';
+    peHint.textContent = '';
+    document.querySelectorAll('.shift-chip--copied').forEach(function(el) {
+      el.classList.remove('shift-chip--copied');
+    });
+    // Remove wp-card selected highlights
+    document.querySelectorAll('.wp-card--selected').forEach(function(el) {
+      el.classList.remove('wp-card--selected');
+    });
+    clearPeriodHighlights();
+  }
+
+  powerEditToggle.addEventListener('click', function() {
+    var isOpen = powerToolbar.classList.contains('show');
+    if (isOpen) {
+      exitAllModes();
+      fastCreateMode = false;
+      peCreateBtn.classList.remove('active');
+      peCreateLabel.textContent = 'Fast Create';
+      powerToolbar.classList.remove('show');
+      powerEditToggle.classList.remove('btn-primary');
+      powerEditToggle.classList.add('btn-outline-primary');
+    } else {
+      powerToolbar.classList.add('show');
+      powerEditToggle.classList.remove('btn-outline-primary');
+      powerEditToggle.classList.add('btn-primary');
+    }
+  });
+
+  // Close button on toolbar
+  peCloseBtn.addEventListener('click', function() {
+    powerEditToggle.click();
+  });
+
+  // Flash red border + tooltip on a workplace card with no defaults
+  function showNoDefaultsFlash(card) {
+    card.classList.add('wp-card--no-defaults');
+    var tip = document.createElement('span');
+    tip.className = 'wp-card__no-defaults-tip';
+    tip.textContent = 'No default shift set!';
+    card.style.position = 'relative';
+    card.appendChild(tip);
+    setTimeout(function() {
+      card.classList.remove('wp-card--no-defaults');
+      tip.remove();
+    }, 2000);
+  }
+
+  // Create mode toggle
+  peCreateBtn.addEventListener('click', function() {
+    exitAllModes();
+    fastCreateMode = !fastCreateMode;
+    if (fastCreateMode) {
+      peCreateBtn.classList.add('active');
+      peHint.textContent = 'Click or drag a workplace card, then click days to stamp shifts';
+    } else {
+      peCreateBtn.classList.remove('active');
+      peHint.textContent = '';
+    }
+  });
+
+  // Copy mode toggle
+  peCopyBtn.addEventListener('click', function() {
+    if (copyMode) {
+      exitAllModes();
+      return;
+    }
+    exitAllModes();
+    copyMode = true;
+    document.body.classList.add('copy-mode');
+    peCopyBtn.classList.add('active');
+    peHint.textContent = 'Click a shift to copy it';
+  });
+
+  // Delete mode toggle
+  peDeleteBtn.addEventListener('click', function() {
+    if (deleteMode) {
+      exitAllModes();
+      return;
+    }
+    exitAllModes();
+    deleteMode = true;
+    document.body.classList.add('delete-mode');
+    peDeleteBtn.classList.add('active');
+    peDeleteAllBtn.style.display = '';
+    peHint.textContent = 'Click a shift to delete it';
+  });
+
+  // Delete All mode toggle
+  peDeleteAllBtn.addEventListener('click', function() {
+    if (deleteAllMode) {
+      // Go back to normal delete mode
+      deleteAllMode = false;
+      document.body.classList.remove('delete-all-mode');
+      document.body.classList.add('delete-mode');
+      deleteMode = true;
+      peDeleteAllBtn.classList.remove('active');
+      peHint.textContent = 'Click a shift to delete it';
+      return;
+    }
+    // Enter delete-all mode
+    deleteMode = false;
+    deleteAllMode = true;
+    document.body.classList.remove('delete-mode');
+    document.body.classList.add('delete-all-mode');
+    peDeleteAllBtn.classList.add('active');
+    peHint.textContent = 'Click a shift or workplace card to delete ALL its planned shifts';
+  });
+
+  function deleteAllForWorkplace(wpId) {
+    var wp = wpMap[wpId];
+    if (!wp || !wp.period_start || !wp.period_end) return;
+    // Count shifts in the period for the confirmation prompt
+    var count = 0;
+    document.querySelectorAll('.shift-chip--planned[data-workplace-id="' + wpId + '"]').forEach(function(chip) {
+      var td = chip.closest('td[data-date]');
+      if (!td) return;
+      var d = td.dataset.date;
+      if (d >= wp.period_start && d <= wp.period_end) count++;
+    });
+    if (count === 0) return;
+    if (!confirm('Delete all ' + count + ' planned shift(s) for ' + wp.name + '?')) return;
+    fetch(BULK_DELETE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({
+        workplace_id: wpId,
+        period_start: wp.period_start,
+        period_end: wp.period_end,
+      }),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.ok) {
+        // Remove only chips within the deleted period
+        document.querySelectorAll('.shift-chip--planned[data-workplace-id="' + wpId + '"]').forEach(function(chip) {
+          var td = chip.closest('td[data-date]');
+          if (!td) return;
+          var d = td.dataset.date;
+          if (d >= wp.period_start && d <= wp.period_end) {
+            chip.remove();
+            updateDayHourBadge(td);
+          }
+        });
+        exitAllModes();
+        peHint.textContent = 'Deleted ' + data.deleted + ' shift(s) for ' + (wp ? wp.name : 'workplace');
+      }
+    });
+  }
+
+  function selectShiftForCopy(chip) {
+    var shiftId = parseInt(chip.dataset.shiftId);
+    var url = '{% url "calendar_view:planned-shift-update-api" pk=0 %}'.replace('/0/', '/' + shiftId + '/');
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({}),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (!data.ok) return;
+      var s = data.shift;
+      copiedShift = {
+        workplace_id: s.workplace_id,
+        start_time: s.start_time,
+        end_time: s.end_time,
+        break_minutes: s.break_minutes,
+        session_type: s.session_type,
+        notes: s.notes || '',
+      };
+      document.querySelectorAll('.shift-chip--copied').forEach(function(el) {
+        el.classList.remove('shift-chip--copied');
+      });
+      chip.classList.add('shift-chip--copied');
+      var wp = wpMap[copiedShift.workplace_id];
+      peHint.textContent = 'Copied ' + (wp ? wp.name : '') + ' ' + s.start_time + '–' + s.end_time + ' — click days to paste';
+      clearPeriodHighlights();
+      highlightPeriodDays(copiedShift.workplace_id);
+    });
+  }
+
+  function pasteShiftToDate(dateStr) {
+    if (!copiedShift) return;
+    if (!isInPeriod(copiedShift.workplace_id, dateStr)) {
+      var info = outOfPeriodMessage(copiedShift.workplace_id, dateStr);
+      document.getElementById('periodWarningText').textContent = info.text;
+      document.getElementById('periodWarningHint').textContent = info.hint;
+      document.getElementById('periodWarningGoBtnLabel').textContent = 'Go to ' + info.targetName;
+      document.getElementById('periodWarningGoBtn').href = '?year=' + info.targetYear + '&month=' + info.targetMonth;
+      new bootstrap.Modal(document.getElementById('periodWarningModal')).show();
+      return;
+    }
+    var body = {
+      workplace_id: copiedShift.workplace_id,
+      date: dateStr,
+      start_time: copiedShift.start_time,
+      end_time: copiedShift.end_time,
+      break_minutes: copiedShift.break_minutes,
+      session_type: copiedShift.session_type,
+      notes: copiedShift.notes,
+    };
+    fetch(API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify(body),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.ok) {
+        var td = document.querySelector('.planning-calendar td[data-date="' + dateStr + '"]');
+        if (td) {
+          var container = td.querySelector('.planned-shifts-container');
+          if (container) {
+            var wp = wpMap[copiedShift.workplace_id];
+            var chip = buildShiftChip(data.shift, wp);
+            container.appendChild(chip);
+            updateDayHourBadge(td);
+          }
+        }
+      }
+    });
+  }
+
+  function deleteShiftImmediate(chip) {
+    var shiftId = parseInt(chip.dataset.shiftId);
+    if (!shiftId) return;
+    var url = '{% url "calendar_view:planned-shift-update-api" pk=0 %}'.replace('/0/', '/' + shiftId + '/');
+    fetch(url, {
+      method: 'DELETE',
+      headers: { 'X-CSRFToken': CSRF },
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.ok) {
+        var td = chip.closest('td[data-date]');
+        chip.style.transition = 'opacity 0.2s, transform 0.2s';
+        chip.style.opacity = '0';
+        chip.style.transform = 'scale(0.8)';
+        setTimeout(function() {
+          chip.remove();
+          if (td) updateDayHourBadge(td);
+        }, 200);
+      }
+    });
+  }
+
+  // Build a shift chip element from API response data
+  function buildShiftChip(s, wp) {
+    var div = document.createElement('div');
+    div.className = 'shift-chip shift-chip--planned';
+    if (wp && (wp.accent_color || wp.color)) {
+      div.style.borderColor = wp.accent_color || wp.color;
+    }
+    div.setAttribute('draggable', 'true');
+    div.dataset.shiftId = s.id;
+    div.dataset.workplaceId = s.workplace_id;
+    div.title = '[Planned] ' + s.workplace_name + ': ' + s.start_time + '-' + s.end_time + ' (' + toDanish(s.net_hours) + 'h)';
+
+    var avatarHtml = '';
+    if (wp && wp.custom_icon_url) {
+      avatarHtml = '<img src="' + wp.custom_icon_url + '" alt="">';
+    } else if (wp && wp.icon) {
+      avatarHtml = '<i class="bi ' + wp.icon + '"></i>';
+    } else {
+      avatarHtml = (wp ? wp.name.charAt(0) : '?');
+    }
+    div.innerHTML =
+      '<span class="shift-chip__avatar" style="background:' + (wp && wp.color ? wp.color : '#6366f1') + ';">' + avatarHtml + '</span>' +
+      '<small class="shift-chip__time">' + s.start_time + '-' + s.end_time + '</small>' +
+      '<small class="shift-chip__hours">(' + toDanish(s.net_hours) + 'h)</small>' +
+      '<i class="bi bi-pencil shift-chip__edit"></i>';
+
+    // Wire up click for copy/delete/edit
+    div.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (copyMode) { selectShiftForCopy(div); return; }
+      if (deleteMode) { deleteShiftImmediate(div); return; }
+      openEditShiftModal(s.id);
+    });
+
+    // Chip hover class for overlay suppression
+    div.addEventListener('mouseenter', function() {
+      var td = div.closest('.calendar-day');
+      if (td) td.classList.add('chip-hover');
+    });
+    div.addEventListener('mouseleave', function() {
+      var td = div.closest('.calendar-day');
+      if (td) td.classList.remove('chip-hover');
+    });
+
+    return div;
+  }
+
+  // Recalculate and update the hour badge for a day cell
+  function updateDayHourBadge(td) {
+    var chips = td.querySelectorAll('.shift-chip[data-shift-id], .shift-chip[data-session-id]');
+    var totalMinutes = 0;
+    chips.forEach(function(c) {
+      var m = c.querySelector('.shift-chip__hours');
+      if (m) {
+        // Parse Danish formatted hours like "(7,50h)" or "(3h)"
+        var text = m.textContent.replace(/[()h]/g, '').replace('.', ',');
+        var val = parseFloat(text.replace(',', '.')) || 0;
+        totalMinutes += Math.round(val * 60);
+      }
+    });
+    var badge = td.querySelector('.calendar-day__hours');
+    if (totalMinutes > 0) {
+      var hours = (totalMinutes / 60).toFixed(2);
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'badge bg-primary bg-opacity-75 calendar-day__hours';
+        var header = td.querySelector('.d-flex');
+        if (header) header.appendChild(badge);
+      }
+      badge.textContent = toDanish(hours) + 'h';
+    } else if (badge) {
+      badge.remove();
+    }
+  }
+
+  function fastCreateShift(workplaceId, dateStr) {
+    var wp = wpMap[workplaceId];
+    if (!wp || !wp.default_start || !wp.default_end) {
+      // No defaults configured — show yellow warning inside modal
+      openNewShiftModal(workplaceId, dateStr, true);
+      return;
+    }
+    var body = {
+      workplace_id: workplaceId,
+      date: dateStr,
+      start_time: wp.default_start,
+      end_time: wp.default_end,
+      break_minutes: wp.default_break || 0,
+      session_type: wp.default_type || 'on_site',
+      notes: '',
+    };
+    fetch(API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify(body),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.ok) {
+        var td = document.querySelector('.planning-calendar td[data-date="' + dateStr + '"]');
+        if (td) {
+          var container = td.querySelector('.planned-shifts-container');
+          if (container) {
+            var chip = buildShiftChip(data.shift, wp);
+            container.appendChild(chip);
+            updateDayHourBadge(td);
+          }
+        }
+      }
+    });
+  }
+
+  // Escape key exits active modes
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && (copyMode || deleteMode || deleteAllMode || fastCreateWpId)) exitAllModes();
+  });
+
+  // Click outside calendar exits copy/delete/delete-all/fast-create-stamp mode
+  document.addEventListener('click', function(e) {
+    if ((copyMode || deleteMode || deleteAllMode || fastCreateWpId) && !e.target.closest('.planning-calendar') && !e.target.closest('.power-toolbar') && !e.target.closest('#powerEditToggle') && !e.target.closest('.wp-card')) {
+      exitAllModes();
+    }
+  });
+
   // ----- Drag from workplace cards -----
   document.querySelectorAll('.wp-card[draggable]').forEach(function(card) {
+    var wpId = parseInt(card.dataset.workplaceId);
     card.addEventListener('dragstart', function(e) {
-      var wpId = parseInt(card.dataset.workplaceId);
       draggedWorkplaceId = wpId;
       e.dataTransfer.setData('text/plain', JSON.stringify({
         type: 'new-shift',
@@ -516,10 +1097,57 @@
       }));
       e.dataTransfer.effectAllowed = 'move';
       highlightPeriodDays(wpId);
+      // Warn on drag if fast create is on but no defaults
+      if (fastCreateMode) {
+        var wp = wpMap[wpId];
+        if (!wp || !wp.default_start || !wp.default_end) {
+          showNoDefaultsFlash(card);
+        }
+      }
     });
     card.addEventListener('dragend', function() {
       draggedWorkplaceId = null;
       clearPeriodHighlights();
+    });
+    card.addEventListener('mouseenter', function() {
+      if (!draggedWorkplaceId) highlightPeriodDays(wpId);
+    });
+    card.addEventListener('mouseleave', function() {
+      if (!draggedWorkplaceId) clearPeriodHighlights();
+    });
+    card.addEventListener('click', function(e) {
+      if (deleteAllMode) {
+        e.preventDefault();
+        deleteAllForWorkplace(wpId);
+        return;
+      }
+      if (fastCreateMode) {
+        e.preventDefault();
+        var wp = wpMap[wpId];
+        // If already selected, deselect
+        if (fastCreateWpId === wpId) {
+          fastCreateWpId = null;
+          document.body.classList.remove('fast-create-stamp');
+          card.classList.remove('wp-card--selected');
+          clearPeriodHighlights();
+          peHint.textContent = 'Click or drag a workplace card, then click days to stamp shifts';
+          return;
+        }
+        // Select this workplace for stamping
+        document.querySelectorAll('.wp-card--selected').forEach(function(el) { el.classList.remove('wp-card--selected'); });
+        fastCreateWpId = wpId;
+        card.classList.add('wp-card--selected');
+        document.body.classList.add('fast-create-stamp');
+        clearPeriodHighlights();
+        highlightPeriodDays(wpId);
+        if (!wp || !wp.default_start || !wp.default_end) {
+          showNoDefaultsFlash(card);
+          peHint.textContent = '\u26a0 ' + (wp ? wp.name : 'Workplace') + ' has no default shift — click days to open form';
+        } else {
+          peHint.textContent = wp.name + ' selected — click days to stamp ' + wp.default_start + '–' + wp.default_end;
+        }
+        return;
+      }
     });
   });
 
@@ -561,9 +1189,21 @@
       clearPeriodHighlights();
     });
 
-    // Click to edit
+    // Click to edit (or copy/delete/delete-all in power edit modes)
     chip.addEventListener('click', function(e) {
       e.stopPropagation();
+      if (copyMode) {
+        selectShiftForCopy(chip);
+        return;
+      }
+      if (deleteMode) {
+        deleteShiftImmediate(chip);
+        return;
+      }
+      if (deleteAllMode) {
+        deleteAllForWorkplace(wpId);
+        return;
+      }
       openEditShiftModal(parseInt(chip.dataset.shiftId));
     });
   });
@@ -730,7 +1370,11 @@
           new bootstrap.Modal(document.getElementById('periodWarningModal')).show();
           return;
         }
-        openNewShiftModal(data.workplace_id, targetDate);
+        if (fastCreateMode) {
+          fastCreateShift(data.workplace_id, targetDate);
+        } else {
+          openNewShiftModal(data.workplace_id, targetDate);
+        }
       } else if (data.type === 'move-shift') {
         // Block moves outside the shift's workplace period
         var moveWpId = data.workplace_id;
@@ -752,6 +1396,28 @@
       if (e.target.closest('.shift-chip--planned') || e.target.closest('.shift-chip--approved') || e.target.closest('.wp-picker')) return;
       hideWpPicker();
       var dateStr = td.dataset.date;
+
+      // In fast-create-stamp mode, stamp shift immediately
+      if (fastCreateMode && fastCreateWpId) {
+        if (!isInPeriod(fastCreateWpId, dateStr)) {
+          var info = outOfPeriodMessage(fastCreateWpId, dateStr);
+          document.getElementById('periodWarningText').textContent = info.text;
+          document.getElementById('periodWarningHint').textContent = info.hint;
+          document.getElementById('periodWarningGoBtnLabel').textContent = 'Go to ' + info.targetName;
+          document.getElementById('periodWarningGoBtn').href = '?year=' + info.targetYear + '&month=' + info.targetMonth;
+          new bootstrap.Modal(document.getElementById('periodWarningModal')).show();
+          return;
+        }
+        fastCreateShift(fastCreateWpId, dateStr);
+        return;
+      }
+
+      // In copy mode with a copied shift, paste immediately
+      if (copyMode && copiedShift) {
+        pasteShiftToDate(dateStr);
+        return;
+      }
+
       // Find which workplaces cover this date
       var validWps = WORKPLACES.filter(function(wp) { return isInPeriod(wp.id, dateStr); });
       if (validWps.length === 0) {
@@ -833,7 +1499,7 @@
     startEl.setSelectionRange(0, 2);
   });
 
-  function openNewShiftModal(workplaceId, dateStr) {
+  function openNewShiftModal(workplaceId, dateStr, showFastCreateWarn) {
     var wp = wpMap[workplaceId];
     if (!wp) return;
     document.getElementById('shiftModalTitle').textContent = 'Plan Shift';
@@ -852,6 +1518,8 @@
     document.getElementById('shiftModalOverlap').classList.add('d-none');
     document.getElementById('shiftApprovedBanner').classList.add('d-none');
     document.getElementById('shiftTimeRow').style.outline = '';
+    var fcWarn = document.getElementById('shiftModalFastCreateWarn');
+    if (showFastCreateWarn) { fcWarn.classList.remove('d-none'); } else { fcWarn.classList.add('d-none'); }
     updateModalBanner(wp);
     calcShiftDuration();
     checkOverlapsLive();
@@ -1015,10 +1683,10 @@
     saveBtn.disabled = false;
 
     var netMin = Math.max(grossMin - brk, 0);
-    var grossH = (grossMin/60).toFixed(2).replace('.',',');
+    var grossH = toDanish((grossMin/60).toFixed(2));
     var grossHM = Math.floor(grossMin/60) + 'h ' + (grossMin%60) + 'm';
     if (brk > 0) {
-      display.textContent = grossHM + ' gross (' + grossH + 'h) · ' + (netMin/60).toFixed(2).replace('.',',') + 'h net (after ' + brk + 'min break)';
+      display.textContent = grossHM + ' gross (' + grossH + 'h) · ' + toDanish((netMin/60).toFixed(2)) + 'h net (after ' + brk + 'min break)';
     } else {
       display.textContent = grossHM + ' (' + grossH + 'h)';
     }

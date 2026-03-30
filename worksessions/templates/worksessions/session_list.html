@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load dk_filters %}
 {% block title %}Work Sessions — BitGigs{% endblock %}
 
 {% block content %}
@@ -30,7 +31,7 @@
       <td>{{ session.workplace.name }}</td>
       <td>{{ session.start_time|time:"H:i" }} – {{ session.end_time|time:"H:i" }}</td>
       <td>{{ session.break_minutes }}m</td>
-      <td>{{ session.net_hours|floatformat:2 }}</td>
+      <td>{{ session.net_hours|dk }}</td>
       <td>{{ session.get_session_type_display }}</td>
       <td>
         <a href="{% url 'worksessions:session-update' session.pk %}" class="btn btn-sm btn-outline-secondary">Edit</a>

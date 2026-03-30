@@ -268,12 +268,23 @@ class Workplace(models.Model):
         return self.pension_employee_percent + self.pension_employer_percent
 
     @property
+    def base_hourly_rate(self):
+        """Base hourly rate: direct for hourly, derived from salary for salaried."""
+        if self.employment_type == 'hourly':
+            return self.hourly_rate
+        if self.monthly_salary and self.expected_weekly_hours:
+            monthly_hours = self.expected_weekly_hours * Decimal("52") / Decimal("12")
+            return (self.monthly_salary / monthly_hours).quantize(Decimal("0.01"))
+        return None
+
+    @property
     def effective_hourly_rate(self):
         """Hourly rate adjusted for ferietillæg, fritvalgskonto, and employee pension.
 
         effective = base × (1 + ferietillaeg%/100 + fritvalgskonto%/100 − pension_employee%/100)
         """
-        if not self.hourly_rate:
+        base = self.base_hourly_rate
+        if not base:
             return None
         factor = (
             Decimal("1")
@@ -281,19 +292,24 @@ class Workplace(models.Model):
             + (self.fritvalgskonto_percent / Decimal("100") if self.fritvalgskonto_enabled else Decimal("0"))
             - self.pension_employee_percent / Decimal("100")
         )
-        return (self.hourly_rate * factor).quantize(Decimal("0.01"))
+        return (base * factor).quantize(Decimal("0.01"))
 
     @property
     def total_hourly_rate(self):
-        """Effective hourly rate plus employer pension contributions.
+        """Total hourly rate including employer pension (no employee pension deduction).
 
-        total = effective + base × pension_employer%/100
+        total = base × (1 + ferietillaeg%/100 + fritvalgskonto%/100 + pension_employer%/100)
         """
-        eff = self.effective_hourly_rate
-        if eff is None:
+        base = self.base_hourly_rate
+        if not base:
             return None
-        employer = (self.hourly_rate * self.pension_employer_percent / Decimal("100")).quantize(Decimal("0.01"))
-        return eff + employer
+        factor = (
+            Decimal("1")
+            + (self.ferietillaeg_percent / Decimal("100") if self.ferietillaeg_enabled else Decimal("0"))
+            + (self.fritvalgskonto_percent / Decimal("100") if self.fritvalgskonto_enabled else Decimal("0"))
+            + self.pension_employer_percent / Decimal("100")
+        )
+        return (base * factor).quantize(Decimal("0.01"))
 
     @property
     def beskæftigelsesprocent(self):

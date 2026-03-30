@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load dk_filters %}
 {% block title %}Vacation Balance — BitGigs{% endblock %}
 
 {% block content %}
@@ -20,10 +21,10 @@
     <tr>
       <td>{{ b.workplace.name }}</td>
       <td>{{ b.year }}-{{ b.month|stringformat:"02d" }}</td>
-      <td>{{ b.carried_over_hours|floatformat:2 }}h</td>
-      <td>{{ b.accrued_hours|floatformat:2 }}h</td>
-      <td>{{ b.used_hours|floatformat:2 }}h</td>
-      <td><strong>{{ b.balance|floatformat:2 }}h</strong></td>
+      <td>{{ b.carried_over_hours|dk }}h</td>
+      <td>{{ b.accrued_hours|dk }}h</td>
+      <td>{{ b.used_hours|dk }}h</td>
+      <td><strong>{{ b.balance|dk }}h</strong></td>
     </tr>
     {% empty %}
     <tr><td colspan="6" class="text-muted">No vacation balances tracked.</td></tr>

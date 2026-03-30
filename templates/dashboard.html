@@ -8,37 +8,37 @@
   <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">
     <div class="stat-card">
       <div class="stat-card__label">Planned</div>
-      <div class="stat-card__value">{{ total_planned_gross|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
-      <div class="stat-card__sub">Net {{ total_planned_net|floatformat:0 }} DKK</div>
+      <div class="stat-card__value">{{ total_planned_gross|dk:0 }} <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">Net {{ total_planned_net|dk:0 }} DKK</div>
     </div>
   </div>
   <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">
     <div class="stat-card">
       <div class="stat-card__label">Earned</div>
-      <div class="stat-card__value">{{ total_earned_gross|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
-      <div class="stat-card__sub">Net {{ total_earned_net|floatformat:0 }} DKK</div>
+      <div class="stat-card__value">{{ total_earned_gross|dk:0 }} <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">Net {{ total_earned_net|dk:0 }} DKK</div>
     </div>
   </div>
   <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">
     <div class="stat-card">
       <div class="stat-card__label">Total</div>
-      <div class="stat-card__value">{{ total_combined_gross|floatformat:0 }} <small class="stat-card__sub">DKK</small></div>
-      <div class="stat-card__sub">Net {{ total_combined_net|floatformat:0 }} DKK</div>
+      <div class="stat-card__value">{{ total_combined_gross|dk:0 }} <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">Net {{ total_combined_net|dk:0 }} DKK</div>
     </div>
   </div>
   {% if has_any_goal %}
   <div class="col-6 col-md-3">
     <div class="stat-card" style="position:relative;overflow:hidden;padding-bottom: 1.0 rem;">
       <div class="stat-card__label">Hour Goal</div>
-      <div class="stat-card__value" style="font-size:1.05rem;">{{ total_planned_hours|floatformat:2 }}h <small class="stat-card__sub">+</small> {{ total_approved_hours|floatformat:2 }}h <small class="stat-card__sub">/ {{ total_goal_min|floatformat:0 }}{% if total_goal_max %}–{{ total_goal_max|floatformat:0 }}{% endif %}h</small></div>
+      <div class="stat-card__value" style="font-size:1.05rem;">{{ total_planned_hours|dk }}h <small class="stat-card__sub">+</small> {{ total_approved_hours|dk }}h <small class="stat-card__sub">/ {{ total_goal_min|dk:0 }}{% if total_goal_max %}–{{ total_goal_max|dk:0 }}{% endif %}h</small></div>
       <div class="stat-card__sub" style="visibility:hidden;">&nbsp;</div>
       <div class="goal-bar" style="position:absolute;bottom:0;left:0;right:0;height:10px;background:#e2e8f0;display:flex;">
         <div class="goal-bar__seg" style="width:{{ goal_approved_pct }}%;background:#22c55e;"
-             data-goal-color="#22c55e" data-goal-label="Approved: {{ total_approved_hours|floatformat:1 }}h"></div>
+             data-goal-color="#22c55e" data-goal-label="Approved: {{ total_approved_hours|dk:1 }}h"></div>
         <div class="goal-bar__seg" style="width:{{ goal_planned_pct }}%;background:#3b82f6;"
-             data-goal-color="#3b82f6" data-goal-label="Planned: {{ total_planned_hours|floatformat:1 }}h"></div>
+             data-goal-color="#3b82f6" data-goal-label="Planned: {{ total_planned_hours|dk:1 }}h"></div>
         <div class="goal-bar__seg" style="flex:1;"
-             data-goal-color="#94a3b8" data-goal-label="Goal: {{ total_goal_min|floatformat:0 }}{% if total_goal_max %}–{{ total_goal_max|floatformat:0 }}{% endif %}h"></div>
+             data-goal-color="#94a3b8" data-goal-label="Goal: {{ total_goal_min|dk:0 }}{% if total_goal_max %}–{{ total_goal_max|dk:0 }}{% endif %}h"></div>
       </div>
     </div>
     <div class="goal-tooltip" id="goalTooltip" style="display:none;position:fixed;z-index:1000;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;color:#fff;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.18);white-space:nowrap;">
@@ -47,6 +47,103 @@
     </div>
   </div>
   {% endif %}
+</div>
+
+<!-- ===== Today's shift banner ===== -->
+{% if todays_banner %}
+<div class="today-shift-banner d-block mb-4" style="background:linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);border:1px solid #bfdbfe;border-radius:var(--card-radius);padding:0.85rem 1rem;">
+  <div class="d-flex align-items-center gap-3 flex-wrap">
+    <div class="d-flex" style="flex-shrink:0;">
+    {% for wp in todays_banner.workplaces %}
+      {% if wp.custom_icon_url %}
+        <span style="width:36px;height:36px;border-radius:50%;overflow:hidden;background:{{ wp.color }};{% if not forloop.first %}margin-left:-10px;{% endif %}border:2px solid #dbeafe;position:relative;z-index:{{ forloop.revcounter }};">
+          <img src="{{ wp.custom_icon_url }}" alt="" style="width:100%;height:100%;object-fit:cover;">
+        </span>
+      {% elif wp.icon %}
+        <span style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:{{ wp.color }};color:#fff;font-size:1rem;{% if not forloop.first %}margin-left:-10px;{% endif %}border:2px solid #dbeafe;position:relative;z-index:{{ forloop.revcounter }};">
+          <i class="bi {{ wp.icon }}"></i>
+        </span>
+      {% else %}
+        <span style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:{{ wp.color }};color:#fff;font-size:0.8rem;font-weight:600;{% if not forloop.first %}margin-left:-10px;{% endif %}border:2px solid #dbeafe;position:relative;z-index:{{ forloop.revcounter }};">{{ wp.initials }}</span>
+      {% endif %}
+    {% endfor %}
+    </div>
+    <div class="flex-grow-1">
+      <div class="fw-semibold" style="font-size:0.95rem;color:#1e3a5f;">
+        Today, you're working at {{ todays_banner.workplace_name }}
+      </div>
+      <div style="font-size:0.85rem;color:#3b6ea5;">
+        You have a shift
+        {% for s in todays_banner.shifts %}{% if not forloop.first %}{% if forloop.last %}{% if todays_banner.shifts|length > 2 %},{% endif %} and{% else %},{% endif %}{% endif %} from {{ s.start_time }} to {{ s.end_time }} <span style="font-size:0.78rem;opacity:0.8;">({{ s.net_hours }}h)</span>{% endfor %}
+      </div>
+    </div>
+    {% if todays_banner.has_unconfirmed %}
+    <div class="d-flex align-items-center gap-2" id="todayArrivalWrap">
+      <span class="small" style="color:#3b6ea5;" id="todayArrivalLabel"></span>
+      <input type="time" class="form-control form-control-sm" id="todayArrivalTime" style="width:7rem;">
+      <button type="button" class="btn btn-sm btn-outline-primary" id="todayArrivalSave" title="Update arrival time">
+        <i class="bi bi-check-lg"></i>
+      </button>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ===== Pending shifts approval banner ===== -->
+{% if pending_shifts_count %}
+<div class="alert d-flex align-items-center gap-2 py-2 border-0 shadow-sm mb-4" style="background:#dcfce7;color:#166534;">
+  <i class="bi bi-calendar-check fs-5"></i>
+  <span>
+    <strong>{{ pending_shifts_count }} shift{{ pending_shifts_count|pluralize }} to approve</strong>
+    — planned shifts for today and earlier are awaiting approval.
+  </span>
+  <button type="button" class="btn btn-sm btn-success ms-auto" data-bs-toggle="modal" data-bs-target="#dashApproveModal">
+    <i class="bi bi-check2-all me-1"></i>Review & Approve
+  </button>
+</div>
+{% endif %}
+
+<!-- ===== Workplace cards ===== -->
+<div class="row g-2 mb-4">
+  {% for item in workplace_data %}
+  <div class="col-12 col-md-6 col-lg-4">
+  <a href="{% url 'workplaces:workplace-detail' item.workplace.pk %}" class="workplace-card d-flex align-items-center gap-3 py-2 px-3"
+     {% if item.workplace.accent_color %}style="border-left:4px solid {{ item.workplace.accent_color }};"{% endif %}>
+    {% if item.workplace.custom_icon %}
+      <span class="workplace-avatar" style="background:{{ item.workplace.color|default:item.avatar_color }};width:36px;height:36px;overflow:hidden;">
+        <img src="{{ item.workplace.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+      </span>
+    {% elif item.workplace.icon %}
+      <span class="workplace-avatar" style="background:{{ item.workplace.color|default:item.avatar_color }};width:36px;height:36px;font-size:1rem;">
+        <i class="bi {{ item.workplace.icon }}"{% if item.workplace.accent_color %} style="color:{{ item.workplace.accent_color }}"{% endif %}></i>
+      </span>
+    {% else %}
+      <span class="workplace-avatar" style="background:{{ item.workplace.color|default:item.avatar_color }};width:36px;height:36px;font-size:0.8rem;">{{ item.avatar_initials }}</span>
+    {% endif %}
+    <span class="workplace-card__name me-auto">{{ item.workplace.name }}</span>
+    <div class="d-flex gap-4 align-items-center" style="font-size:0.85rem;">
+      <div class="text-center">
+        <small class="text-muted d-block" style="font-size:0.7rem;">Hours</small>
+        <span class="fw-semibold">{{ item.actual_hours|dk }}</span>
+      </div>
+      <div class="text-center">
+        <small class="text-muted d-block" style="font-size:0.7rem;">Hrs/wk</small>
+        <span class="fw-semibold">{{ item.avg_hours_per_week|dk }}</span>
+      </div>
+      <div class="text-center">
+        <small class="text-muted d-block" style="font-size:0.7rem;">Earned</small>
+        <span class="fw-semibold">{{ item.earned_gross|dk:0 }} DKK</span>
+      </div>
+    </div>
+  </a>
+  </div>
+  {% empty %}
+  <div class="col-12 text-center text-muted py-5">
+    <i class="bi bi-building fs-1 d-block mb-2"></i>
+    No active workplaces yet. <a href="{% url 'workplaces:workplace-create' %}">Add one</a>.
+  </div>
+  {% endfor %}
 </div>
 
 <!-- ===== Calendar ===== -->
@@ -82,61 +179,93 @@
   </div>
 </div>
 
-<!-- ===== Workplace cards ===== -->
-<div class="section-title">Your Workplaces</div>
-<div class="row g-2 mb-4">
-  {% for item in workplace_data %}
-  <div class="col-12 col-md-6 col-lg-4">
-  <a href="{% url 'workplaces:workplace-detail' item.workplace.pk %}" class="workplace-card d-flex align-items-center gap-3 py-2 px-3"
-     {% if item.workplace.accent_color %}style="border-left:4px solid {{ item.workplace.accent_color }};"{% endif %}>
-    {% if item.workplace.custom_icon %}
-      <span class="workplace-avatar" style="background:{{ item.workplace.color|default:item.avatar_color }};width:36px;height:36px;overflow:hidden;">
-        <img src="{{ item.workplace.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
-      </span>
-    {% elif item.workplace.icon %}
-      <span class="workplace-avatar" style="background:{{ item.workplace.color|default:item.avatar_color }};width:36px;height:36px;font-size:1rem;">
-        <i class="bi {{ item.workplace.icon }}"{% if item.workplace.accent_color %} style="color:{{ item.workplace.accent_color }}"{% endif %}></i>
-      </span>
-    {% else %}
-      <span class="workplace-avatar" style="background:{{ item.workplace.color|default:item.avatar_color }};width:36px;height:36px;font-size:0.8rem;">{{ item.avatar_initials }}</span>
-    {% endif %}
-    <span class="workplace-card__name me-auto">{{ item.workplace.name }}</span>
-    <div class="d-flex gap-4 align-items-center" style="font-size:0.85rem;">
-      <div class="text-center">
-        <small class="text-muted d-block" style="font-size:0.7rem;">Hours</small>
-        <span class="fw-semibold">{{ item.actual_hours|dk }}</span>
+<!-- ═══════ Approve Shifts Modal (all workplaces) ═══════ -->
+{% if pending_shifts_count %}
+<div class="modal fade" id="dashApproveModal" tabindex="-1" aria-labelledby="dashApproveModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
+      <div class="modal-header border-bottom" style="border-color:#f1f5f9 !important;">
+        <h5 class="modal-title" id="dashApproveModalLabel">
+          <i class="bi bi-check2-all me-2" style="color:#16a34a;"></i>Review & Approve Shifts
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="text-center">
-        <small class="text-muted d-block" style="font-size:0.7rem;">Hrs/wk</small>
-        <span class="fw-semibold">{{ item.avg_hours_per_week|dk }}</span>
+      <div class="modal-body p-0" id="dashApproveBody">
+        <!-- Populated by JS: workplace groups with tables -->
       </div>
-      <div class="text-center">
-        <small class="text-muted d-block" style="font-size:0.7rem;">Earned</small>
-        <span class="fw-semibold">{{ item.earned_gross|floatformat:0 }} DKK</span>
-      </div>
-      <div class="text-end">
-        <small class="text-muted d-block" style="font-size:0.7rem;">
-          {% if item.workplace.employment_type == 'hourly' %}Effective rate{% else %}Monthly{% endif %}
-        </small>
-        <span class="fw-semibold">
-          {% if item.workplace.employment_type == 'hourly' %}{{ item.workplace.effective_hourly_rate|floatformat:0 }} DKK/h{% else %}{{ item.workplace.monthly_salary|floatformat:0 }} DKK{% endif %}
-        </span>
+      <div class="modal-footer border-0 pt-2">
+        <span class="me-auto small text-muted" id="dashApproveSelectedCount"></span>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success btn-sm" id="dashApproveConfirmBtn">
+          <i class="bi bi-check2-all me-1"></i>Approve Selected
+        </button>
       </div>
     </div>
-  </a>
   </div>
-  {% empty %}
-  <div class="col-12 text-center text-muted py-5">
-    <i class="bi bi-building fs-1 d-block mb-2"></i>
-    No active workplaces yet. <a href="{% url 'workplaces:workplace-create' %}">Add one</a>.
-  </div>
-  {% endfor %}
 </div>
+
+<!-- Edit Shift Modal (from dashboard approve) -->
+<div class="modal fade" id="dashEditApproveModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Planned Shift</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="dashEditErrors" class="alert alert-danger small py-2 d-none"></div>
+        <input type="hidden" id="dashEditShiftId">
+        <div class="mb-2">
+          <label class="form-label small">Date</label>
+          <input type="date" id="dashEditDate" class="form-control form-control-sm" required>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label small">Start time</label>
+            <input type="time" id="dashEditStart" class="form-control form-control-sm" required>
+          </div>
+          <div class="col-6">
+            <label class="form-label small">End time</label>
+            <input type="time" id="dashEditEnd" class="form-control form-control-sm" required>
+          </div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label small">Break (min)</label>
+            <input type="number" id="dashEditBreak" class="form-control form-control-sm" value="0" min="0">
+          </div>
+          <div class="col-6">
+            <label class="form-label small">Type</label>
+            <select id="dashEditType" class="form-select form-select-sm">
+              <option value="on_site">On-site</option>
+              <option value="remote">Remote</option>
+              <option value="sick_leave">Sick leave (with pay)</option>
+              <option value="paid_absence">Paid absence</option>
+              <option value="vacation">Vacation</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small">Notes</label>
+          <textarea id="dashEditNotes" class="form-control form-control-sm" rows="2"></textarea>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-primary btn-sm flex-fill" id="dashEditSaveBtn">
+            <i class="bi bi-check-lg me-1"></i>Save Changes
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
-{% if has_any_goal %}
 {% block extra_js %}
 <script>
+{% if has_any_goal %}
+// ═══════ Goal Tooltip ═══════
 (function() {
   var tip = document.getElementById('goalTooltip');
   if (!tip) return;
@@ -162,6 +291,299 @@
     tip.style.top = (e.clientY - 32) + 'px';
   }
 })();
+{% endif %}
+
+{% if todays_banner and todays_banner.has_unconfirmed %}
+// ═══════ Today's Shift — Arrival Queue ═══════
+(function() {
+  var queue = {{ todays_shifts_json|safe }};
+  var multiple = {{ todays_banner.multiple|yesno:"true,false" }};
+  var wrap = document.getElementById('todayArrivalWrap');
+  var input = document.getElementById('todayArrivalTime');
+  var saveBtn = document.getElementById('todayArrivalSave');
+  var label = document.getElementById('todayArrivalLabel');
+  var idx = 0;
+  var UPDATE_URL = '{% url "calendar_view:planned-shift-update-api" pk=0 %}';
+
+  function showCurrent() {
+    if (idx >= queue.length) {
+      wrap.style.transition = 'opacity .4s';
+      wrap.style.opacity = '0';
+      setTimeout(function() { wrap.remove(); }, 400);
+      return;
+    }
+    var s = queue[idx];
+    input.value = s.start_time;
+    if (multiple) {
+      label.textContent = 'Did you arrive early for your ' + s.start_time + ' shift?';
+    } else {
+      label.textContent = 'Did you arrive early?';
+    }
+    saveBtn.innerHTML = '<i class="bi bi-check-lg"></i>';
+    saveBtn.disabled = false;
+  }
+
+  input.addEventListener('change', function() {
+    var s = queue[idx];
+    if (input.value < s.start_time) {
+      label.textContent = multiple ? 'Arrived early for ' + s.start_time + '!' : 'Arrived early!';
+    } else if (input.value > s.start_time) {
+      label.textContent = multiple ? 'Arrived late for ' + s.start_time + '?' : 'Arrived late?';
+    } else {
+      showCurrent();
+    }
+  });
+
+  saveBtn.addEventListener('click', function() {
+    if (idx >= queue.length) return;
+    var s = queue[idx];
+    saveBtn.disabled = true;
+    fetch(UPDATE_URL.replace('/0/', '/' + s.id + '/'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+      body: JSON.stringify({ start_time: input.value, arrival_confirmed: true }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) {
+        label.textContent = 'Saved!';
+        saveBtn.innerHTML = '<i class="bi bi-check-lg"></i>';
+        idx++;
+        setTimeout(function() { showCurrent(); }, 1000);
+      } else {
+        saveBtn.disabled = false;
+      }
+    })
+    .catch(function() { saveBtn.disabled = false; });
+  });
+
+  showCurrent();
+})();
+{% endif %}
+
+{% if pending_shifts_count %}
+// ═══════ Dashboard Approve Modal ═══════
+(function() {
+  var SHIFTS = {{ pending_shifts_json|safe }};
+  var body = document.getElementById('dashApproveBody');
+  var countSpan = document.getElementById('dashApproveSelectedCount');
+  var UPDATE_URL = '{% url "calendar_view:planned-shift-update-api" pk=0 %}';
+  var APPROVE_URL = '{% url "calendar_view:bulk-approve-shifts" %}';
+
+  // Group shifts by workplace
+  function groupByWorkplace(shifts) {
+    var groups = {};
+    var order = [];
+    shifts.forEach(function(s) {
+      if (!groups[s.workplace_id]) {
+        groups[s.workplace_id] = { name: s.workplace_name, color: s.workplace_color, shifts: [] };
+        order.push(s.workplace_id);
+      }
+      groups[s.workplace_id].shifts.push(s);
+    });
+    return { groups: groups, order: order };
+  }
+
+  function renderBody() {
+    body.innerHTML = '';
+    var data = groupByWorkplace(SHIFTS);
+    data.order.forEach(function(wpId) {
+      var g = data.groups[wpId];
+      // Workplace group header
+      var header = document.createElement('div');
+      header.className = 'px-3 pt-3 pb-1 d-flex align-items-center gap-2';
+      header.innerHTML =
+        '<span style="width:10px;height:10px;border-radius:50%;background:' + g.color + ';flex-shrink:0;"></span>' +
+        '<span class="fw-semibold" style="font-size:0.9rem;">' + g.name + '</span>' +
+        '<div class="form-check ms-auto mb-0">' +
+          '<input class="form-check-input wp-select-all" type="checkbox" data-wp="' + wpId + '" checked>' +
+          '<label class="form-check-label small text-muted">Select all</label>' +
+        '</div>';
+      body.appendChild(header);
+
+      // Table
+      var wrapper = document.createElement('div');
+      wrapper.className = 'table-responsive';
+      var table = document.createElement('table');
+      table.className = 'table table-sm table-hover mb-0';
+      table.innerHTML =
+        '<thead class="table-light"><tr>' +
+          '<th style="width:36px;"></th>' +
+          '<th class="small text-muted">Date</th>' +
+          '<th class="small text-muted">Start</th>' +
+          '<th class="small text-muted">End</th>' +
+          '<th class="small text-muted">Type</th>' +
+          '<th class="small text-muted text-end">Hours</th>' +
+          '<th style="width:32px;"></th>' +
+        '</tr></thead>';
+      var tbody = document.createElement('tbody');
+      tbody.className = 'dash-approve-tbody';
+
+      g.shifts.forEach(function(s) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><input type="checkbox" class="form-check-input dash-approve-cb" value="' + s.id + '" data-wp="' + wpId + '" checked></td>' +
+          '<td class="small">' + s.date + '</td>' +
+          '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.start_time + '" data-field="start_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
+          '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.end_time + '" data-field="end_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
+          '<td><select class="form-select form-select-sm py-0" data-field="session_type" data-id="' + s.id + '" style="width:7rem;">' +
+            '<option value="on_site"' + (s.session_type==='on_site'?' selected':'') + '>On-site</option>' +
+            '<option value="remote"' + (s.session_type==='remote'?' selected':'') + '>Remote</option>' +
+            '<option value="sick_leave"' + (s.session_type==='sick_leave'?' selected':'') + '>Sick leave</option>' +
+            '<option value="paid_absence"' + (s.session_type==='paid_absence'?' selected':'') + '>Paid absence</option>' +
+            '<option value="vacation"' + (s.session_type==='vacation'?' selected':'') + '>Vacation</option>' +
+          '</select></td>' +
+          '<td class="small text-end">' + toDanish(s.net_hours) + 'h</td>' +
+          '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 dash-edit-btn" data-shift-id="' + s.id + '" title="Edit shift"><i class="bi bi-pencil" style="font-size:0.65rem;"></i></button></td>';
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      wrapper.appendChild(table);
+      body.appendChild(wrapper);
+    });
+
+    // Attach per-workplace select all
+    body.querySelectorAll('.wp-select-all').forEach(function(cb) {
+      cb.addEventListener('change', function() {
+        var wpId = cb.dataset.wp;
+        body.querySelectorAll('.dash-approve-cb[data-wp="' + wpId + '"]').forEach(function(c) { c.checked = cb.checked; });
+        updateCount();
+      });
+    });
+
+    // Individual checkbox changes
+    body.addEventListener('change', function(e) {
+      if (e.target.classList.contains('dash-approve-cb')) {
+        var wpId = e.target.dataset.wp;
+        var allWp = body.querySelectorAll('.dash-approve-cb[data-wp="' + wpId + '"]');
+        var allChecked = true;
+        allWp.forEach(function(c) { if (!c.checked) allChecked = false; });
+        var wpCb = body.querySelector('.wp-select-all[data-wp="' + wpId + '"]');
+        if (wpCb) wpCb.checked = allChecked;
+        updateCount();
+      }
+    });
+
+    // Pencil buttons
+    body.querySelectorAll('.dash-edit-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        openEditModal(parseInt(btn.dataset.shiftId));
+      });
+    });
+
+    updateCount();
+  }
+
+  function updateCount() {
+    var checked = body.querySelectorAll('.dash-approve-cb:checked').length;
+    countSpan.textContent = checked + ' of ' + SHIFTS.length + ' selected';
+  }
+
+  // Approve button
+  document.getElementById('dashApproveConfirmBtn').addEventListener('click', function() {
+    var btn = this;
+    var ids = [];
+    body.querySelectorAll('.dash-approve-cb:checked').forEach(function(cb) { ids.push(parseInt(cb.value)); });
+    if (ids.length === 0) return;
+
+    var edits = [];
+    ids.forEach(function(id) {
+      var edit = { id: id };
+      var fields = body.querySelectorAll('[data-id="' + id + '"]');
+      fields.forEach(function(f) { if (f.dataset.field) edit[f.dataset.field] = f.value; });
+      edits.push(edit);
+    });
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Approving…';
+
+    fetch(APPROVE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+      body: JSON.stringify({ shift_ids: ids, edits: edits }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) {
+        window.location.reload();
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Approve Selected';
+      }
+    })
+    .catch(function() {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Approve Selected';
+    });
+  });
+
+  // Edit modal
+  var editModal = new bootstrap.Modal(document.getElementById('dashEditApproveModal'));
+
+  function openEditModal(shiftId) {
+    var url = UPDATE_URL.replace('/0/', '/' + shiftId + '/');
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+      body: JSON.stringify({}),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (!data.ok) return;
+      var s = data.shift;
+      document.getElementById('dashEditShiftId').value = s.id;
+      document.getElementById('dashEditDate').value = s.date;
+      document.getElementById('dashEditStart').value = s.start_time;
+      document.getElementById('dashEditEnd').value = s.end_time;
+      document.getElementById('dashEditBreak').value = s.break_minutes;
+      document.getElementById('dashEditType').value = s.session_type;
+      document.getElementById('dashEditNotes').value = s.notes;
+      document.getElementById('dashEditErrors').classList.add('d-none');
+      editModal.show();
+    });
+  }
+
+  document.getElementById('dashEditSaveBtn').addEventListener('click', function() {
+    var shiftId = document.getElementById('dashEditShiftId').value;
+    if (!shiftId) return;
+    var url = UPDATE_URL.replace('/0/', '/' + shiftId + '/');
+    var payload = {
+      date: document.getElementById('dashEditDate').value,
+      start_time: document.getElementById('dashEditStart').value,
+      end_time: document.getElementById('dashEditEnd').value,
+      break_minutes: parseInt(document.getElementById('dashEditBreak').value) || 0,
+      session_type: document.getElementById('dashEditType').value,
+      notes: document.getElementById('dashEditNotes').value,
+    };
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+      body: JSON.stringify(payload),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (!data.ok) {
+        document.getElementById('dashEditErrors').textContent = data.error || 'Error saving.';
+        document.getElementById('dashEditErrors').classList.remove('d-none');
+        return;
+      }
+      var s = data.shift;
+      for (var i = 0; i < SHIFTS.length; i++) {
+        if (SHIFTS[i].id === s.id) {
+          SHIFTS[i].date = s.date;
+          SHIFTS[i].start_time = s.start_time;
+          SHIFTS[i].end_time = s.end_time;
+          SHIFTS[i].break_minutes = s.break_minutes;
+          SHIFTS[i].session_type = s.session_type;
+          SHIFTS[i].net_hours = s.net_hours;
+          break;
+        }
+      }
+      editModal.hide();
+      renderBody();
+    });
+  });
+
+  renderBody();
+})();
+{% endif %}
 </script>
 {% endblock %}
-{% endif %}

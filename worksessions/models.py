@@ -110,6 +110,10 @@ class PlannedShift(models.Model):
         choices=Status.choices,
         default=Status.PLANNED,
     )
+    arrival_confirmed = models.BooleanField(
+        default=False,
+        help_text="Whether the user has confirmed/updated their arrival time.",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

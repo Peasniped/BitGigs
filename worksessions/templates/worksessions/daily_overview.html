@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load dk_filters %}
 {% block title %}{{ date }} — Daily Overview — BitGigs{% endblock %}
 
 {% block content %}
@@ -14,7 +15,7 @@
 <div class="card mb-3">
   <div class="card-header d-flex justify-content-between">
     <strong>{{ summary.workplace_name }}</strong>
-    <span>{{ summary.total_hours|floatformat:2 }} hours ({{ summary.session_count }} session{{ summary.session_count|pluralize }})</span>
+    <span>{{ summary.total_hours|dk }} hours ({{ summary.session_count }} session{{ summary.session_count|pluralize }})</span>
   </div>
   <table class="table table-sm mb-0">
     <thead>
@@ -25,7 +26,7 @@
       <tr>
         <td>{{ s.start_time|time:"H:i" }} – {{ s.end_time|time:"H:i" }}</td>
         <td>{{ s.break_minutes }}m</td>
-        <td>{{ s.net_hours|floatformat:2 }}</td>
+        <td>{{ s.net_hours|dk }}</td>
         <td>{{ s.get_session_type_display }}</td>
       </tr>
       {% endfor %}

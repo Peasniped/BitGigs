@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load dk_filters %}
 {% block title %}Tax Profiles — BitGigs{% endblock %}
 
 {% block content %}
@@ -26,10 +27,10 @@
         {% for p in profiles %}
         <tr>
           <td>{{ p.effective_from }}</td>
-          <td>{{ p.tax_percent }}%</td>
-          <td>{{ p.am_bidrag_percent }}%</td>
-          <td>{{ p.church_tax_percent }}%</td>
-          <td>{{ p.monthly_deduction }} DKK</td>
+          <td>{{ p.tax_percent|dk }}%</td>
+          <td>{{ p.am_bidrag_percent|dk }}%</td>
+          <td>{{ p.church_tax_percent|dk }}%</td>
+          <td>{{ p.monthly_deduction|dk }} DKK</td>
           <td class="text-end">
             <a href="{% url 'core:taxprofile-update' p.pk %}" class="btn btn-sm btn-outline-secondary">
               <i class="bi bi-pencil"></i>

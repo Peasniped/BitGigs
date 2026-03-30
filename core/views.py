@@ -180,10 +180,15 @@ class DashboardView(View):
                 total_earned_net += earned_est.tax_breakdown.net_pay
 
             # Planned estimate (planned shifts only)
-            planned_est = SalaryEstimateService.estimate(wp, planned_hours, as_of=tax_pull_date)
-            total_planned_gross += planned_est.taxable_gross
-            if planned_est.tax_breakdown:
-                total_planned_net += planned_est.tax_breakdown.net_pay
+            # Salaried workplaces already have their full salary in earned_est,
+            # so only add planned earnings for hourly workplaces.
+            if wp.employment_type == Workplace.EmploymentType.HOURLY and planned_hours:
+                planned_est = SalaryEstimateService.estimate(wp, planned_hours, as_of=tax_pull_date)
+                total_planned_gross += planned_est.taxable_gross
+                if planned_est.tax_breakdown:
+                    total_planned_net += planned_est.tax_breakdown.net_pay
+            else:
+                planned_est = None
 
             # Hour goal aggregation (convert weekly to monthly)
             if wp.hour_goal_type and wp.hour_goal_min:
@@ -204,10 +209,108 @@ class DashboardView(View):
                 "avg_hours_per_week": avg_hours_per_week,
                 "earned_gross": earned_est.taxable_gross,
                 "earned_net": earned_est.tax_breakdown.net_pay if earned_est.tax_breakdown else earned_est.taxable_gross,
-                "planned_gross": planned_est.taxable_gross,
+                "planned_gross": planned_est.taxable_gross if planned_est else Decimal("0"),
                 "avatar_initials": _avatar_for_name(wp.name)[0],
                 "avatar_color": _avatar_for_name(wp.name)[1],
             })
+
+        # ── Pending shifts for approval (across all workplaces) ──
+        # Past shifts: always approvable. Today's shifts: only once near/past end time.
+        import json as _json2
+        from datetime import datetime as _dt, timedelta as _td
+        now_time = _dt.now().time()
+        all_pending = PlannedShift.objects.filter(
+            workplace__is_active=True,
+            status=PlannedShift.Status.PLANNED,
+            date__lte=today,
+        ).select_related("workplace").order_by("workplace__name", "date", "start_time")
+        # Filter out today's shifts that haven't nearly ended (1h before end_time)
+        one_hour = _td(hours=1)
+        pending_shifts = [
+            s for s in all_pending
+            if s.date < today or (
+                _dt.combine(today, s.end_time) - one_hour
+            ).time() <= now_time
+        ]
+
+        pending_shifts_json = _json2.dumps([
+            {
+                "id": s.pk,
+                "workplace_id": s.workplace_id,
+                "workplace_name": s.workplace.name,
+                "workplace_color": s.workplace.accent_color or s.workplace.color or _avatar_for_name(s.workplace.name)[1],
+                "date": s.date.isoformat(),
+                "start_time": s.start_time.strftime("%H:%M"),
+                "end_time": s.end_time.strftime("%H:%M"),
+                "break_minutes": s.break_minutes,
+                "session_type": s.session_type,
+                "session_type_display": s.get_session_type_display(),
+                "net_hours": str(s.net_hours.quantize(Decimal("0.01"))),
+            }
+            for s in pending_shifts
+        ])
+        pending_shifts_count = len(pending_shifts)
+
+        # ── Today's shifts ──
+        from datetime import datetime as _dt2
+        import json as _json3
+        all_todays_shifts = list(PlannedShift.objects.filter(
+            workplace__is_active=True,
+            status=PlannedShift.Status.PLANNED,
+            date=today,
+        ).select_related("workplace").order_by("start_time"))
+
+        todays_banner = None
+        todays_shifts_json = "[]"
+        if all_todays_shifts:
+            # Collect unique workplaces for icons and names
+            workplaces_info = []
+            seen_wp = set()
+            for s in all_todays_shifts:
+                if s.workplace_id not in seen_wp:
+                    seen_wp.add(s.workplace_id)
+                    wp = s.workplace
+                    workplaces_info.append({
+                        "name": wp.name,
+                        "color": wp.color or _avatar_for_name(wp.name)[1],
+                        "icon": wp.icon or "",
+                        "custom_icon_url": wp.custom_icon.url if wp.custom_icon else "",
+                        "initials": _avatar_for_name(wp.name)[0],
+                    })
+
+            # Oxford comma join for workplace names
+            wp_names = [w["name"] for w in workplaces_info]
+            if len(wp_names) == 1:
+                wp_name_str = wp_names[0]
+            elif len(wp_names) == 2:
+                wp_name_str = wp_names[0] + " and " + wp_names[1]
+            else:
+                wp_name_str = ", ".join(wp_names[:-1]) + ", and " + wp_names[-1]
+
+            todays_banner = {
+                "workplace_name": wp_name_str,
+                "workplaces": workplaces_info,
+                "shifts": [
+                    {
+                        "start_time": s.start_time.strftime("%H:%M"),
+                        "end_time": s.end_time.strftime("%H:%M"),
+                        "net_hours": str(s.net_hours.quantize(Decimal("0.01"))),
+                    }
+                    for s in all_todays_shifts
+                ],
+                "has_unconfirmed": any(not s.arrival_confirmed for s in all_todays_shifts),
+                "multiple": len(all_todays_shifts) > 1,
+            }
+
+            # Unconfirmed shifts for the arrival queue (JS)
+            unconfirmed = [s for s in all_todays_shifts if not s.arrival_confirmed]
+            todays_shifts_json = _json3.dumps([
+                {
+                    "id": s.pk,
+                    "start_time": s.start_time.strftime("%H:%M"),
+                }
+                for s in unconfirmed
+            ])
 
         return render(
             request,
@@ -237,6 +340,10 @@ class DashboardView(View):
                 "goal_planned_pct": int(total_planned_hours * 100 / (total_goal_max or total_goal_min)) if has_any_goal and (total_goal_max or total_goal_min) else 0,
                 "cross_period_info": cross_period_info,
                 "today": today,
+                "pending_shifts_json": pending_shifts_json,
+                "pending_shifts_count": pending_shifts_count,
+                "todays_banner": todays_banner,
+                "todays_shifts_json": todays_shifts_json,
             },
         )
 
