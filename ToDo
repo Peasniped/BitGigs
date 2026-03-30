@@ -4,7 +4,7 @@ Global accross the entire codebase and ui:
 
 All Calendars:
 - Change to list view where each shift is a row in a list/table
-- If i change my hourly/monthly rate, it changes the pay amount backwards. Like with the tax profiles, it should only count from now and forward.
+- If i change my hourly/monthly rate, it changes the pay amount backwards. Like with the tax profiles, it should only count from now and forward. -- maybe lock the input field and make a change base pay menu? not sure what is smarter. You should be able to set the date, it shouldnt just use todays date.
 
 Main Dashboard
 - A banner at the top of the page should show for each workplace, if any shifts are ready for approval.
@@ -45,6 +45,19 @@ Workplace calendar:
 -- Break time is paid
 -- Break time is static (ie you can only enter yes/no in the work shift configuration, and the break numbers are static)
 -- Break time is variable and should be entered manually every time (like it is now)
+
+SMTP Implementation
+Allow the system to send out calender invites.
+- IMPORTANT: This whole system should be disableable.
+- Add a calendar/SMTP settings page.
+- Basic calendar event with title, time, location(verify this against a free api?)
+- Configure a default event configuration for each workplace:
+- - Change the custom title which is ("På arbejde hos [workplace name]" for on-site and "Arbejder hjemme, [workplace name]" for remote)
+- - Change which emails are recipients
+- - Change the address for on-site / remote (the default remote address is set globally) --> maybe you are prompted to enter the address already when creating/editing the workplace (optional field in the form)
+- Change settings for the connector with easy configuration for cloud providers (just start with gmail and infomanial)
+- - There should be a test button that checks: is the connection ok and without errors
+- The system should not care about replies to the events or anything.
 
 Commuting page:
 - The page is broken, the workplace dropdown is empty and it breaks the page.

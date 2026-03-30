@@ -262,6 +262,7 @@ class DashboardView(View):
 
         todays_banner = None
         todays_shifts_json = "[]"
+        todays_banner_shifts_json = "[]"
         if all_todays_shifts:
             # Collect unique workplaces for icons and names
             workplaces_info = []
@@ -295,6 +296,8 @@ class DashboardView(View):
                         "start_time": s.start_time.strftime("%H:%M"),
                         "end_time": s.end_time.strftime("%H:%M"),
                         "net_hours": str(s.net_hours.quantize(Decimal("0.01"))),
+                        "workplace_name": s.workplace.name,
+                        "session_type": s.get_session_type_display(),
                     }
                     for s in all_todays_shifts
                 ],
@@ -310,6 +313,18 @@ class DashboardView(View):
                     "start_time": s.start_time.strftime("%H:%M"),
                 }
                 for s in unconfirmed
+            ])
+
+            # All shifts for countdown timer (JS)
+            todays_banner_shifts_json = _json3.dumps([
+                {
+                    "start_time": s.start_time.strftime("%H:%M"),
+                    "end_time": s.end_time.strftime("%H:%M"),
+                    "net_hours": str(s.net_hours.quantize(Decimal("0.01"))),
+                    "workplace_name": s.workplace.name,
+                    "session_type": s.get_session_type_display(),
+                }
+                for s in all_todays_shifts
             ])
 
         return render(
@@ -344,6 +359,7 @@ class DashboardView(View):
                 "pending_shifts_count": pending_shifts_count,
                 "todays_banner": todays_banner,
                 "todays_shifts_json": todays_shifts_json,
+                "todays_banner_shifts_json": todays_banner_shifts_json,
             },
         )
 

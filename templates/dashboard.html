@@ -72,7 +72,7 @@
       <div class="fw-semibold" style="font-size:0.95rem;color:#1e3a5f;">
         Today, you're working at {{ todays_banner.workplace_name }}
       </div>
-      <div style="font-size:0.85rem;color:#3b6ea5;">
+      <div id="todayShiftStatus" style="font-size:0.85rem;color:#3b6ea5;">
         You have a shift
         {% for s in todays_banner.shifts %}{% if not forloop.first %}{% if forloop.last %}{% if todays_banner.shifts|length > 2 %},{% endif %} and{% else %},{% endif %}{% endif %} from {{ s.start_time }} to {{ s.end_time }} <span style="font-size:0.78rem;opacity:0.8;">({{ s.net_hours }}h)</span>{% endfor %}
       </div>
@@ -358,6 +358,98 @@
   });
 
   showCurrent();
+})();
+{% endif %}
+
+{% if todays_banner %}
+// ═══════ Today's Shift — Live Countdown ═══════
+(function() {
+  var shifts = {{ todays_banner_shifts_json|safe }};
+  var el = document.getElementById('todayShiftStatus');
+  if (!el || shifts.length === 0) return;
+
+  // Parse "HH:MM" to minutes since midnight
+  function toMin(t) {
+    var p = t.split(':');
+    return parseInt(p[0]) * 60 + parseInt(p[1]);
+  }
+
+  function fmtDuration(totalMin) {
+    var h = Math.floor(totalMin / 60);
+    var m = totalMin % 60;
+    if (h > 0 && m > 0) return h + 'h ' + m + 'min';
+    if (h > 0) return h + 'h';
+    return m + 'min';
+  }
+
+  // Original static text as fallback
+  var staticText = el.innerHTML;
+
+  function update() {
+    var now = new Date();
+    var nowMin = now.getHours() * 60 + now.getMinutes();
+    var current = null;
+    var next = null;
+
+    // Find current and next shift
+    for (var i = 0; i < shifts.length; i++) {
+      var s = shifts[i];
+      var sStart = toMin(s.start_time);
+      var sEnd = toMin(s.end_time);
+      if (nowMin >= sStart && nowMin < sEnd) {
+        current = { shift: s, index: i, endMin: sEnd };
+        if (i + 1 < shifts.length) next = shifts[i + 1];
+        break;
+      }
+    }
+
+    // If no current shift, find next upcoming
+    if (!current) {
+      for (var j = 0; j < shifts.length; j++) {
+        if (nowMin < toMin(shifts[j].start_time)) {
+          next = shifts[j];
+          break;
+        }
+      }
+    }
+
+    if (current) {
+      var remaining = current.endMin - nowMin;
+      var wpName = shifts.length > 1 ? (' at ' + current.shift.workplace_name) : '';
+      var html = '<i class="bi bi-clock me-1"></i>Your current shift' + wpName +
+                 ' ends in <strong>' + fmtDuration(remaining) + '</strong>' +
+                 ' <span style="font-size:0.78rem;opacity:0.7;">(' + current.shift.start_time + '–' + current.shift.end_time + ')</span>';
+      if (next) {
+        html += '<br><span style="font-size:0.82rem;">Then at <strong>' + next.start_time +
+                '</strong> you have a' + (shifts.length > 1 ? ' ' + next.workplace_name : '') +
+                ' shift until ' + next.end_time + '</span>';
+      }
+      el.innerHTML = html;
+    } else if (next) {
+      var untilStart = toMin(next.start_time) - nowMin;
+      var wpName2 = shifts.length > 1 ? (next.workplace_name + ' ') : '';
+      var html2 = '<i class="bi bi-hourglass-split me-1"></i>Your ' + wpName2 + 'shift starts in <strong>' +
+                  fmtDuration(untilStart) + '</strong>' +
+                  ' <span style="font-size:0.78rem;opacity:0.7;">(' + next.start_time + '–' + next.end_time + ')</span>';
+      el.innerHTML = html2;
+    } else {
+      // All shifts ended — check if we're past the last shift
+      var last = shifts[shifts.length - 1];
+      if (nowMin >= toMin(last.end_time)) {
+        el.innerHTML = '<i class="bi bi-check-circle me-1"></i>All shifts for today are done!';
+        var banner = el.closest('.today-shift-banner');
+        if (banner) {
+          banner.style.background = 'linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)';
+          banner.style.borderColor = '#86efac';
+        }
+      } else {
+        el.innerHTML = staticText;
+      }
+    }
+  }
+
+  update();
+  setInterval(update, 30000); // update every 30s
 })();
 {% endif %}
 
