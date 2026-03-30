@@ -47,15 +47,15 @@ Workplace calendar:
 -- Break time is variable and should be entered manually every time (like it is now)
 
 SMTP Implementation
-Allow the system to send out calender invites.
-- IMPORTANT: This whole system should be disableable.
+Allow the system to send out calender invites to my work emails and add to my Google Calendar.
+- IMPORTANT: This whole system should be optional and disableable.
 - Add a calendar/SMTP settings page.
 - Basic calendar event with title, time, location(verify this against a free api?)
 - Configure a default event configuration for each workplace:
 - - Change the custom title which is ("På arbejde hos [workplace name]" for on-site and "Arbejder hjemme, [workplace name]" for remote)
 - - Change which emails are recipients
 - - Change the address for on-site / remote (the default remote address is set globally) --> maybe you are prompted to enter the address already when creating/editing the workplace (optional field in the form)
-- Change settings for the connector with easy configuration for cloud providers (just start with gmail and infomanial)
+- Change settings for the connector with easy configuration for cloud providers (just start with gmail)
 - - There should be a test button that checks: is the connection ok and without errors
 - The system should not care about replies to the events or anything.
 
