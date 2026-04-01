@@ -1,14 +1,17 @@
 Global accross the entire codebase and ui:
 - Rename "Worksession" / "Session" to shift.
-- Make sure planned / approved shift is used throughout. 
+- Make sure planned / approved shift is used throughout.
+- Move db into instance/ folder
+
+Main Dashboard:
+- When the "Arrived Early" is filled, the stats on the statcards are not updated until you update the page.
+- On the hour goal-statcard, when hovering over the grey portion of the progress bar, it should show the hour deficit(if any), ie how far you are from the goal.
+- On the hour goal-statcard, make the progress bar about 20% thicker.
+- The message "2 shifts in February belong to March payroll (19,70h)" is nice, but maybe you can click to expand, so it shows the shifts/dates and the hours?
 
 All Calendars:
 - Change to list view where each shift is a row in a list/table
 - If i change my hourly/monthly rate, it changes the pay amount backwards. Like with the tax profiles, it should only count from now and forward. -- maybe lock the input field and make a change base pay menu? not sure what is smarter. You should be able to set the date, it shouldnt just use todays date.
-
-Main Dashboard
-- A banner at the top of the page should show for each workplace, if any shifts are ready for approval.
-- The message "2 shifts in February belong to March payroll (19,70h)" is nice, but maybe you can click to expand, so it shows the shifts/dates and the hours?
 
 Workplace dashboard:
 - Add a button that includes planned shifts in the stats etc.
@@ -58,6 +61,16 @@ Allow the system to send out calender invites to my work emails and add to my Go
 - Change settings for the connector with easy configuration for cloud providers (just start with gmail)
 - - There should be a test button that checks: is the connection ok and without errors
 - The system should not care about replies to the events or anything.
+
+Non-work events in planning calendar.
+- Possibility to add events to the calendar that are non-work related, but helps avoid collissions when planning shifts
+- Only visible in the planning calendar. (Maybe you can toggle this on settings-page, like: "Non-work events visible in calendars on pages: [x] Planning calendar, [] Main Dashboard, [] Workplace calendars") -- if none is selected, the function is disabled -- default is planning calendar only.
+- Drag onto the calendar like a workplace shift, but is not selectable by clicking on a date.
+- Must work with power edit (not Delete All)
+- - Delete All button does not appear
+- - Fast Create just creates an all-day event named "Busy" or "Blocked"
+- Basic events: Name, time/all day
+- Calendar invites are not sent with the SMTP system
 
 Commuting page:
 - The page is broken, the workplace dropdown is empty and it breaks the page.
