@@ -20,6 +20,7 @@
     user-select: none;
     min-width: 160px;
     position: relative;
+    overflow: hidden;
   }
   .wp-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform:translateY(-1px); }
   .wp-card:active { cursor:grabbing; }
@@ -130,7 +131,8 @@
   body.delete-all-mode .wp-card { cursor: pointer; }
 
   /* Fast-create-stamp selected card */
-  .wp-card--selected { box-shadow: 0 0 0 2.5px #6366f1, 0 4px 12px rgba(99,102,241,.3); transform: translateY(-1px); }
+  .wp-card--selected,
+  .wp-card--selected:hover { box-shadow: 0 0 0 2.5px #6366f1, 0 4px 12px rgba(99,102,241,.3); transform: translateY(-1px); }
   body.fast-create-stamp .wp-card { cursor: pointer; }
 
   /* No-defaults red shake */
@@ -146,9 +148,7 @@
     box-shadow: 0 0 0 2.5px #dc2626, 0 4px 12px rgba(220,38,38,.3) !important;
   }
   .wp-card__no-defaults-tip {
-    position: absolute;
-    top: -32px;
-    left: 50%;
+    position: fixed;
     transform: translateX(-50%);
     background: #dc2626;
     color: #fff;
@@ -274,6 +274,7 @@
     color: #fff;
   }
   body.fast-create-stamp .planning-calendar .calendar-day--clickable { cursor: crosshair; }
+  body.fast-create-stamp .day-hover-overlay { display: none !important; }
 
   /* Keep date number and indicator above the blur overlay */
   .planning-calendar .calendar-day > .d-flex { position: relative; z-index: 4; }
@@ -720,10 +721,13 @@
     copyMode = false;
     deleteMode = false;
     deleteAllMode = false;
+    fastCreateMode = false;
     copiedShift = null;
     fastCreateWpId = null;
     document.body.classList.remove('copy-mode', 'delete-mode', 'delete-all-mode', 'fast-create-stamp');
     peCopyBtn.classList.remove('active');
+    peCreateBtn.classList.remove('active');
+    peCreateLabel.textContent = 'Fast Create';
     peDeleteBtn.classList.remove('active');
     peDeleteAllBtn.classList.remove('active');
     peDeleteAllBtn.style.display = 'none';
@@ -766,8 +770,11 @@
     var tip = document.createElement('span');
     tip.className = 'wp-card__no-defaults-tip';
     tip.textContent = 'No default shift set!';
-    card.style.position = 'relative';
-    card.appendChild(tip);
+    // Append to body with fixed coords so overflow:hidden on the card doesn't clip it
+    var rect = card.getBoundingClientRect();
+    tip.style.left = (rect.left + rect.width / 2) + 'px';
+    tip.style.top = (rect.top - 36) + 'px';
+    document.body.appendChild(tip);
     setTimeout(function() {
       card.classList.remove('wp-card--no-defaults');
       tip.remove();
@@ -868,6 +875,7 @@
             updateDayHourBadge(td);
           }
         });
+        updateWpCardProgress(wpId);
         exitAllModes();
         peHint.textContent = 'Deleted ' + data.deleted + ' shift(s) for ' + (wp ? wp.name : 'workplace');
       }
@@ -945,6 +953,7 @@
 
   function deleteShiftImmediate(chip) {
     var shiftId = parseInt(chip.dataset.shiftId);
+    var wpId = parseInt(chip.dataset.workplaceId);
     if (!shiftId) return;
     var url = '{% url "calendar_view:planned-shift-update-api" pk=0 %}'.replace('/0/', '/' + shiftId + '/');
     fetch(url, {
@@ -959,6 +968,7 @@
         setTimeout(function() {
           chip.remove();
           if (td) updateDayHourBadge(td);
+          updateWpCardProgress(wpId);
         }, 200);
       }
     });
@@ -1039,6 +1049,47 @@
     }
   }
 
+  // Update the wp-card progress bar and hours text after adding/removing shifts
+  function updateWpCardProgress(wpId) {
+    var wp = wpMap[wpId];
+    if (!wp) return;
+    var totalMinutes = 0;
+    document.querySelectorAll('.shift-chip[data-workplace-id="' + wpId + '"]').forEach(function(chip) {
+      var td = chip.closest('td[data-date]');
+      if (!td) return;
+      if (!isInPeriod(wpId, td.dataset.date)) return;
+      var m = chip.querySelector('.shift-chip__hours');
+      if (m) {
+        var val = parseFloat(m.textContent.replace(/[()h]/g, '').replace(',', '.')) || 0;
+        totalMinutes += Math.round(val * 60);
+      }
+    });
+    var h = totalMinutes / 60;
+    var hoursEl = document.querySelector('[data-wp-hours="' + wpId + '"]');
+    if (!hoursEl) return;
+    var hStr = toDanish(h.toFixed(2)) + 'h';
+    var goalMin = wp.hour_goal_min ? parseFloat(wp.hour_goal_min) : 0;
+    var goalMax = wp.hour_goal_max ? parseFloat(wp.hour_goal_max) : 0;
+    if (wp.hour_goal_type === 'weekly') { goalMin = goalMin * 4.33; goalMax = goalMax ? goalMax * 4.33 : 0; }
+    if (goalMin > 0) {
+      var goalStr = goalMax > 0
+        ? toDanish(goalMin.toFixed(0)) + '\u2013' + toDanish(goalMax.toFixed(0)) + 'h'
+        : toDanish(goalMin.toFixed(0)) + 'h';
+      hoursEl.textContent = hStr + ' / ' + goalStr;
+      hoursEl.style.color = (h >= goalMin && (goalMax <= 0 || h <= goalMax)) ? '#16a34a' : (h < goalMin ? '#94a3b8' : '#dc2626');
+      var barEl = document.querySelector('[data-wp-progress="' + wpId + '"]');
+      if (barEl) {
+        barEl.style.display = '';
+        var fill = barEl.querySelector('.wp-card__progress-fill');
+        var barMax = goalMax > 0 ? goalMax : goalMin;
+        fill.style.width = Math.min((h / barMax) * 100, 100) + '%';
+        fill.style.background = h >= goalMin ? '#22c55e' : '#3b82f6';
+      }
+    } else {
+      hoursEl.textContent = hStr + ' this period';
+    }
+  }
+
   function fastCreateShift(workplaceId, dateStr) {
     var wp = wpMap[workplaceId];
     if (!wp || !wp.default_start || !wp.default_end) {
@@ -1068,6 +1119,7 @@
             var chip = buildShiftChip(data.shift, wp);
             container.appendChild(chip);
             updateDayHourBadge(td);
+            updateWpCardProgress(workplaceId);
           }
         }
       }
@@ -1113,7 +1165,7 @@
       if (!draggedWorkplaceId) highlightPeriodDays(wpId);
     });
     card.addEventListener('mouseleave', function() {
-      if (!draggedWorkplaceId) clearPeriodHighlights();
+      if (!draggedWorkplaceId && fastCreateWpId !== wpId) clearPeriodHighlights();
     });
     card.addEventListener('click', function(e) {
       if (deleteAllMode) {

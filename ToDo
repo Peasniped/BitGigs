@@ -3,15 +3,17 @@ Global accross the entire codebase and ui:
 - Make sure planned / approved shift is used throughout.
 - Move db into instance/ folder
 
+
+
 Main Dashboard:
-- When the "Arrived Early" is filled, the stats on the statcards are not updated until you update the page.
+- When the "Arrived Early" is filled, the stats on the statcards are not updated until you update the page. Maybe submitting the arrived early/late should just update the page so all stats are updated.
 - On the hour goal-statcard, when hovering over the grey portion of the progress bar, it should show the hour deficit(if any), ie how far you are from the goal.
 - On the hour goal-statcard, make the progress bar about 20% thicker.
-- The message "2 shifts in February belong to March payroll (19,70h)" is nice, but maybe you can click to expand, so it shows the shifts/dates and the hours?
+- The message "2 shifts in February belong to March payroll (19,70h)" is nice, but maybe you can click to expand, so it shows the shifts/dates and the hours? -- maybe hovering over it and/or clicking highlights the shifts if they are visible on the calendar.
 
 All Calendars:
 - Change to list view where each shift is a row in a list/table
-- If i change my hourly/monthly rate, it changes the pay amount backwards. Like with the tax profiles, it should only count from now and forward. -- maybe lock the input field and make a change base pay menu? not sure what is smarter. You should be able to set the date, it shouldnt just use todays date.
+- If i change my hourly/monthly rate, it changes the pay amount backwards. Just like with the tax profile implementation, it should only count from now and forward. -- maybe lock the input field and make a change base pay menu? not sure what is smarter. You should be able to set the date, it shouldnt just use todays date.
 
 Workplace dashboard:
 - Add a button that includes planned shifts in the stats etc.
