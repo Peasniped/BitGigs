@@ -1,4 +1,4 @@
-{# Reusable calendar component. Include with: #}
+﻿{# Reusable calendar component. Include with: #}
 {# {% include "calendar_view/_calendar_component.html" with grid=grid clickable=True workplace_id=workplace.pk %} #}
 {% load dk_filters %}
 
@@ -27,7 +27,7 @@
               <span class="badge bg-primary bg-opacity-75 calendar-day__hours">{{ day.total_hours|dk }}h</span>
             {% endif %}
           </div>
-          {% for session in day.sessions %}
+          {% for session in day.approved_shifts %}
             {% include "calendar_view/_shift_chip.html" with item=session is_planned=False %}
           {% endfor %}
           {% for shift in day.planned_shifts %}
@@ -40,3 +40,5 @@
     </tbody>
   </table>
 </div>
+
+

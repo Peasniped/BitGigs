@@ -80,13 +80,13 @@
                  name="{{ form.weekly_hours_fixed.html_name }}" id="{{ form.weekly_hours_fixed.id_for_label }}"
                  value="{{ form.weekly_hours_fixed.value|default_if_none:'' }}"
                  class="form-control dk-number {% if form.weekly_hours_fixed.errors %}is-invalid{% endif %}"
-                 data-calc-trigger="beskæftigelsesprocent">
+                 data-calc-trigger="employment-pct">
           <span class="input-group-text text-muted">h/week</span>
           {% for err in form.weekly_hours_fixed.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
         </div>
         <div class="p-2 rounded" style="background:#f8fafc;white-space:nowrap;">
-          <span class="text-muted small">Beskæftigelses-procent:</span>
-          <span data-display="beskæftigelsesprocent" class="fw-semibold" style="color:#6366f1;">–</span>
+          <span class="text-muted small">Besk&aelig;ftigelses-procent:</span>
+          <span data-display="employment-pct" class="fw-semibold" style="color:#6366f1;">&ndash;</span>
         </div>
       </div>
     </div>
@@ -211,6 +211,15 @@
       <div class="form-text" data-payroll-period-msg></div>
     </div>
 
+    {# Estimated gross pay display #}
+    <div class="mb-3 p-2 rounded" style="background:#f8fafc;" data-gross-pay-box>
+      <div class="d-flex justify-content-between align-items-center">
+        <span class="text-muted small">Estimated gross pay</span>
+        <span data-display="gross-pay" class="fw-semibold" style="color:#6366f1;">&ndash;</span>
+      </div>
+      <div data-display="gross-pay-goal" class="text-muted small mt-1" style="display:none;"></div>
+    </div>
+
   </div><!-- /hourly -->
 
   {# ══════════════════════════════════════════════════ #}
@@ -228,6 +237,10 @@
     </div>
     <div id="hourGoalFields" style="{% if not form.hour_goal_type.value %}display:none{% endif %}">
       <p class="form-text mt-0 mb-2">Set a personal hour target shown in the planning calendar.</p>
+      <p class="form-text mt-0 mb-2 text-info-emphasis" data-goal-salaried-hint style="display:none;">
+        <i class="bi bi-info-circle me-1"></i>For salaried positions, the default is your contracted monthly hours.
+        Use this for additional hours (e.g. flex time).
+      </p>
       <div class="d-flex gap-2 align-items-center flex-wrap">
         <div class="btn-group btn-group-sm accent-btn-group" role="group">
           <input type="radio" class="btn-check" name="goalMode" id="goalModeTarget" value="target"
@@ -330,7 +343,35 @@
   document.querySelector('[name="{{ form.hour_goal_max.html_name }}"]').addEventListener('input', validateGoalRange);
   document.querySelector('[name="{{ form.hour_goal_min.html_name }}"]').addEventListener('blur', validateGoalRange);
   document.querySelector('[name="{{ form.hour_goal_max.html_name }}"]').addEventListener('blur', validateGoalRange);
-  // Period toggle → no unit spans needed anymore
+
+  // Show salaried hint and default period to monthly for salaried positions
+  var salariedHint = document.querySelector('[data-goal-salaried-hint]');
+  function updateGoalForEmploymentType() {
+    var empChecked = document.querySelector('[data-emp-type]:checked');
+    var isSalaried = empChecked && empChecked.value === 'salaried';
+    if (salariedHint) salariedHint.style.display = isSalaried ? '' : 'none';
+    // For salaried: default to monthly period and set placeholder to contracted hours
+    var goalMinEl = document.querySelector('[name="{{ form.hour_goal_min.html_name }}"]');
+    if (isSalaried && goalMinEl) {
+      var wttChecked = document.querySelector('[data-wtt]:checked');
+      var monthlyHours = (wttChecked && wttChecked.value === 'deltid')
+        ? (parseDkNumber(document.querySelector('[data-subsection="deltid-hours"] .dk-number').value) || 0) * 52 / 12
+        : 160.33;
+      goalMinEl.placeholder = monthlyHours.toFixed(0) + ' (contracted)';
+      // Pre-select monthly for salaried if no period chosen yet
+      var periodChecked = document.querySelector('input[name="{{ form.hour_goal_type.html_name }}"]:checked');
+      if (!periodChecked) document.getElementById('goalPeriodMonthly').checked = true;
+    } else if (goalMinEl) {
+      goalMinEl.placeholder = '15,00';
+    }
+  }
+  document.querySelectorAll('[data-emp-type]').forEach(function(r) {
+    r.addEventListener('change', updateGoalForEmploymentType);
+  });
+  document.querySelectorAll('[data-wtt]').forEach(function(r) {
+    r.addEventListener('change', updateGoalForEmploymentType);
+  });
+  updateGoalForEmploymentType();
   </script>
 
   {# ══════════════════════════════════════════════════ #}

@@ -1,4 +1,4 @@
-from datetime import date
+﻿from datetime import date
 from decimal import Decimal
 import json
 import os
@@ -7,8 +7,9 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.views import View
 
-from .models import Workplace
-from .forms import WorkplaceForm
+from .models import Workplace, PayRate
+from .forms import WorkplaceForm, PayRateForm
+from core.utils import avatar_for_name, prev_next_month, WEEKS_PER_MONTH
 
 # Curated icon choices for the workplace icon picker
 ICON_CHOICES = [
@@ -31,18 +32,9 @@ ACCENT_COLOR_CHOICES = [
     "#eab308", "#22c55e", "#14b8a6", "#3b82f6", "#1e293b",
 ]
 
-def _customize_ctx():
-    """Return icon_choices and color_choices for the workplace form."""
-    return {
-        "icon_choices": ICON_CHOICES,
-        "bg_color_choices": BG_COLOR_CHOICES,
-        "accent_color_choices": ACCENT_COLOR_CHOICES,
-    }
-
 
 def _tax_profile_json():
     """Return a JSON string with the active tax profile data for form JS."""
-    import json
     from core.services import TaxCalculationService
     profile = TaxCalculationService.get_active_profile()
     if profile:
@@ -53,27 +45,12 @@ def _tax_profile_json():
     return ""
 
 
-# Month choices for ferietillæg payout picker (value matches what the
-# comma-separated CharField stores, label is the abbreviation).
+# Month choices for ferietillaeg payout picker
 import calendar as _cal_mod
 MONTH_CHOICES = [(str(i), _cal_mod.month_abbr[i]) for i in range(1, 13)]
 
 
-def _avatar_for_name(name: str) -> tuple[str, str]:
-    """Return (initials, hex_color) for a workplace name."""
-    AVATAR_COLORS = [
-        "#6366f1", "#8b5cf6", "#ec4899", "#ef4444", "#f97316",
-        "#eab308", "#22c55e", "#14b8a6", "#06b6d4", "#3b82f6",
-    ]
-    parts = name.strip().split()
-    if len(parts) >= 2:
-        initials = (parts[0][0] + parts[1][0]).upper()
-    elif parts:
-        initials = parts[0][:2].upper()
-    else:
-        initials = "?"
-    color = AVATAR_COLORS[sum(ord(c) for c in name) % len(AVATAR_COLORS)]
-    return initials, color
+# Curated icon choices for the workplace icon picker
 
 
 class WorkplaceListView(View):
@@ -87,13 +64,13 @@ class WorkplaceListView(View):
 class WorkplaceDetailView(View):
     """Workplace detail with payroll-period calendar and session panel."""
 
-    def get(self, request, pk):
+    def get(self, request, slug):
         from calendar_view.services import CalendarService
         from payroll.services import PayrollPeriodService, SalaryEstimateService
         from core.services import TaxCalculationService
-        from worksessions.models import WorkSession, PlannedShift
+        from shifts.models import Shift, PlannedShift
 
-        workplace = get_object_or_404(Workplace, pk=pk)
+        workplace = get_object_or_404(Workplace, slug=slug)
         today = date.today()
 
         # Determine which payroll month "today" belongs to for this workplace
@@ -103,20 +80,20 @@ class WorkplaceDetailView(View):
         month = int(request.GET.get("month", today_payroll_month))
 
         # Avatar
-        avatar_initials, avatar_color = _avatar_for_name(workplace.name)
+        avatar_initials, avatar_color = avatar_for_name(workplace.name)
 
         # Payroll-period calendar for this workplace
-        grid = CalendarService.payroll_period_calendar(pk, year, month)
+        grid = CalendarService.payroll_period_calendar(workplace.pk, year, month)
 
         # Calculate earned so far
         period_start, period_end = PayrollPeriodService.get_period_dates(workplace, year, month)
-        sessions_in_period = WorkSession.objects.filter(
+        sessions_in_period = Shift.objects.filter(
             workplace=workplace,
             date__gte=period_start,
             date__lte=period_end,
         )
         actual_hours = sum((s.net_hours for s in sessions_in_period), Decimal("0"))
-        avg_hours_per_week = (actual_hours / Decimal("4.33")).quantize(Decimal("0.01"))
+        avg_hours_per_week = (actual_hours / WEEKS_PER_MONTH).quantize(Decimal("0.01"))
         tax_pull_date = PayrollPeriodService.get_tax_pull_date(workplace, year, month)
         estimate = SalaryEstimateService.estimate(workplace, actual_hours, as_of=tax_pull_date)
 
@@ -152,25 +129,18 @@ class WorkplaceDetailView(View):
         if selected_date:
             try:
                 sel_date = date.fromisoformat(selected_date)
-                day_sessions = WorkSession.objects.filter(
+                day_sessions = Shift.objects.filter(
                     workplace=workplace, date=sel_date
                 ).order_by("start_time")
             except ValueError:
                 selected_date = None
 
         # Navigation
-        if month == 1:
-            prev_year, prev_month = year - 1, 12
-        else:
-            prev_year, prev_month = year, month - 1
-        if month == 12:
-            next_year, next_month = year + 1, 1
-        else:
-            next_year, next_month = year, month + 1
+        prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
 
         # Months that have session data (for the month picker)
         months_with_data = list(
-            WorkSession.objects.filter(workplace=workplace)
+            Shift.objects.filter(workplace=workplace)
             .values_list("date__year", "date__month")
             .distinct()
             .order_by("date__year", "date__month")
@@ -220,8 +190,8 @@ class WorkplaceDetailView(View):
                 "start_time": s.start_time.strftime("%H:%M"),
                 "end_time": s.end_time.strftime("%H:%M"),
                 "break_minutes": s.break_minutes,
-                "session_type": s.session_type,
-                "session_type_display": s.get_session_type_display(),
+                "shift_type": s.shift_type,
+                "shift_type_display": s.get_shift_type_display(),
                 "net_hours": str(s.net_hours.quantize(Decimal("0.01"))),
             }
             for s in pending_shifts
@@ -280,7 +250,14 @@ class WorkplaceCreateView(View):
     def post(self, request):
         form = WorkplaceForm(request.POST)
         if form.is_valid():
-            form.save()
+            workplace = form.save()
+            # Create the initial PayRate entry
+            PayRate.objects.create(
+                workplace=workplace,
+                hourly_rate=workplace.hourly_rate,
+                monthly_salary=workplace.monthly_salary,
+                effective_from=date.today(),
+            )
             return redirect("workplaces:workplace-list")
         return render(request, "workplaces/workplace_form.html", {
             "form": form, "tax_profile_json": _tax_profile_json(),
@@ -289,8 +266,8 @@ class WorkplaceCreateView(View):
 
 
 class WorkplaceUpdateView(View):
-    def get(self, request, pk):
-        workplace = get_object_or_404(Workplace, pk=pk)
+    def get(self, request, slug):
+        workplace = get_object_or_404(Workplace, slug=slug)
         form = WorkplaceForm(instance=workplace)
         return render(
             request,
@@ -299,12 +276,12 @@ class WorkplaceUpdateView(View):
              "month_choices": MONTH_CHOICES},
         )
 
-    def post(self, request, pk):
-        workplace = get_object_or_404(Workplace, pk=pk)
+    def post(self, request, slug):
+        workplace = get_object_or_404(Workplace, slug=slug)
         form = WorkplaceForm(request.POST, instance=workplace)
         if form.is_valid():
             form.save()
-            return redirect("workplaces:workplace-detail", pk=pk)
+            return redirect("workplaces:workplace-detail", slug=workplace.slug)
         return render(
             request,
             "workplaces/workplace_form.html",
@@ -314,8 +291,8 @@ class WorkplaceUpdateView(View):
 
 
 class WorkplaceDeleteView(View):
-    def post(self, request, pk):
-        workplace = get_object_or_404(Workplace, pk=pk)
+    def post(self, request, slug):
+        workplace = get_object_or_404(Workplace, slug=slug)
         workplace.delete()
         return redirect("workplaces:workplace-list")
 
@@ -328,8 +305,8 @@ _MAX_ICON_SIZE = 512 * 1024  # 512 KB
 class WorkplaceCustomizeView(View):
     """AJAX endpoint for updating workplace icon, colour, and custom icon."""
 
-    def post(self, request, pk):
-        workplace = get_object_or_404(Workplace, pk=pk)
+    def post(self, request, slug):
+        workplace = get_object_or_404(Workplace, slug=slug)
 
         icon = request.POST.get("icon", "")
         color = request.POST.get("color", "")
@@ -372,7 +349,7 @@ class WorkplaceCustomizeView(View):
         workplace.save()
 
         # Build response with updated avatar info
-        avatar_initials, avatar_color = _avatar_for_name(workplace.name)
+        avatar_initials, avatar_color = avatar_for_name(workplace.name)
         return JsonResponse({
             "ok": True,
             "icon": workplace.icon,
@@ -382,3 +359,50 @@ class WorkplaceCustomizeView(View):
             "avatar_initials": avatar_initials,
             "avatar_color": avatar_color,
         })
+
+
+class PayRateCreateView(View):
+    """Create a new pay rate entry (change hourly rate or salary)."""
+
+    def get(self, request, slug):
+        workplace = get_object_or_404(Workplace, slug=slug)
+        form = PayRateForm(workplace=workplace, initial={
+            "effective_from": date.today(),
+            "hourly_rate": workplace.hourly_rate,
+            "monthly_salary": workplace.monthly_salary,
+        })
+        current_rate = workplace.pay_rates.first()
+        return render(request, "workplaces/payrate_form.html", {
+            "form": form, "workplace": workplace, "current_rate": current_rate,
+        })
+
+    def post(self, request, slug):
+        workplace = get_object_or_404(Workplace, slug=slug)
+        form = PayRateForm(request.POST, workplace=workplace)
+        if form.is_valid():
+            rate = form.save(commit=False)
+            rate.workplace = workplace
+            rate.save()
+            # Update the workplace's current rate fields to match the latest
+            latest = workplace.pay_rates.first()
+            if latest:
+                workplace.hourly_rate = latest.hourly_rate
+                workplace.monthly_salary = latest.monthly_salary
+                workplace.save(update_fields=["hourly_rate", "monthly_salary"])
+            return redirect("workplaces:workplace-detail", slug=slug)
+        current_rate = workplace.pay_rates.first()
+        return render(request, "workplaces/payrate_form.html", {
+            "form": form, "workplace": workplace, "current_rate": current_rate,
+        })
+
+
+class PayRateHistoryView(View):
+    """Show all historical pay rates for a workplace."""
+
+    def get(self, request, slug):
+        workplace = get_object_or_404(Workplace, slug=slug)
+        rates = workplace.pay_rates.all()
+        return render(request, "workplaces/payrate_history.html", {
+            "workplace": workplace, "rates": rates,
+        })
+

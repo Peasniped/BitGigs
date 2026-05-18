@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load dk_filters %}
-{% block title %}Payroll Period {{ period.start_date }} — BitGigs{% endblock %}
+{% block title %}Payroll Period {{ period.start_date }} &middot; BitGigs{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -12,7 +12,7 @@
     </span>
   </div>
   <div class="d-flex gap-2">
-    <a href="{% url 'workplaces:workplace-detail' period.workplace.pk %}?year={{ period.end_date.year }}&month={{ period.end_date.month }}" class="btn btn-outline-secondary btn-sm">
+    <a href="{% url 'workplaces:workplace-detail' period.workplace.slug %}?year={{ period.end_date.year }}&month={{ period.end_date.month }}" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-arrow-left me-1"></i>Back to workplace
     </a>
     {% if not period.is_locked %}

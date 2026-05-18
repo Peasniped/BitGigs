@@ -23,4 +23,5 @@ urlpatterns = [
         name="taxprofile-delete",
     ),
     path("settings/", views.UserSettingsView.as_view(), name="settings"),
+    path("dashboard/stats/", views.DashboardStatsAPIView.as_view(), name="dashboard-stats"),
 ]

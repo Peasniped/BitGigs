@@ -1,4 +1,4 @@
-import json
+﻿import json
 from datetime import date
 
 from django.db import models
@@ -16,7 +16,7 @@ from .services import (
     VacationService,
     CommutingService,
 )
-from worksessions.services import SessionSummaryService
+from shifts.services import ShiftSummaryService
 
 
 class PayrollPeriodListView(View):
@@ -59,7 +59,7 @@ class PayrollPeriodDetailView(View):
         payslip = PayslipService.build_payslip(period)
 
         # Session summary for the period
-        summary = SessionSummaryService.period_summary(
+        summary = ShiftSummaryService.period_summary(
             period.start_date, period.end_date, workplace.id
         )
 
@@ -271,3 +271,4 @@ class VacationUpdateView(View):
         workplace = get_object_or_404(Workplace, pk=workplace_id)
         VacationService.update_balance(workplace, year, month)
         return redirect("payroll:vacation-overview")
+

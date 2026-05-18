@@ -1,9 +1,9 @@
-Global accross the entire codebase and ui:
-- Rename "Worksession" / "Session" to shift.
-- Make sure planned / approved shift is used throughout.
-- Move db into instance/ folder
-
-
+Analytics page:
+- Average hours per month/week should be calculated (trailing over a configurable amount of months) and projected forward
+- Expected income for the entire year and each month.
+- Each workplace should have a contract start and expected contract end for a workplace (optional). This should be taken into account in the expected pay calculations., ie if my contract ends in june, that workplace earns me nothing in july.
+- The workplaces will not be shown in months where the contract is inactive
+- A page where you can see your historical rate (both gross and net) and also project the rate forward.
 
 Main Dashboard:
 - When the "Arrived Early" is filled, the stats on the statcards are not updated until you update the page. Maybe submitting the arrived early/late should just update the page so all stats are updated.
@@ -12,8 +12,7 @@ Main Dashboard:
 - The message "2 shifts in February belong to March payroll (19,70h)" is nice, but maybe you can click to expand, so it shows the shifts/dates and the hours? -- maybe hovering over it and/or clicking highlights the shifts if they are visible on the calendar.
 
 All Calendars:
-- Change to list view where each shift is a row in a list/table
-- If i change my hourly/monthly rate, it changes the pay amount backwards. Just like with the tax profile implementation, it should only count from now and forward. -- maybe lock the input field and make a change base pay menu? not sure what is smarter. You should be able to set the date, it shouldnt just use todays date.
+- Possibility to change to a list view where each shift is a row in a list/table
 
 Workplace dashboard:
 - Add a button that includes planned shifts in the stats etc.
@@ -32,8 +31,8 @@ Payslip Editor
 - Buttons to change month
 - Add the net hourly wage (net pay / total hours)
 - Net pay is always in the bottom and gross pay is always in the top
-- Custom lines default placement: Deductions are placed after subtotal(after tax), additions are placed just under gross pay
-- Automatic recalculation after each change (when creating/removing or moving a custom line.) -- remove the button.
+- Custom lines default placement: New deduction lines are placed after subtotal(after tax), addition lines are placed just under gross pay
+- Automatic recalculation after each change (when creating/removing or moving a custom line.) -- remove the manual recalculate button.
 
 - In the navbar, color the page you are currently on, to help with navigation / knowing where you are
 
@@ -73,6 +72,7 @@ Non-work events in planning calendar.
 - - Fast Create just creates an all-day event named "Busy" or "Blocked"
 - Basic events: Name, time/all day
 - Calendar invites are not sent with the SMTP system
+- Possibility to sync with web-calendar to import events
 
 Commuting page:
 - The page is broken, the workplace dropdown is empty and it breaks the page.
@@ -81,6 +81,7 @@ Commuting page:
 1. select a year (auto-select current year)
 2. See, broken down by workplace, how many commuting days for each month.
 3. The months can be folded out, letting you see the individual days, listing: day, from, to
+4. Be able to get the commuterdays per month in a range (ex if i move  my home address in the middle of the month i need to know how many days from jan to feb 13th and then from 14th feb to dec)
 Example:
 [ Select 2026 ]
 
@@ -96,10 +97,7 @@ Example:
 >> 18th - 8:34-13:27
 
 
-Analytics page:
-- Average hours per month/week should be calculated (trailing over a configurable amount of months)
-- Expected income for the entire year and each month.
-- There should be an input for expected contract end for a workplace (optional). This should be taken into account in the expected pay calculations., ie if my contract ends in june, that workplace earns me nothing in july.
+
 
 SU-page:
 A page that lets me configure studieaktivitet for each month in the year, and then it calculates and shows the limit for how much I can earn, and then sums up all my earnings for month basis and the year. It should have a progression bar that shows how close I am to the limit. It should also show the expected earnings for the rest of the year based on my current average, and how that affects the limit.

@@ -1,0 +1,45 @@
+﻿{% extends "base.html" %}
+{% load dk_filters %}
+{% block title %}{{ date }} &middot; Daily Overview &middot; BitGigs{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <a href="{% url 'shifts:daily-overview' prev_date.year prev_date.month prev_date.day %}"
+     class="btn btn-outline-secondary">â† {{ prev_date }}</a>
+  <h2>{{ date }}</h2>
+  <a href="{% url 'shifts:daily-overview' next_date.year next_date.month next_date.day %}"
+     class="btn btn-outline-secondary">{{ next_date }} â†’</a>
+</div>
+
+{% for summary in summaries %}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between">
+    <strong>{{ summary.workplace_name }}</strong>
+    <span>{{ summary.total_hours|dk }} hours ({{ summary.Shift_count }} Shift{{ summary.Shift_count|pluralize }})</span>
+  </div>
+  <table class="table table-sm mb-0">
+    <thead>
+      <tr><th>Time</th><th>Break</th><th>Hours</th><th>Type</th></tr>
+    </thead>
+    <tbody>
+      {% for s in summary.Shifts %}
+      <tr>
+        <td>{{ s.start_time|time:"H:i" }} . {{ s.end_time|time:"H:i" }}</td>
+        <td>{{ s.break_minutes }}m</td>
+        <td>{{ s.net_hours|dk }}</td>
+        <td>{{ s.get_shift_type_display }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% empty %}
+<p class="text-muted">No Shifts on this day.</p>
+{% endfor %}
+
+<a href="{% url 'shifts:Shift-create' %}?date={{ date|date:'Y-m-d' }}" class="btn btn-primary">
+  + Log Shift for {{ date }}
+</a>
+{% endblock %}
+
+

@@ -9,9 +9,10 @@ urlpatterns = [
     path("accounts/", include("django.contrib.auth.urls")),
     path("", include("core.urls")),
     path("workplaces/", include("workplaces.urls")),
-    path("sessions/", include("worksessions.urls")),
+    path("shifts/", include("shifts.urls")),
     path("payroll/", include("payroll.urls")),
     path("calendar/", include("calendar_view.urls")),
+    path("data/", include("data_io.urls")),
 ]
 
 if settings.DEBUG:

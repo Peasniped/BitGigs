@@ -1,10 +1,10 @@
-from datetime import date, time
+﻿from datetime import date, time
 from decimal import Decimal
 
 from django.test import TestCase
 
 from workplaces.models import Workplace
-from worksessions.models import WorkSession
+from shifts.models import Shift
 from payroll.services import (
     PayrollPeriodService,
     SalaryEstimateService,
@@ -43,7 +43,7 @@ class PayrollPeriodServiceTest(TestCase):
         self.workplace.payroll_period_start_day = 20
         self.workplace.save()
         start, end = PayrollPeriodService.get_period_dates(self.workplace, 2026, 2)
-        # Jan 20 → Feb 19
+        # Jan 20 â†’ Feb 19
         self.assertEqual(start, date(2026, 1, 20))
         self.assertEqual(end, date(2026, 2, 19))
 
@@ -147,17 +147,17 @@ class FlexTimeServiceTest(TestCase):
     def test_flex_positive(self):
         """Working more than expected = positive flex."""
         # March 2026 has 22 weekdays. Expected = 37/5 * 22 = 162.80h
-        # Log sessions on all weekdays: 22 days × 7.75h = 170.50h
+        # Log sessions on all weekdays: 22 days Ã— 7.75h = 170.50h
         for day_num in range(1, 32):  # All days in March
             d = date(2026, 3, day_num)
             if d.weekday() < 5:  # Only weekdays
-                WorkSession.objects.create(
+                Shift.objects.create(
                     workplace=self.workplace,
                     date=d,
                     start_time=time(8, 0),
                     end_time=time(16, 0),  # 8 hours
                     break_minutes=15,
-                    session_type=WorkSession.SessionType.ON_SITE,
+                    shift_type=Shift.ShiftType.ON_SITE,
                 )
 
         result = FlexTimeService.calculate(
@@ -175,12 +175,12 @@ class FlexTimeServiceTest(TestCase):
         for day_num in [2, 3, 4, 5, 6]:
             d = date(2026, 3, day_num)
             if d.weekday() < 5:
-                WorkSession.objects.create(
+                Shift.objects.create(
                     workplace=self.workplace,
                     date=d,
                     start_time=time(9, 0),
                     end_time=time(16, 0),  # 7 hours
-                    session_type=WorkSession.SessionType.REMOTE,
+                    shift_type=Shift.ShiftType.REMOTE,
                 )
 
         result = FlexTimeService.calculate(
@@ -196,8 +196,10 @@ class FlexTimeServiceTest(TestCase):
             date(2026, 3, 31),
             carried_over=Decimal("5.50"),
         )
-        # No sessions logged → actual = 0, expected = 162.80
+        # No sessions logged â†’ actual = 0, expected = 162.80
         # flex_this = 0 - 162.80 = -162.80
         # flex_total = 5.50 + (-162.80) = -157.30
         self.assertEqual(result.flex_carried_over, Decimal("5.50"))
         self.assertEqual(result.flex_total, Decimal("-157.30"))
+
+

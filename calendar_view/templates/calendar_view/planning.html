@@ -1,6 +1,6 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% load dk_filters %}
-{% block title %}Planning Mode — BitGigs{% endblock %}
+{% block title %}Planning Mode &middot; BitGigs{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -68,7 +68,7 @@
   /* Days outside all workplace periods: no hover/plus, grey tint */
   .planning-calendar .planning-day--no-create { cursor: default; background: #f0f0f0 !important; }
   .planning-calendar .planning-day--no-create:hover { background: #f0f0f0 !important; }
-  /* Suppress global hover bg on planning days — overlay handles it */
+  /* Suppress global hover bg on planning days . overlay handles it */
   .planning-calendar .calendar-day--clickable:hover { background: inherit !important; }
 
   /* Grey out all shift/session chips on non-period days */
@@ -379,7 +379,7 @@
     {% endif %}
     <div class="wp-card__info">
       <span class="fw-medium">{{ wp.name }}</span>
-      <span class="wp-card__hours" data-wp-hours="{{ wp.pk }}">–</span>
+      <span class="wp-card__hours" data-wp-hours="{{ wp.pk }}">.</span>
     </div>
     <i class="bi bi-gear wp-card__gear" data-wp-gear="{{ wp.pk }}" title="Default shift settings"></i>
     <div class="wp-card__progress" data-wp-progress="{{ wp.pk }}" style="display:none;">
@@ -454,7 +454,7 @@
                 {% endif %}
               </div>
               <!-- Existing work sessions (editable from planning view) -->
-              {% for session in day.sessions %}
+              {% for session in day.approved_shifts %}
                 {% include "calendar_view/_shift_chip.html" with item=session is_planned=False editable_session=True %}
               {% endfor %}
               <!-- Planned shifts -->
@@ -490,7 +490,7 @@
         </div>
 
         <div id="shiftModalFastCreateWarn" class="alert alert-warning small py-2 d-none">
-          <i class="bi bi-lightning-charge me-1"></i><strong>Fast Create failed</strong> — this workplace has no default shift configured. Set defaults via the <i class="bi bi-gear"></i> icon on the workplace card.
+          <i class="bi bi-lightning-charge me-1"></i><strong>Fast Create failed</strong> . this workplace has no default shift configured. Set defaults via the <i class="bi bi-gear"></i> icon on the workplace card.
         </div>
         <div id="shiftModalErrors" class="alert alert-danger small py-2 d-none"></div>
         <div id="shiftApprovedBanner" class="alert alert-info small py-2 d-none">
@@ -537,7 +537,7 @@
           </div>
           <!-- Live time calculation -->
           <div class="mb-2 text-muted small">
-            Duration: <span id="shiftDuration">–</span>
+            Duration: <span id="shiftDuration">.</span>
           </div>
           <div class="mb-2">
             <label class="form-label small">Notes</label>
@@ -653,7 +653,7 @@
     var h = parseFloat(wp.total_hours.replace(',','.')) || 0;
     var hStr = toDanish(h.toFixed(2)) + 'h';
 
-    // Compute monthly goal for display (convert weekly → monthly with ×4.33)
+    // Compute monthly goal for display (convert weekly â†’ monthly with Ã—4.33)
     var goalMin = wp.hour_goal_min ? parseFloat(wp.hour_goal_min) : 0;
     var goalMax = wp.hour_goal_max ? parseFloat(wp.hour_goal_max) : 0;
     if (wp.hour_goal_type === 'weekly') {
@@ -664,7 +664,7 @@
     if (goalMin > 0) {
       var goalStr;
       if (goalMax > 0) {
-        goalStr = toDanish(goalMin.toFixed(0)) + '–' + toDanish(goalMax.toFixed(0)) + 'h';
+        goalStr = toDanish(goalMin.toFixed(0)) + '.' + toDanish(goalMax.toFixed(0)) + 'h';
       } else {
         goalStr = toDanish(goalMin.toFixed(0)) + 'h';
       }
@@ -897,7 +897,7 @@
         start_time: s.start_time,
         end_time: s.end_time,
         break_minutes: s.break_minutes,
-        session_type: s.session_type,
+        shift_type: s.shift_type,
         notes: s.notes || '',
       };
       document.querySelectorAll('.shift-chip--copied').forEach(function(el) {
@@ -905,7 +905,7 @@
       });
       chip.classList.add('shift-chip--copied');
       var wp = wpMap[copiedShift.workplace_id];
-      peHint.textContent = 'Copied ' + (wp ? wp.name : '') + ' ' + s.start_time + '–' + s.end_time + ' — click days to paste';
+      peHint.textContent = 'Copied ' + (wp ? wp.name : '') + ' ' + s.start_time + '.' + s.end_time + ' . click days to paste';
       clearPeriodHighlights();
       highlightPeriodDays(copiedShift.workplace_id);
     });
@@ -928,7 +928,7 @@
       start_time: copiedShift.start_time,
       end_time: copiedShift.end_time,
       break_minutes: copiedShift.break_minutes,
-      session_type: copiedShift.session_type,
+      shift_type: copiedShift.shift_type,
       notes: copiedShift.notes,
     };
     fetch(API_BASE, {
@@ -1023,7 +1023,7 @@
 
   // Recalculate and update the hour badge for a day cell
   function updateDayHourBadge(td) {
-    var chips = td.querySelectorAll('.shift-chip[data-shift-id], .shift-chip[data-session-id]');
+    var chips = td.querySelectorAll('.shift-chip[data-shift-id], .shift-chip[data-shift-id]');
     var totalMinutes = 0;
     chips.forEach(function(c) {
       var m = c.querySelector('.shift-chip__hours');
@@ -1093,7 +1093,7 @@
   function fastCreateShift(workplaceId, dateStr) {
     var wp = wpMap[workplaceId];
     if (!wp || !wp.default_start || !wp.default_end) {
-      // No defaults configured — show yellow warning inside modal
+      // No defaults configured . show yellow warning inside modal
       openNewShiftModal(workplaceId, dateStr, true);
       return;
     }
@@ -1103,7 +1103,7 @@
       start_time: wp.default_start,
       end_time: wp.default_end,
       break_minutes: wp.default_break || 0,
-      session_type: wp.default_type || 'on_site',
+      shift_type: wp.default_type || 'on_site',
       notes: '',
     };
     fetch(API_BASE, {
@@ -1194,16 +1194,16 @@
         highlightPeriodDays(wpId);
         if (!wp || !wp.default_start || !wp.default_end) {
           showNoDefaultsFlash(card);
-          peHint.textContent = '\u26a0 ' + (wp ? wp.name : 'Workplace') + ' has no default shift — click days to open form';
+          peHint.textContent = '\u26a0 ' + (wp ? wp.name : 'Workplace') + ' has no default shift . click days to open form';
         } else {
-          peHint.textContent = wp.name + ' selected — click days to stamp ' + wp.default_start + '–' + wp.default_end;
+          peHint.textContent = wp.name + ' selected . click days to stamp ' + wp.default_start + '.' + wp.default_end;
         }
         return;
       }
     });
   });
 
-  // ----- Gear icon → default shift modal -----
+  // ----- Gear icon â†’ default shift modal -----
   document.querySelectorAll('[data-wp-gear]').forEach(function(icon) {
     icon.addEventListener('click', function(e) {
       e.stopPropagation();
@@ -1261,10 +1261,10 @@
   });
 
   // ----- Click approved sessions to edit -----
-  document.querySelectorAll('.shift-chip--editable-session[data-session-id]').forEach(function(chip) {
+  document.querySelectorAll('.shift-chip--editable-shift[data-shift-id]').forEach(function(chip) {
     chip.addEventListener('click', function(e) {
       e.stopPropagation();
-      openEditSessionModal(parseInt(chip.dataset.sessionId));
+      openEditApprovedShiftModal(parseInt(chip.dataset.sessionId));
     });
   });
 
@@ -1473,7 +1473,7 @@
       // Find which workplaces cover this date
       var validWps = WORKPLACES.filter(function(wp) { return isInPeriod(wp.id, dateStr); });
       if (validWps.length === 0) {
-        // Outside all periods — show warning for the first workplace
+        // Outside all periods . show warning for the first workplace
         if (WORKPLACES.length > 0) {
           var info = outOfPeriodMessage(WORKPLACES[0].id, dateStr);
           document.getElementById('periodWarningText').textContent = info.text;
@@ -1600,7 +1600,7 @@
       document.getElementById('shiftStart').value = s.start_time;
       document.getElementById('shiftEnd').value = s.end_time;
       document.getElementById('shiftBreak').value = s.break_minutes;
-      document.getElementById('shiftType').value = s.session_type;
+      document.getElementById('shiftType').value = s.shift_type;
       document.getElementById('shiftNotes').value = s.notes;
       document.getElementById('shiftModalErrors').classList.add('d-none');
       document.getElementById('shiftModalOverlap').classList.add('d-none');
@@ -1613,14 +1613,14 @@
     });
   }
 
-  function openEditSessionModal(sessionId) {
+  function openEditApprovedShiftModal(sessionId) {
     var url = '{% url "calendar_view:session-update-api" pk=0 %}'.replace('/0/', '/' + sessionId + '/');
     fetch(url).then(function(r) { return r.json(); }).then(function(data) {
       if (!data.ok) return;
-      var s = data.session;
+      var s = data.shift;
       var wp = wpMap[s.workplace_id];
       document.getElementById('shiftModalTitle').textContent = 'Edit Approved Shift';
-      document.getElementById('shiftSaveLabel').textContent = 'Update Session';
+      document.getElementById('shiftSaveLabel').textContent = 'Update Shift';
       document.getElementById('shiftDeleteBtn').classList.remove('d-none');
       document.getElementById('shiftId').value = '';
       document.getElementById('shiftIsSession').value = s.id;
@@ -1629,7 +1629,7 @@
       document.getElementById('shiftStart').value = s.start_time;
       document.getElementById('shiftEnd').value = s.end_time;
       document.getElementById('shiftBreak').value = s.break_minutes;
-      document.getElementById('shiftType').value = s.session_type;
+      document.getElementById('shiftType').value = s.shift_type;
       document.getElementById('shiftNotes').value = s.notes;
       document.getElementById('shiftModalErrors').classList.add('d-none');
       document.getElementById('shiftModalOverlap').classList.add('d-none');
@@ -1683,7 +1683,7 @@
       var timeRow = document.getElementById('shiftTimeRow');
       if (data.overlaps && data.overlaps.length > 0) {
         var parts = data.overlaps.map(function(o) {
-          return o.workplace + ' (' + o.start + '–' + o.end + ')';
+          return o.workplace + ' (' + o.start + '.' + o.end + ')';
         });
         document.getElementById('shiftOverlapText').textContent = 'Overlaps with: ' + parts.join(', ');
         box.classList.remove('d-none');
@@ -1709,7 +1709,7 @@
     var endEl = document.getElementById('shiftEnd');
 
     if (!start || !end) {
-      display.textContent = '–';
+      display.textContent = '.';
       startEl.classList.remove('is-invalid');
       endEl.classList.remove('is-invalid');
       saveBtn.disabled = false;
@@ -1738,7 +1738,7 @@
     var grossH = toDanish((grossMin/60).toFixed(2));
     var grossHM = Math.floor(grossMin/60) + 'h ' + (grossMin%60) + 'm';
     if (brk > 0) {
-      display.textContent = grossHM + ' gross (' + grossH + 'h) · ' + toDanish((netMin/60).toFixed(2)) + 'h net (after ' + brk + 'min break)';
+      display.textContent = grossHM + ' gross (' + grossH + 'h) Â· ' + toDanish((netMin/60).toFixed(2)) + 'h net (after ' + brk + 'min break)';
     } else {
       display.textContent = grossHM + ' (' + grossH + 'h)';
     }
@@ -1763,7 +1763,7 @@
       start_time: document.getElementById('shiftStart').value,
       end_time: document.getElementById('shiftEnd').value,
       break_minutes: parseInt(document.getElementById('shiftBreak').value) || 0,
-      session_type: document.getElementById('shiftType').value,
+      shift_type: document.getElementById('shiftType').value,
       notes: document.getElementById('shiftNotes').value,
     };
 
@@ -1820,7 +1820,7 @@
     }).then(function(r) { return r.json(); }).then(function(data) {
       if (data.ok) {
         if (data.overlaps && data.overlaps.length > 0) {
-          // Time conflict on the target date — open editor so user can adjust
+          // Time conflict on the target date . open editor so user can adjust
           openEditShiftModal(shiftId);
         } else {
           location.reload();
@@ -1879,7 +1879,7 @@
       start_time: document.getElementById('defStart').value,
       end_time: document.getElementById('defEnd').value,
       break_minutes: parseInt(document.getElementById('defBreak').value) || 0,
-      session_type: document.getElementById('defType').value,
+      shift_type: document.getElementById('defType').value,
     };
     var url = '{% url "calendar_view:default-shift-api" pk=0 %}'.replace('/0/', '/' + defWorkplaceId + '/');
     fetch(url, {
@@ -1891,7 +1891,7 @@
         wp.default_start = body.start_time;
         wp.default_end = body.end_time;
         wp.default_break = body.break_minutes;
-        wp.default_type = body.session_type;
+        wp.default_type = body.shift_type;
         if (autoClose) {
           defModal.hide();
         } else {
@@ -1914,3 +1914,7 @@
 })();
 </script>
 {% endblock %}
+
+
+
+

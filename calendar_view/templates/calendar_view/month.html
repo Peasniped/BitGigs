@@ -1,14 +1,14 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% load dk_filters %}
-{% block title %}{{ grid.title }} — Calendar — BitGigs{% endblock %}
+{% block title %}{{ grid.title }} &middot; Calendar &middot; BitGigs{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <a href="{% url 'calendar_view:month' %}?year={{ prev_year }}&month={{ prev_month }}{% if workplace_id %}&workplace={{ workplace_id }}{% endif %}"
-     class="btn btn-outline-secondary">← Prev</a>
+     class="btn btn-outline-secondary">â† Prev</a>
   <h2>{{ grid.title }}</h2>
   <a href="{% url 'calendar_view:month' %}?year={{ next_year }}&month={{ next_month }}{% if workplace_id %}&workplace={{ workplace_id }}{% endif %}"
-     class="btn btn-outline-secondary">Next →</a>
+     class="btn btn-outline-secondary">Next â†’</a>
 </div>
 
 <!-- Workplace filter -->
@@ -42,7 +42,7 @@
           style="min-width:100px; height:80px; vertical-align:top; padding:4px;">
         <div class="d-flex justify-content-between">
           <small>
-            <a href="{% url 'worksessions:daily-overview' day.date.year day.date.month day.date.day %}"
+            <a href="{% url 'shifts:daily-overview' day.date.year day.date.month day.date.day %}"
                class="{% if not day.is_in_period %}text-muted{% endif %}">
               {{ day.date.day }}
             </a>
@@ -51,7 +51,7 @@
             <span class="badge bg-info">{{ day.total_hours|dk }}h</span>
           {% endif %}
         </div>
-        {% for session in day.sessions %}
+        {% for session in day.approved_shifts %}
           <small class="d-block text-truncate"
                  title="{{ session.workplace.name }}: {{ session.start_time|time:'H:i' }}-{{ session.end_time|time:'H:i' }}">
             {{ session.workplace.name|truncatechars:10 }}
@@ -64,3 +64,6 @@
   </tbody>
 </table>
 {% endblock %}
+
+
+

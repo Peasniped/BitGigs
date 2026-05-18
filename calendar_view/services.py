@@ -13,7 +13,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from core.models import UserSettings
-from worksessions.models import WorkSession, PlannedShift
+from shifts.models import Shift, PlannedShift
 
 
 @dataclass
@@ -21,7 +21,7 @@ class CalendarDay:
     date: date
     is_in_period: bool  # Whether the day falls within the target period
     is_today: bool
-    sessions: list = field(default_factory=list)
+    approved_shifts: list = field(default_factory=list)
     planned_shifts: list = field(default_factory=list)
     total_hours: Decimal = Decimal("0")
 
@@ -103,16 +103,16 @@ class CalendarService:
         while grid_end < period_end:
             grid_end += timedelta(days=7)
 
-        # Fetch sessions in the grid range
-        qs = WorkSession.objects.filter(
+        # Fetch shifts in the grid range
+        qs = Shift.objects.filter(
             date__gte=grid_start, date__lte=grid_end
         ).select_related("workplace")
         if workplace_id:
             qs = qs.filter(workplace_id=workplace_id)
 
-        sessions_by_date = defaultdict(list)
+        shifts_by_date = defaultdict(list)
         for s in qs:
-            sessions_by_date[s.date].append(s)
+            shifts_by_date[s.date].append(s)
 
         # Fetch planned shifts (only those still in PLANNED status)
         planned_by_date = defaultdict(list)
@@ -132,16 +132,16 @@ class CalendarService:
         while current <= grid_end:
             week = CalendarWeek()
             for _ in range(7):
-                day_sessions = sessions_by_date.get(current, [])
+                day_shifts = shifts_by_date.get(current, [])
                 day_planned = planned_by_date.get(current, [])
-                total = sum((s.net_hours for s in day_sessions), Decimal("0"))
+                total = sum((s.net_hours for s in day_shifts), Decimal("0"))
                 total += sum((p.net_hours for p in day_planned), Decimal("0"))
                 week.days.append(
                     CalendarDay(
                         date=current,
                         is_in_period=(period_start <= current <= period_end),
                         is_today=(current == today),
-                        sessions=day_sessions,
+                        approved_shifts=day_shifts,
                         planned_shifts=day_planned,
                         total_hours=total,
                     )

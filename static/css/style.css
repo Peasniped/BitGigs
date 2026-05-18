@@ -1,4 +1,4 @@
-/* BitGigs — Modern custom styles */
+﻿/* BitGigs â€” Modern custom styles */
 
 :root {
   --bg-body: #f5f7fa;
@@ -199,7 +199,7 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: #1e293b; }
 .calendar-day__hours {
   font-size: 0.65rem;
 }
-.calendar-day__session {
+.calendar-day__shift {
   font-size: 0.7rem;
   line-height: 1.3;
   color: #475569;
@@ -216,7 +216,7 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: #1e293b; }
   opacity: 0.85;
 }
 
-/* ── Reusable shift chips (used in all calendars) ── */
+/* â”€â”€ Reusable shift chips (used in all calendars) â”€â”€ */
 .shift-chip {
   display: flex;
   align-items: center;
@@ -265,11 +265,11 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: #1e293b; }
 .shift-chip--planned:hover .shift-chip__edit { opacity: 1; }
 
 /* Editable approved sessions in planning view */
-.shift-chip--editable-session {
+.shift-chip--editable-shift {
   cursor: pointer;
   position: relative;
 }
-.shift-chip--editable-session::before {
+.shift-chip--editable-shift::before {
   content: '\F26A';
   font-family: 'bootstrap-icons';
   position: absolute;
@@ -279,8 +279,8 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: #1e293b; }
   opacity: 0;
   transition: opacity 0.15s;
 }
-.shift-chip--editable-session:hover::before { opacity: 1; }
-.shift-chip--editable-session:hover {
+.shift-chip--editable-shift:hover::before { opacity: 1; }
+.shift-chip--editable-shift:hover {
   background: rgba(34,197,94,.10);
   outline: 1px solid rgba(34,197,94,.3);
 }
@@ -474,3 +474,4 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: #1e293b; }
 .color-swatch[data-color-option="#1e293b"] {
   border: 1px solid #475569 !important;
 }
+

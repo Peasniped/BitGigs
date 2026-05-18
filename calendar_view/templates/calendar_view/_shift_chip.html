@@ -1,4 +1,4 @@
-{# Reusable shift/session chip for calendar cells. #}
+﻿{# Reusable shift/session chip for calendar cells. #}
 {# Usage: {% include "calendar_view/_shift_chip.html" with item=session is_planned=False %} #}
 {% load dk_filters %}
 
@@ -8,9 +8,9 @@
      title="[Planned] {{ item.workplace.name }}: {{ item.start_time|time:'H:i' }}-{{ item.end_time|time:'H:i' }} ({{ item.net_hours|dk }}h)"
      {% if draggable %}draggable="true" data-shift-id="{{ item.pk }}" data-workplace-id="{{ item.workplace_id }}"{% endif %}>
 {% else %}
-<div class="shift-chip shift-chip--approved{% if editable_session %} shift-chip--editable-session{% endif %}"
+<div class="shift-chip shift-chip--approved{% if editable_shift %} shift-chip--editable-shift{% endif %}"
      title="{{ item.workplace.name }}: {{ item.start_time|time:'H:i' }}-{{ item.end_time|time:'H:i' }} ({{ item.net_hours|dk }}h)"
-     {% if editable_session %}data-session-id="{{ item.pk }}" data-workplace-id="{{ item.workplace_id }}"{% endif %}>
+     {% if editable_shift %}data-session-id="{{ item.pk }}" data-workplace-id="{{ item.workplace_id }}"{% endif %}>
 {% endif %}
   <span class="shift-chip__avatar" style="background:{{ item.workplace.color|default:'#6366f1' }};">
     {% if item.workplace.custom_icon %}
@@ -25,3 +25,4 @@
   <small class="shift-chip__hours">({{ item.net_hours|dk }}h)</small>
   {% if is_planned and draggable %}<i class="bi bi-pencil shift-chip__edit"></i>{% endif %}
 </div>
+

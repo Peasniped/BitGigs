@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{% if workplace %}Edit{% else %}New{% endif %} Workplace — BitGigs{% endblock %}
+{% block title %}{% if workplace %}Edit{% else %}New{% endif %} Workplace &middot; BitGigs{% endblock %}
 
 {% block extra_css %}
 {% with accent=workplace.accent_color|default:"#6366f1" %}
@@ -45,7 +45,7 @@
             <button type="submit" class="btn btn-primary flex-fill">
               <i class="bi bi-check-lg me-1"></i>Save
             </button>
-            <a href="{% if workplace %}{% url 'workplaces:workplace-detail' workplace.pk %}{% else %}{% url 'workplaces:workplace-list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+            <a href="{% if workplace %}{% url 'workplaces:workplace-detail' workplace.slug %}{% else %}{% url 'workplaces:workplace-list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
           </div>
         </form>
       </div>

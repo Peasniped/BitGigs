@@ -30,9 +30,10 @@ INSTALLED_APPS = [
     # Local apps
     "core.apps.CoreConfig",
     "workplaces.apps.WorkplacesConfig",
-    "worksessions.apps.WorksessionsConfig",
+    "shifts.apps.ShiftsConfig",
     "payroll.apps.PayrollConfig",
     "calendar_view.apps.CalendarViewConfig",
+    "data_io.apps.DataIoConfig",
 ]
 
 MIDDLEWARE = [

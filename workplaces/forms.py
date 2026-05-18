@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django import forms
-from .models import Workplace
+from .models import Workplace, PayRate
 
 
 class WorkplaceForm(forms.ModelForm):
@@ -29,6 +29,7 @@ class WorkplaceForm(forms.ModelForm):
         model = Workplace
         fields = [
             "name",
+            "slug",
             "is_active",
             "employment_type",
             "hourly_rate",
@@ -58,12 +59,22 @@ class WorkplaceForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["slug"].required = False
+        self.fields["slug"].help_text = "Leave blank to auto-generate from name."
         # Make conditional fields not required at form level
         for f in [
             "hourly_rate", "monthly_salary", "weekly_hours_fixed",
             "weekly_hours_min", "weekly_hours_max",
         ]:
             self.fields[f].required = False
+
+        # When editing an existing workplace, lock the rate fields
+        # (rate changes go through the PayRate system)
+        if self.instance and self.instance.pk:
+            self.fields["hourly_rate"].disabled = True
+            self.fields["hourly_rate"].help_text = "Use 'Change Rate' to update."
+            self.fields["monthly_salary"].disabled = True
+            self.fields["monthly_salary"].help_text = "Use 'Change Rate' to update."
 
         # Sensible defaults for new forms
         if not self.initial.get("employment_type") and not self.data:
@@ -132,3 +143,25 @@ class WorkplaceForm(forms.ModelForm):
             self.add_error("hour_goal_max", "Max must be greater than min.")
 
         return cleaned
+
+
+class PayRateForm(forms.ModelForm):
+    class Meta:
+        model = PayRate
+        fields = ["hourly_rate", "monthly_salary", "effective_from"]
+        widgets = {
+            "effective_from": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "hourly_rate": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+            "monthly_salary": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+        }
+
+    def __init__(self, *args, workplace=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.workplace = workplace
+        if workplace:
+            if workplace.employment_type == Workplace.EmploymentType.HOURLY:
+                del self.fields["monthly_salary"]
+                self.fields["hourly_rate"].required = True
+            else:
+                del self.fields["hourly_rate"]
+                self.fields["monthly_salary"].required = True

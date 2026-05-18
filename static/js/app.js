@@ -26,11 +26,11 @@ document.addEventListener('DOMContentLoaded', function () {
   // ----- Calendar day modal auto-open -----
   initCalendarModal();
 
-  // ----- Session form: live hour calculation -----
-  initSessionCalc();
+  // ----- Shift form: live hour calculation -----
+  initShiftCalc();
 
-  // ----- Work session modal (AJAX) -----
-  initSessionModal();
+  // ----- Work Shift modal (AJAX) -----
+  initShiftModal();
 });
 
 
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', function () {
  * =========================================================================*/
 
 /**
- * Convert a value (standard "15000.50" or Danish "15.000,50") → display Danish "15.000,50".
+ * Convert a value (standard "15000.50" or Danish "15.000,50") -> display Danish "15.000,50".
  */
 function toDanish(value) {
   var str = String(value).trim();
@@ -91,7 +91,7 @@ function toDanish(value) {
 }
 
 /**
- * Convert Danish "15.000,50" → standard "15000.50" for form submission.
+ * Convert Danish "15.000,50" -> standard "15000.50" for form submission.
  */
 function toStandard(value) {
   var str = String(value).trim();
@@ -136,7 +136,7 @@ function initDanishNumbers() {
 
 
 /* ===========================================================================
- *  WORKPLACE FORM — conditional sections, calculations
+ *  WORKPLACE FORM - conditional sections, calculations
  * =========================================================================*/
 
 function initWorkplaceForm(formEl) {
@@ -178,14 +178,14 @@ function initWorkplaceForm(formEl) {
   empRadios.forEach(function (r) { r.addEventListener('change', toggleEmploymentSections); });
   toggleEmploymentSections();
 
-  // ---- Work time type toggle (salaried: fuldtid / deltid) ----
+  // ---- Work time type toggle (salaried: full-time / part-time) ----
   var wttRadios = formEl.querySelectorAll('[data-wtt]');
-  var deltidSection = formEl.querySelector('[data-subsection="deltid-hours"]');
+  var partTimeSection = formEl.querySelector('[data-subsection="deltid-hours"]');
 
   function toggleWorkTime() {
     var checked = formEl.querySelector('[data-wtt]:checked');
-    var isDeltid = checked && checked.value === 'deltid';
-    if (deltidSection) deltidSection.style.display = isDeltid ? '' : 'none';
+    var isPartTime = checked && checked.value === 'deltid';
+    if (partTimeSection) partTimeSection.style.display = isPartTime ? '' : 'none';
     calcHourlyRate();
   }
   wttRadios.forEach(function (r) { r.addEventListener('change', toggleWorkTime); });
@@ -205,9 +205,9 @@ function initWorkplaceForm(formEl) {
   htRadios.forEach(function (r) { r.addEventListener('change', toggleHoursType); });
   toggleHoursType();
 
-  // ---- Hourly rate calculation (salaried: grundløn / monthly hours) ----
+  // ---- Hourly rate calculation (salaried: base salary / monthly hours) ----
   var salaryInput = salariedSection ? salariedSection.querySelector('[data-calc-trigger="hourly-rate"]') : null;
-  var deltidHoursInput = deltidSection ? deltidSection.querySelector('.dk-number') : null;
+  var partTimeHoursInput = partTimeSection ? partTimeSection.querySelector('.dk-number') : null;
   var rateDisplay = formEl.querySelector('[data-display="hourly-rate"]');
 
   function calcHourlyRate() {
@@ -220,7 +220,7 @@ function initWorkplaceForm(formEl) {
     if (wtt === 'fuldtid') {
       monthlyHours = 160.33;
     } else {
-      var weeklyHours = deltidHoursInput ? parseDanish(deltidHoursInput.value) : 0;
+      var weeklyHours = partTimeHoursInput ? parseDanish(partTimeHoursInput.value) : 0;
       monthlyHours = weeklyHours * 52 / 12;
     }
 
@@ -236,11 +236,93 @@ function initWorkplaceForm(formEl) {
     salaryInput.addEventListener('input', calcHourlyRate);
     salaryInput.addEventListener('change', calcHourlyRate);
   }
-  if (deltidHoursInput) {
-    deltidHoursInput.addEventListener('input', calcHourlyRate);
-    deltidHoursInput.addEventListener('change', calcHourlyRate);
+  if (partTimeHoursInput) {
+    partTimeHoursInput.addEventListener('input', calcHourlyRate);
+    partTimeHoursInput.addEventListener('change', calcHourlyRate);
   }
   calcHourlyRate();
+
+  // ---- Estimated gross pay calculation (hourly: rate * hours * 52/12) ----
+  var grossPayDisplay = formEl.querySelector('[data-display="gross-pay"]');
+  var grossPayGoalDisplay = formEl.querySelector('[data-display="gross-pay-goal"]');
+  var hourlyRateInput = hourlySection ? hourlySection.querySelector('input[name$="hourly_rate"]') : null;
+  var fixedHoursInput = formEl.querySelector('[data-subsection="fixed-hours"] .dk-number');
+  var varMinInput = formEl.querySelector('[data-subsection="variable-hours"] input[name$="weekly_hours_min"]');
+  var varMaxInput = formEl.querySelector('[data-subsection="variable-hours"] input[name$="weekly_hours_max"]');
+  var goalMinInput = formEl.querySelector('input[name$="hour_goal_min"]');
+  var goalMaxInput = formEl.querySelector('input[name$="hour_goal_max"]');
+
+  function calcGrossPay() {
+    if (!grossPayDisplay) return;
+    var rate = hourlyRateInput ? parseDanish(hourlyRateInput.value) : 0;
+    if (!rate) {
+      grossPayDisplay.textContent = '\u2013';
+      if (grossPayGoalDisplay) grossPayGoalDisplay.style.display = 'none';
+      return;
+    }
+
+    var htChecked = formEl.querySelector('[data-ht]:checked');
+    var isVariable = htChecked && htChecked.value === 'variable';
+    var monthlyText = '';
+
+    if (isVariable) {
+      var minH = varMinInput ? parseDanish(varMinInput.value) : 0;
+      var maxH = varMaxInput ? parseDanish(varMaxInput.value) : 0;
+      if (minH && maxH) {
+        var minPay = rate * minH * 52 / 12;
+        var maxPay = rate * maxH * 52 / 12;
+        monthlyText = toDanish(minPay.toFixed(0)) + ' \u2013 ' + toDanish(maxPay.toFixed(0)) + ' DKK/mo';
+      } else if (minH) {
+        monthlyText = '~' + toDanish((rate * minH * 52 / 12).toFixed(0)) + ' DKK/mo';
+      }
+    } else {
+      var fixedH = fixedHoursInput ? parseDanish(fixedHoursInput.value) : 0;
+      if (fixedH) {
+        monthlyText = '~' + toDanish((rate * fixedH * 52 / 12).toFixed(0)) + ' DKK/mo';
+      }
+    }
+
+    grossPayDisplay.textContent = monthlyText || '\u2013';
+
+    // Hour goal-based estimate
+    if (grossPayGoalDisplay) {
+      var goalType = formEl.querySelector('input[name$="hour_goal_type"]:checked');
+      var gMin = goalMinInput ? parseDanish(goalMinInput.value) : 0;
+      var gMax = goalMaxInput ? parseDanish(goalMaxInput.value) : 0;
+      if (goalType && gMin) {
+        var multiplier = goalType.value === 'weekly' ? 52 / 12 : 1;
+        var goalText = '';
+        if (gMax) {
+          var goalMinPay = rate * gMin * multiplier;
+          var goalMaxPay = rate * gMax * multiplier;
+          goalText = 'With hour goal: ' + toDanish(goalMinPay.toFixed(0)) + ' \u2013 ' + toDanish(goalMaxPay.toFixed(0)) + ' DKK/mo';
+        } else {
+          var goalPay = rate * gMin * multiplier;
+          goalText = 'With hour goal: ~' + toDanish(goalPay.toFixed(0)) + ' DKK/mo';
+        }
+        grossPayGoalDisplay.textContent = goalText;
+        grossPayGoalDisplay.style.display = '';
+      } else {
+        grossPayGoalDisplay.style.display = 'none';
+      }
+    }
+  }
+
+  [hourlyRateInput, fixedHoursInput, varMinInput, varMaxInput, goalMinInput, goalMaxInput].forEach(function(inp) {
+    if (inp) {
+      inp.addEventListener('input', calcGrossPay);
+      inp.addEventListener('change', calcGrossPay);
+    }
+  });
+  // Also recalculate when hours type or goal type changes
+  htRadios.forEach(function(r) { r.addEventListener('change', calcGrossPay); });
+  formEl.querySelectorAll('input[name$="hour_goal_type"]').forEach(function(r) {
+    r.addEventListener('change', calcGrossPay);
+  });
+  formEl.querySelectorAll('input[name="goalMode"]').forEach(function(r) {
+    r.addEventListener('change', calcGrossPay);
+  });
+  calcGrossPay();
 
   // ---- Pension total calculation ----
   var pensionEmployee = formEl.querySelector('[data-pension-field="employee"]');
@@ -265,45 +347,45 @@ function initWorkplaceForm(formEl) {
   }
   calcPensionTotal();
 
-  // ---- Beskæftigelsesprocent calculation (hours per week / 37 * 100) ----
-  var beskæftigelseInput = formEl.querySelector('[data-calc-trigger="beskæftigelsesprocent"]');
-  var beskæftigelseDisplay = formEl.querySelector('[data-display="beskæftigelsesprocent"]');
+  // ---- Employment percentage calculation (hours per week / 37 * 100) ----
+  var empPctInput = formEl.querySelector('[data-calc-trigger="employment-pct"]');
+  var empPctDisplay = formEl.querySelector('[data-display="employment-pct"]');
 
-  function calcBeskæftigelsesprocent() {
-    if (!beskæftigelseDisplay) return;
-    var hours = beskæftigelseInput ? parseDanish(beskæftigelseInput.value) : 0;
+  function calcEmploymentPct() {
+    if (!empPctDisplay) return;
+    var hours = empPctInput ? parseDanish(empPctInput.value) : 0;
     if (hours) {
       var percent = (hours / 37) * 100;
-      beskæftigelseDisplay.textContent = toDanish(percent.toFixed(1)) + ' %';
+      empPctDisplay.textContent = toDanish(percent.toFixed(1)) + ' %';
     } else {
-      beskæftigelseDisplay.textContent = '–';
+      empPctDisplay.textContent = '-';
     }
   }
 
-  if (beskæftigelseInput) {
-    beskæftigelseInput.addEventListener('input', calcBeskæftigelsesprocent);
-    beskæftigelseInput.addEventListener('change', calcBeskæftigelsesprocent);
+  if (empPctInput) {
+    empPctInput.addEventListener('input', calcEmploymentPct);
+    empPctInput.addEventListener('change', calcEmploymentPct);
   }
-  calcBeskæftigelsesprocent();
+  calcEmploymentPct();
 
-  // ---- Ferietillæg toggle: show/hide percent input ----
-  var ferietillaegToggle = formEl.querySelector('[data-ferietillaeg-toggle]');
-  var ferietillaegFields = formEl.querySelector('[data-ferietillaeg-fields]');
-  function toggleFerietillaeg() {
-    if (!ferietillaegToggle || !ferietillaegFields) return;
-    ferietillaegFields.style.display = ferietillaegToggle.checked ? '' : 'none';
+  // ---- Holiday supplement toggle: show/hide percent input ----
+  var holidaySupplToggle = formEl.querySelector('[data-ferietillaeg-toggle]');
+  var holidaySupplFields = formEl.querySelector('[data-ferietillaeg-fields]');
+  function toggleHolidaySuppl() {
+    if (!holidaySupplToggle || !holidaySupplFields) return;
+    holidaySupplFields.style.display = holidaySupplToggle.checked ? '' : 'none';
   }
-  if (ferietillaegToggle) {
-    ferietillaegToggle.addEventListener('change', toggleFerietillaeg);
-    toggleFerietillaeg();
+  if (holidaySupplToggle) {
+    holidaySupplToggle.addEventListener('change', toggleHolidaySuppl);
+    toggleHolidaySuppl();
   }
 
-  // ---- Ferietillæg payout month pill buttons ----
-  var ftPayoutHidden = formEl.querySelector('[data-ft-payout-hidden]');
-  var ftMonthBtns = formEl.querySelectorAll('[data-ft-month]');
+  // ---- Holiday supplement payout month pill buttons ----
+  var payoutHidden = formEl.querySelector('[data-ft-payout-hidden]');
+  var monthBtns = formEl.querySelectorAll('[data-ft-month]');
   function syncPayoutMonths() {
     var selected = [];
-    ftMonthBtns.forEach(function(btn) {
+    monthBtns.forEach(function(btn) {
       if (btn.dataset.ftSelected === '1') {
         selected.push(btn.dataset.ftMonth);
         btn.classList.remove('btn-outline-secondary');
@@ -313,46 +395,46 @@ function initWorkplaceForm(formEl) {
         btn.classList.add('btn-outline-secondary');
       }
     });
-    if (ftPayoutHidden) ftPayoutHidden.value = selected.join(',');
+    if (payoutHidden) payoutHidden.value = selected.join(',');
   }
   // Initialise selected state from hidden field
-  if (ftPayoutHidden && ftPayoutHidden.value) {
-    var initMonths = ftPayoutHidden.value.split(',');
-    ftMonthBtns.forEach(function(btn) {
+  if (payoutHidden && payoutHidden.value) {
+    var initMonths = payoutHidden.value.split(',');
+    monthBtns.forEach(function(btn) {
       if (initMonths.indexOf(btn.dataset.ftMonth) !== -1) {
         btn.dataset.ftSelected = '1';
       }
     });
     syncPayoutMonths();
   }
-  ftMonthBtns.forEach(function(btn) {
+  monthBtns.forEach(function(btn) {
     btn.addEventListener('click', function(e) {
       btn.dataset.ftSelected = btn.dataset.ftSelected === '1' ? '0' : '1';
       syncPayoutMonths();
     });
   });
 
-  // ---- Fritvalgskonto toggle: show/hide percent input ----
-  var fritvalgskontoToggle = formEl.querySelector('[data-fritvalgskonto-toggle]');
-  var fritvalgskontoFields = formEl.querySelector('[data-fritvalgskonto-fields]');
-  function toggleFritvalgskonto() {
-    if (!fritvalgskontoToggle || !fritvalgskontoFields) return;
-    fritvalgskontoFields.style.display = fritvalgskontoToggle.checked ? '' : 'none';
+  // ---- Flex account toggle: show/hide percent input ----
+  var flexAcctToggle = formEl.querySelector('[data-fritvalgskonto-toggle]');
+  var flexAcctFields = formEl.querySelector('[data-fritvalgskonto-fields]');
+  function toggleFlexAcct() {
+    if (!flexAcctToggle || !flexAcctFields) return;
+    flexAcctFields.style.display = flexAcctToggle.checked ? '' : 'none';
   }
-  if (fritvalgskontoToggle) {
-    fritvalgskontoToggle.addEventListener('change', toggleFritvalgskonto);
-    toggleFritvalgskonto();
+  if (flexAcctToggle) {
+    flexAcctToggle.addEventListener('change', toggleFlexAcct);
+    toggleFlexAcct();
   }
 
   // ---- Vacation type: show/hide feriekonto note ----
   var vacationSelect = formEl.querySelector('select[name$="vacation_type"]');
-  var feriekontoNote = formEl.querySelector('[data-vacation-note="feriekonto"]');
+  var holidayAcctNote = formEl.querySelector('[data-vacation-note="feriekonto"]');
   var accruedNote = formEl.querySelector('[data-vacation-note="accrued"]');
   function toggleVacationNotes() {
     if (!vacationSelect) return;
-    var isFerie = vacationSelect.value === 'feriekonto';
-    if (feriekontoNote) feriekontoNote.style.display = isFerie ? '' : 'none';
-    if (accruedNote) accruedNote.style.display = isFerie ? 'none' : '';
+    var isHolidayAcct = vacationSelect.value === 'feriekonto';
+    if (holidayAcctNote) holidayAcctNote.style.display = isHolidayAcct ? '' : 'none';
+    if (accruedNote) accruedNote.style.display = isHolidayAcct ? 'none' : '';
   }
   if (vacationSelect) {
     vacationSelect.addEventListener('change', toggleVacationNotes);
@@ -404,13 +486,13 @@ function initWorkplaceForm(formEl) {
       if (deduction !== null && pct !== null) {
         taxCardDesc.textContent = 'Income is taxed with 0% A-skat for the first ' + toDanish(deduction) + ' DKK, and the rest is taxed with ' + toDanish(pct) + '%.';
       } else {
-        taxCardDesc.textContent = 'Primary tax card — monthly deduction (fradrag) is applied.';
+        taxCardDesc.textContent = 'Primary tax card - monthly deduction (fradrag) is applied.';
       }
     } else {
       if (pct !== null) {
         taxCardDesc.textContent = 'Income is taxed with ' + toDanish(pct) + '% A-skat with no tax deduction used.';
       } else {
-        taxCardDesc.textContent = 'Secondary tax card — no deduction applied.';
+        taxCardDesc.textContent = 'Secondary tax card - no deduction applied.';
       }
     }
   }
@@ -449,7 +531,7 @@ function initWorkplaceForm(formEl) {
     updatePayrollPeriodMsg();
   }
 
-  // ---- Icon picker (kept for backward compat — now mainly in customize modal) ----
+  // ---- Icon picker (kept for backward compat - now mainly in customize modal) ----
   var iconPicker = formEl.querySelector('[data-icon-picker]');
   var iconInput = formEl.querySelector('[data-icon-input]');
   if (iconPicker && iconInput) {
@@ -467,7 +549,7 @@ function initWorkplaceForm(formEl) {
 
 
 /* ===========================================================================
- *  TAX PROFILE FORM — folkekirken toggle helper
+ *  TAX PROFILE FORM - folkekirken toggle helper
  * =========================================================================*/
 
 function findToggleTarget(trigger, name) {
@@ -478,7 +560,7 @@ function findToggleTarget(trigger, name) {
 
 
 /* ===========================================================================
- *  CALENDAR MODAL — auto-open (no-op; logic is in page-specific script)
+ *  CALENDAR MODAL - auto-open (no-op; logic is in page-specific script)
  * =========================================================================*/
 
 function initCalendarModal() {
@@ -487,20 +569,20 @@ function initCalendarModal() {
 
 
 /* ===========================================================================
- *  SESSION MODAL — AJAX create (no-op; logic is in page-specific script)
+ *  Shift MODAL - AJAX create (no-op; logic is in page-specific script)
  * =========================================================================*/
 
-function initSessionModal() {
-  // Session modal initialization is handled by inline <script> in workplace_detail.html
+function initShiftModal() {
+  // Shift modal initialization is handled by inline <script> in workplace_detail.html
 }
 
 
 /* ===========================================================================
- *  SESSION FORM — live hour/minute calculation
+ *  Shift FORM - live hour/minute calculation
  * =========================================================================*/
 
-function initSessionCalc() {
-  var display = document.getElementById('session-total');
+function initShiftCalc() {
+  var display = document.getElementById('Shift-total');
   if (!display) return;
 
   function calc() {
@@ -611,3 +693,4 @@ function getCsrfToken() {
         .find(c => c.trim().startsWith('csrftoken='));
     return cookie ? cookie.split('=')[1] : '';
 }
+

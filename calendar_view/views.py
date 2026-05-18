@@ -1,4 +1,4 @@
-import json
+﻿import json
 from datetime import date, time
 from decimal import Decimal
 
@@ -7,27 +7,9 @@ from django.shortcuts import render, get_object_or_404
 from django.views import View
 
 from workplaces.models import Workplace
-from worksessions.models import PlannedShift, WorkSession
+from shifts.models import PlannedShift, Shift
+from core.utils import avatar_for_name, prev_next_month
 from .services import CalendarService
-
-
-# Palette of pleasant colours for workplace avatars (same as in core/views.py)
-_AVATAR_COLORS = [
-    "#6366f1", "#8b5cf6", "#ec4899", "#ef4444", "#f97316",
-    "#eab308", "#22c55e", "#14b8a6", "#06b6d4", "#3b82f6",
-]
-
-
-def _avatar_for_name(name: str) -> tuple[str, str]:
-    parts = name.strip().split()
-    if len(parts) >= 2:
-        initials = (parts[0][0] + parts[1][0]).upper()
-    elif parts:
-        initials = parts[0][:2].upper()
-    else:
-        initials = "?"
-    color = _AVATAR_COLORS[sum(ord(c) for c in name) % len(_AVATAR_COLORS)]
-    return initials, color
 
 
 class MonthCalendarView(View):
@@ -42,14 +24,7 @@ class MonthCalendarView(View):
         grid = CalendarService.month_calendar(year, month, workplace_id)
 
         # Navigation
-        if month == 1:
-            prev_year, prev_month = year - 1, 12
-        else:
-            prev_year, prev_month = year, month - 1
-        if month == 12:
-            next_year, next_month = year + 1, 1
-        else:
-            next_year, next_month = year, month + 1
+        prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
 
         workplaces = Workplace.objects.filter(is_active=True)
 
@@ -90,14 +65,7 @@ class PayrollPeriodCalendarView(View):
         grid = CalendarService.payroll_period_calendar(workplace_id, year, month)
 
         # Navigation
-        if month == 1:
-            prev_year, prev_month = year - 1, 12
-        else:
-            prev_year, prev_month = year, month - 1
-        if month == 12:
-            next_year, next_month = year + 1, 1
-        else:
-            next_year, next_month = year, month + 1
+        prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
 
         return render(
             request,
@@ -129,21 +97,14 @@ class PlanningCalendarView(View):
         grid = CalendarService.planning_calendar(year, month)
 
         # Navigation
-        if month == 1:
-            prev_year, prev_month = year - 1, 12
-        else:
-            prev_year, prev_month = year, month - 1
-        if month == 12:
-            next_year, next_month = year + 1, 1
-        else:
-            next_year, next_month = year, month + 1
+        prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
 
         workplaces = Workplace.objects.filter(is_active=True)
 
         # Build workplace data with avatars, default shifts, payroll periods, monthly hours
         workplace_data = []
         for wp in workplaces:
-            initials, color = _avatar_for_name(wp.name)
+            initials, color = avatar_for_name(wp.name)
             period_start, period_end = PayrollPeriodService.get_period_dates(wp, year, month)
 
             # Calculate planned hours this month
@@ -156,8 +117,8 @@ class PlanningCalendarView(View):
                 )),
                 Decimal("0"),
             )
-            session_hours = sum(
-                (s.net_hours for s in WorkSession.objects.filter(
+            approved_hours = sum(
+                (s.net_hours for s in Shift.objects.filter(
                     workplace=wp,
                     date__gte=period_start,
                     date__lte=period_end,
@@ -180,8 +141,8 @@ class PlanningCalendarView(View):
                 "period_start": period_start.isoformat(),
                 "period_end": period_end.isoformat(),
                 "planned_hours": str(planned_hours),
-                "session_hours": str(session_hours),
-                "total_hours": str(planned_hours + session_hours),
+                "approved_hours": str(approved_hours),
+                "total_hours": str(planned_hours + approved_hours),
                 "hour_goal_type": wp.hour_goal_type,
                 "hour_goal_min": str(wp.hour_goal_min) if wp.hour_goal_min else "",
                 "hour_goal_max": str(wp.hour_goal_max) if wp.hour_goal_max else "",
@@ -227,7 +188,7 @@ class PlannedShiftAPIView(View):
         start_time_str = data.get("start_time")
         end_time_str = data.get("end_time")
         break_minutes = int(data.get("break_minutes", 0))
-        session_type = data.get("session_type", "on_site")
+        shift_type = data.get("shift_type", "on_site")
         notes = data.get("notes", "")
 
         if not all([workplace_id, shift_date, start_time_str, end_time_str]):
@@ -250,7 +211,7 @@ class PlannedShiftAPIView(View):
             start_time=start_time,
             end_time=end_time,
             break_minutes=break_minutes,
-            session_type=session_type,
+            shift_type=shift_type,
             notes=notes,
         )
 
@@ -280,8 +241,8 @@ class PlannedShiftUpdateAPIView(View):
             shift.end_time = time.fromisoformat(data["end_time"])
         if "break_minutes" in data:
             shift.break_minutes = int(data["break_minutes"])
-        if "session_type" in data:
-            shift.session_type = data["session_type"]
+        if "shift_type" in data:
+            shift.shift_type = data["shift_type"]
         if "notes" in data:
             shift.notes = data["notes"]
         if "arrival_confirmed" in data:
@@ -357,7 +318,7 @@ class DefaultShiftAPIView(View):
         wp.default_shift_start_time = time.fromisoformat(start) if start else None
         wp.default_shift_end_time = time.fromisoformat(end) if end else None
         wp.default_shift_break_minutes = int(data.get("break_minutes", 0) or 0)
-        wp.default_shift_type = data.get("session_type", "on_site") or "on_site"
+        wp.default_shift_type = data.get("shift_type", "on_site") or "on_site"
         wp.save()
         return JsonResponse({"ok": True})
 
@@ -402,7 +363,7 @@ class ApproveShiftsView(View):
             date__lte=today,
         ).order_by("date", "start_time")
 
-        initials, color = _avatar_for_name(workplace.name)
+        initials, color = avatar_for_name(workplace.name)
 
         return render(
             request,
@@ -416,7 +377,7 @@ class ApproveShiftsView(View):
         )
 
     def post(self, request, workplace_id):
-        """Approve selected shifts (convert to WorkSessions). Supports both form POST and JSON."""
+        """Approve selected shifts (convert to Shifts). Supports both form POST and JSON."""
         workplace = get_object_or_404(Workplace, pk=workplace_id)
 
         # JSON request from modal
@@ -444,8 +405,8 @@ class ApproveShiftsView(View):
                             shift.start_time = time.fromisoformat(edit["start_time"])
                         if "end_time" in edit:
                             shift.end_time = time.fromisoformat(edit["end_time"])
-                        if "session_type" in edit:
-                            shift.session_type = edit["session_type"]
+                        if "shift_type" in edit:
+                            shift.shift_type = edit["shift_type"]
                         shift.save()
                     shift.approve()
                     approved_count += 1
@@ -473,7 +434,9 @@ class ApproveShiftsView(View):
         from django.contrib import messages
         messages.success(request, f"{approved_count} shift(s) approved and converted to work sessions.")
         from django.shortcuts import redirect
-        return redirect("workplaces:workplace-detail", pk=workplace_id)
+        from workplaces.models import Workplace
+        workplace = get_object_or_404(Workplace, pk=workplace_id)
+        return redirect("workplaces:workplace-detail", slug=workplace.slug)
 
 
 class BulkApproveShiftsView(View):
@@ -504,8 +467,8 @@ class BulkApproveShiftsView(View):
                         shift.start_time = time.fromisoformat(edit["start_time"])
                     if "end_time" in edit:
                         shift.end_time = time.fromisoformat(edit["end_time"])
-                    if "session_type" in edit:
-                        shift.session_type = edit["session_type"]
+                    if "shift_type" in edit:
+                        shift.shift_type = edit["shift_type"]
                     shift.save()
                 shift.approve()
                 approved_count += 1
@@ -520,7 +483,7 @@ def _check_overlaps(shift_date, start_time, end_time, exclude_shift_pk=None, exc
     overlaps = []
 
     # Check against work sessions
-    sessions = WorkSession.objects.filter(date=shift_date)
+    sessions = Shift.objects.filter(date=shift_date)
     if exclude_session_pk:
         sessions = sessions.exclude(pk=exclude_session_pk)
     for s in sessions:
@@ -561,8 +524,8 @@ def _shift_to_dict(shift):
         "start_time": shift.start_time.strftime("%H:%M"),
         "end_time": shift.end_time.strftime("%H:%M"),
         "break_minutes": shift.break_minutes,
-        "session_type": shift.session_type,
-        "session_type_display": shift.get_session_type_display(),
+        "shift_type": shift.shift_type,
+        "shift_type_display": shift.get_shift_type_display(),
         "notes": shift.notes,
         "net_hours": str(shift.net_hours.quantize(Decimal("0.01"))),
         "gross_minutes": shift.gross_minutes,
@@ -570,8 +533,8 @@ def _shift_to_dict(shift):
     }
 
 
-def _session_to_dict(session):
-    """Serialize a WorkSession to a JSON-safe dict."""
+def _approved_shift_to_dict(session):
+    """Serialize a Shift to a JSON-safe dict."""
     return {
         "id": session.pk,
         "workplace_id": session.workplace_id,
@@ -580,8 +543,8 @@ def _session_to_dict(session):
         "start_time": session.start_time.strftime("%H:%M"),
         "end_time": session.end_time.strftime("%H:%M"),
         "break_minutes": session.break_minutes,
-        "session_type": session.session_type,
-        "session_type_display": session.get_session_type_display(),
+        "shift_type": session.shift_type,
+        "shift_type_display": session.get_shift_type_display(),
         "notes": session.notes,
         "net_hours": str(session.net_hours.quantize(Decimal("0.01"))),
         "gross_minutes": session.gross_minutes,
@@ -589,15 +552,15 @@ def _session_to_dict(session):
     }
 
 
-class WorkSessionUpdateAPIView(View):
+class ApprovedShiftUpdateAPIView(View):
     """GET/POST/DELETE API for editing work sessions from the planning view."""
 
     def get(self, request, pk):
-        session = get_object_or_404(WorkSession, pk=pk)
-        return JsonResponse({"ok": True, "session": _session_to_dict(session)})
+        session = get_object_or_404(Shift, pk=pk)
+        return JsonResponse({"ok": True, "shift": _approved_shift_to_dict(session)})
 
     def post(self, request, pk):
-        session = get_object_or_404(WorkSession, pk=pk)
+        session = get_object_or_404(Shift, pk=pk)
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -611,8 +574,8 @@ class WorkSessionUpdateAPIView(View):
             session.end_time = time.fromisoformat(data["end_time"])
         if "break_minutes" in data:
             session.break_minutes = int(data["break_minutes"])
-        if "session_type" in data:
-            session.session_type = data["session_type"]
+        if "shift_type" in data:
+            session.shift_type = data["shift_type"]
         if "notes" in data:
             session.notes = data["notes"]
 
@@ -627,11 +590,15 @@ class WorkSessionUpdateAPIView(View):
 
         return JsonResponse({
             "ok": True,
-            "session": _session_to_dict(session),
+            "shift": _approved_shift_to_dict(session),
             "overlaps": overlaps,
         })
 
     def delete(self, request, pk):
-        session = get_object_or_404(WorkSession, pk=pk)
+        session = get_object_or_404(Shift, pk=pk)
         session.delete()
         return JsonResponse({"ok": True})
+
+
+
+

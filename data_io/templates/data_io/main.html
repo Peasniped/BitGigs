@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Import / Export &middot; BitGigs{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h4 class="mb-0"><i class="bi bi-arrow-left-right me-2"></i>Data Import / Export</h4>
+</div>
+
+<div class="row g-4">
+  <!-- ═══ EXPORT ═══ -->
+  <div class="col-12 col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent border-0 fw-semibold">
+        <i class="bi bi-box-arrow-up me-1"></i>Export
+      </div>
+      <div class="card-body">
+        <form method="post" action="{% url 'data_io:export' %}">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="form-label fw-medium">Date range</label>
+            <div class="d-flex gap-2 align-items-center mb-2">
+              <div class="form-check form-check-inline mb-0">
+                <input class="form-check-input" type="radio" name="range_mode" id="rangeAll" value="all" checked onchange="document.getElementById('dateRangeInputs').classList.add('d-none')">
+                <label class="form-check-label" for="rangeAll">All data</label>
+              </div>
+              <div class="form-check form-check-inline mb-0">
+                <input class="form-check-input" type="radio" name="range_mode" id="rangeCustom" value="range" onchange="document.getElementById('dateRangeInputs').classList.remove('d-none')">
+                <label class="form-check-label" for="rangeCustom">Date range</label>
+              </div>
+            </div>
+            <div class="row g-2 d-none" id="dateRangeInputs">
+              <div class="col-6">
+                <input type="date" class="form-control form-control-sm" name="date_from" placeholder="From">
+              </div>
+              <div class="col-6">
+                <input type="date" class="form-control form-control-sm" name="date_to" placeholder="To">
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-medium">Workplaces</label>
+            <div class="d-flex flex-wrap gap-2">
+              {% for wp in workplaces %}
+              <div class="form-check">
+                <input class="form-check-input wp-check" type="checkbox" name="workplace_ids" value="{{ wp.pk }}" id="wp_{{ wp.pk }}" checked>
+                <label class="form-check-label" for="wp_{{ wp.pk }}">{{ wp.name }}</label>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="mt-1">
+              <button type="button" class="btn btn-link btn-sm p-0" onclick="document.querySelectorAll('.wp-check').forEach(c=>c.checked=true)">Select all</button>
+              <span class="text-muted mx-1">|</span>
+              <button type="button" class="btn btn-link btn-sm p-0" onclick="document.querySelectorAll('.wp-check').forEach(c=>c.checked=false)">Deselect all</button>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-medium">Include</label>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="include_workplaces" id="inc_wp" checked>
+              <label class="form-check-label" for="inc_wp">Workplace configurations</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="include_shifts" id="inc_shifts" checked>
+              <label class="form-check-label" for="inc_shifts">Approved shifts</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="include_planned" id="inc_planned" checked>
+              <label class="form-check-label" for="inc_planned">Planned shifts</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="include_tax" id="inc_tax" checked>
+              <label class="form-check-label" for="inc_tax">Tax profiles</label>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-download me-1"></i>Export JSON
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ IMPORT ═══ -->
+  <div class="col-12 col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent border-0 fw-semibold">
+        <i class="bi bi-box-arrow-in-down me-1"></i>Import
+      </div>
+      <div class="card-body">
+        <form method="post" action="{% url 'data_io:import-upload' %}" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label fw-medium">Upload a BitGigs export file</label>
+            <input type="file" class="form-control" name="import_file" accept=".json" required>
+            <div class="form-text">Select a <code>.json</code> file previously exported from BitGigs.</div>
+          </div>
+          <button type="submit" class="btn btn-outline-primary">
+            <i class="bi bi-upload me-1"></i>Upload & Review
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

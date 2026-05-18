@@ -1,5 +1,5 @@
-"""
-Payroll services — period generation, salary estimates, flex time,
+﻿"""
+Payroll services . period generation, salary estimates, flex time,
 payslip building, vacation tracking, commuting.
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
 from workplaces.models import Workplace
-from worksessions.models import WorkSession
+from shifts.models import Shift
 from core.services import TaxCalculationService, TaxBreakdown, ATPService
 
 TWO_PLACES = Decimal("0.01")
@@ -35,7 +35,7 @@ class PayrollPeriodService:
         last day of the month.
 
         If payroll_period_start_day == 20, the period for month M is:
-          start = previous_month/20  →  end = current_month/19
+          start = previous_month/20  â†’  end = current_month/19
         """
         start_day = workplace.payroll_period_start_day
         if start_day == 1:
@@ -209,13 +209,16 @@ class SalaryEstimateService:
         total_hours: Decimal,
         as_of: date | None = None,
     ) -> SalaryEstimate:
+        # Look up the pay rate effective on the given date
+        hourly_rate, monthly_salary = workplace.get_rate_as_of(as_of)
+
         if workplace.employment_type == Workplace.EmploymentType.HOURLY:
-            base_rate = workplace.hourly_rate
+            base_rate = hourly_rate or Decimal("0")
             gross = (total_hours * base_rate).quantize(
                 TWO_PLACES, ROUND_HALF_UP
             )
         else:
-            gross = workplace.monthly_salary
+            gross = monthly_salary or Decimal("0")
 
         fritvalg_basis = Decimal("0")
         if (
@@ -274,10 +277,10 @@ class SalaryEstimateService:
             workplace_name=workplace.name,
             employment_type=workplace.employment_type,
             total_hours=total_hours,
-            hourly_rate=workplace.hourly_rate,
+            hourly_rate=hourly_rate,
             effective_hourly_rate=workplace.effective_hourly_rate,
             total_hourly_rate=workplace.total_hourly_rate,
-            monthly_salary=workplace.monthly_salary,
+            monthly_salary=monthly_salary,
             gross_pay=gross,
             fritvalgskonto=fritvalg_basis,
             taxable_gross=taxable_gross,
@@ -310,12 +313,12 @@ class FlexTimeResult:
 class FlexTimeService:
     """
     Calculate flex time for salaried employees.
-    Flex = actual hours − expected hours, carried between periods.
+    Flex = actual hours âˆ’ expected hours, carried between periods.
     """
 
     @staticmethod
     def count_weekdays(start_date: date, end_date: date) -> int:
-        """Count weekdays (Mon–Fri) in the date range inclusive."""
+        """Count weekdays (Mon.Fri) in the date range inclusive."""
         count = 0
         current = start_date
         while current <= end_date:
@@ -342,7 +345,7 @@ class FlexTimeService:
         expected = (daily_hours * weekdays).quantize(TWO_PLACES, ROUND_HALF_UP)
 
         # Sum actual session hours in the period
-        sessions = WorkSession.objects.filter(
+        sessions = Shift.objects.filter(
             workplace=workplace,
             date__gte=period_start,
             date__lte=period_end,
@@ -424,7 +427,7 @@ class PayslipService:
         from .models import PayslipLine
 
         workplace = period.workplace
-        sessions = WorkSession.objects.filter(
+        sessions = Shift.objects.filter(
             workplace=workplace,
             date__gte=period.start_date,
             date__lte=period.end_date,
@@ -446,7 +449,7 @@ class PayslipService:
         pension_emp = estimate.employee_pension
         atp_emp = estimate.employee_atp
 
-        # ── Fritvalgskonto ───────────────────────────────────────────
+        # â”€â”€ Fritvalgskonto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         fritvalg = Decimal("0")
         if (
             getattr(workplace, "fritvalgskonto_enabled", False)
@@ -457,8 +460,8 @@ class PayslipService:
                 gross * workplace.fritvalgskonto_percent / Decimal("100")
             ).quantize(TWO_PLACES)
 
-        # ── Ferietillæg ─────────────────────────────────────────────
-        # Yearly gross estimate (for ferietillæg basis)
+        # â”€â”€ FerietillÃ¦g â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # Yearly gross estimate (for ferietillÃ¦g basis)
         if workplace.employment_type == Workplace.EmploymentType.SALARIED:
             yearly_gross_est = (workplace.monthly_salary or Decimal("0")) * 12
         else:
@@ -470,7 +473,7 @@ class PayslipService:
         period_month = period.end_date.month
 
         ferietillaeg = Decimal("0")
-        ferietillaeg_name = "Ferietillæg"
+        ferietillaeg_name = "FerietillÃ¦g"
         if (
             getattr(workplace, "ferietillaeg_enabled", False)
             and workplace.ferietillaeg_percent
@@ -485,9 +488,9 @@ class PayslipService:
             # Build descriptive name with payout month list
             import calendar as _cal
             month_names = [_cal.month_abbr[m] for m in payout_months if 1 <= m <= 12]
-            ferietillaeg_name = f"Ferietillæg (paid out in {' & '.join(month_names)})"
+            ferietillaeg_name = f"FerietillÃ¦g (paid out in {' & '.join(month_names)})"
 
-        # ── Custom line classification by position ───────────────────
+        # â”€â”€ Custom line classification by position â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         # Query all existing lines to determine custom line positions.
         # Lines placed before am_bidrag are pre-tax (affect AM-bidrag/A-skat).
         # Lines placed at/after am_bidrag are post-tax (only affect net pay).
@@ -549,7 +552,7 @@ class PayslipService:
             if cl.line_type == PayslipLine.LineType.POST_TAX_DEDUCT
         )
 
-        # Adjusted gross includes fritvalgskonto, ferietillæg and custom pre-tax items
+        # Adjusted gross includes fritvalgskonto, ferietillÃ¦g and custom pre-tax items
         adjusted_gross = gross + fritvalg + ferietillaeg + custom_pre_add - custom_pre_deduct
 
         # Recalculate tax on the adjusted gross
@@ -569,7 +572,7 @@ class PayslipService:
         total_tax = (am_bidrag + a_skat).quantize(TWO_PLACES)
         subtotal = (adjusted_gross - pension_emp - atp_emp - am_bidrag - a_skat).quantize(TWO_PLACES)
 
-        # ── Basis / Rate for each standard line ─────────────────────
+        # â”€â”€ Basis / Rate for each standard line â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if workplace.employment_type == Workplace.EmploymentType.HOURLY:
             gross_qty = total_hours
             gross_rate = workplace.hourly_rate
@@ -677,7 +680,7 @@ class PayslipService:
         active_std_keys = []
         for key in cls.STANDARD_LINE_ORDER:
             vals = std_values[key]
-            # Skip fritvalgskonto / ferietillæg if zero
+            # Skip fritvalgskonto / ferietillÃ¦g if zero
             if key == "fritvalgskonto" and fritvalg == 0:
                 if key in existing_std:
                     existing_std[key].delete()
@@ -837,11 +840,11 @@ class VacationService:
         monthly_accrual_hours = (monthly_accrual_days * daily_hours).quantize(TWO_PLACES)
 
         # Vacation sessions in this month
-        vacation_sessions = WorkSession.objects.filter(
+        vacation_sessions = Shift.objects.filter(
             workplace=workplace,
             date__year=year,
             date__month=month,
-            session_type=WorkSession.SessionType.VACATION,
+            shift_type=Shift.ShiftType.VACATION,
         )
         used_hours = sum(
             (s.net_hours for s in vacation_sessions), Decimal("0")
@@ -884,11 +887,11 @@ class CommutingService:
         from .models import CommutingRecord
 
         on_site_dates = (
-            WorkSession.objects.filter(
+            Shift.objects.filter(
                 workplace=workplace,
                 date__year=year,
                 date__month=month,
-                session_type=WorkSession.SessionType.ON_SITE,
+                shift_type=Shift.ShiftType.ON_SITE,
             )
             .values_list("date", flat=True)
             .distinct()
@@ -902,3 +905,4 @@ class CommutingService:
             defaults={"commuting_days": count},
         )
         return record
+

@@ -1,6 +1,6 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% load dk_filters %}
-{% block title %}Dashboard — BitGigs{% endblock %}
+{% block title %}Dashboard &middot; BitGigs{% endblock %}
 
 {% block content %}
 <!-- ===== Pay stat counters ===== -->
@@ -8,37 +8,37 @@
   <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">
     <div class="stat-card">
       <div class="stat-card__label">Planned</div>
-      <div class="stat-card__value">{{ total_planned_gross|dk:0 }} <small class="stat-card__sub">DKK</small></div>
-      <div class="stat-card__sub">Net {{ total_planned_net|dk:0 }} DKK</div>
+      <div class="stat-card__value"><span id="stat-planned-gross">{{ total_planned_gross|dk:0 }}</span> <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">Net <span id="stat-planned-net">{{ total_planned_net|dk:0 }}</span> DKK</div>
     </div>
   </div>
   <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">
     <div class="stat-card">
       <div class="stat-card__label">Earned</div>
-      <div class="stat-card__value">{{ total_earned_gross|dk:0 }} <small class="stat-card__sub">DKK</small></div>
-      <div class="stat-card__sub">Net {{ total_earned_net|dk:0 }} DKK</div>
+      <div class="stat-card__value"><span id="stat-earned-gross">{{ total_earned_gross|dk:0 }}</span> <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">Net <span id="stat-earned-net">{{ total_earned_net|dk:0 }}</span> DKK</div>
     </div>
   </div>
   <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">
     <div class="stat-card">
       <div class="stat-card__label">Total</div>
-      <div class="stat-card__value">{{ total_combined_gross|dk:0 }} <small class="stat-card__sub">DKK</small></div>
-      <div class="stat-card__sub">Net {{ total_combined_net|dk:0 }} DKK</div>
+      <div class="stat-card__value"><span id="stat-combined-gross">{{ total_combined_gross|dk:0 }}</span> <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">Net <span id="stat-combined-net">{{ total_combined_net|dk:0 }}</span> DKK</div>
     </div>
   </div>
   {% if has_any_goal %}
   <div class="col-6 col-md-3">
     <div class="stat-card" style="position:relative;overflow:hidden;padding-bottom: 1.0 rem;">
       <div class="stat-card__label">Hour Goal</div>
-      <div class="stat-card__value" style="font-size:1.05rem;">{{ total_planned_hours|dk }}h <small class="stat-card__sub">+</small> {{ total_approved_hours|dk }}h <small class="stat-card__sub">/ {{ total_goal_min|dk:0 }}{% if total_goal_max %}–{{ total_goal_max|dk:0 }}{% endif %}h</small></div>
+      <div class="stat-card__value" style="font-size:1.05rem;"><span id="stat-planned-hours">{{ total_planned_hours|dk }}</span>h <small class="stat-card__sub">+</small> <span id="stat-approved-hours">{{ total_approved_hours|dk }}</span>h <small class="stat-card__sub">/ <span id="stat-goal-range">{{ total_goal_min|dk:0 }}{% if total_goal_max %}.{{ total_goal_max|dk:0 }}{% endif %}</span>h</small></div>
       <div class="stat-card__sub" style="visibility:hidden;">&nbsp;</div>
       <div class="goal-bar" style="position:absolute;bottom:0;left:0;right:0;height:10px;background:#e2e8f0;display:flex;">
-        <div class="goal-bar__seg" style="width:{{ goal_approved_pct }}%;background:#22c55e;"
+        <div id="goal-bar-approved" class="goal-bar__seg" style="width:{{ goal_approved_pct }}%;background:#22c55e;"
              data-goal-color="#22c55e" data-goal-label="Approved: {{ total_approved_hours|dk:1 }}h"></div>
-        <div class="goal-bar__seg" style="width:{{ goal_planned_pct }}%;background:#3b82f6;"
+        <div id="goal-bar-planned" class="goal-bar__seg" style="width:{{ goal_planned_pct }}%;background:#3b82f6;"
              data-goal-color="#3b82f6" data-goal-label="Planned: {{ total_planned_hours|dk:1 }}h"></div>
         <div class="goal-bar__seg" style="flex:1;"
-             data-goal-color="#94a3b8" data-goal-label="Goal: {{ total_goal_min|dk:0 }}{% if total_goal_max %}–{{ total_goal_max|dk:0 }}{% endif %}h"></div>
+             data-goal-color="#94a3b8" data-goal-label="Goal: {{ total_goal_min|dk:0 }}{% if total_goal_max %}.{{ total_goal_max|dk:0 }}{% endif %}h"></div>
       </div>
     </div>
     <div class="goal-tooltip" id="goalTooltip" style="display:none;position:fixed;z-index:1000;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;color:#fff;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.18);white-space:nowrap;">
@@ -96,7 +96,7 @@
   <i class="bi bi-calendar-check fs-5"></i>
   <span>
     <strong>{{ pending_shifts_count }} shift{{ pending_shifts_count|pluralize }} to approve</strong>
-    — planned shifts for today and earlier are awaiting approval.
+    &mdash; planned shifts for today and earlier are awaiting approval.
   </span>
   <button type="button" class="btn btn-sm btn-success ms-auto" data-bs-toggle="modal" data-bs-target="#dashApproveModal">
     <i class="bi bi-check2-all me-1"></i>Review & Approve
@@ -108,7 +108,7 @@
 <div class="row g-2 mb-4">
   {% for item in workplace_data %}
   <div class="col-12 col-md-6 col-lg-4">
-  <a href="{% url 'workplaces:workplace-detail' item.workplace.pk %}" class="workplace-card d-flex align-items-center gap-3 py-2 px-3"
+  <a href="{% url 'workplaces:workplace-detail' item.workplace.slug %}" class="workplace-card d-flex align-items-center gap-3 py-2 px-3"
      {% if item.workplace.accent_color %}style="border-left:4px solid {{ item.workplace.accent_color }};"{% endif %}>
     {% if item.workplace.custom_icon %}
       <span class="workplace-avatar" style="background:{{ item.workplace.color|default:item.avatar_color }};width:36px;height:36px;overflow:hidden;">
@@ -179,7 +179,7 @@
   </div>
 </div>
 
-<!-- ═══════ Approve Shifts Modal (all workplaces) ═══════ -->
+<!-- â•â•â•â•â•â•â• Approve Shifts Modal (all workplaces) â•â•â•â•â•â•â• -->
 {% if pending_shifts_count %}
 <div class="modal fade" id="dashApproveModal" tabindex="-1" aria-labelledby="dashApproveModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
@@ -265,7 +265,7 @@
 {% block extra_js %}
 <script>
 {% if has_any_goal %}
-// ═══════ Goal Tooltip ═══════
+// â•â•â•â•â•â•â• Goal Tooltip â•â•â•â•â•â•â•
 (function() {
   var tip = document.getElementById('goalTooltip');
   if (!tip) return;
@@ -294,7 +294,7 @@
 {% endif %}
 
 {% if todays_banner and todays_banner.has_unconfirmed %}
-// ═══════ Today's Shift — Arrival Queue ═══════
+// â•â•â•â•â•â•â• Today's Shift . Arrival Queue â•â•â•â•â•â•â•
 (function() {
   var queue = {{ todays_shifts_json|safe }};
   var multiple = {{ todays_banner.multiple|yesno:"true,false" }};
@@ -304,6 +304,52 @@
   var label = document.getElementById('todayArrivalLabel');
   var idx = 0;
   var UPDATE_URL = '{% url "calendar_view:planned-shift-update-api" pk=0 %}';
+  var STATS_URL = '{% url "core:dashboard-stats" %}';
+
+  // Format a number in Danish style (period thousands, no decimals)
+  function dkFmt(n) {
+    return Math.round(n).toLocaleString('da-DK', { maximumFractionDigits: 0 });
+  }
+
+  // Format hours with 2 decimal places in Danish style
+  function dkFmtH(n) {
+    return parseFloat(n).toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function refreshStats() {
+    var params = new URLSearchParams(window.location.search);
+    var qs = params.toString() ? '?' + params.toString() : '';
+    fetch(STATS_URL + qs)
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.ok) return;
+        var el;
+        if ((el = document.getElementById('stat-planned-gross'))) el.textContent = dkFmt(d.planned_gross);
+        if ((el = document.getElementById('stat-planned-net'))) el.textContent = dkFmt(d.planned_net);
+        if ((el = document.getElementById('stat-earned-gross'))) el.textContent = dkFmt(d.earned_gross);
+        if ((el = document.getElementById('stat-earned-net'))) el.textContent = dkFmt(d.earned_net);
+        if ((el = document.getElementById('stat-combined-gross'))) el.textContent = dkFmt(d.combined_gross);
+        if ((el = document.getElementById('stat-combined-net'))) el.textContent = dkFmt(d.combined_net);
+        if (d.has_any_goal) {
+          if ((el = document.getElementById('stat-planned-hours'))) el.textContent = dkFmtH(d.total_planned_hours);
+          if ((el = document.getElementById('stat-approved-hours'))) el.textContent = dkFmtH(d.total_approved_hours);
+          if ((el = document.getElementById('stat-goal-range'))) {
+            el.textContent = dkFmt(d.total_goal_min) + (d.total_goal_max ? '\u2013' + dkFmt(d.total_goal_max) : '');
+          }
+          var approvedSeg = document.getElementById('goal-bar-approved');
+          var plannedSeg = document.getElementById('goal-bar-planned');
+          if (approvedSeg) {
+            approvedSeg.style.width = d.goal_approved_pct + '%';
+            approvedSeg.dataset.goalLabel = 'Approved: ' + dkFmtH(d.total_approved_hours) + 'h';
+          }
+          if (plannedSeg) {
+            plannedSeg.style.width = d.goal_planned_pct + '%';
+            plannedSeg.dataset.goalLabel = 'Planned: ' + dkFmtH(d.total_planned_hours) + 'h';
+          }
+        }
+      })
+      .catch(function() {});
+  }
 
   function showCurrent() {
     if (idx >= queue.length) {
@@ -348,6 +394,7 @@
       if (data.ok) {
         label.textContent = 'Saved!';
         saveBtn.innerHTML = '<i class="bi bi-check-lg"></i>';
+        refreshStats();
         idx++;
         setTimeout(function() { showCurrent(); }, 1000);
       } else {
@@ -362,7 +409,7 @@
 {% endif %}
 
 {% if todays_banner %}
-// ═══════ Today's Shift — Live Countdown ═══════
+// â•â•â•â•â•â•â• Today's Shift . Live Countdown â•â•â•â•â•â•â•
 (function() {
   var shifts = {{ todays_banner_shifts_json|safe }};
   var el = document.getElementById('todayShiftStatus');
@@ -418,7 +465,7 @@
       var wpName = shifts.length > 1 ? (' at ' + current.shift.workplace_name) : '';
       var html = '<i class="bi bi-clock me-1"></i>Your current shift' + wpName +
                  ' ends in <strong>' + fmtDuration(remaining) + '</strong>' +
-                 ' <span style="font-size:0.78rem;opacity:0.7;">(' + current.shift.start_time + '–' + current.shift.end_time + ')</span>';
+                 ' <span style="font-size:0.78rem;opacity:0.7;">(' + current.shift.start_time + '.' + current.shift.end_time + ')</span>';
       if (next) {
         html += '<br><span style="font-size:0.82rem;">Then at <strong>' + next.start_time +
                 '</strong> you have a' + (shifts.length > 1 ? ' ' + next.workplace_name : '') +
@@ -430,10 +477,10 @@
       var wpName2 = shifts.length > 1 ? (next.workplace_name + ' ') : '';
       var html2 = '<i class="bi bi-hourglass-split me-1"></i>Your ' + wpName2 + 'shift starts in <strong>' +
                   fmtDuration(untilStart) + '</strong>' +
-                  ' <span style="font-size:0.78rem;opacity:0.7;">(' + next.start_time + '–' + next.end_time + ')</span>';
+                  ' <span style="font-size:0.78rem;opacity:0.7;">(' + next.start_time + '.' + next.end_time + ')</span>';
       el.innerHTML = html2;
     } else {
-      // All shifts ended — check if we're past the last shift
+      // All shifts ended . check if we're past the last shift
       var last = shifts[shifts.length - 1];
       if (nowMin >= toMin(last.end_time)) {
         el.innerHTML = '<i class="bi bi-check-circle me-1"></i>All shifts for today are done!';
@@ -454,7 +501,7 @@
 {% endif %}
 
 {% if pending_shifts_count %}
-// ═══════ Dashboard Approve Modal ═══════
+// â•â•â•â•â•â•â• Dashboard Approve Modal â•â•â•â•â•â•â•
 (function() {
   var SHIFTS = {{ pending_shifts_json|safe }};
   var body = document.getElementById('dashApproveBody');
@@ -518,12 +565,12 @@
           '<td class="small">' + s.date + '</td>' +
           '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.start_time + '" data-field="start_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
           '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.end_time + '" data-field="end_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
-          '<td><select class="form-select form-select-sm py-0" data-field="session_type" data-id="' + s.id + '" style="width:7rem;">' +
-            '<option value="on_site"' + (s.session_type==='on_site'?' selected':'') + '>On-site</option>' +
-            '<option value="remote"' + (s.session_type==='remote'?' selected':'') + '>Remote</option>' +
-            '<option value="sick_leave"' + (s.session_type==='sick_leave'?' selected':'') + '>Sick leave</option>' +
-            '<option value="paid_absence"' + (s.session_type==='paid_absence'?' selected':'') + '>Paid absence</option>' +
-            '<option value="vacation"' + (s.session_type==='vacation'?' selected':'') + '>Vacation</option>' +
+          '<td><select class="form-select form-select-sm py-0" data-field="shift_type" data-id="' + s.id + '" style="width:7rem;">' +
+            '<option value="on_site"' + (s.shift_type==='on_site'?' selected':'') + '>On-site</option>' +
+            '<option value="remote"' + (s.shift_type==='remote'?' selected':'') + '>Remote</option>' +
+            '<option value="sick_leave"' + (s.shift_type==='sick_leave'?' selected':'') + '>Sick leave</option>' +
+            '<option value="paid_absence"' + (s.shift_type==='paid_absence'?' selected':'') + '>Paid absence</option>' +
+            '<option value="vacation"' + (s.shift_type==='vacation'?' selected':'') + '>Vacation</option>' +
           '</select></td>' +
           '<td class="small text-end">' + toDanish(s.net_hours) + 'h</td>' +
           '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 dash-edit-btn" data-shift-id="' + s.id + '" title="Edit shift"><i class="bi bi-pencil" style="font-size:0.65rem;"></i></button></td>';
@@ -589,7 +636,7 @@
     });
 
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Approving…';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Approvingâ€¦';
 
     fetch(APPROVE_URL, {
       method: 'POST',
@@ -628,7 +675,7 @@
       document.getElementById('dashEditStart').value = s.start_time;
       document.getElementById('dashEditEnd').value = s.end_time;
       document.getElementById('dashEditBreak').value = s.break_minutes;
-      document.getElementById('dashEditType').value = s.session_type;
+      document.getElementById('dashEditType').value = s.shift_type;
       document.getElementById('dashEditNotes').value = s.notes;
       document.getElementById('dashEditErrors').classList.add('d-none');
       editModal.show();
@@ -644,7 +691,7 @@
       start_time: document.getElementById('dashEditStart').value,
       end_time: document.getElementById('dashEditEnd').value,
       break_minutes: parseInt(document.getElementById('dashEditBreak').value) || 0,
-      session_type: document.getElementById('dashEditType').value,
+      shift_type: document.getElementById('dashEditType').value,
       notes: document.getElementById('dashEditNotes').value,
     };
     fetch(url, {
@@ -664,7 +711,7 @@
           SHIFTS[i].start_time = s.start_time;
           SHIFTS[i].end_time = s.end_time;
           SHIFTS[i].break_minutes = s.break_minutes;
-          SHIFTS[i].session_type = s.session_type;
+          SHIFTS[i].shift_type = s.shift_type;
           SHIFTS[i].net_hours = s.net_hours;
           break;
         }
@@ -679,3 +726,4 @@
 {% endif %}
 </script>
 {% endblock %}
+

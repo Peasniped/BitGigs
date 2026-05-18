@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
+from django.utils.text import slugify
 
 
 class Workplace(models.Model):
@@ -26,6 +27,10 @@ class Workplace(models.Model):
 
     # Basic info
     name = models.CharField(max_length=200)
+    slug = models.SlugField(
+        max_length=200, unique=True,
+        help_text="URL-friendly short name. Auto-generated from name, but editable.",
+    )
     is_active = models.BooleanField(default=True)
 
     # Customisation (optional)
@@ -229,6 +234,17 @@ class Workplace(models.Model):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base_slug = slugify(self.name) or "workplace"
+            slug = base_slug
+            n = 1
+            while Workplace.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{n}"
+                n += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
+
     def clean(self):
         super().clean()
         if self.employment_type == self.EmploymentType.HOURLY and not self.hourly_rate:
@@ -343,3 +359,58 @@ class Workplace(models.Model):
         """Fixed Danish vacation accrual: 2.08 days per month."""
         from decimal import Decimal
         return Decimal("2.08")
+
+    def get_rate_as_of(self, as_of=None):
+        """Return (hourly_rate, monthly_salary) effective on the given date.
+
+        Falls back to the workplace's own fields if no PayRate entries exist.
+        """
+        from datetime import date as _date
+        if as_of is None:
+            as_of = _date.today()
+        rate = (
+            self.pay_rates.filter(effective_from__lte=as_of)
+            .order_by("-effective_from")
+            .first()
+        )
+        if rate:
+            return rate.hourly_rate, rate.monthly_salary
+        # Fallback: use the fields on the workplace itself
+        return self.hourly_rate, self.monthly_salary
+
+
+class PayRate(models.Model):
+    """
+    Date-versioned pay rate for a workplace.
+    The rate with the latest effective_from <= a given date is used.
+    """
+
+    workplace = models.ForeignKey(
+        Workplace, on_delete=models.CASCADE, related_name="pay_rates"
+    )
+    hourly_rate = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="Hourly rate in DKK (for hourly employment).",
+    )
+    monthly_salary = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Monthly gross salary in DKK (for salaried employment).",
+    )
+    effective_from = models.DateField(
+        help_text="This rate applies from this date forward.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-effective_from"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["workplace", "effective_from"],
+                name="unique_rate_per_date",
+            )
+        ]
+
+    def __str__(self):
+        if self.hourly_rate:
+            return f"{self.workplace.name}: {self.hourly_rate} DKK/h from {self.effective_from}"
+        return f"{self.workplace.name}: {self.monthly_salary} DKK/mo from {self.effective_from}"
