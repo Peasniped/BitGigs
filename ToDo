@@ -1,3 +1,6 @@
+- A page I can use to transfer shift info to whatever kind of system the workplace uses for me to report my hours
+- - Should be customizable. Example at JKF i need Date, week, month, hours, break(30 min, yes/no), name. This is transferred into an excel sheet. - if there are multiple shifts in one day, add them toghether to one per date.
+
 Analytics page:
 - Average hours per month/week should be calculated (trailing over a configurable amount of months) and projected forward
 - Expected income for the entire year and each month.
