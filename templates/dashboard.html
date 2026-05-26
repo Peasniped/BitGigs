@@ -355,7 +355,7 @@
     if (idx >= queue.length) {
       wrap.style.transition = 'opacity .4s';
       wrap.style.opacity = '0';
-      setTimeout(function() { wrap.remove(); }, 400);
+      setTimeout(function() { window.location.reload(); }, 400);
       return;
     }
     var s = queue[idx];
@@ -465,7 +465,7 @@
       var wpName = shifts.length > 1 ? (' at ' + current.shift.workplace_name) : '';
       var html = '<i class="bi bi-clock me-1"></i>Your current shift' + wpName +
                  ' ends in <strong>' + fmtDuration(remaining) + '</strong>' +
-                 ' <span style="font-size:0.78rem;opacity:0.7;">(' + current.shift.start_time + '.' + current.shift.end_time + ')</span>';
+                 ' <span style="font-size:0.78rem;opacity:0.7;">(' + current.shift.start_time + '–' + current.shift.end_time + ')</span>';
       if (next) {
         html += '<br><span style="font-size:0.82rem;">Then at <strong>' + next.start_time +
                 '</strong> you have a' + (shifts.length > 1 ? ' ' + next.workplace_name : '') +
@@ -477,7 +477,7 @@
       var wpName2 = shifts.length > 1 ? (next.workplace_name + ' ') : '';
       var html2 = '<i class="bi bi-hourglass-split me-1"></i>Your ' + wpName2 + 'shift starts in <strong>' +
                   fmtDuration(untilStart) + '</strong>' +
-                  ' <span style="font-size:0.78rem;opacity:0.7;">(' + next.start_time + '.' + next.end_time + ')</span>';
+                  ' <span style="font-size:0.78rem;opacity:0.7;">(' + next.start_time + '–' + next.end_time + ')</span>';
       el.innerHTML = html2;
     } else {
       // All shifts ended . check if we're past the last shift

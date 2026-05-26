@@ -76,6 +76,8 @@ Non-work events in planning calendar.
 - Basic events: Name, time/all day
 - Calendar invites are not sent with the SMTP system
 - Possibility to sync with web-calendar to import events
+- Put Danish holidays in the calendar
+- Easy toggle on the planning page to turn off non-work events per calendar
 
 Commuting page:
 - The page is broken, the workplace dropdown is empty and it breaks the page.
