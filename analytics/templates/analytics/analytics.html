@@ -249,7 +249,7 @@
 
 {# ── Per-workplace collapsible tables ───────────── #}
 {% for item in workplaces_view %}
-  {% with wp=item.wp_proj %}
+  {% with wp=item.wp_proj emp_type=item.employment_type %}
   <div class="card mb-3">
     <div class="wp-collapse-header"
          data-bs-toggle="collapse"
@@ -263,12 +263,6 @@
         <div class="text-muted" style="font-size:0.78rem;">
           Avg {{ wp.trailing_avg_monthly_hours|dk:1 }} h/mo
           ({{ wp.trailing_avg_weekly_hours|dk:1 }} h/wk)
-          {% if wp.workplace.contract_start_date or wp.workplace.contract_end_date %}
-            · Contract:
-            {{ wp.workplace.contract_start_date|date:"Y-m-d"|default:"—" }}
-            &rarr;
-            {{ wp.workplace.contract_end_date|date:"Y-m-d"|default:"open" }}
-          {% endif %}
         </div>
       </div>
       <div class="text-end small">
@@ -282,7 +276,7 @@
           <thead>
             <tr>
               <th>Month</th>
-              {% if wp.workplace.employment_type == 'salaried' %}
+              {% if emp_type == 'salaried' %}
                 <th class="text-end">Salaried h</th>
                 <th class="text-end">Logged h</th>
               {% else %}
@@ -302,7 +296,7 @@
                   {% endif %}
                 </td>
                 {% if row.contract_active %}
-                  {% if wp.workplace.employment_type == 'salaried' %}
+                  {% if emp_type == 'salaried' %}
                     <td class="text-end">{{ row.hours|dk:1 }}</td>
                     <td class="text-end">
                       {{ row.actual_hours|dk:1 }}
@@ -316,7 +310,7 @@
                   <td class="text-end">{{ row.gross|dk:0 }}</td>
                   <td class="text-end">{{ row.net|dk:0 }}</td>
                 {% else %}
-                  <td colspan="{% if wp.workplace.employment_type == 'salaried' %}4{% else %}3{% endif %}" class="text-muted">
+                  <td colspan="{% if emp_type == 'salaried' %}4{% else %}3{% endif %}" class="text-muted">
                     <em>contract inactive</em>
                   </td>
                 {% endif %}

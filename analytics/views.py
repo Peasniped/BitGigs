@@ -8,6 +8,7 @@ from django.views import View
 from core.models import UserSettings
 from core.utils import avatar_for_name
 from workplaces.models import Workplace
+from workplaces.services import workplaces_active_today
 from .services import AnalyticsService
 
 
@@ -104,7 +105,8 @@ class AnalyticsView(View):
         trailing_months = settings.projection_trailing_months
         method = settings.projection_method
 
-        all_workplaces_qs = Workplace.objects.filter(is_active=True).order_by("name")
+        from workplaces.services import WorkplaceService
+        all_workplaces_qs = WorkplaceService.workplaces_active_in_period(start, end).order_by("name")
         selected_qs, selected_slugs, is_all = _resolve_workplace_filter(
             request, all_workplaces_qs
         )
@@ -155,9 +157,11 @@ class AnalyticsView(View):
         # Workplace context for collapsible cards
         workplaces_view = []
         for wp_proj in projection.workplaces:
+            ts_today = wp_proj.workplace.active_termset_on(today)
             workplaces_view.append({
                 "wp_proj": wp_proj,
                 "avatar": _avatar_payload(wp_proj.workplace),
+                "employment_type": ts_today.employment_type if ts_today else "",
             })
 
         return render(request, self.template_name, {
@@ -193,13 +197,7 @@ class RateHistoryView(View):
     def get(self, request):
         today = date.today()
 
-        all_workplaces_qs = Workplace.objects.filter(is_active=True).order_by("name")
-        selected_qs, selected_slugs, is_all = _resolve_workplace_filter(
-            request, all_workplaces_qs
-        )
-
-        # Period (all / year / custom range). 'all' is rate-history specific
-        # and is the default when no period is provided in the querystring.
+        # Period resolved first so we can filter by it
         raw_mode = request.GET.get("period_mode")
         if raw_mode == "all" or raw_mode is None:
             period_mode = "all"
@@ -208,6 +206,16 @@ class RateHistoryView(View):
             year = today.year
         else:
             start, end, period_mode, year = _resolve_period(request, today)
+
+        from workplaces.services import WorkplaceService
+        if start and end:
+            all_workplaces_qs = WorkplaceService.workplaces_active_in_period(start, end).order_by("name")
+        else:
+            all_workplaces_qs = workplaces_active_today().order_by("name")
+        selected_qs, selected_slugs, is_all = _resolve_workplace_filter(
+            request, all_workplaces_qs
+        )
+
         year_options = list(range(today.year - 5, today.year + 4))
         start_iso = start.isoformat() if start else None
         end_iso = end.isoformat() if end else None
@@ -265,6 +273,7 @@ class RateHistoryView(View):
                     in_range.append(last_in)
                 chart_points = in_range
 
+            ts_today = wp.active_termset_on(today)
             workplace_rows.append({
                 "workplace": wp,
                 "avatar": _avatar_payload(wp),
@@ -272,6 +281,8 @@ class RateHistoryView(View):
                 "chart_points": chart_points,
                 "chart_points_json": json.dumps(chart_points),
                 "today_iso": today.isoformat(),
+                "employment_type": ts_today.employment_type if ts_today else "",
+                "employment_type_display": ts_today.get_employment_type_display() if ts_today else "",
             })
 
         workplaces_for_picker = []

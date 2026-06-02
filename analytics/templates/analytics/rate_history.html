@@ -202,7 +202,7 @@
       <div class="flex-grow-1">
         <div class="fw-semibold">{{ row.workplace.name }}</div>
         <div class="text-muted" style="font-size:0.78rem;">
-          {{ row.workplace.get_employment_type_display }} · {{ row.history|length }} rate change{{ row.history|length|pluralize }}
+          {{ row.employment_type_display }} · {{ row.history|length }} rate change{{ row.history|length|pluralize }}
         </div>
       </div>
     </div>
@@ -213,6 +213,7 @@
             <canvas class="rate-chart"
                     data-points="{{ row.chart_points_json|escape }}"
                     data-name="{{ row.workplace.name }}"
+                    data-color="{{ row.avatar.accent_color|default:'' }}"
                     data-today="{{ row.today_iso }}"></canvas>
           </div>
         </div>
@@ -222,7 +223,7 @@
           <thead>
             <tr>
               <th>Effective from</th>
-              {% if row.workplace.employment_type == 'hourly' %}
+              {% if row.employment_type == 'hourly' %}
                 <th class="text-end">Gross / hour</th>
                 <th class="text-end">Effective / hour</th>
                 <th class="text-end">Total / hour</th>
@@ -241,7 +242,7 @@
             {% for h in row.history %}
               <tr class="{% if forloop.last %}row-current{% else %}row-historic{% endif %}">
                 <td>{{ h.effective_from|date:"Y-m-d" }}</td>
-                {% if row.workplace.employment_type == 'hourly' %}
+                {% if row.employment_type == 'hourly' %}
                   <td class="text-end">{{ h.hourly_rate|dk:2|default:"—" }}</td>
                   <td class="text-end">{{ h.effective_hourly|dk:2|default:"—" }}</td>
                   <td class="text-end">{{ h.total_hourly|dk:2|default:"—" }}</td>
@@ -434,7 +435,7 @@
       if (!pts || !pts.length) return;
       series.push({
         name: canvas.dataset.name || ('Workplace ' + (idx + 1)),
-        color: PALETTE[idx % PALETTE.length],
+        color: canvas.dataset.color || PALETTE[idx % PALETTE.length],
         points: pts,
       });
     });
