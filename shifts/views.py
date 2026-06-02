@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 
+from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.views import View
@@ -7,6 +8,7 @@ from django.views import View
 from .models import Shift
 from .forms import ShiftForm
 from .services import ShiftSummaryService
+from core.services import TaxCalculationService
 
 
 class ShiftCreateView(View):
@@ -32,6 +34,9 @@ class ShiftCreateView(View):
 
         if form.is_valid():
             shift = form.save()
+            warning = TaxCalculationService.coverage_warning(shift.date)
+            if warning:
+                messages.warning(request, warning)
             if is_ajax:
                 return JsonResponse({
                     "status": "ok",
@@ -75,6 +80,9 @@ class ShiftUpdateView(View):
         form = ShiftForm(request.POST, instance=shift)
         if form.is_valid():
             form.save()
+            warning = TaxCalculationService.coverage_warning(shift.date)
+            if warning:
+                messages.warning(request, warning)
             next_page = request.GET.get("next") or request.POST.get("next")
             if next_page == "workplace" and shift.workplace_id:
                 from django.urls import reverse

@@ -105,6 +105,23 @@ class TaxCalculationService:
             profile = TaxProfile.objects.order_by("effective_from").first()
         return profile
 
+    @staticmethod
+    def coverage_warning(as_of: date) -> str | None:
+        """Return a warning if *as_of* precedes every tax profile, else None.
+
+        Such a shift has no tax profile defined for its date; the estimate falls
+        back to the earliest profile and may be inaccurate.
+        """
+        earliest = TaxProfile.objects.order_by("effective_from").first()
+        if earliest and as_of < earliest.effective_from:
+            return (
+                f"This shift is dated {as_of}, before your earliest tax profile "
+                f"({earliest.effective_from}). Pay estimates will use that profile "
+                f"and may be inaccurate. Edit a tax profile or add one with an "
+                f"earlier start date."
+            )
+        return None
+
     @classmethod
     def calculate(
         cls,
