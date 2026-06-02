@@ -11,6 +11,11 @@
 - When setup has not been completed, all pages should redirect to /setup/
 - Power Edit > Delete All should be able to remove all shifts (across all workplaces) for a single day when clicked.
 
+- On the workplace dashboard, it seems like the 'Contracts & Pay Terms'-div only takes up the left 2/3 of the content width
+
+- On the analytics > rate history (with only one workplace created), the all workplaces graph is not showing. Maybe, if only one workplace is added, the workplace should just be expanded.
+- Also, it does not make a lot of sense to have an 'All'-button when there is only one workplace. (:
+
 # SENERE --------------------------------------------------------
 
 *** Main Dashboard: ***
