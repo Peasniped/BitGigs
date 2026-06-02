@@ -1,4 +1,4 @@
-﻿from datetime import date
+from datetime import date
 from decimal import Decimal
 import json
 import os
@@ -7,8 +7,8 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.views import View
 
-from .models import Workplace, PayRate
-from .forms import WorkplaceForm, PayRateForm
+from .models import Workplace, WorkplaceContract, ContractTermSet
+from .forms import WorkplaceForm, WorkplaceContractForm, ContractTermSetForm
 from core.utils import avatar_for_name, prev_next_month, WEEKS_PER_MONTH
 
 # Curated icon choices for the workplace icon picker
@@ -20,21 +20,21 @@ ICON_CHOICES = [
     "bi-house", "bi-graph-up", "bi-people", "bi-book", "bi-star",
 ]
 
-# Muted / pastel palette for avatar background (Tailwind 200-level)
 BG_COLOR_CHOICES = [
     "#c7d2fe", "#ddd6fe", "#fbcfe8", "#fecaca", "#fed7aa",
     "#fef08a", "#bbf7d0", "#99f6e4", "#bfdbfe", "#ffffff",
 ]
 
-# Saturated palette for accent / theming (Tailwind 500-level)
 ACCENT_COLOR_CHOICES = [
     "#6366f1", "#8b5cf6", "#ec4899", "#ef4444", "#f97316",
     "#eab308", "#22c55e", "#14b8a6", "#3b82f6", "#1e293b",
 ]
 
+import calendar as _cal_mod
+MONTH_CHOICES = [(str(i), _cal_mod.month_abbr[i]) for i in range(1, 13)]
+
 
 def _tax_profile_json():
-    """Return a JSON string with the active tax profile data for form JS."""
     from core.services import TaxCalculationService
     profile = TaxCalculationService.get_active_profile()
     if profile:
@@ -45,13 +45,9 @@ def _tax_profile_json():
     return ""
 
 
-# Month choices for ferietillaeg payout picker
-import calendar as _cal_mod
-MONTH_CHOICES = [(str(i), _cal_mod.month_abbr[i]) for i in range(1, 13)]
-
-
-# Curated icon choices for the workplace icon picker
-
+# ─────────────────────────────────────────────────────────────────────────────
+# Workplace CRUD
+# ─────────────────────────────────────────────────────────────────────────────
 
 class WorkplaceListView(View):
     def get(self, request):
@@ -73,20 +69,41 @@ class WorkplaceDetailView(View):
         workplace = get_object_or_404(Workplace, slug=slug)
         today = date.today()
 
-        # Determine which payroll month "today" belongs to for this workplace
-        today_payroll_year, today_payroll_month = PayrollPeriodService.get_payroll_month(workplace, today)
+        # Resolve active termset for today (may be None if no contract active)
+        active_termset = workplace.active_termset_on(today)
+
+        # Payroll month depends on payroll_period_start_day from active termset
+        if active_termset:
+            today_payroll_year, today_payroll_month = PayrollPeriodService.get_payroll_month(
+                active_termset, today
+            )
+        else:
+            today_payroll_year, today_payroll_month = today.year, today.month
 
         year = int(request.GET.get("year", today_payroll_year))
         month = int(request.GET.get("month", today_payroll_month))
 
-        # Avatar
+        # Resolve termset for the viewed month's mid-point (may differ from today)
+        viewed_mid = date(year, month, 15)
+        viewed_termset = workplace.active_termset_on(viewed_mid) or active_termset
+
         avatar_initials, avatar_color = avatar_for_name(workplace.name)
 
-        # Payroll-period calendar for this workplace
         grid = CalendarService.payroll_period_calendar(workplace.pk, year, month)
 
-        # Calculate earned so far
-        period_start, period_end = PayrollPeriodService.get_period_dates(workplace, year, month)
+        # Period dates and earnings
+        if viewed_termset:
+            period_start, period_end = PayrollPeriodService.get_period_dates(
+                viewed_termset, year, month
+            )
+            tax_pull_date = PayrollPeriodService.get_tax_pull_date(viewed_termset, year, month)
+        else:
+            import calendar as _cal
+            last_day = _cal.monthrange(year, month)[1]
+            period_start = date(year, month, 1)
+            period_end = date(year, month, last_day)
+            tax_pull_date = date(year, month, 18)
+
         sessions_in_period = Shift.objects.filter(
             workplace=workplace,
             date__gte=period_start,
@@ -94,36 +111,39 @@ class WorkplaceDetailView(View):
         )
         actual_hours = sum((s.net_hours for s in sessions_in_period), Decimal("0"))
         avg_hours_per_week = (actual_hours / WEEKS_PER_MONTH).quantize(Decimal("0.01"))
-        tax_pull_date = PayrollPeriodService.get_tax_pull_date(workplace, year, month)
-        estimate = SalaryEstimateService.estimate(workplace, actual_hours, as_of=tax_pull_date)
 
-        # Feriepenge calculation (only for feriekonto workplaces)
+        estimate = None
         feriepenge_gross = Decimal("0")
         feriepenge_am = Decimal("0")
         feriepenge_a_skat = Decimal("0")
         feriepenge_net = Decimal("0")
         feriepenge_rate = Decimal("0")
-        if workplace.vacation_type == Workplace.VacationType.FERIEKONTO:
-            feriepenge_rate = Decimal("12.50")
-            feriepenge_gross = (estimate.gross_pay * feriepenge_rate / Decimal("100")).quantize(Decimal("0.01"))
-            # Taxed with AM-bidrag and A-skat, no fradrag (like bikort)
-            feriepenge_tax = TaxCalculationService.calculate(
-                feriepenge_gross,
-                as_of=tax_pull_date,
-                tax_card_type="bikort",
-                employee_pension=Decimal("0"),
-                employee_atp=Decimal("0"),
-            )
-            feriepenge_am = feriepenge_tax.am_bidrag
-            feriepenge_a_skat = feriepenge_tax.a_skat
-            feriepenge_net = feriepenge_tax.net_pay
+        pension_employee = Decimal("0")
+        pension_employer = Decimal("0")
+        fritvalgskonto = Decimal("0")
 
-        # Pension & fritvalgskonto from estimate
-        pension_employee = estimate.employee_pension
-        pension_employer = estimate.employer_pension
-        fritvalgskonto = estimate.fritvalgskonto
+        if viewed_termset:
+            estimate = SalaryEstimateService.estimate(viewed_termset, actual_hours, as_of=tax_pull_date)
 
-        # Selected day sessions (if a day is clicked)
+            if viewed_termset.vacation_type == ContractTermSet.VacationType.FERIEKONTO:
+                feriepenge_rate = Decimal("12.50")
+                feriepenge_gross = (estimate.gross_pay * feriepenge_rate / Decimal("100")).quantize(Decimal("0.01"))
+                feriepenge_tax = TaxCalculationService.calculate(
+                    feriepenge_gross,
+                    as_of=tax_pull_date,
+                    tax_card_type="bikort",
+                    employee_pension=Decimal("0"),
+                    employee_atp=Decimal("0"),
+                )
+                feriepenge_am = feriepenge_tax.am_bidrag
+                feriepenge_a_skat = feriepenge_tax.a_skat
+                feriepenge_net = feriepenge_tax.net_pay
+
+            pension_employee = estimate.employee_pension
+            pension_employer = estimate.employer_pension
+            fritvalgskonto = estimate.fritvalgskonto
+
+        # Selected day sessions
         selected_date = request.GET.get("day")
         day_sessions = []
         if selected_date:
@@ -135,21 +155,17 @@ class WorkplaceDetailView(View):
             except ValueError:
                 selected_date = None
 
-        # Navigation
         prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
 
-        # Months that have session data (for the month picker)
         months_with_data = list(
             Shift.objects.filter(workplace=workplace)
             .values_list("date__year", "date__month")
             .distinct()
             .order_by("date__year", "date__month")
         )
-        # Always include the currently selected month in the list
         if (year, month) not in months_with_data:
             months_with_data.append((year, month))
             months_with_data.sort()
-        # Always include the current month
         if (today.year, today.month) not in months_with_data:
             months_with_data.append((today.year, today.month))
             months_with_data.sort()
@@ -158,23 +174,19 @@ class WorkplaceDetailView(View):
         month_picker = []
         for y, m in months_with_data:
             month_picker.append({
-                "year": y,
-                "month": m,
+                "year": y, "month": m,
                 "label": cal_mod.month_abbr[m],
                 "is_current": y == today.year and m == today.month,
                 "is_selected": y == year and m == month,
             })
 
-        # Group months by year for the picker UI
         from collections import OrderedDict
         month_picker_by_year: dict[int, list] = OrderedDict()
         for mp in month_picker:
             month_picker_by_year.setdefault(mp["year"], []).append(mp)
 
-        # All month names for the "go to month" dropdown
         all_months = [(i, cal_mod.month_name[i]) for i in range(1, 13)]
 
-        # Pending planned shifts (for approval banner + modal)
         pending_shifts = list(
             PlannedShift.objects.filter(
                 workplace=workplace,
@@ -197,11 +209,17 @@ class WorkplaceDetailView(View):
             for s in pending_shifts
         ])
 
+        # All contracts for the timeline section
+        contracts = workplace.contracts.prefetch_related("term_sets").order_by("start_date")
+
         return render(
             request,
             "workplaces/workplace_detail.html",
             {
                 "workplace": workplace,
+                "active_termset": active_termset,
+                "viewed_termset": viewed_termset,
+                "contracts": contracts,
                 "grid": grid,
                 "year": year,
                 "month": month,
@@ -242,27 +260,14 @@ class WorkplaceDetailView(View):
 class WorkplaceCreateView(View):
     def get(self, request):
         form = WorkplaceForm()
-        return render(request, "workplaces/workplace_form.html", {
-            "form": form, "tax_profile_json": _tax_profile_json(),
-            "month_choices": MONTH_CHOICES,
-        })
+        return render(request, "workplaces/workplace_form.html", {"form": form})
 
     def post(self, request):
         form = WorkplaceForm(request.POST)
         if form.is_valid():
             workplace = form.save()
-            # Create the initial PayRate entry
-            PayRate.objects.create(
-                workplace=workplace,
-                hourly_rate=workplace.hourly_rate,
-                monthly_salary=workplace.monthly_salary,
-                effective_from=date.today(),
-            )
-            return redirect("workplaces:workplace-list")
-        return render(request, "workplaces/workplace_form.html", {
-            "form": form, "tax_profile_json": _tax_profile_json(),
-            "month_choices": MONTH_CHOICES,
-        })
+            return redirect("workplaces:contract-create", slug=workplace.slug)
+        return render(request, "workplaces/workplace_form.html", {"form": form})
 
 
 class WorkplaceUpdateView(View):
@@ -270,10 +275,8 @@ class WorkplaceUpdateView(View):
         workplace = get_object_or_404(Workplace, slug=slug)
         form = WorkplaceForm(instance=workplace)
         return render(
-            request,
-            "workplaces/workplace_form.html",
-            {"form": form, "workplace": workplace, "tax_profile_json": _tax_profile_json(),
-             "month_choices": MONTH_CHOICES},
+            request, "workplaces/workplace_form.html",
+            {"form": form, "workplace": workplace},
         )
 
     def post(self, request, slug):
@@ -283,10 +286,8 @@ class WorkplaceUpdateView(View):
             form.save()
             return redirect("workplaces:workplace-detail", slug=workplace.slug)
         return render(
-            request,
-            "workplaces/workplace_form.html",
-            {"form": form, "workplace": workplace, "tax_profile_json": _tax_profile_json(),
-             "month_choices": MONTH_CHOICES},
+            request, "workplaces/workplace_form.html",
+            {"form": form, "workplace": workplace},
         )
 
 
@@ -297,14 +298,15 @@ class WorkplaceDeleteView(View):
         return redirect("workplaces:workplace-list")
 
 
-# Allowed MIME types for custom icon uploads
+# ─────────────────────────────────────────────────────────────────────────────
+# Appearance customisation (icon / colour — AJAX)
+# ─────────────────────────────────────────────────────────────────────────────
+
 _ALLOWED_ICON_TYPES = {"image/png", "image/svg+xml"}
 _MAX_ICON_SIZE = 512 * 1024  # 512 KB
 
 
 class WorkplaceCustomizeView(View):
-    """AJAX endpoint for updating workplace icon, colour, and custom icon."""
-
     def post(self, request, slug):
         workplace = get_object_or_404(Workplace, slug=slug)
 
@@ -313,7 +315,6 @@ class WorkplaceCustomizeView(View):
         accent_color = request.POST.get("accent_color", "")
         remove_custom_icon = request.POST.get("remove_custom_icon") == "1"
 
-        # Validate colours
         if color and (len(color) != 7 or not color.startswith("#")):
             return JsonResponse({"ok": False, "error": "Invalid background hex colour."}, status=400)
         if accent_color and (len(accent_color) != 7 or not accent_color.startswith("#")):
@@ -323,24 +324,19 @@ class WorkplaceCustomizeView(View):
         workplace.color = color
         workplace.accent_color = accent_color
 
-        # Handle custom icon upload
         custom_icon_file = request.FILES.get("custom_icon")
         if custom_icon_file:
             if custom_icon_file.content_type not in _ALLOWED_ICON_TYPES:
                 return JsonResponse(
-                    {"ok": False, "error": "Only PNG and SVG files are allowed."},
-                    status=400,
+                    {"ok": False, "error": "Only PNG and SVG files are allowed."}, status=400
                 )
             if custom_icon_file.size > _MAX_ICON_SIZE:
                 return JsonResponse(
-                    {"ok": False, "error": "Icon must be under 512 KB."},
-                    status=400,
+                    {"ok": False, "error": "Icon must be under 512 KB."}, status=400
                 )
-            # Delete old custom icon file if exists
             if workplace.custom_icon:
                 workplace.custom_icon.delete(save=False)
             workplace.custom_icon = custom_icon_file
-            # Clear the Bootstrap icon when a custom icon is uploaded
             workplace.icon = ""
         elif remove_custom_icon and workplace.custom_icon:
             workplace.custom_icon.delete(save=False)
@@ -348,7 +344,6 @@ class WorkplaceCustomizeView(View):
 
         workplace.save()
 
-        # Build response with updated avatar info
         avatar_initials, avatar_color = avatar_for_name(workplace.name)
         return JsonResponse({
             "ok": True,
@@ -361,48 +356,196 @@ class WorkplaceCustomizeView(View):
         })
 
 
-class PayRateCreateView(View):
-    """Create a new pay rate entry (change hourly rate or salary)."""
+# ─────────────────────────────────────────────────────────────────────────────
+# WorkplaceContract CRUD
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ContractCreateView(View):
+    """Create a new contract for a workplace, then redirect to add the first termset."""
 
     def get(self, request, slug):
         workplace = get_object_or_404(Workplace, slug=slug)
-        form = PayRateForm(workplace=workplace, initial={
-            "effective_from": date.today(),
-            "hourly_rate": workplace.hourly_rate,
-            "monthly_salary": workplace.monthly_salary,
-        })
-        current_rate = workplace.pay_rates.first()
-        return render(request, "workplaces/payrate_form.html", {
-            "form": form, "workplace": workplace, "current_rate": current_rate,
+        form = WorkplaceContractForm(workplace=workplace)
+        return render(request, "workplaces/contract_form.html", {
+            "form": form, "workplace": workplace, "is_first": not workplace.contracts.exists(),
         })
 
     def post(self, request, slug):
         workplace = get_object_or_404(Workplace, slug=slug)
-        form = PayRateForm(request.POST, workplace=workplace)
+        form = WorkplaceContractForm(request.POST, workplace=workplace)
         if form.is_valid():
-            rate = form.save(commit=False)
-            rate.workplace = workplace
-            rate.save()
-            # Update the workplace's current rate fields to match the latest
-            latest = workplace.pay_rates.first()
-            if latest:
-                workplace.hourly_rate = latest.hourly_rate
-                workplace.monthly_salary = latest.monthly_salary
-                workplace.save(update_fields=["hourly_rate", "monthly_salary"])
-            return redirect("workplaces:workplace-detail", slug=slug)
-        current_rate = workplace.pay_rates.first()
-        return render(request, "workplaces/payrate_form.html", {
-            "form": form, "workplace": workplace, "current_rate": current_rate,
+            contract = form.save(commit=False)
+            contract.workplace = workplace
+            try:
+                contract.full_clean()
+            except Exception as e:
+                form.add_error(None, str(e))
+                return render(request, "workplaces/contract_form.html", {
+                    "form": form, "workplace": workplace,
+                })
+            contract.save()
+            return redirect("workplaces:termset-create", slug=slug, cpk=contract.pk)
+        return render(request, "workplaces/contract_form.html", {
+            "form": form, "workplace": workplace,
         })
 
 
-class PayRateHistoryView(View):
-    """Show all historical pay rates for a workplace."""
+class ContractUpdateView(View):
+    """Edit a contract's name and dates."""
 
-    def get(self, request, slug):
+    def get(self, request, slug, cpk):
         workplace = get_object_or_404(Workplace, slug=slug)
-        rates = workplace.pay_rates.all()
-        return render(request, "workplaces/payrate_history.html", {
-            "workplace": workplace, "rates": rates,
+        contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
+        form = WorkplaceContractForm(instance=contract, workplace=workplace)
+        return render(request, "workplaces/contract_form.html", {
+            "form": form, "workplace": workplace, "contract": contract,
         })
 
+    def post(self, request, slug, cpk):
+        workplace = get_object_or_404(Workplace, slug=slug)
+        contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
+        form = WorkplaceContractForm(request.POST, instance=contract, workplace=workplace)
+        if form.is_valid():
+            updated = form.save(commit=False)
+            try:
+                updated.full_clean()
+            except Exception as e:
+                form.add_error(None, str(e))
+                return render(request, "workplaces/contract_form.html", {
+                    "form": form, "workplace": workplace, "contract": contract,
+                })
+            updated.save()
+            return redirect("workplaces:workplace-detail", slug=slug)
+        return render(request, "workplaces/contract_form.html", {
+            "form": form, "workplace": workplace, "contract": contract,
+        })
+
+
+class ContractDeleteView(View):
+    """Delete a contract (blocked if any shifts reference its termsets)."""
+
+    def get(self, request, slug, cpk):
+        workplace = get_object_or_404(Workplace, slug=slug)
+        contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
+        from shifts.models import Shift
+        shift_count = Shift.objects.filter(terms__contract=contract).count()
+        return render(request, "workplaces/contract_confirm_delete.html", {
+            "workplace": workplace, "contract": contract, "shift_count": shift_count,
+        })
+
+    def post(self, request, slug, cpk):
+        workplace = get_object_or_404(Workplace, slug=slug)
+        contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
+        from shifts.models import Shift
+        if Shift.objects.filter(terms__contract=contract).exists():
+            return redirect("workplaces:workplace-detail", slug=slug)
+        contract.delete()
+        return redirect("workplaces:workplace-detail", slug=slug)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ContractTermSet CRUD
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ContractTermSetCreateView(View):
+    """Create a new termset (new effective date + settings) under a contract."""
+
+    def get(self, request, slug, cpk):
+        workplace = get_object_or_404(Workplace, slug=slug)
+        contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
+        # Pre-fill from the most recent termset if one exists
+        latest = contract.term_sets.first()
+        initial = {}
+        if latest:
+            for f in ContractTermSetForm.Meta.fields:
+                if f != "effective_from":
+                    initial[f] = getattr(latest, f)
+        initial["effective_from"] = date.today()
+        form = ContractTermSetForm(initial=initial)
+        return render(request, "workplaces/termset_form.html", {
+            "form": form, "workplace": workplace, "contract": contract,
+            "tax_profile_json": _tax_profile_json(), "month_choices": MONTH_CHOICES,
+        })
+
+    def post(self, request, slug, cpk):
+        workplace = get_object_or_404(Workplace, slug=slug)
+        contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
+        form = ContractTermSetForm(request.POST)
+        if form.is_valid():
+            termset = form.save(commit=False)
+            termset.contract = contract
+            termset.save()
+            return redirect("workplaces:workplace-detail", slug=slug)
+        return render(request, "workplaces/termset_form.html", {
+            "form": form, "workplace": workplace, "contract": contract,
+            "tax_profile_json": _tax_profile_json(), "month_choices": MONTH_CHOICES,
+        })
+
+
+class ContractTermSetUpdateView(View):
+    """Edit a termset — user can overwrite in-place or fork as new terms-from-date."""
+
+    def _shift_count(self, termset):
+        from shifts.models import Shift
+        return Shift.objects.filter(terms=termset).count()
+
+    def get(self, request, slug, cpk, tpk):
+        workplace = get_object_or_404(Workplace, slug=slug)
+        contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
+        termset = get_object_or_404(ContractTermSet, pk=tpk, contract=contract)
+        form = ContractTermSetForm(instance=termset)
+        return render(request, "workplaces/termset_form.html", {
+            "form": form, "workplace": workplace, "contract": contract,
+            "termset": termset, "shift_count": self._shift_count(termset),
+            "tax_profile_json": _tax_profile_json(), "month_choices": MONTH_CHOICES,
+        })
+
+    def post(self, request, slug, cpk, tpk):
+        workplace = get_object_or_404(Workplace, slug=slug)
+        contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
+        termset = get_object_or_404(ContractTermSet, pk=tpk, contract=contract)
+
+        action = request.POST.get("action", "overwrite")  # "overwrite" or "fork"
+
+        if action == "fork":
+            # Create a brand-new termset with the submitted data
+            form = ContractTermSetForm(request.POST)
+            if form.is_valid():
+                new_ts = form.save(commit=False)
+                new_ts.contract = contract
+                new_ts.save()
+                return redirect("workplaces:workplace-detail", slug=slug)
+        else:
+            # Overwrite in place
+            form = ContractTermSetForm(request.POST, instance=termset)
+            if form.is_valid():
+                form.save()
+                return redirect("workplaces:workplace-detail", slug=slug)
+
+        return render(request, "workplaces/termset_form.html", {
+            "form": form, "workplace": workplace, "contract": contract,
+            "termset": termset, "shift_count": self._shift_count(termset),
+            "tax_profile_json": _tax_profile_json(), "month_choices": MONTH_CHOICES,
+        })
+
+
+class ContractTermSetDeleteView(View):
+    def get(self, request, slug, cpk, tpk):
+        workplace = get_object_or_404(Workplace, slug=slug)
+        contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
+        termset = get_object_or_404(ContractTermSet, pk=tpk, contract=contract)
+        from shifts.models import Shift
+        shift_count = Shift.objects.filter(terms=termset).count()
+        return render(request, "workplaces/termset_confirm_delete.html", {
+            "workplace": workplace, "contract": contract, "termset": termset,
+            "shift_count": shift_count,
+        })
+
+    def post(self, request, slug, cpk, tpk):
+        workplace = get_object_or_404(Workplace, slug=slug)
+        contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
+        termset = get_object_or_404(ContractTermSet, pk=tpk, contract=contract)
+        from shifts.models import Shift
+        if not Shift.objects.filter(terms=termset).exists():
+            termset.delete()
+        return redirect("workplaces:workplace-detail", slug=slug)

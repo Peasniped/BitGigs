@@ -1,10 +1,46 @@
+from datetime import date
 from decimal import Decimal
 
 from django import forms
-from .models import Workplace, PayRate
+from .models import Workplace, WorkplaceContract, ContractTermSet
 
 
 class WorkplaceForm(forms.ModelForm):
+    """Appearance-only form: name, slug, active status."""
+
+    class Meta:
+        model = Workplace
+        fields = ["name", "slug", "is_active"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["slug"].required = False
+        self.fields["slug"].help_text = "Leave blank to auto-generate from name."
+
+
+class WorkplaceContractForm(forms.ModelForm):
+    """Contract metadata: name (optional), start/end dates."""
+
+    class Meta:
+        model = WorkplaceContract
+        fields = ["name", "start_date", "end_date"]
+        widgets = {
+            "start_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "end_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+        }
+
+    def __init__(self, *args, workplace=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.workplace = workplace
+        self.fields["start_date"].required = True
+        self.fields["end_date"].required = False
+        if not self.initial.get("start_date") and not self.data:
+            self.initial["start_date"] = date.today()
+
+
+class ContractTermSetForm(forms.ModelForm):
+    """All employment-settings fields, plus the effective_from date."""
+
     WORK_TIME_CHOICES = [
         ("fuldtid", "Fuldtid (160,33 h/mo)"),
         ("deltid", "Deltid"),
@@ -26,11 +62,9 @@ class WorkplaceForm(forms.ModelForm):
     )
 
     class Meta:
-        model = Workplace
+        model = ContractTermSet
         fields = [
-            "name",
-            "slug",
-            "is_active",
+            "effective_from",
             "employment_type",
             "hourly_rate",
             "monthly_salary",
@@ -39,6 +73,7 @@ class WorkplaceForm(forms.ModelForm):
             "weekly_hours_max",
             "payroll_period_start_day",
             "tax_card_type",
+            "tax_pull_day",
             "vacation_type",
             "pension_employee_percent",
             "pension_employer_percent",
@@ -56,42 +91,37 @@ class WorkplaceForm(forms.ModelForm):
             "hour_goal_min",
             "hour_goal_max",
         ]
+        widgets = {
+            "effective_from": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "default_shift_start_time": forms.TimeInput(attrs={"type": "time", "class": "form-control"}),
+            "default_shift_end_time": forms.TimeInput(attrs={"type": "time", "class": "form-control"}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["slug"].required = False
-        self.fields["slug"].help_text = "Leave blank to auto-generate from name."
-        # Make conditional fields not required at form level
+
         for f in [
             "hourly_rate", "monthly_salary", "weekly_hours_fixed",
             "weekly_hours_min", "weekly_hours_max",
         ]:
             self.fields[f].required = False
 
-        # When editing an existing workplace, lock the rate fields
-        # (rate changes go through the PayRate system)
-        if self.instance and self.instance.pk:
-            self.fields["hourly_rate"].disabled = True
-            self.fields["hourly_rate"].help_text = "Use 'Change Rate' to update."
-            self.fields["monthly_salary"].disabled = True
-            self.fields["monthly_salary"].help_text = "Use 'Change Rate' to update."
-
-        # Sensible defaults for new forms
+        if not self.initial.get("effective_from") and not self.data:
+            self.initial["effective_from"] = date.today()
         if not self.initial.get("employment_type") and not self.data:
-            self.initial["employment_type"] = Workplace.EmploymentType.SALARIED
+            self.initial["employment_type"] = ContractTermSet.EmploymentType.SALARIED
         if not self.initial.get("work_time_type") and not self.data:
             self.initial["work_time_type"] = "fuldtid"
         if not self.initial.get("hours_type") and not self.data:
             self.initial["hours_type"] = "fixed"
 
-        # Derive toggles from existing instance
         if self.instance and self.instance.pk:
-            if self.instance.employment_type == Workplace.EmploymentType.SALARIED:
+            if self.instance.employment_type == ContractTermSet.EmploymentType.SALARIED:
                 if self.instance.weekly_hours_fixed == Decimal("37.00"):
                     self.initial["work_time_type"] = "fuldtid"
                 else:
                     self.initial["work_time_type"] = "deltid"
-            elif self.instance.employment_type == Workplace.EmploymentType.HOURLY:
+            elif self.instance.employment_type == ContractTermSet.EmploymentType.HOURLY:
                 if self.instance.weekly_hours_fixed is not None:
                     self.initial["hours_type"] = "fixed"
                 elif self.instance.weekly_hours_min is not None:
@@ -101,7 +131,7 @@ class WorkplaceForm(forms.ModelForm):
         cleaned = super().clean()
         emp_type = cleaned.get("employment_type")
 
-        if emp_type == Workplace.EmploymentType.SALARIED:
+        if emp_type == ContractTermSet.EmploymentType.SALARIED:
             cleaned["hourly_rate"] = None
             cleaned["weekly_hours_min"] = None
             cleaned["weekly_hours_max"] = None
@@ -116,7 +146,7 @@ class WorkplaceForm(forms.ModelForm):
             if not cleaned.get("monthly_salary"):
                 self.add_error("monthly_salary", "Grundløn is required for salaried employment.")
 
-        elif emp_type == Workplace.EmploymentType.HOURLY:
+        elif emp_type == ContractTermSet.EmploymentType.HOURLY:
             cleaned["monthly_salary"] = None
 
             if not cleaned.get("hourly_rate"):
@@ -133,7 +163,6 @@ class WorkplaceForm(forms.ModelForm):
                 if not cleaned.get("weekly_hours_fixed"):
                     self.add_error("weekly_hours_fixed", "Hours per week is required.")
 
-        # Hour goal range validation
         goal_min = cleaned.get("hour_goal_min")
         goal_max = cleaned.get("hour_goal_max")
         goal_mode = self.data.get("goalMode", "target")
@@ -143,25 +172,3 @@ class WorkplaceForm(forms.ModelForm):
             self.add_error("hour_goal_max", "Max must be greater than min.")
 
         return cleaned
-
-
-class PayRateForm(forms.ModelForm):
-    class Meta:
-        model = PayRate
-        fields = ["hourly_rate", "monthly_salary", "effective_from"]
-        widgets = {
-            "effective_from": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "hourly_rate": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
-            "monthly_salary": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
-        }
-
-    def __init__(self, *args, workplace=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.workplace = workplace
-        if workplace:
-            if workplace.employment_type == Workplace.EmploymentType.HOURLY:
-                del self.fields["monthly_salary"]
-                self.fields["hourly_rate"].required = True
-            else:
-                del self.fields["hourly_rate"]
-                self.fields["monthly_salary"].required = True

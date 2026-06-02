@@ -153,13 +153,22 @@ def perform_import(data, workplace_mapping):
             if wp_data:
                 resolved[name] = _create_workplace_from_dict(wp_data)
             else:
-                # Create minimal workplace
-                resolved[name] = Workplace.objects.create(
-                    name=name,
-                    employment_type=Workplace.EmploymentType.HOURLY,
+                # Create minimal workplace with a placeholder contract/termset
+                from datetime import date as _date
+                from workplaces.models import WorkplaceContract, ContractTermSet
+                minimal_wp = Workplace.objects.create(name=name)
+                minimal_contract = WorkplaceContract.objects.create(
+                    workplace=minimal_wp,
+                    start_date=_date(2000, 1, 1),
+                )
+                ContractTermSet.objects.create(
+                    contract=minimal_contract,
+                    effective_from=_date(2000, 1, 1),
+                    employment_type="hourly",
                     hourly_rate=Decimal("0"),
                     weekly_hours_fixed=Decimal("37"),
                 )
+                resolved[name] = minimal_wp
 
     # Also include already-matching workplaces
     for name in set(
@@ -240,6 +249,37 @@ def perform_import(data, workplace_mapping):
 
 # â•â•â• Serialization helpers â•â•â•
 
+def _termset_to_dict(ts):
+    return {
+        "effective_from": ts.effective_from.isoformat(),
+        "employment_type": ts.employment_type,
+        "hourly_rate": str(ts.hourly_rate) if ts.hourly_rate else None,
+        "monthly_salary": str(ts.monthly_salary) if ts.monthly_salary else None,
+        "weekly_hours_fixed": str(ts.weekly_hours_fixed) if ts.weekly_hours_fixed else None,
+        "weekly_hours_min": str(ts.weekly_hours_min) if ts.weekly_hours_min else None,
+        "weekly_hours_max": str(ts.weekly_hours_max) if ts.weekly_hours_max else None,
+        "payroll_period_start_day": ts.payroll_period_start_day,
+        "tax_card_type": ts.tax_card_type,
+        "tax_pull_day": ts.tax_pull_day,
+        "vacation_type": ts.vacation_type,
+        "pension_employee_percent": str(ts.pension_employee_percent),
+        "pension_employer_percent": str(ts.pension_employer_percent),
+        "fritvalgskonto_enabled": ts.fritvalgskonto_enabled,
+        "fritvalgskonto_percent": str(ts.fritvalgskonto_percent),
+        "fritvalgskonto_payout_type": ts.fritvalgskonto_payout_type,
+        "ferietillaeg_enabled": ts.ferietillaeg_enabled,
+        "ferietillaeg_percent": str(ts.ferietillaeg_percent),
+        "ferietillaeg_payout_months": ts.ferietillaeg_payout_months,
+        "default_shift_start_time": ts.default_shift_start_time.strftime("%H:%M") if ts.default_shift_start_time else None,
+        "default_shift_end_time": ts.default_shift_end_time.strftime("%H:%M") if ts.default_shift_end_time else None,
+        "default_shift_break_minutes": ts.default_shift_break_minutes,
+        "default_shift_type": ts.default_shift_type,
+        "hour_goal_type": ts.hour_goal_type,
+        "hour_goal_min": str(ts.hour_goal_min) if ts.hour_goal_min else None,
+        "hour_goal_max": str(ts.hour_goal_max) if ts.hour_goal_max else None,
+    }
+
+
 def _wp_to_dict(wp):
     import base64
     custom_icon_data = None
@@ -254,6 +294,15 @@ def _wp_to_dict(wp):
         except (FileNotFoundError, OSError):
             pass
 
+    contracts = []
+    for c in wp.contracts.prefetch_related("term_sets").order_by("start_date"):
+        contracts.append({
+            "name": c.name,
+            "start_date": c.start_date.isoformat(),
+            "end_date": c.end_date.isoformat() if c.end_date else None,
+            "term_sets": [_termset_to_dict(ts) for ts in c.term_sets.order_by("effective_from")],
+        })
+
     return {
         "name": wp.name,
         "slug": wp.slug,
@@ -262,38 +311,7 @@ def _wp_to_dict(wp):
         "color": wp.color,
         "accent_color": wp.accent_color,
         "custom_icon": custom_icon_data,
-        "employment_type": wp.employment_type,
-        "hourly_rate": str(wp.hourly_rate) if wp.hourly_rate else None,
-        "monthly_salary": str(wp.monthly_salary) if wp.monthly_salary else None,
-        "weekly_hours_fixed": str(wp.weekly_hours_fixed) if wp.weekly_hours_fixed else None,
-        "weekly_hours_min": str(wp.weekly_hours_min) if wp.weekly_hours_min else None,
-        "weekly_hours_max": str(wp.weekly_hours_max) if wp.weekly_hours_max else None,
-        "payroll_period_start_day": wp.payroll_period_start_day,
-        "tax_card_type": wp.tax_card_type,
-        "vacation_type": wp.vacation_type,
-        "pension_employee_percent": str(wp.pension_employee_percent),
-        "pension_employer_percent": str(wp.pension_employer_percent),
-        "fritvalgskonto_enabled": wp.fritvalgskonto_enabled,
-        "fritvalgskonto_percent": str(wp.fritvalgskonto_percent),
-        "fritvalgskonto_payout_type": wp.fritvalgskonto_payout_type,
-        "ferietillaeg_enabled": wp.ferietillaeg_enabled,
-        "ferietillaeg_percent": str(wp.ferietillaeg_percent),
-        "ferietillaeg_payout_months": wp.ferietillaeg_payout_months,
-        "default_shift_start_time": wp.default_shift_start_time.strftime("%H:%M") if wp.default_shift_start_time else None,
-        "default_shift_end_time": wp.default_shift_end_time.strftime("%H:%M") if wp.default_shift_end_time else None,
-        "default_shift_break_minutes": wp.default_shift_break_minutes,
-        "default_shift_type": wp.default_shift_type,
-        "hour_goal_type": wp.hour_goal_type,
-        "hour_goal_min": str(wp.hour_goal_min) if wp.hour_goal_min else None,
-        "hour_goal_max": str(wp.hour_goal_max) if wp.hour_goal_max else None,
-        "pay_rates": [
-            {
-                "hourly_rate": str(r.hourly_rate) if r.hourly_rate else None,
-                "monthly_salary": str(r.monthly_salary) if r.monthly_salary else None,
-                "effective_from": r.effective_from.isoformat(),
-            }
-            for r in wp.pay_rates.all()
-        ],
+        "contracts": contracts,
     }
 
 
@@ -333,18 +351,62 @@ def _tax_to_dict(t):
 
 
 def _create_workplace_from_dict(d):
-    """Create a Workplace from an exported dict."""
-    from datetime import time as _time
+    """Create a Workplace (and its contracts/termsets) from an exported dict."""
+    from datetime import time as _time, date as _date
+    from workplaces.models import WorkplaceContract, ContractTermSet
+
+    wp = Workplace.objects.create(
+        name=d["name"],
+        slug=d.get("slug", ""),
+        is_active=d.get("is_active", True),
+        icon=d.get("icon", ""),
+        color=d.get("color", ""),
+        accent_color=d.get("accent_color", ""),
+    )
+
+    # Restore custom icon from base64 data
+    custom_icon_data = d.get("custom_icon")
+    if custom_icon_data and isinstance(custom_icon_data, dict):
+        import base64
+        from django.core.files.base import ContentFile
+        file_bytes = base64.b64decode(custom_icon_data["data"])
+        filename = custom_icon_data.get("filename", "icon.png")
+        wp.custom_icon.save(filename, ContentFile(file_bytes), save=True)
+
+    if d.get("contracts"):
+        # New-format export: restore full contract/termset structure
+        for c_data in d["contracts"]:
+            contract = WorkplaceContract.objects.create(
+                workplace=wp,
+                name=c_data.get("name", ""),
+                start_date=_date.fromisoformat(c_data["start_date"]),
+                end_date=_date.fromisoformat(c_data["end_date"]) if c_data.get("end_date") else None,
+            )
+            for ts_data in c_data.get("term_sets", []):
+                _create_termset_from_dict(contract, ts_data)
+    else:
+        # Legacy flat format: create one contract + one termset
+        contract = WorkplaceContract.objects.create(
+            workplace=wp,
+            name="",
+            start_date=_date(2000, 1, 1),
+        )
+        _create_termset_from_dict(contract, dict(d, effective_from="2000-01-01"))
+
+    return wp
+
+
+def _create_termset_from_dict(contract, d):
+    from datetime import time as _time, date as _date
+    from workplaces.models import ContractTermSet
+
     kwargs = {
-        "name": d["name"],
-        "slug": d.get("slug", ""),
-        "is_active": d.get("is_active", True),
-        "icon": d.get("icon", ""),
-        "color": d.get("color", ""),
-        "accent_color": d.get("accent_color", ""),
+        "contract": contract,
+        "effective_from": _date.fromisoformat(d.get("effective_from", "2000-01-01")),
         "employment_type": d.get("employment_type", "hourly"),
         "payroll_period_start_day": d.get("payroll_period_start_day", 1),
-        "tax_card_type": d.get("tax_card_type", "hovedkort"),
+        "tax_card_type": d.get("tax_card_type", "hoofdkort"),
+        "tax_pull_day": d.get("tax_pull_day", 18),
         "vacation_type": d.get("vacation_type", "feriekonto"),
         "pension_employee_percent": Decimal(d.get("pension_employee_percent", "0")),
         "pension_employer_percent": Decimal(d.get("pension_employer_percent", "0")),
@@ -364,6 +426,8 @@ def _create_workplace_from_dict(d):
         kwargs["monthly_salary"] = Decimal(d["monthly_salary"])
     if d.get("weekly_hours_fixed"):
         kwargs["weekly_hours_fixed"] = Decimal(d["weekly_hours_fixed"])
+    else:
+        kwargs["weekly_hours_fixed"] = Decimal("37")
     if d.get("weekly_hours_min"):
         kwargs["weekly_hours_min"] = Decimal(d["weekly_hours_min"])
     if d.get("weekly_hours_max"):
@@ -377,26 +441,5 @@ def _create_workplace_from_dict(d):
     if d.get("hour_goal_max"):
         kwargs["hour_goal_max"] = Decimal(d["hour_goal_max"])
 
-    wp = Workplace.objects.create(**kwargs)
-
-    # Restore custom icon from base64 data
-    custom_icon_data = d.get("custom_icon")
-    if custom_icon_data and isinstance(custom_icon_data, dict):
-        import base64
-        from django.core.files.base import ContentFile
-        file_bytes = base64.b64decode(custom_icon_data["data"])
-        filename = custom_icon_data.get("filename", "icon.png")
-        wp.custom_icon.save(filename, ContentFile(file_bytes), save=True)
-
-    # Restore pay rate history
-    from workplaces.models import PayRate
-    for rate_data in d.get("pay_rates", []):
-        PayRate.objects.create(
-            workplace=wp,
-            hourly_rate=Decimal(rate_data["hourly_rate"]) if rate_data.get("hourly_rate") else None,
-            monthly_salary=Decimal(rate_data["monthly_salary"]) if rate_data.get("monthly_salary") else None,
-            effective_from=rate_data["effective_from"],
-        )
-
-    return wp
+    return ContractTermSet.objects.create(**kwargs)
 

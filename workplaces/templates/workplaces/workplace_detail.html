@@ -554,8 +554,13 @@
           <input type="range" id="cropZoom" class="form-range flex-grow-1" min="0" max="3" step="0.01" value="0">
           <i class="bi bi-plus text-muted"></i>
         </div>
-        <div class="d-flex gap-2 ms-3">
-          <button type="button" class="btn btn-outline-secondary btn-sm" id="cropFitBtn" title="Fit image inside circle">
+        <div class="d-flex gap-2 ms-3 align-items-center">
+          <div class="input-group input-group-sm" style="width:120px;" title="Padding inside the circle (in pixels of the 256×256 output)">
+            <input type="number" id="cropPadding" class="form-control form-control-sm"
+                   min="0" max="120" value="20" step="1">
+            <span class="input-group-text">px</span>
+          </div>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="cropFitBtn" title="Fit image with the chosen padding">
             <i class="bi bi-arrows-angle-contract me-1"></i>Fit
           </button>
           <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
@@ -563,6 +568,57 @@
             <i class="bi bi-check-lg me-1"></i>Apply
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────── SVG Recolor Modal ─────── -->
+<div class="modal fade" id="svgRecolorModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:var(--card-radius);border:none;">
+      <div class="modal-header border-bottom" style="border-color:#f1f5f9 !important;">
+        <h6 class="modal-title"><i class="bi bi-palette me-2"></i>Recolor SVG (optional)</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-muted small mb-3">
+          You can change the colors of this SVG before it's converted to a PNG.
+          Pick a single tint, or remap each detected color individually.
+        </div>
+        <div class="d-flex justify-content-center mb-3">
+          <div id="svgRecolorPreview"
+               style="width:140px;height:140px;display:flex;align-items:center;justify-content:center;
+                      border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;padding:14px;"></div>
+        </div>
+        <div class="mb-3 p-2 border rounded" style="background:#fafafa;">
+          <label class="form-label small fw-medium d-block mb-1">Single tint (overrides all colors)</label>
+          <div class="d-flex gap-2 align-items-center">
+            <input type="color" id="svgTintAll" class="form-control form-control-color"
+                   style="width:46px;height:36px;padding:2px;" value="#6366f1">
+            <input type="text" id="svgTintAllHex" class="form-control form-control-sm font-monospace"
+                   style="width:90px;" value="#6366f1" maxlength="7" spellcheck="false">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="svgTintAllApply">
+              Apply tint to all
+            </button>
+            <button type="button" class="btn btn-link btn-sm p-0 ms-auto" id="svgRecolorReset">
+              Reset to original
+            </button>
+          </div>
+        </div>
+        <div id="svgColorList"></div>
+        <div id="svgNoColorsHint" class="text-muted small d-none">
+          No explicit fill/stroke colors were found in this SVG. Use the single tint option above
+          to override styling.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="svgRecolorSkip">
+          Skip &amp; continue
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" id="svgRecolorContinue">
+          <i class="bi bi-arrow-right me-1"></i>Continue with these colors
+        </button>
       </div>
     </div>
   </div>
@@ -826,8 +882,24 @@ document.addEventListener('DOMContentLoaded', function() {
   var cropZoom      = document.getElementById('cropZoom');
   var cropApplyBtn  = document.getElementById('cropApplyBtn');
   var cropFitBtn    = document.getElementById('cropFitBtn');
+  var cropPaddingInput = document.getElementById('cropPadding');
   var cropper       = null;
   var cropBsModal   = null;
+
+  // SVG recolor modal elements
+  var svgRecolorModalEl = document.getElementById('svgRecolorModal');
+  var svgRecolorBsModal = null;
+  var svgRecolorPreview = document.getElementById('svgRecolorPreview');
+  var svgColorList      = document.getElementById('svgColorList');
+  var svgNoColorsHint   = document.getElementById('svgNoColorsHint');
+  var svgTintAll        = document.getElementById('svgTintAll');
+  var svgTintAllApply   = document.getElementById('svgTintAllApply');
+  var svgRecolorReset   = document.getElementById('svgRecolorReset');
+  var svgRecolorSkipBtn = document.getElementById('svgRecolorSkip');
+  var svgRecolorContinueBtn = document.getElementById('svgRecolorContinue');
+  var svgOriginalText   = '';
+  var svgColorMap       = {};   // { oldColor: newColor }
+  var svgDetectedColors = [];
 
   // State
   var pendingFile   = null;       // cropped blob to upload
@@ -888,16 +960,215 @@ document.addEventListener('DOMContentLoaded', function() {
       this.value = '';
       return;
     }
-    // All image types (PNG, SVG, etc.) â†’ open cropper
-    var reader = new FileReader();
-    reader.onload = function(e) {
-      cropImage.src = e.target.result;
-      // Open crop modal
-      if (!cropBsModal) cropBsModal = new bootstrap.Modal(cropModalEl);
-      cropBsModal.show();
-    };
-    reader.readAsDataURL(file);
+    var isSvg = (file.type === 'image/svg+xml') ||
+                /\.svg$/i.test(file.name);
+    if (isSvg) {
+      // Read as text so the user can recolor before we convert to PNG
+      var t = new FileReader();
+      t.onload = function(e) {
+        openSvgRecolorModal(e.target.result);
+      };
+      t.readAsText(file);
+    } else {
+      // PNG / JPG / etc. â†’ go straight to cropper
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        cropImage.src = e.target.result;
+        if (!cropBsModal) cropBsModal = new bootstrap.Modal(cropModalEl);
+        cropBsModal.show();
+      };
+      reader.readAsDataURL(file);
+    }
     this.value = '';  // reset so same file can be re-selected
+  });
+
+  // ---- SVG Recolor pipeline ----
+  function extractSvgColors(svgText) {
+    var set = new Set();
+    var pickup = function(v) {
+      if (!v) return;
+      v = v.trim();
+      if (v === 'none' || v === 'currentColor' || v === 'transparent') return;
+      // Accept hex colors, rgb()/rgba(), or named colors (left as-is)
+      set.add(v);
+    };
+    var attrRe = /(?:fill|stroke|stop-color)\s*=\s*"([^"]+)"/gi;
+    var m;
+    while ((m = attrRe.exec(svgText)) !== null) pickup(m[1]);
+    var styleRe = /(?:fill|stroke|stop-color)\s*:\s*([^;"}]+)/gi;
+    while ((m = styleRe.exec(svgText)) !== null) pickup(m[1]);
+    return Array.from(set);
+  }
+
+  function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  function applySvgRecolor(svgText, mapping, tintAllColor) {
+    if (tintAllColor) {
+      svgText = svgText.replace(
+        /(fill|stroke|stop-color)(\s*=\s*")([^"]+)(")/gi,
+        function(full, attr, eq, val, q) {
+          if (val === 'none' || val === 'currentColor' || val === 'transparent') return full;
+          return attr + eq + tintAllColor + q;
+        }
+      );
+      svgText = svgText.replace(
+        /(fill|stroke|stop-color)(\s*:\s*)([^;"}]+)/gi,
+        function(full, attr, sep, val) {
+          var t = val.trim();
+          if (t === 'none' || t === 'currentColor' || t === 'transparent') return full;
+          return attr + sep + tintAllColor;
+        }
+      );
+      return svgText;
+    }
+    Object.keys(mapping).forEach(function(from) {
+      var to = mapping[from];
+      if (!to || from === to) return;
+      var esc = escapeRegExp(from);
+      var attrRe = new RegExp('((?:fill|stroke|stop-color)\\s*=\\s*")' + esc + '(")', 'gi');
+      svgText = svgText.replace(attrRe, '$1' + to + '$2');
+      var styleRe = new RegExp('((?:fill|stroke|stop-color)\\s*:\\s*)' + esc + '(\\s*[;"}]|$)', 'gi');
+      svgText = svgText.replace(styleRe, '$1' + to + '$2');
+    });
+    return svgText;
+  }
+
+  function svgTextToDataUrl(svgText) {
+    // unescape() is deprecated; build a UTF-8 safe base64
+    var b64 = btoa(unescape(encodeURIComponent(svgText)));
+    return 'data:image/svg+xml;base64,' + b64;
+  }
+
+  function refreshSvgRecolorPreview() {
+    var working = applySvgRecolor(svgOriginalText, svgColorMap, null);
+    svgRecolorPreview.innerHTML = '<img src="' + svgTextToDataUrl(working) + '" alt="" '
+      + 'style="max-width:100%;max-height:100%;object-fit:contain;">';
+  }
+
+  function buildSvgColorList() {
+    svgColorList.innerHTML = '';
+    if (svgDetectedColors.length === 0) {
+      svgNoColorsHint.classList.remove('d-none');
+      return;
+    }
+    svgNoColorsHint.classList.add('d-none');
+    svgDetectedColors.forEach(function(c) {
+      var row = document.createElement('div');
+      row.className = 'd-flex align-items-center gap-2 mb-1';
+      // Try to convert non-hex (like 'rgb(...)' or named) to a hex the input accepts
+      var initial = svgColorMap[c] || c;
+      var hexInitial = initial;
+      if (!/^#[0-9a-fA-F]{6}$/.test(hexInitial)) {
+        // Probe via a hidden DOM element to normalise
+        var probe = document.createElement('span');
+        probe.style.color = hexInitial;
+        document.body.appendChild(probe);
+        var rgb = getComputedStyle(probe).color;
+        document.body.removeChild(probe);
+        var mm = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(rgb);
+        if (mm) {
+          hexInitial = '#' + [mm[1], mm[2], mm[3]].map(function(n) {
+            var h = parseInt(n, 10).toString(16); return h.length === 1 ? '0' + h : h;
+          }).join('');
+        } else {
+          hexInitial = '#000000';
+        }
+      }
+      row.innerHTML =
+        '<span class="border rounded" style="width:20px;height:20px;background:' + c + ';flex-shrink:0;"></span>'
+        + '<code class="small text-muted flex-grow-1" style="word-break:break-all;">' + c + '</code>'
+        + '<i class="bi bi-arrow-right text-muted small"></i>';
+      var input = document.createElement('input');
+      input.type = 'color';
+      input.className = 'form-control form-control-color';
+      input.style.cssText = 'width:46px;height:32px;padding:2px;';
+      input.value = hexInitial;
+      var hexInput = document.createElement('input');
+      hexInput.type = 'text';
+      hexInput.className = 'form-control form-control-sm font-monospace';
+      hexInput.style.cssText = 'width:90px;';
+      hexInput.maxLength = 7;
+      hexInput.spellcheck = false;
+      hexInput.value = hexInitial;
+      input.addEventListener('input', function() {
+        svgColorMap[c] = input.value;
+        hexInput.value = input.value;
+        refreshSvgRecolorPreview();
+      });
+      hexInput.addEventListener('input', function() {
+        var v = hexInput.value.trim();
+        if (v && v.charAt(0) !== '#') v = '#' + v;
+        if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+          input.value = v.toLowerCase();
+          svgColorMap[c] = v.toLowerCase();
+          refreshSvgRecolorPreview();
+        }
+      });
+      row.appendChild(input);
+      row.appendChild(hexInput);
+      svgColorList.appendChild(row);
+    });
+  }
+
+  function openSvgRecolorModal(svgText) {
+    svgOriginalText = svgText;
+    svgColorMap = {};
+    svgDetectedColors = extractSvgColors(svgText);
+    buildSvgColorList();
+    refreshSvgRecolorPreview();
+    if (!svgRecolorBsModal) svgRecolorBsModal = new bootstrap.Modal(svgRecolorModalEl);
+    // Hide the parent customize modal so we don't get stacked backdrops / offset positioning
+    var customizeBs = bootstrap.Modal.getInstance(modal);
+    if (customizeBs && modal.classList.contains('show')) {
+      svgRecolorModalEl.dataset.reopenCustomize = '1';
+      customizeBs.hide();
+      // Wait for it to fully hide before opening recolor (avoids backdrop flicker)
+      modal.addEventListener('hidden.bs.modal', function _once() {
+        modal.removeEventListener('hidden.bs.modal', _once);
+        svgRecolorBsModal.show();
+      });
+    } else {
+      svgRecolorBsModal.show();
+    }
+  }
+
+  function passSvgToCropper(svgText) {
+    cropImage.src = svgTextToDataUrl(svgText);
+    if (!cropBsModal) cropBsModal = new bootstrap.Modal(cropModalEl);
+    cropBsModal.show();
+  }
+
+  // Sync the single-tint color picker and hex text field
+  var svgTintAllHex = document.getElementById('svgTintAllHex');
+  svgTintAll.addEventListener('input', function() {
+    if (svgTintAllHex) svgTintAllHex.value = svgTintAll.value;
+  });
+  if (svgTintAllHex) {
+    svgTintAllHex.addEventListener('input', function() {
+      var v = svgTintAllHex.value.trim();
+      if (v && v.charAt(0) !== '#') v = '#' + v;
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) svgTintAll.value = v.toLowerCase();
+    });
+  }
+  svgTintAllApply.addEventListener('click', function() {
+    var c = svgTintAll.value;
+    svgDetectedColors.forEach(function(orig) { svgColorMap[orig] = c; });
+    buildSvgColorList();   // rebuild so each row's color input reflects the tint
+    refreshSvgRecolorPreview();
+  });
+  svgRecolorReset.addEventListener('click', function() {
+    svgColorMap = {};
+    buildSvgColorList();
+    refreshSvgRecolorPreview();
+  });
+  svgRecolorSkipBtn.addEventListener('click', function() {
+    svgRecolorBsModal.hide();
+    passSvgToCropper(svgOriginalText);
+  });
+  svgRecolorContinueBtn.addEventListener('click', function() {
+    var modified = applySvgRecolor(svgOriginalText, svgColorMap, null);
+    svgRecolorBsModal.hide();
+    passSvgToCropper(modified);
   });
 
   // ---- Cropper setup on modal show ----
@@ -943,14 +1214,36 @@ document.addEventListener('DOMContentLoaded', function() {
   cropModalEl.addEventListener('hidden.bs.modal', function() {
     if (cropper) { cropper.destroy(); cropper = null; }
     cropImage.src = '';
+    maybeReopenCustomize();
+  });
+
+  // Reopen the customize modal if we hid it for the SVG recolor / crop flow
+  function maybeReopenCustomize() {
+    if (svgRecolorModalEl.dataset.reopenCustomize !== '1') return;
+    // If the recolor or crop modal is still on its way to showing, skip
+    if (svgRecolorModalEl.classList.contains('show') || cropModalEl.classList.contains('show')) return;
+    delete svgRecolorModalEl.dataset.reopenCustomize;
+    var customizeBs = bootstrap.Modal.getOrCreateInstance(modal);
+    customizeBs.show();
+  }
+  svgRecolorModalEl.addEventListener('hidden.bs.modal', function() {
+    // Wait a tick so a follow-up cropModal.show() has had a chance to flip its 'show' class
+    setTimeout(maybeReopenCustomize, 50);
   });
 
   // ---- Fit image inside crop box (by shortest side + margin) ----
   function fitImageInCrop() {
     if (!cropper) return;
+    var paddingPx = parseInt(cropPaddingInput && cropPaddingInput.value, 10);
+    if (isNaN(paddingPx)) paddingPx = 20;
+    paddingPx = Math.max(0, Math.min(120, paddingPx));
+    // The output canvas is 256x256, so paddingPx maps directly to a margin
+    // ratio = 1 - 2*(paddingPx/256) … but historically `margin` here refers
+    // to the fraction of the crop-box the image should occupy. So:
+    //   image fraction = 1 - 2 * (paddingPx / 256)
+    var margin = Math.max(0.1, 1 - (paddingPx * 2 / 256));
     var cropBox = cropper.getCropBoxData();
     var imgData = cropper.getImageData();
-    var margin = 0.85; // 85% of crop box = 15% padding
     var scaleW = (cropBox.width * margin) / imgData.naturalWidth;
     var scaleH = (cropBox.height * margin) / imgData.naturalHeight;
     var fitRatio = Math.min(scaleW, scaleH);
@@ -964,6 +1257,9 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   cropFitBtn.addEventListener('click', fitImageInCrop);
+  if (cropPaddingInput) {
+    cropPaddingInput.addEventListener('change', fitImageInCrop);
+  }
 
   // ---- Zoom slider ----
   cropZoom.addEventListener('input', function() {

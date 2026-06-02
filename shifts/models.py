@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.db import models
 from django.core.exceptions import ValidationError
 
-from workplaces.models import Workplace
+from workplaces.models import Workplace, ContractTermSet
 
 
 class ShiftTimeMixin(models.Model):
@@ -65,6 +65,13 @@ class Shift(ShiftTimeMixin):
         default=ShiftType.ON_SITE,
     )
     notes = models.TextField(blank=True, default="")
+    terms = models.ForeignKey(
+        ContractTermSet,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="shifts",
+        help_text="Employment terms active when this shift was worked.",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -135,6 +142,7 @@ class PlannedShift(ShiftTimeMixin):
 
     def approve(self) -> "Shift":
         """Convert this planned shift into an approved Shift."""
+        terms = self.workplace.active_termset_on(self.date)
         shift = Shift.objects.create(
             workplace=self.workplace,
             date=self.date,
@@ -143,6 +151,7 @@ class PlannedShift(ShiftTimeMixin):
             break_minutes=self.break_minutes,
             shift_type=self.shift_type,
             notes=self.notes,
+            terms=terms,
         )
         self.status = self.Status.APPROVED
         self.save()

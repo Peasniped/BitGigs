@@ -1,31 +1,20 @@
+import calendar as _cal
+from datetime import date as _date
 from decimal import Decimal
 
 from django.db import models
+from django.db.models import Q
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 from django.utils.text import slugify
 
 
 class Workplace(models.Model):
-    """A job / workplace with its employment and payroll configuration."""
+    """A workplace / employer — appearance and identification only.
 
-    class EmploymentType(models.TextChoices):
-        HOURLY = "hourly", "Hourly"
-        SALARIED = "salaried", "Salaried"
+    Employment settings live on WorkplaceContract → ContractTermSet.
+    """
 
-    class TaxCardType(models.TextChoices):
-        HOVEDKORT = "hovedkort", "Hovedkort (primary)"
-        BIKORT = "bikort", "Bikort (secondary)"
-
-    class VacationType(models.TextChoices):
-        FERIEKONTO = "feriekonto", "Paid to FerieKonto"
-        ACCRUED = "accrued", "Accrued as leave balance"
-
-    class FritvalgsPayoutType(models.TextChoices):
-        ACCRUES = "accrues", "Accrues (saved up)"
-        PAID_MONTHLY = "paid_monthly", "Paid out every month"
-
-    # Basic info
     name = models.CharField(max_length=200)
     slug = models.SlugField(
         max_length=200, unique=True,
@@ -33,7 +22,6 @@ class Workplace(models.Model):
     )
     is_active = models.BooleanField(default=True)
 
-    # Customisation (optional)
     icon = models.CharField(
         max_length=50, blank=True, default="",
         help_text="Bootstrap Icons class, e.g. 'bi-briefcase'.",
@@ -53,6 +41,174 @@ class Workplace(models.Model):
         help_text="Accent hex colour for icon tint and page theming.",
     )
 
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base_slug = slugify(self.name) or "workplace"
+            slug = base_slug
+            n = 1
+            while Workplace.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{n}"
+                n += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
+
+    # ------------------------------------------------------------------
+    # Contract helpers
+    # ------------------------------------------------------------------
+
+    def active_contract_on(self, d: _date) -> "WorkplaceContract | None":
+        """Return the contract active on date d, or None."""
+        return (
+            self.contracts.filter(start_date__lte=d)
+            .filter(Q(end_date__isnull=True) | Q(end_date__gte=d))
+            .order_by("-start_date")
+            .first()
+        )
+
+    def contracts_in_period(self, start: _date, end: _date):
+        """Return contracts overlapping [start, end]."""
+        return self.contracts.filter(start_date__lte=end).filter(
+            Q(end_date__isnull=True) | Q(end_date__gte=start)
+        )
+
+    def active_termset_on(self, d: _date) -> "ContractTermSet | None":
+        """Convenience shortcut: active ContractTermSet on date d."""
+        contract = self.active_contract_on(d)
+        if contract is None:
+            return None
+        return contract.active_termset_on(d)
+
+    def has_active_contract_in_month(self, year: int, month: int) -> bool:
+        """True if any contract overlaps the given calendar month."""
+        last_day = _cal.monthrange(year, month)[1]
+        month_start = _date(year, month, 1)
+        month_end = _date(year, month, last_day)
+        return self.contracts_in_period(month_start, month_end).exists()
+
+
+class WorkplaceContract(models.Model):
+    """An employment arrangement spanning a date range."""
+
+    workplace = models.ForeignKey(
+        Workplace, on_delete=models.CASCADE, related_name="contracts"
+    )
+    name = models.CharField(
+        max_length=200, blank=True,
+        help_text="Optional label, e.g. 'Physics Lab' or 'Adjunkt 2024'.",
+    )
+    start_date = models.DateField(
+        help_text="Date this employment arrangement starts.",
+    )
+    end_date = models.DateField(
+        null=True, blank=True,
+        help_text="Date this arrangement ends (leave blank if still active).",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["workplace", "start_date"]
+
+    def __str__(self):
+        label = self.name or str(self.start_date)
+        end = self.end_date or "open"
+        return f"{self.workplace.name} — {label} ({self.start_date} → {end})"
+
+    def clean(self):
+        super().clean()
+        if self.end_date and self.start_date and self.end_date < self.start_date:
+            raise ValidationError("End date must be on or after start date.")
+
+        # Overlap check: no other contract for the same workplace may overlap
+        if not self.start_date:
+            return
+        qs = WorkplaceContract.objects.filter(workplace=self.workplace)
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+
+        if self.end_date:
+            # This contract runs [start, end]; overlap when other.start <= end AND other.end >= start
+            overlap = qs.filter(start_date__lte=self.end_date).filter(
+                Q(end_date__isnull=True) | Q(end_date__gte=self.start_date)
+            )
+        else:
+            # Open-ended: overlaps any contract that starts on or before today
+            # (or any contract whose end_date >= our start)
+            overlap = qs.filter(
+                Q(end_date__isnull=True) | Q(end_date__gte=self.start_date)
+            )
+
+        if overlap.exists():
+            other = overlap.first()
+            raise ValidationError(
+                f"This contract overlaps with '{other}'. "
+                "Contracts for the same workplace must not overlap."
+            )
+
+    def is_active_on(self, d: _date) -> bool:
+        if self.start_date and d < self.start_date:
+            return False
+        if self.end_date and d > self.end_date:
+            return False
+        return True
+
+    def active_termset_on(self, d: _date) -> "ContractTermSet | None":
+        return (
+            self.term_sets.filter(effective_from__lte=d)
+            .order_by("-effective_from")
+            .first()
+        )
+
+    def get_rate_as_of(self, as_of: _date | None = None):
+        """Return (hourly_rate, monthly_salary) for the active termset on *as_of*."""
+        ts = self.active_termset_on(as_of or _date.today())
+        if ts:
+            return ts.hourly_rate, ts.monthly_salary
+        return None, None
+
+
+class ContractTermSet(models.Model):
+    """
+    A versioned snapshot of employment settings within a contract.
+    The termset with the latest effective_from <= a given date is used.
+    """
+
+    class EmploymentType(models.TextChoices):
+        HOURLY = "hourly", "Hourly"
+        SALARIED = "salaried", "Salaried"
+
+    class TaxCardType(models.TextChoices):
+        HOVEDKORT = "hovedkort", "Hovedkort (primary)"
+        BIKORT = "bikort", "Bikort (secondary)"
+
+    class VacationType(models.TextChoices):
+        FERIEKONTO = "feriekonto", "Paid to FerieKonto"
+        ACCRUED = "accrued", "Accrued as leave balance"
+
+    class FritvalgsPayoutType(models.TextChoices):
+        ACCRUES = "accrues", "Accrues (saved up)"
+        PAID_MONTHLY = "paid_monthly", "Paid out every month"
+
+    class HourGoalType(models.TextChoices):
+        WEEKLY = "weekly", "Per week"
+        MONTHLY = "monthly", "Per month"
+
+    contract = models.ForeignKey(
+        WorkplaceContract, on_delete=models.CASCADE, related_name="term_sets"
+    )
+    effective_from = models.DateField(
+        help_text="These terms apply from this date forward within the contract.",
+    )
+
     # Employment
     employment_type = models.CharField(
         max_length=10,
@@ -60,40 +216,25 @@ class Workplace(models.Model):
         default=EmploymentType.SALARIED,
     )
     hourly_rate = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
+        max_digits=10, decimal_places=2, null=True, blank=True,
         help_text="Hourly rate in DKK (for hourly employment).",
     )
     monthly_salary = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        null=True,
-        blank=True,
+        max_digits=12, decimal_places=2, null=True, blank=True,
         help_text="Monthly gross salary in DKK (for salaried employment).",
     )
 
     # Weekly hours
     weekly_hours_fixed = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        null=True,
-        blank=True,
+        max_digits=5, decimal_places=2, null=True, blank=True,
         help_text="Fixed weekly hours. Leave blank if using min/max range.",
     )
     weekly_hours_min = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        null=True,
-        blank=True,
+        max_digits=5, decimal_places=2, null=True, blank=True,
         help_text="Minimum weekly hours (range mode).",
     )
     weekly_hours_max = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        null=True,
-        blank=True,
+        max_digits=5, decimal_places=2, null=True, blank=True,
         help_text="Maximum weekly hours (range mode).",
     )
 
@@ -118,7 +259,6 @@ class Workplace(models.Model):
         validators=[MinValueValidator(1), MaxValueValidator(28)],
         help_text=(
             "Day of the month when the employer pulls your tax card from SKAT. "
-            "Tax profile changes after this day take effect next month. "
             "Typically between the 15th and 20th."
         ),
     )
@@ -132,65 +272,39 @@ class Workplace(models.Model):
 
     # Pension & fritvalgskonto
     pension_employee_percent = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        default=0,
+        max_digits=5, decimal_places=2, default=0,
         help_text="Employee's own pension contribution (%).",
     )
     pension_employer_percent = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        default=0,
+        max_digits=5, decimal_places=2, default=0,
         help_text="Employer's pension contribution (%).",
     )
-    fritvalgskonto_enabled = models.BooleanField(
-        default=False,
-        help_text="Enable fritvalgskonto (flexible account).",
-    )
+    fritvalgskonto_enabled = models.BooleanField(default=False)
     fritvalgskonto_percent = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        default=0,
+        max_digits=5, decimal_places=2, default=0,
         help_text="Fritvalgskonto percentage of gross salary.",
     )
     fritvalgskonto_payout_type = models.CharField(
         max_length=15,
         choices=FritvalgsPayoutType.choices,
         default=FritvalgsPayoutType.ACCRUES,
-        help_text="Whether fritvalgskonto accrues or is paid out monthly.",
     )
 
-    # Ferietillæg (vacation supplement)
-    ferietillaeg_enabled = models.BooleanField(
-        default=False,
-        help_text="Enable ferietillæg (vacation supplement).",
-    )
+    # Ferietillæg
+    ferietillaeg_enabled = models.BooleanField(default=False)
     ferietillaeg_percent = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        default=Decimal("1.00"),
+        max_digits=5, decimal_places=2, default=Decimal("1.00"),
         help_text="Ferietillæg as % of yearly gross, typically ~1%.",
     )
     ferietillaeg_payout_months = models.CharField(
-        max_length=50,
-        default="5,8",
-        blank=True,
+        max_length=50, default="5,8", blank=True,
         help_text="Comma-separated month numbers for payout (e.g. '5,8' for May & August).",
     )
 
     # Default shift (used when planning)
-    default_shift_start_time = models.TimeField(
-        null=True, blank=True,
-        help_text="Default start time for planned shifts.",
-    )
-    default_shift_end_time = models.TimeField(
-        null=True, blank=True,
-        help_text="Default end time for planned shifts.",
-    )
-    default_shift_break_minutes = models.PositiveIntegerField(
-        default=0,
-        help_text="Default break time in minutes for planned shifts.",
-    )
+    default_shift_start_time = models.TimeField(null=True, blank=True)
+    default_shift_end_time = models.TimeField(null=True, blank=True)
+    default_shift_break_minutes = models.PositiveIntegerField(default=0)
     default_shift_type = models.CharField(
         max_length=15,
         choices=[
@@ -201,61 +315,43 @@ class Workplace(models.Model):
             ("vacation", "Vacation"),
         ],
         default="on_site",
-        help_text="Default session type for planned shifts.",
     )
 
-    # Hour goal (optional, for planning mode)
-    class HourGoalType(models.TextChoices):
-        WEEKLY = "weekly", "Per week"
-        MONTHLY = "monthly", "Per month"
-
+    # Hour goal
     hour_goal_type = models.CharField(
-        max_length=10,
-        choices=HourGoalType.choices,
-        blank=True,
-        default="",
-        help_text="Whether the hour goal is per week or per month. Leave blank to disable.",
+        max_length=10, choices=HourGoalType.choices, blank=True, default="",
     )
     hour_goal_min = models.DecimalField(
         max_digits=6, decimal_places=2, null=True, blank=True,
-        help_text="Minimum hours goal (or exact goal if max is blank).",
     )
     hour_goal_max = models.DecimalField(
         max_digits=6, decimal_places=2, null=True, blank=True,
-        help_text="Maximum hours goal (leave blank for a fixed target instead of range).",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["-effective_from"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["contract", "effective_from"],
+                name="unique_termset_per_date",
+            )
+        ]
 
     def __str__(self):
-        return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            base_slug = slugify(self.name) or "workplace"
-            slug = base_slug
-            n = 1
-            while Workplace.objects.filter(slug=slug).exclude(pk=self.pk).exists():
-                slug = f"{base_slug}-{n}"
-                n += 1
-            self.slug = slug
-        super().save(*args, **kwargs)
+        return (
+            f"{self.contract.workplace.name} / {self.contract.name or 'contract'} "
+            f"from {self.effective_from}"
+        )
 
     def clean(self):
         super().clean()
         if self.employment_type == self.EmploymentType.HOURLY and not self.hourly_rate:
             raise ValidationError("Hourly employment requires an hourly rate.")
-        if (
-            self.employment_type == self.EmploymentType.SALARIED
-            and not self.monthly_salary
-        ):
+        if self.employment_type == self.EmploymentType.SALARIED and not self.monthly_salary:
             raise ValidationError("Salaried employment requires a monthly salary.")
 
-        # Weekly hours: must define either fixed, or both min/max
         has_fixed = self.weekly_hours_fixed is not None
         has_range = (
             self.weekly_hours_min is not None and self.weekly_hours_max is not None
@@ -269,9 +365,12 @@ class Workplace(models.Model):
                 "Minimum weekly hours cannot exceed maximum weekly hours."
             )
 
+    # ------------------------------------------------------------------
+    # Computed properties (moved from Workplace)
+    # ------------------------------------------------------------------
+
     @property
     def expected_weekly_hours(self):
-        """Return the nominal weekly hours (fixed, or midpoint of range)."""
         if self.weekly_hours_fixed is not None:
             return self.weekly_hours_fixed
         if self.weekly_hours_min is not None and self.weekly_hours_max is not None:
@@ -280,13 +379,11 @@ class Workplace(models.Model):
 
     @property
     def pension_total_percent(self):
-        """Sum of employee and employer pension contributions."""
         return self.pension_employee_percent + self.pension_employer_percent
 
     @property
     def base_hourly_rate(self):
-        """Base hourly rate: direct for hourly, derived from salary for salaried."""
-        if self.employment_type == 'hourly':
+        if self.employment_type == self.EmploymentType.HOURLY:
             return self.hourly_rate
         if self.monthly_salary and self.expected_weekly_hours:
             monthly_hours = self.expected_weekly_hours * Decimal("52") / Decimal("12")
@@ -295,10 +392,6 @@ class Workplace(models.Model):
 
     @property
     def effective_hourly_rate(self):
-        """Hourly rate adjusted for ferietillæg, fritvalgskonto, and employee pension.
-
-        effective = base × (1 + ferietillaeg%/100 + fritvalgskonto%/100 − pension_employee%/100)
-        """
         base = self.base_hourly_rate
         if not base:
             return None
@@ -312,10 +405,6 @@ class Workplace(models.Model):
 
     @property
     def total_hourly_rate(self):
-        """Total hourly rate including employer pension (no employee pension deduction).
-
-        total = base × (1 + ferietillaeg%/100 + fritvalgskonto%/100 + pension_employer%/100)
-        """
         base = self.base_hourly_rate
         if not base:
             return None
@@ -329,17 +418,12 @@ class Workplace(models.Model):
 
     @property
     def beskæftigelsesprocent(self):
-        """Employment percentage for salaried workers: weekly_hours / 37 * 100.
-        
-        Returns None if weekly_hours_fixed is not set or is None.
-        """
         if self.weekly_hours_fixed is None:
             return None
         return (self.weekly_hours_fixed / Decimal("37") * Decimal("100")).quantize(Decimal("0.1"))
 
     @property
     def ferietillaeg_payout_month_list(self):
-        """Return list of month numbers when ferietillæg is paid out."""
         if not self.ferietillaeg_payout_months:
             return []
         return [
@@ -350,67 +434,12 @@ class Workplace(models.Model):
 
     @property
     def ferietillaeg_payout_month_names(self):
-        """Return human-readable month names for payout months."""
-        import calendar as _cal
         return [_cal.month_name[m] for m in self.ferietillaeg_payout_month_list]
 
     @property
     def vacation_days_per_month(self):
-        """Fixed Danish vacation accrual: 2.08 days per month."""
-        from decimal import Decimal
         return Decimal("2.08")
 
     def get_rate_as_of(self, as_of=None):
-        """Return (hourly_rate, monthly_salary) effective on the given date.
-
-        Falls back to the workplace's own fields if no PayRate entries exist.
-        """
-        from datetime import date as _date
-        if as_of is None:
-            as_of = _date.today()
-        rate = (
-            self.pay_rates.filter(effective_from__lte=as_of)
-            .order_by("-effective_from")
-            .first()
-        )
-        if rate:
-            return rate.hourly_rate, rate.monthly_salary
-        # Fallback: use the fields on the workplace itself
+        """Duck-type compatibility: this record IS the point-in-time rate snapshot."""
         return self.hourly_rate, self.monthly_salary
-
-
-class PayRate(models.Model):
-    """
-    Date-versioned pay rate for a workplace.
-    The rate with the latest effective_from <= a given date is used.
-    """
-
-    workplace = models.ForeignKey(
-        Workplace, on_delete=models.CASCADE, related_name="pay_rates"
-    )
-    hourly_rate = models.DecimalField(
-        max_digits=10, decimal_places=2, null=True, blank=True,
-        help_text="Hourly rate in DKK (for hourly employment).",
-    )
-    monthly_salary = models.DecimalField(
-        max_digits=12, decimal_places=2, null=True, blank=True,
-        help_text="Monthly gross salary in DKK (for salaried employment).",
-    )
-    effective_from = models.DateField(
-        help_text="This rate applies from this date forward.",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-effective_from"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["workplace", "effective_from"],
-                name="unique_rate_per_date",
-            )
-        ]
-
-    def __str__(self):
-        if self.hourly_rate:
-            return f"{self.workplace.name}: {self.hourly_rate} DKK/h from {self.effective_from}"
-        return f"{self.workplace.name}: {self.monthly_salary} DKK/mo from {self.effective_from}"

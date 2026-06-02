@@ -50,6 +50,8 @@ class PayrollPeriodDetailView(View):
             PayrollPeriod.objects.select_related("workplace"), pk=pk
         )
         workplace = period.workplace
+        from workplaces.models import ContractTermSet
+        terms = workplace.active_termset_on(period.start_date)
 
         # Recalculate standard lines to reflect current data + custom adjustments
         if not period.is_locked:
@@ -64,19 +66,20 @@ class PayrollPeriodDetailView(View):
         )
 
         # Salary estimate (use tax pull date for profile lookup)
-        tax_pull_date = PayrollPeriodService.get_tax_pull_date(
-            workplace, period.end_date.year, period.end_date.month
-        )
-        estimate = SalaryEstimateService.estimate(
-            workplace, summary.total_hours, as_of=tax_pull_date
-        )
-
-        # Flex time (salaried only)
+        estimate = None
         flex = None
-        if workplace.employment_type == Workplace.EmploymentType.SALARIED:
-            flex = FlexTimeService.calculate(
-                workplace, period.start_date, period.end_date
+        if terms is not None:
+            tax_pull_date = PayrollPeriodService.get_tax_pull_date(
+                terms, period.end_date.year, period.end_date.month
             )
+            estimate = SalaryEstimateService.estimate(
+                terms, summary.total_hours, as_of=tax_pull_date
+            )
+
+            if terms.employment_type == ContractTermSet.EmploymentType.SALARIED:
+                flex = FlexTimeService.calculate(
+                    workplace, period.start_date, period.end_date
+                )
 
         return render(
             request,
@@ -218,7 +221,7 @@ class PayslipRecalculateView(View):
 
 
 class TaxPullDayUpdateView(View):
-    """AJAX endpoint to update the tax card pull day for a workplace."""
+    """AJAX endpoint to update the tax card pull day on the active ContractTermSet."""
 
     def post(self, request, period_pk):
         period = get_object_or_404(PayrollPeriod, pk=period_pk)
@@ -226,8 +229,10 @@ class TaxPullDayUpdateView(View):
             data = json.loads(request.body)
             day = int(data.get("tax_pull_day", 18))
             day = max(1, min(28, day))
-            period.workplace.tax_pull_day = day
-            period.workplace.save(update_fields=["tax_pull_day"])
+            terms = period.workplace.active_termset_on(period.start_date)
+            if terms is not None:
+                terms.tax_pull_day = day
+                terms.save(update_fields=["tax_pull_day"])
             return JsonResponse({"status": "ok", "tax_pull_day": day})
         except (json.JSONDecodeError, ValueError, TypeError):
             return JsonResponse({"status": "error"}, status=400)

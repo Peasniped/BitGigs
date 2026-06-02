@@ -101,11 +101,21 @@ class PlanningCalendarView(View):
 
         workplaces = Workplace.objects.filter(is_active=True)
 
+        import calendar as _cal_mod
+
         # Build workplace data with avatars, default shifts, payroll periods, monthly hours
         workplace_data = []
         for wp in workplaces:
             initials, color = avatar_for_name(wp.name)
-            period_start, period_end = PayrollPeriodService.get_period_dates(wp, year, month)
+            mid = date(year, month, 15)
+            terms = wp.active_termset_on(mid)
+
+            if terms is not None:
+                period_start, period_end = PayrollPeriodService.get_period_dates(terms, year, month)
+            else:
+                last_day = _cal_mod.monthrange(year, month)[1]
+                period_start = date(year, month, 1)
+                period_end = date(year, month, last_day)
 
             # Calculate planned hours this month
             planned_hours = sum(
@@ -134,18 +144,18 @@ class PlanningCalendarView(View):
                 "color": wp.color or color,
                 "accent_color": wp.accent_color or "",
                 "initials": initials,
-                "default_start": wp.default_shift_start_time.strftime("%H:%M") if wp.default_shift_start_time else "",
-                "default_end": wp.default_shift_end_time.strftime("%H:%M") if wp.default_shift_end_time else "",
-                "default_break": wp.default_shift_break_minutes,
-                "default_type": wp.default_shift_type,
+                "default_start": terms.default_shift_start_time.strftime("%H:%M") if terms and terms.default_shift_start_time else "",
+                "default_end": terms.default_shift_end_time.strftime("%H:%M") if terms and terms.default_shift_end_time else "",
+                "default_break": terms.default_shift_break_minutes if terms else 0,
+                "default_type": terms.default_shift_type if terms else "on_site",
                 "period_start": period_start.isoformat(),
                 "period_end": period_end.isoformat(),
                 "planned_hours": str(planned_hours),
                 "approved_hours": str(approved_hours),
                 "total_hours": str(planned_hours + approved_hours),
-                "hour_goal_type": wp.hour_goal_type,
-                "hour_goal_min": str(wp.hour_goal_min) if wp.hour_goal_min else "",
-                "hour_goal_max": str(wp.hour_goal_max) if wp.hour_goal_max else "",
+                "hour_goal_type": terms.hour_goal_type if terms else "",
+                "hour_goal_min": str(terms.hour_goal_min) if terms and terms.hour_goal_min else "",
+                "hour_goal_max": str(terms.hour_goal_max) if terms and terms.hour_goal_max else "",
             })
 
         import json as _json
@@ -295,19 +305,25 @@ class BulkDeleteShiftsView(View):
 
 
 class DefaultShiftAPIView(View):
-    """Return default shift config for a workplace, and allow updating it."""
+    """Return default shift config from the active ContractTermSet."""
 
     def get(self, request, pk):
         wp = get_object_or_404(Workplace, pk=pk)
+        terms = wp.active_termset_on(date.today())
+        if terms is None:
+            return JsonResponse({"default_start": "", "default_end": "", "default_break": 0, "default_type": "on_site"})
         return JsonResponse({
-            "default_start": wp.default_shift_start_time.strftime("%H:%M") if wp.default_shift_start_time else "",
-            "default_end": wp.default_shift_end_time.strftime("%H:%M") if wp.default_shift_end_time else "",
-            "default_break": wp.default_shift_break_minutes,
-            "default_type": wp.default_shift_type,
+            "default_start": terms.default_shift_start_time.strftime("%H:%M") if terms.default_shift_start_time else "",
+            "default_end": terms.default_shift_end_time.strftime("%H:%M") if terms.default_shift_end_time else "",
+            "default_break": terms.default_shift_break_minutes,
+            "default_type": terms.default_shift_type,
         })
 
     def post(self, request, pk):
         wp = get_object_or_404(Workplace, pk=pk)
+        terms = wp.active_termset_on(date.today())
+        if terms is None:
+            return JsonResponse({"ok": False, "error": "No active contract."}, status=400)
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -315,11 +331,11 @@ class DefaultShiftAPIView(View):
 
         start = data.get("start_time", "")
         end = data.get("end_time", "")
-        wp.default_shift_start_time = time.fromisoformat(start) if start else None
-        wp.default_shift_end_time = time.fromisoformat(end) if end else None
-        wp.default_shift_break_minutes = int(data.get("break_minutes", 0) or 0)
-        wp.default_shift_type = data.get("shift_type", "on_site") or "on_site"
-        wp.save()
+        terms.default_shift_start_time = time.fromisoformat(start) if start else None
+        terms.default_shift_end_time = time.fromisoformat(end) if end else None
+        terms.default_shift_break_minutes = int(data.get("break_minutes", 0) or 0)
+        terms.default_shift_type = data.get("shift_type", "on_site") or "on_site"
+        terms.save(update_fields=["default_shift_start_time", "default_shift_end_time", "default_shift_break_minutes", "default_shift_type"])
         return JsonResponse({"ok": True})
 
 

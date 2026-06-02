@@ -527,6 +527,33 @@
          data-hidden-payroll-start value="1">
 
   {# ══════════════════════════════════════════════════ #}
+  {# CONTRACT DATES (optional)                          #}
+  {# ══════════════════════════════════════════════════ #}
+  <hr class="my-4">
+  <div class="mb-3">
+    <span class="section-title mb-2 d-block">Contract Dates <small class="text-muted fw-normal text-lowercase">(optional)</small></span>
+    <p class="form-text mt-0 mb-2">Used by the analytics page to project income only over months the contract is active.</p>
+    <div class="row g-2">
+      <div class="col-6">
+        <label for="{{ form.contract_start_date.id_for_label }}" class="form-label small">Start date</label>
+        <input type="date" name="{{ form.contract_start_date.html_name }}"
+               id="{{ form.contract_start_date.id_for_label }}"
+               value="{{ form.contract_start_date.value|date:'Y-m-d'|default_if_none:'' }}"
+               class="form-control form-control-sm {% if form.contract_start_date.errors %}is-invalid{% endif %}">
+        {% for err in form.contract_start_date.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="col-6">
+        <label for="{{ form.contract_end_date.id_for_label }}" class="form-label small">Expected end date</label>
+        <input type="date" name="{{ form.contract_end_date.html_name }}"
+               id="{{ form.contract_end_date.id_for_label }}"
+               value="{{ form.contract_end_date.value|date:'Y-m-d'|default_if_none:'' }}"
+               class="form-control form-control-sm {% if form.contract_end_date.errors %}is-invalid{% endif %}">
+        {% for err in form.contract_end_date.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════ #}
   {# DEFAULT SHIFT (optional, for planning mode)        #}
   {# ══════════════════════════════════════════════════ #}
   <hr class="my-4">
