@@ -50,6 +50,7 @@ Django 5.1 app for tracking shifts and estimating Danish net pay across multiple
 
 ## Do's
 
-- Do write Git commits at a regular interval when it makes sense (You must show a preview to the user for their confirmation before any tools are called)
+- Do write Git commits at a regular interval when it makes sense
+- You must show a preview of git commits in text to the user for their confirmation before any tools are called.
 - !!! Ignore this for now, will be important once the system is actively running. Do ask the user if they want to create a new feature branch, or change to an existing branch(search and see what there is) if it makes sense, each session before editing files.
 - Do make a copy of the database when creating a new branch

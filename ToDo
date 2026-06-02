@@ -4,8 +4,8 @@
 
 # NU     --------------------------------------------------------
 
-
-
+Some kind of error, if you try to add a contract term set outside of contract bounds.
+Some kind of error, if you try to add a shift outside of contract bounds.
 
 # SENERE --------------------------------------------------------
 
@@ -39,7 +39,7 @@
 
 - In the navbar, color the page you are currently on, to help with navigation / knowing where you are
 
-*** Canges to workplace calendar: ***
+*** Changes to workplace calendar: ***
 - Work shifts for days that are before the start or after the end of the payroll period should be greyed out on the calendar. -- just like on the planning calendar
 - When clicking the calendar, currently it opens a modal, i would like this to appear as a pop-up just over the date you clicked (like the pick-workplace-popup on the planning calendar)
 - If no work shifts are already on the current day, it should automatically open the dialogue to add a new shift
