@@ -4,14 +4,15 @@
 
 # NU     --------------------------------------------------------
 
-Some kind of error, if you try to add a contract term set outside of contract bounds.
-Some kind of error, if you try to add a shift outside of contract bounds.
+*** Planning mode ***
+- Add a banner warning of overlapping shifts
+- Add a highlight to all overlapping shifts
+- It seems like the shift placement (horizontal position) within the date-boxes is strange. Test with a completely fresh db if this is still the case.
 
 # SENERE --------------------------------------------------------
 
 *** Main Dashboard: ***
 - On the hour goal-statcard, when hovering over the grey portion of the progress bar, it should show the hour deficit(if any), ie how far you are from the goal, not just the goal.
-- On the hour goal-statcard, make the progress bar about 20% thicker.
 - The message "2 shifts in February belong to March payroll (19,70h)" is nice, but maybe you can click to expand, so it shows the shifts/dates and the hours? -- maybe hovering over it and/or clicking highlights the shifts if they are visible on the calendar.
 
 *** All Calendars: ***
@@ -83,6 +84,7 @@ Allow the system to send out calender invites to my work emails and add to my Go
 *** Commuting page: ***
 - The page is broken, the workplace dropdown is empty and it breaks the page.
 - - Just auto-update, when the page is loaded.
+- Use the same date/period picker as is on the Analytics page
 - I want to:
 1. select a year (auto-select current year)
 2. See, broken down by workplace, how many commuting days for each month.
@@ -110,5 +112,12 @@ A page that lets me configure studieaktivitet for each month in the year, and th
 - Studieaktivitet is defined in three levels:
 -- 1 (Aktiv og får SU)
 -- 2 (SU fravalgt eller Orlov/Lønnet praktik/studieinaktiv)
--- 3 (Ikke er indskrevet, ikke flere SU klip)).
+-- 3 (Ikke er indskrevet, ikke flere SU klip).
 - The amounts for each level are changed every year and should thus be easily configurable like with ATP. The current rates are 1: 20.749 kr. per måned, 2: 23.598 kr. per måned, 3: 45.420 kr. per måned. If you have kids under 18, the yearly limit is increased by 34.129 kr. per child in 2026. -- so amount of children should also be configurable on the SU page. 
+
+*** Complete walkthrough of the code ***
+- Check for repeated or unused code and make as much reusable as possible
+- Check that all code lives up to the general style and that everything is best practices
+- Check if there is a better way to implement the dk style / locale for numbers and values than what is currently implemented (which seems like a bit of a heavy hack)
+- Check the entire code for security vulnerabilities
+- Can all the Django code be moved one level down into a source/src folder so it is easier to see the instance, statis folders and administrative files such as manage.py, requirements, Dockerfile etc.
