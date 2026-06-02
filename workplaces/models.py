@@ -371,6 +371,22 @@ class ContractTermSet(models.Model):
                 "Minimum weekly hours cannot exceed maximum weekly hours."
             )
 
+        # effective_from must fall within the parent contract's date range
+        if self.contract_id and self.effective_from:
+            c = self.contract
+            if self.effective_from < c.start_date:
+                raise ValidationError({
+                    "effective_from": (
+                        f"Must be on or after the contract start ({c.start_date})."
+                    )
+                })
+            if c.end_date and self.effective_from > c.end_date:
+                raise ValidationError({
+                    "effective_from": (
+                        f"Must be on or before the contract end ({c.end_date})."
+                    )
+                })
+
     # ------------------------------------------------------------------
     # Computed properties (moved from Workplace)
     # ------------------------------------------------------------------

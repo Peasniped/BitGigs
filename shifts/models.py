@@ -7,6 +7,23 @@ from django.core.exceptions import ValidationError
 from workplaces.models import Workplace, ContractTermSet
 
 
+def validate_shift_within_contract(workplace, workplace_id, shift_date):
+    """Raise ValidationError if *shift_date* is not covered by an active contract.
+
+    Shared by Shift and PlannedShift. Skips the check when workplace/date aren't
+    set yet (partial validation).
+    """
+    if not workplace_id or not shift_date:
+        return
+    if workplace.active_contract_on(shift_date) is None:
+        raise ValidationError({
+            "date": (
+                f"{workplace.name} has no active contract on {shift_date}. "
+                "Add or adjust a contract to cover this date before logging a shift here."
+            )
+        })
+
+
 class ShiftTimeMixin(models.Model):
     """Abstract mixin providing shared time-calculation logic for shifts."""
 
@@ -83,6 +100,10 @@ class Shift(ShiftTimeMixin):
             models.Index(fields=["workplace", "date"]),
         ]
 
+    def clean(self):
+        super().clean()
+        validate_shift_within_contract(self.workplace, self.workplace_id, self.date)
+
     def __str__(self):
         return (
             f"{self.workplace.name} — {self.date} "
@@ -133,6 +154,10 @@ class PlannedShift(ShiftTimeMixin):
             models.Index(fields=["workplace", "date"]),
             models.Index(fields=["status"]),
         ]
+
+    def clean(self):
+        super().clean()
+        validate_shift_within_contract(self.workplace, self.workplace_id, self.date)
 
     def __str__(self):
         return (

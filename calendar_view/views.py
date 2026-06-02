@@ -225,6 +225,13 @@ class PlannedShiftAPIView(View):
         if start_time >= end_time:
             return JsonResponse({"ok": False, "error": "End time must be after start time."}, status=400)
 
+        if workplace.active_contract_on(parsed_date) is None:
+            return JsonResponse({
+                "ok": False,
+                "error": f"{workplace.name} has no active contract on {parsed_date}. "
+                         "Add or adjust a contract to cover this date.",
+            }, status=400)
+
         # Check for overlaps with existing sessions and planned shifts
         overlaps = _check_overlaps(parsed_date, start_time, end_time)
 
@@ -273,6 +280,13 @@ class PlannedShiftUpdateAPIView(View):
 
         if shift.start_time >= shift.end_time:
             return JsonResponse({"ok": False, "error": "End time must be after start time."}, status=400)
+
+        if shift.workplace.active_contract_on(shift.date) is None:
+            return JsonResponse({
+                "ok": False,
+                "error": f"{shift.workplace.name} has no active contract on {shift.date}. "
+                         "Add or adjust a contract to cover this date.",
+            }, status=400)
 
         overlaps = _check_overlaps(shift.date, shift.start_time, shift.end_time, exclude_shift_pk=shift.pk)
         shift.save()
@@ -610,6 +624,13 @@ class ApprovedShiftUpdateAPIView(View):
 
         if session.start_time >= session.end_time:
             return JsonResponse({"ok": False, "error": "End time must be after start time."}, status=400)
+
+        if session.workplace.active_contract_on(session.date) is None:
+            return JsonResponse({
+                "ok": False,
+                "error": f"{session.workplace.name} has no active contract on {session.date}. "
+                         "Add or adjust a contract to cover this date.",
+            }, status=400)
 
         overlaps = _check_overlaps(
             session.date, session.start_time, session.end_time,

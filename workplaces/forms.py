@@ -96,8 +96,13 @@ class ContractTermSetForm(forms.ModelForm):
             "default_shift_end_time": forms.TimeInput(attrs={"type": "time", "class": "form-control"}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, contract=None, **kwargs):
         super().__init__(*args, **kwargs)
+        # Contract whose bounds constrain effective_from. Falls back to the
+        # instance's contract when editing an existing termset.
+        self.contract = contract or (
+            self.instance.contract if self.instance and self.instance.contract_id else None
+        )
 
         for f in [
             "hourly_rate", "monthly_salary", "weekly_hours_fixed",
@@ -149,6 +154,20 @@ class ContractTermSetForm(forms.ModelForm):
     def clean(self):
         cleaned = super().clean()
         emp_type = cleaned.get("employment_type")
+
+        # effective_from must fall within the parent contract's date range
+        eff = cleaned.get("effective_from")
+        if eff and self.contract:
+            if eff < self.contract.start_date:
+                self.add_error("effective_from", (
+                    f"Must be on or after the contract start "
+                    f"({self.contract.start_date})."
+                ))
+            elif self.contract.end_date and eff > self.contract.end_date:
+                self.add_error("effective_from", (
+                    f"Must be on or before the contract end "
+                    f"({self.contract.end_date})."
+                ))
 
         if emp_type == ContractTermSet.EmploymentType.SALARIED:
             cleaned["hourly_rate"] = None

@@ -482,7 +482,7 @@ class ContractTermSetCreateView(View):
                 if f != "effective_from":
                     initial[f] = getattr(latest, f)
         initial["effective_from"] = date.today()
-        form = ContractTermSetForm(initial=initial)
+        form = ContractTermSetForm(initial=initial, contract=contract)
         return render(request, "workplaces/termset_form.html", {
             "form": form, "workplace": workplace, "contract": contract,
             "tax_profile_json": _tax_profile_json(), "month_choices": MONTH_CHOICES,
@@ -493,7 +493,7 @@ class ContractTermSetCreateView(View):
         setup = request.POST.get("setup") == "1"
         workplace = get_object_or_404(Workplace, slug=slug)
         contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
-        form = ContractTermSetForm(request.POST)
+        form = ContractTermSetForm(request.POST, contract=contract)
         if form.is_valid():
             termset = form.save(commit=False)
             termset.contract = contract
@@ -519,7 +519,7 @@ class ContractTermSetUpdateView(View):
         workplace = get_object_or_404(Workplace, slug=slug)
         contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
         termset = get_object_or_404(ContractTermSet, pk=tpk, contract=contract)
-        form = ContractTermSetForm(instance=termset)
+        form = ContractTermSetForm(instance=termset, contract=contract)
         return render(request, "workplaces/termset_form.html", {
             "form": form, "workplace": workplace, "contract": contract,
             "termset": termset, "shift_count": self._shift_count(termset),
@@ -535,7 +535,7 @@ class ContractTermSetUpdateView(View):
 
         if action == "fork":
             # Create a brand-new termset with the submitted data
-            form = ContractTermSetForm(request.POST)
+            form = ContractTermSetForm(request.POST, contract=contract)
             if form.is_valid():
                 new_ts = form.save(commit=False)
                 new_ts.contract = contract
@@ -543,7 +543,7 @@ class ContractTermSetUpdateView(View):
                 return redirect("workplaces:workplace-detail", slug=slug)
         else:
             # Overwrite in place
-            form = ContractTermSetForm(request.POST, instance=termset)
+            form = ContractTermSetForm(request.POST, instance=termset, contract=contract)
             if form.is_valid():
                 form.save()
                 return redirect("workplaces:workplace-detail", slug=slug)
