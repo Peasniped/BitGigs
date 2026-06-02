@@ -8,6 +8,8 @@
 - Add a banner warning of overlapping shifts
 - Add a highlight to all overlapping shifts
 - It seems like the shift placement (horizontal position) within the date-boxes is strange. Test with a completely fresh db if this is still the case.
+- When setup has not been completed, all pages should redirect to /setup/
+- Power Edit > Delete All should be able to remove all shifts (across all workplaces) for a single day when clicked.
 
 # SENERE --------------------------------------------------------
 
