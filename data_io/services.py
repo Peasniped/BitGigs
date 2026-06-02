@@ -306,7 +306,6 @@ def _wp_to_dict(wp):
     return {
         "name": wp.name,
         "slug": wp.slug,
-        "is_active": wp.is_active,
         "icon": wp.icon,
         "color": wp.color,
         "accent_color": wp.accent_color,
@@ -358,7 +357,6 @@ def _create_workplace_from_dict(d):
     wp = Workplace.objects.create(
         name=d["name"],
         slug=d.get("slug", ""),
-        is_active=d.get("is_active", True),
         icon=d.get("icon", ""),
         color=d.get("color", ""),
         accent_color=d.get("accent_color", ""),

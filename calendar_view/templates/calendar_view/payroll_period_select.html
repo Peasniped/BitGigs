@@ -10,7 +10,6 @@
     <a href="{% url 'calendar_view:payroll-period' %}?workplace={{ wp.pk }}&year={{ year }}&month={{ month }}"
        class="list-group-item list-group-item-action">
       {{ wp.name }}
-      <span class="badge bg-secondary float-end">Period starts: day {{ wp.payroll_period_start_day }}</span>
     </a>
   {% empty %}
     <p class="text-muted">No active workplaces.</p>

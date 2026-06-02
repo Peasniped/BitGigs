@@ -20,8 +20,6 @@ class Workplace(models.Model):
         max_length=200, unique=True,
         help_text="URL-friendly short name. Auto-generated from name, but editable.",
     )
-    is_active = models.BooleanField(default=True)
-
     icon = models.CharField(
         max_length=50, blank=True, default="",
         help_text="Bootstrap Icons class, e.g. 'bi-briefcase'.",
@@ -60,6 +58,14 @@ class Workplace(models.Model):
                 n += 1
             self.slug = slug
         super().save(*args, **kwargs)
+
+    @property
+    def is_active(self) -> bool:
+        """True when the workplace has at least one currently active contract."""
+        today = _date.today()
+        return self.contracts.filter(start_date__lte=today).filter(
+            Q(end_date__isnull=True) | Q(end_date__gte=today)
+        ).exists()
 
     # ------------------------------------------------------------------
     # Contract helpers
@@ -129,7 +135,7 @@ class WorkplaceContract(models.Model):
             raise ValidationError("End date must be on or after start date.")
 
         # Overlap check: no other contract for the same workplace may overlap
-        if not self.start_date:
+        if not self.start_date or not self.workplace_id:
             return
         qs = WorkplaceContract.objects.filter(workplace=self.workplace)
         if self.pk:

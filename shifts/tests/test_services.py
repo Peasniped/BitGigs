@@ -3,16 +3,21 @@ from decimal import Decimal
 
 from django.test import TestCase
 
-from workplaces.models import Workplace
+from workplaces.models import Workplace, WorkplaceContract, ContractTermSet
 from shifts.models import Shift
 from shifts.services import ShiftSummaryService
 
 
 class ShiftSummaryServiceTest(TestCase):
     def setUp(self):
-        self.wp = Workplace.objects.create(
-            name="Test Corp",
-            employment_type=Workplace.EmploymentType.SALARIED,
+        self.wp = Workplace.objects.create(name="Test Corp")
+        contract = WorkplaceContract.objects.create(
+            workplace=self.wp, start_date=date(2000, 1, 1),
+        )
+        ContractTermSet.objects.create(
+            contract=contract,
+            effective_from=date(2000, 1, 1),
+            employment_type=ContractTermSet.EmploymentType.SALARIED,
             monthly_salary=Decimal("30000.00"),
             weekly_hours_fixed=Decimal("37.00"),
         )
@@ -62,9 +67,14 @@ class ShiftSummaryServiceTest(TestCase):
 
 class ShiftModelTest(TestCase):
     def setUp(self):
-        self.wp = Workplace.objects.create(
-            name="Model Test Corp",
-            employment_type=Workplace.EmploymentType.HOURLY,
+        self.wp = Workplace.objects.create(name="Model Test Corp")
+        contract = WorkplaceContract.objects.create(
+            workplace=self.wp, start_date=date(2000, 1, 1),
+        )
+        ContractTermSet.objects.create(
+            contract=contract,
+            effective_from=date(2000, 1, 1),
+            employment_type=ContractTermSet.EmploymentType.HOURLY,
             hourly_rate=Decimal("150.00"),
             weekly_hours_fixed=Decimal("20.00"),
         )

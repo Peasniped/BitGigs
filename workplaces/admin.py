@@ -4,8 +4,8 @@ from .models import Workplace, WorkplaceContract, ContractTermSet
 
 @admin.register(Workplace)
 class WorkplaceAdmin(admin.ModelAdmin):
-    list_display = ["name", "is_active", "slug"]
-    list_filter = ["is_active"]
+    list_display = ["name", "slug"]
+    list_filter = []
     search_fields = ["name"]
 
 

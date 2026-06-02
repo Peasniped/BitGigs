@@ -7,6 +7,7 @@ from django.shortcuts import redirect, render, get_object_or_404
 from django.views import View
 
 from workplaces.models import Workplace
+from workplaces.services import workplaces_active_today
 from .models import PayrollPeriod, PayslipLine, CommutingRecord, VacationBalance
 from .services import (
     PayrollPeriodService,
@@ -22,7 +23,7 @@ from shifts.services import ShiftSummaryService
 class PayrollPeriodListView(View):
     def get(self, request):
         periods = PayrollPeriod.objects.select_related("workplace").all()[:50]
-        workplaces = Workplace.objects.filter(is_active=True)
+        workplaces = workplaces_active_today()
         return render(
             request,
             "payroll/period_list.html",
@@ -86,6 +87,7 @@ class PayrollPeriodDetailView(View):
             "payroll/period_detail.html",
             {
                 "period": period,
+                "terms": terms,
                 "payslip": payslip,
                 "summary": summary,
                 "estimate": estimate,

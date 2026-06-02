@@ -89,14 +89,14 @@
     <div class="d-flex align-items-center gap-2">
       {# Tax pull day inline setting #}
       <span class="text-muted small me-2" data-tax-pull-display>
-        Tax card pull: <strong>{{ period.workplace.tax_pull_day }}th</strong>
+        Tax card pull: <strong>{{ terms.tax_pull_day|default:18 }}th</strong>
         <button class="btn btn-link btn-sm p-0 ms-1 text-muted" type="button"
                 data-tax-pull-edit-btn title="Change tax pull day">
           <i class="bi bi-pencil" style="font-size:0.7rem;"></i>
         </button>
       </span>
       <span data-tax-pull-editor style="display:none;" class="d-flex align-items-center gap-1">
-        <input type="number" min="1" max="28" value="{{ period.workplace.tax_pull_day }}"
+        <input type="number" min="1" max="28" value="{{ terms.tax_pull_day|default:18 }}"
                class="form-control form-control-sm" style="width:60px;" data-tax-pull-input>
         <button class="btn btn-sm btn-outline-primary py-0 px-1" type="button" data-tax-pull-save>
           <i class="bi bi-check-lg"></i>

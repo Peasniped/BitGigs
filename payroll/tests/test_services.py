@@ -1,9 +1,9 @@
-﻿from datetime import date, time
+from datetime import date, time
 from decimal import Decimal
 
 from django.test import TestCase
 
-from workplaces.models import Workplace
+from workplaces.models import Workplace, WorkplaceContract, ContractTermSet
 from shifts.models import Shift
 from payroll.services import (
     PayrollPeriodService,
@@ -13,45 +13,55 @@ from payroll.services import (
 from core.models import TaxProfile
 
 
+def _make_workplace(name, **termset_kwargs):
+    """Create a Workplace + one WorkplaceContract + one ContractTermSet."""
+    wp = Workplace.objects.create(name=name)
+    contract = WorkplaceContract.objects.create(
+        workplace=wp, start_date=date(2000, 1, 1),
+    )
+    termset_kwargs.setdefault("effective_from", date(2000, 1, 1))
+    ts = ContractTermSet.objects.create(contract=contract, **termset_kwargs)
+    return wp, ts
+
+
 class PayrollPeriodServiceTest(TestCase):
     def setUp(self):
-        self.workplace = Workplace.objects.create(
-            name="Test Corp",
-            employment_type=Workplace.EmploymentType.SALARIED,
+        self.wp, self.ts = _make_workplace(
+            "Test Corp",
+            employment_type=ContractTermSet.EmploymentType.SALARIED,
             monthly_salary=Decimal("30000.00"),
             weekly_hours_fixed=Decimal("37.00"),
             payroll_period_start_day=1,
-            tax_card_type=Workplace.TaxCardType.HOVEDKORT,
+            tax_card_type=ContractTermSet.TaxCardType.HOVEDKORT,
         )
 
     def test_standard_period_start_day_1(self):
         """Standard month period: 1st to last day."""
-        start, end = PayrollPeriodService.get_period_dates(self.workplace, 2026, 3)
+        start, end = PayrollPeriodService.get_period_dates(self.ts, 2026, 3)
         self.assertEqual(start, date(2026, 3, 1))
         self.assertEqual(end, date(2026, 3, 31))
 
     def test_custom_period_start_day_20(self):
         """Custom period: 20th of prev month to 19th of current."""
-        self.workplace.payroll_period_start_day = 20
-        self.workplace.save()
-        start, end = PayrollPeriodService.get_period_dates(self.workplace, 2026, 3)
+        self.ts.payroll_period_start_day = 20
+        self.ts.save()
+        start, end = PayrollPeriodService.get_period_dates(self.ts, 2026, 3)
         self.assertEqual(start, date(2026, 2, 20))
         self.assertEqual(end, date(2026, 3, 19))
 
     def test_custom_period_february(self):
         """February edge case with short month."""
-        self.workplace.payroll_period_start_day = 20
-        self.workplace.save()
-        start, end = PayrollPeriodService.get_period_dates(self.workplace, 2026, 2)
-        # Jan 20 â†’ Feb 19
+        self.ts.payroll_period_start_day = 20
+        self.ts.save()
+        start, end = PayrollPeriodService.get_period_dates(self.ts, 2026, 2)
         self.assertEqual(start, date(2026, 1, 20))
         self.assertEqual(end, date(2026, 2, 19))
 
     def test_custom_period_january(self):
         """January period spans Dec of previous year."""
-        self.workplace.payroll_period_start_day = 20
-        self.workplace.save()
-        start, end = PayrollPeriodService.get_period_dates(self.workplace, 2026, 1)
+        self.ts.payroll_period_start_day = 20
+        self.ts.save()
+        start, end = PayrollPeriodService.get_period_dates(self.ts, 2026, 1)
         self.assertEqual(start, date(2025, 12, 20))
         self.assertEqual(end, date(2026, 1, 19))
 
@@ -67,43 +77,43 @@ class SalaryEstimateServiceTest(TestCase):
         )
 
     def test_hourly_estimate(self):
-        wp = Workplace.objects.create(
-            name="Hourly Job",
-            employment_type=Workplace.EmploymentType.HOURLY,
+        _, ts = _make_workplace(
+            "Hourly Job",
+            employment_type=ContractTermSet.EmploymentType.HOURLY,
             hourly_rate=Decimal("200.00"),
             weekly_hours_fixed=Decimal("20.00"),
         )
-        estimate = SalaryEstimateService.estimate(wp, Decimal("80.00"))
+        estimate = SalaryEstimateService.estimate(ts, Decimal("80.00"))
         # 80 hours * 200 DKK = 16000
         self.assertEqual(estimate.gross_pay, Decimal("16000.00"))
         self.assertEqual(estimate.taxable_gross, Decimal("16000.00"))
         self.assertIsNotNone(estimate.tax_breakdown)
 
     def test_salaried_estimate(self):
-        wp = Workplace.objects.create(
-            name="Salaried Job",
-            employment_type=Workplace.EmploymentType.SALARIED,
+        _, ts = _make_workplace(
+            "Salaried Job",
+            employment_type=ContractTermSet.EmploymentType.SALARIED,
             monthly_salary=Decimal("35000.00"),
             weekly_hours_fixed=Decimal("37.00"),
         )
-        estimate = SalaryEstimateService.estimate(wp, Decimal("148.00"))
+        estimate = SalaryEstimateService.estimate(ts, Decimal("148.00"))
         # Salaried: gross is always monthly_salary regardless of hours
         self.assertEqual(estimate.gross_pay, Decimal("35000.00"))
 
     def test_pension_basis_includes_fritvalg_and_feriepenge_for_feriekonto(self):
-        wp = Workplace.objects.create(
-            name="Pension Basis Job",
-            employment_type=Workplace.EmploymentType.HOURLY,
+        _, ts = _make_workplace(
+            "Pension Basis Job",
+            employment_type=ContractTermSet.EmploymentType.HOURLY,
             hourly_rate=Decimal("100.00"),
             weekly_hours_fixed=Decimal("37.00"),
-            vacation_type=Workplace.VacationType.FERIEKONTO,
+            vacation_type=ContractTermSet.VacationType.FERIEKONTO,
             fritvalgskonto_enabled=True,
             fritvalgskonto_percent=Decimal("5.00"),
             pension_employee_percent=Decimal("2.00"),
             pension_employer_percent=Decimal("10.00"),
         )
 
-        estimate = SalaryEstimateService.estimate(wp, Decimal("100.00"))
+        estimate = SalaryEstimateService.estimate(ts, Decimal("100.00"))
 
         # Gross: 10,000.00
         # Fritvalgskonto (5%): 500.00
@@ -114,16 +124,16 @@ class SalaryEstimateServiceTest(TestCase):
         self.assertEqual(estimate.employer_pension, Decimal("1175.00"))
 
     def test_taxable_gross_includes_fritvalgskonto(self):
-        wp = Workplace.objects.create(
-            name="Taxable Gross Job",
-            employment_type=Workplace.EmploymentType.HOURLY,
+        _, ts = _make_workplace(
+            "Taxable Gross Job",
+            employment_type=ContractTermSet.EmploymentType.HOURLY,
             hourly_rate=Decimal("100.00"),
             weekly_hours_fixed=Decimal("37.00"),
             fritvalgskonto_enabled=True,
             fritvalgskonto_percent=Decimal("5.00"),
         )
 
-        estimate = SalaryEstimateService.estimate(wp, Decimal("100.00"))
+        estimate = SalaryEstimateService.estimate(ts, Decimal("100.00"))
 
         self.assertEqual(estimate.gross_pay, Decimal("10000.00"))
         self.assertEqual(estimate.fritvalgskonto, Decimal("500.00"))
@@ -132,9 +142,9 @@ class SalaryEstimateServiceTest(TestCase):
 
 class FlexTimeServiceTest(TestCase):
     def setUp(self):
-        self.workplace = Workplace.objects.create(
-            name="Flex Corp",
-            employment_type=Workplace.EmploymentType.SALARIED,
+        self.workplace, _ = _make_workplace(
+            "Flex Corp",
+            employment_type=ContractTermSet.EmploymentType.SALARIED,
             monthly_salary=Decimal("30000.00"),
             weekly_hours_fixed=Decimal("37.00"),
         )
@@ -147,7 +157,7 @@ class FlexTimeServiceTest(TestCase):
     def test_flex_positive(self):
         """Working more than expected = positive flex."""
         # March 2026 has 22 weekdays. Expected = 37/5 * 22 = 162.80h
-        # Log sessions on all weekdays: 22 days Ã— 7.75h = 170.50h
+        # Log sessions on all weekdays: 22 days × 7.75h = 170.50h
         for day_num in range(1, 32):  # All days in March
             d = date(2026, 3, day_num)
             if d.weekday() < 5:  # Only weekdays
@@ -196,10 +206,8 @@ class FlexTimeServiceTest(TestCase):
             date(2026, 3, 31),
             carried_over=Decimal("5.50"),
         )
-        # No sessions logged â†’ actual = 0, expected = 162.80
+        # No sessions logged → actual = 0, expected = 162.80
         # flex_this = 0 - 162.80 = -162.80
         # flex_total = 5.50 + (-162.80) = -157.30
         self.assertEqual(result.flex_carried_over, Decimal("5.50"))
         self.assertEqual(result.flex_total, Decimal("-157.30"))
-
-

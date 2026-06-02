@@ -7,6 +7,7 @@ from django.shortcuts import render, get_object_or_404
 from django.views import View
 
 from workplaces.models import Workplace
+from workplaces.services import workplaces_active_today
 from shifts.models import PlannedShift, Shift
 from core.utils import avatar_for_name, prev_next_month
 from .services import CalendarService
@@ -26,7 +27,7 @@ class MonthCalendarView(View):
         # Navigation
         prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
 
-        workplaces = Workplace.objects.filter(is_active=True)
+        workplaces = workplaces_active_today()
 
         return render(
             request,
@@ -55,7 +56,7 @@ class PayrollPeriodCalendarView(View):
 
         if not workplace_id:
             # If no workplace selected, show workplace picker
-            workplaces = Workplace.objects.filter(is_active=True)
+            workplaces = workplaces_active_today()
             return render(
                 request,
                 "calendar_view/payroll_period_select.html",
@@ -99,7 +100,7 @@ class PlanningCalendarView(View):
         # Navigation
         prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
 
-        workplaces = Workplace.objects.filter(is_active=True)
+        workplaces = workplaces_active_today()
 
         import calendar as _cal_mod
 

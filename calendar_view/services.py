@@ -211,10 +211,10 @@ class CalendarService:
         periods for the selected month.  This ensures that every date belonging
         to *any* workplace's period is visible.
         """
-        from workplaces.models import Workplace
+        from workplaces.services import workplaces_active_today
         from payroll.services import PayrollPeriodService
 
-        workplaces = Workplace.objects.filter(is_active=True)
+        workplaces = workplaces_active_today()
 
         # Start with the calendar month as the baseline range
         first_day = date(year, month, 1)

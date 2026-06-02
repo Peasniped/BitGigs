@@ -13,7 +13,8 @@ from decimal import Decimal
 from core.utils import WEEKS_PER_MONTH, avatar_for_name
 from payroll.services import PayrollPeriodService, SalaryEstimateService
 from shifts.models import Shift, PlannedShift
-from workplaces.models import Workplace
+from workplaces.models import Workplace, ContractTermSet
+from workplaces.services import workplaces_active_today
 
 
 TWO_PLACES = Decimal("0.01")
@@ -73,27 +74,37 @@ class DashboardDataService:
     def get_stats(cls, year: int, month: int) -> DashboardStats:
         """Compute stat-card values only (used by the JSON API)."""
         stats = DashboardStats()
-        workplaces = Workplace.objects.filter(is_active=True)
+        workplaces = workplaces_active_today()
 
+        import calendar as _cal_
         for wp in workplaces:
-            period_start, period_end = PayrollPeriodService.get_period_dates(wp, year, month)
+            # Bootstrap period using mid-month termset (payroll_period_start_day needed)
+            _mid = date(year, month, 15)
+            _terms_mid = wp.active_termset_on(_mid)
+            if _terms_mid:
+                period_start, period_end = PayrollPeriodService.get_period_dates(_terms_mid, year, month)
+            else:
+                period_start = date(year, month, 1)
+                period_end = date(year, month, _cal_.monthrange(year, month)[1])
 
             actual_hours = cls._sum_shift_hours(wp, period_start, period_end)
             planned_hours = cls._sum_planned_hours(wp, period_start, period_end)
 
-            tax_pull_date = PayrollPeriodService.get_tax_pull_date(wp, year, month)
-            earned_est = SalaryEstimateService.estimate(wp, actual_hours, as_of=tax_pull_date)
-            stats.total_earned_gross += earned_est.taxable_gross
-            if earned_est.tax_breakdown:
-                stats.total_earned_net += earned_est.tax_breakdown.net_pay
+            terms = wp.active_termset_on(period_start)
+            tax_pull_date = PayrollPeriodService.get_tax_pull_date(terms, year, month) if terms else period_end
+            earned_est = SalaryEstimateService.estimate(terms, actual_hours, as_of=tax_pull_date) if terms else None
+            if earned_est:
+                stats.total_earned_gross += earned_est.taxable_gross
+                if earned_est.tax_breakdown:
+                    stats.total_earned_net += earned_est.tax_breakdown.net_pay
 
-            if wp.employment_type == Workplace.EmploymentType.HOURLY and planned_hours:
-                planned_est = SalaryEstimateService.estimate(wp, planned_hours, as_of=tax_pull_date)
+            if terms and terms.employment_type == ContractTermSet.EmploymentType.HOURLY and planned_hours:
+                planned_est = SalaryEstimateService.estimate(terms, planned_hours, as_of=tax_pull_date)
                 stats.total_planned_gross += planned_est.taxable_gross
                 if planned_est.tax_breakdown:
                     stats.total_planned_net += planned_est.tax_breakdown.net_pay
 
-            cls._accumulate_goals(stats, wp)
+            cls._accumulate_goals(stats, terms)
             stats.total_planned_hours += planned_hours
             stats.total_approved_hours += actual_hours
 
@@ -103,10 +114,18 @@ class DashboardDataService:
     def get_full(cls, year: int, month: int) -> DashboardData:
         """Compute full dashboard data (stats + workplace cards + cross-period info)."""
         data = DashboardData()
-        workplaces = Workplace.objects.filter(is_active=True)
+        workplaces = workplaces_active_today()
 
+        import calendar as _cal_
         for wp in workplaces:
-            period_start, period_end = PayrollPeriodService.get_period_dates(wp, year, month)
+            # Bootstrap period using mid-month termset
+            _mid = date(year, month, 15)
+            _terms_mid = wp.active_termset_on(_mid)
+            if _terms_mid:
+                period_start, period_end = PayrollPeriodService.get_period_dates(_terms_mid, year, month)
+            else:
+                period_start = date(year, month, 1)
+                period_end = date(year, month, _cal_.monthrange(year, month)[1])
 
             data.period_boundaries.append({
                 "workplace_name": wp.name,
@@ -125,22 +144,24 @@ class DashboardDataService:
             # Planned hours
             planned_hours = cls._sum_planned_hours(wp, period_start, period_end)
 
-            tax_pull_date = PayrollPeriodService.get_tax_pull_date(wp, year, month)
-            earned_est = SalaryEstimateService.estimate(wp, actual_hours, as_of=tax_pull_date)
-            data.stats.total_earned_gross += earned_est.taxable_gross
-            if earned_est.tax_breakdown:
-                data.stats.total_earned_net += earned_est.tax_breakdown.net_pay
+            terms = wp.active_termset_on(period_start)
+            tax_pull_date = PayrollPeriodService.get_tax_pull_date(terms, year, month) if terms else period_end
+            earned_est = SalaryEstimateService.estimate(terms, actual_hours, as_of=tax_pull_date) if terms else None
+            if earned_est:
+                data.stats.total_earned_gross += earned_est.taxable_gross
+                if earned_est.tax_breakdown:
+                    data.stats.total_earned_net += earned_est.tax_breakdown.net_pay
 
             # Planned estimate (hourly only)
             planned_est = None
-            if wp.employment_type == Workplace.EmploymentType.HOURLY and planned_hours:
-                planned_est = SalaryEstimateService.estimate(wp, planned_hours, as_of=tax_pull_date)
+            if terms and terms.employment_type == ContractTermSet.EmploymentType.HOURLY and planned_hours:
+                planned_est = SalaryEstimateService.estimate(terms, planned_hours, as_of=tax_pull_date)
                 data.stats.total_planned_gross += planned_est.taxable_gross
                 if planned_est.tax_breakdown:
                     data.stats.total_planned_net += planned_est.tax_breakdown.net_pay
 
             # Hour goals
-            cls._accumulate_goals(data.stats, wp)
+            cls._accumulate_goals(data.stats, terms)
             data.stats.total_planned_hours += planned_hours
             data.stats.total_approved_hours += actual_hours
 
@@ -148,8 +169,8 @@ class DashboardDataService:
                 "workplace": wp,
                 "actual_hours": actual_hours,
                 "avg_hours_per_week": avg_hours_per_week,
-                "earned_gross": earned_est.taxable_gross,
-                "earned_net": earned_est.tax_breakdown.net_pay if earned_est.tax_breakdown else earned_est.taxable_gross,
+                "earned_gross": earned_est.taxable_gross if earned_est else Decimal("0"),
+                "earned_net": (earned_est.tax_breakdown.net_pay if earned_est.tax_breakdown else earned_est.taxable_gross) if earned_est else Decimal("0"),
                 "planned_gross": planned_est.taxable_gross if planned_est else Decimal("0"),
                 "avatar_initials": avatar_for_name(wp.name)[0],
                 "avatar_color": avatar_for_name(wp.name)[1],
@@ -183,12 +204,12 @@ class DashboardDataService:
         )
 
     @staticmethod
-    def _accumulate_goals(stats: DashboardStats, wp: Workplace) -> None:
-        if wp.hour_goal_type and wp.hour_goal_min:
+    def _accumulate_goals(stats: DashboardStats, terms) -> None:
+        if terms and terms.hour_goal_type and terms.hour_goal_min:
             stats.has_any_goal = True
-            goal_min = wp.hour_goal_min
-            goal_max = wp.hour_goal_max or Decimal("0")
-            if wp.hour_goal_type == "weekly":
+            goal_min = terms.hour_goal_min
+            goal_max = terms.hour_goal_max or Decimal("0")
+            if terms.hour_goal_type == "weekly":
                 goal_min = goal_min * WEEKS_PER_MONTH
                 goal_max = goal_max * WEEKS_PER_MONTH if goal_max else Decimal("0")
             stats.total_goal_min += goal_min
@@ -255,7 +276,7 @@ def get_pending_shifts(today: date) -> tuple[str, int]:
     """Return (JSON string, count) of shifts pending approval."""
     now_time = datetime.now().time()
     all_pending = PlannedShift.objects.filter(
-        workplace__is_active=True,
+        workplace__in=workplaces_active_today(),
         status=PlannedShift.Status.PLANNED,
         date__lte=today,
     ).select_related("workplace").order_by("workplace__name", "date", "start_time")
@@ -290,7 +311,7 @@ def get_pending_shifts(today: date) -> tuple[str, int]:
 def get_todays_banner(today: date) -> tuple[dict | None, str, str]:
     """Return (banner_dict_or_None, shifts_json, banner_shifts_json)."""
     all_todays_shifts = list(PlannedShift.objects.filter(
-        workplace__is_active=True,
+        workplace__in=workplaces_active_today(),
         status=PlannedShift.Status.PLANNED,
         date=today,
     ).select_related("workplace").order_by("start_time"))
