@@ -1,23 +1,29 @@
 - A page I can use to transfer shift info to whatever kind of system the workplace uses for me to report my hours
-- - Should be customizable. Example at JKF i need Date, week, month, hours, break(30 min, yes/no), name. This is transferred into an excel sheet. - if there are multiple shifts in one day, add them toghether to one per date.
+- - Should be customizable. Example at JKF i report hours in an excel sheet with cols Date, week, month, hours, break(30 min, yes/no), name. This transfer would be easiest with an excel-compatible copy-paste.
+- at JKF if there are multiple shifts in one day, I add them toghether to one per date. This should also be configurable.
 
-Analytics page:
-- Average hours per month/week should be calculated (trailing over a configurable amount of months) and projected forward
-- Expected income for the entire year and each month.
-- Each workplace should have a contract start and expected contract end for a workplace (optional). This should be taken into account in the expected pay calculations., ie if my contract ends in june, that workplace earns me nothing in july.
-- The workplaces will not be shown in months where the contract is inactive
-- A page where you can see your historical rate (both gross and net) and also project the rate forward.
+*** Analytics page: ***
+- The workplaces will not be shown in years where the contract is inactive
+- On the rate history page:
+- - The all jobs-graph should use workplace accent colors
 
-Main Dashboard:
-- When the "Arrived Early" is filled, the stats on the statcards are not updated until you update the page. Maybe submitting the arrived early/late should just update the page so all stats are updated.
-- On the hour goal-statcard, when hovering over the grey portion of the progress bar, it should show the hour deficit(if any), ie how far you are from the goal.
+*** Big change: Full implementation of history, and implementation of contracts ***
+// se PLAN.md //
+- All workplace settings (bar the appearance) should be changeable with history. So when I change details about my employment (ie if i get better terms) previous data will not be changed.
+- Every time workplace settings are changed, it will create a snapshot that for admin-purposes can be edited (ie if i suddenly see that i have been using wrong data)
+- Workplaces now allow multiple contracts. ie at AAU i have had contracts at different labs, and I have also had a period of a few months, where I had no contract. For this use, right now I would have to add multiple workplaces for the different contracts, it would make more sense to have multiple different contracts that can have different terms (and settings)
+- - Contracts should not be able to overlap, as this will increase diffuculty, and the function is not usable for me currently.
+- - All contracts must have a start date and can optionally have an end date. This information should be used throughout the app, so workplaces are only shown if an active contract exists in the filtered timespace shown on the different pages.
+
+*** Main Dashboard: ***
+- On the hour goal-statcard, when hovering over the grey portion of the progress bar, it should show the hour deficit(if any), ie how far you are from the goal, not just the goal.
 - On the hour goal-statcard, make the progress bar about 20% thicker.
 - The message "2 shifts in February belong to March payroll (19,70h)" is nice, but maybe you can click to expand, so it shows the shifts/dates and the hours? -- maybe hovering over it and/or clicking highlights the shifts if they are visible on the calendar.
 
-All Calendars:
+*** All Calendars: ***
 - Possibility to change to a list view where each shift is a row in a list/table
 
-Workplace dashboard:
+*** Changes to Workplace dashboard: ***
 - Add a button that includes planned shifts in the stats etc.
 - The month picker should be at the top, just under the workplace name.
 - Edit Workplace, Customize Appearance, Delete, and Payslip editor should be moved to a hamburger menu that is located where the delete button is (top/left in the same level as the company name/logo)
@@ -30,7 +36,7 @@ Workplace dashboard:
 - In the details table, it should calculate base / effective / total hourly wage for salaried positions
 - In the details table, please put a hr below the wages and the weekly hours
 
-Payslip Editor
+*** Changes to Payslip Editor ***
 - Buttons to change month
 - Add the net hourly wage (net pay / total hours)
 - Net pay is always in the bottom and gross pay is always in the top
@@ -39,7 +45,7 @@ Payslip Editor
 
 - In the navbar, color the page you are currently on, to help with navigation / knowing where you are
 
-Workplace calendar:
+*** Canges to workplace calendar: ***
 - Work shifts for days that are before the start or after the end of the payroll period should be greyed out on the calendar. -- just like on the planning calendar
 - When clicking the calendar, currently it opens a modal, i would like this to appear as a pop-up just over the date you clicked (like the pick-workplace-popup on the planning calendar)
 - If no work shifts are already on the current day, it should automatically open the dialogue to add a new shift
@@ -53,7 +59,7 @@ Workplace calendar:
 -- Break time is static (ie you can only enter yes/no in the work shift configuration, and the break numbers are static)
 -- Break time is variable and should be entered manually every time (like it is now)
 
-SMTP Implementation
+*** SMTP Implementation ***
 Allow the system to send out calender invites to my work emails and add to my Google Calendar.
 - IMPORTANT: This whole system should be optional and disableable.
 - Add a calendar/SMTP settings page.
@@ -66,7 +72,7 @@ Allow the system to send out calender invites to my work emails and add to my Go
 - - There should be a test button that checks: is the connection ok and without errors
 - The system should not care about replies to the events or anything.
 
-Non-work events in planning calendar.
+*** Non-work events in planning calendar. ***
 - Possibility to add events to the calendar that are non-work related, but helps avoid collissions when planning shifts
 - Only visible in the planning calendar. (Maybe you can toggle this on settings-page, like: "Non-work events visible in calendars on pages: [x] Planning calendar, [] Main Dashboard, [] Workplace calendars") -- if none is selected, the function is disabled -- default is planning calendar only.
 - Drag onto the calendar like a workplace shift, but is not selectable by clicking on a date.
@@ -79,7 +85,8 @@ Non-work events in planning calendar.
 - Put Danish holidays in the calendar
 - Easy toggle on the planning page to turn off non-work events per calendar
 
-Commuting page:
+
+*** Commuting page: ***
 - The page is broken, the workplace dropdown is empty and it breaks the page.
 - - Just auto-update, when the page is loaded.
 - I want to:
@@ -102,9 +109,7 @@ Example:
 >> 18th - 8:34-13:27
 
 
-
-
-SU-page:
+*** SU-page: ***
 A page that lets me configure studieaktivitet for each month in the year, and then it calculates and shows the limit for how much I can earn, and then sums up all my earnings for month basis and the year. It should have a progression bar that shows how close I am to the limit. It should also show the expected earnings for the rest of the year based on my current average, and how that affects the limit.
 - Then it should have a message like "You are trending to have an income of xx which is above the limit of yy for this year. Please work less." or "Everything looks good, you are trending to have an income of xx which is below the limit of yy for this year. Keep it up!" or "You are very close to the limit, you are trending to have an income of xx which is just below the limit of yy for this year. Be careful with how much you work the rest of the year!"
 - It should also have a section that shows fast inkomst (salaried jobs) vs hourly income, and if close to or over the limit, it should suggest maximum weekly/monthly hours for hourly jobs to stay under the limit.

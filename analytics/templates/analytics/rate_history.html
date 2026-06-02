@@ -1,0 +1,505 @@
+{% extends "base.html" %}
+{% load dk_filters %}
+{% block title %}Rate History &middot; BitGigs{% endblock %}
+
+{% block extra_css %}
+<style>
+  .wp-picker-strip { display:flex; flex-wrap:wrap; gap:0.6rem; justify-content:center; }
+  .wp-picker-card {
+    cursor:pointer;
+    border:1.5px solid #e2e8f0;
+    border-radius:0.75rem;
+    padding:0.55rem 0.95rem;
+    background:#fff;
+    display:flex; align-items:center; gap:0.55rem;
+    font-size:0.85rem; user-select:none;
+    transition: box-shadow .15s, transform .15s, border-color .15s, background .15s;
+    min-width:140px;
+  }
+  .wp-picker-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); transform:translateY(-1px); }
+  .wp-picker-card.selected {
+    border-color:#6366f1; background:#eef2ff;
+    box-shadow:0 0 0 1.5px #6366f1, 0 4px 12px rgba(99,102,241,.18);
+  }
+  .wp-picker-card .all-badge,
+  .wp-picker-card .period-badge {
+    width:36px; height:36px; border-radius:50%;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:#0f172a; color:#fff; font-weight:700; flex-shrink:0;
+  }
+  .wp-picker-card .period-badge { background:#6366f1; }
+
+  /* Period picker card layout (label small, value big) */
+  .period-card {
+    background:#fff; border:1.5px solid #e2e8f0; border-radius:0.75rem;
+    padding:0.55rem 0.95rem;
+    display:flex; align-items:center; gap:0.6rem;
+    cursor:pointer; user-select:none;
+    transition: box-shadow .15s, transform .15s, border-color .15s, background .15s;
+  }
+  .period-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); transform:translateY(-1px); }
+  .period-card.show { border-color:#6366f1; box-shadow:0 0 0 1.5px #6366f1, 0 4px 12px rgba(99,102,241,.18); }
+  .period-card__label { font-size:0.7rem; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; line-height:1; }
+  .period-card__value { font-size:1.05rem; font-weight:700; color:#0f172a; line-height:1.15; margin-top:2px; }
+  .period-card .dropdown-toggle::after { display:none; }
+
+  .picker-row { display:flex; align-items:flex-start; gap:1rem; flex-wrap:wrap; }
+  .picker-workplaces {
+    flex:1 1 auto;
+    display:flex; flex-wrap:wrap; justify-content:center; gap:0.6rem;
+  }
+
+  .row-current { background-color: rgba(59, 130, 246, 0.10) !important; }
+  .row-historic { background-color: rgba(148, 163, 184, 0.06) !important; }
+
+  .analytics-table th,
+  .analytics-table td { padding:0.75rem 1rem; vertical-align:middle; }
+  .analytics-table th { font-weight:600; color:#475569; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.03em; }
+
+  .wp-collapse-header {
+    cursor:pointer;
+    display:flex; align-items:center; gap:0.65rem;
+    padding:0.85rem 1.1rem;
+    transition:background .12s;
+  }
+  .wp-collapse-header:hover { background:#f8fafc; }
+  .wp-collapse-header .chevron { transition:transform .2s; }
+  .wp-collapse-header[aria-expanded="true"] .chevron { transform:rotate(90deg); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+  <div>
+    <h4 class="mb-0"><i class="bi bi-graph-up me-2"></i>Rate History</h4>
+    <small class="text-muted">Historical pay rates with the latest applying forward.</small>
+  </div>
+  <a href="{% url 'analytics:overview' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i>Back to analytics
+  </a>
+</div>
+
+{% comment %} ── Filter (matches analytics page) ─────────────── {% endcomment %}
+<form method="get" class="card mb-4" id="rateFilterForm">
+  <input type="hidden" name="wp_set" value="1">
+  <div class="card-body">
+    <div class="picker-row">
+
+      {% comment %} Period card with dropdown popup {% endcomment %}
+      <div class="dropdown" id="periodDropdown">
+        <div class="period-card" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+             role="button" aria-expanded="false">
+          <span class="period-badge"><i class="bi bi-calendar3"></i></span>
+          <div>
+            <div class="period-card__label">Period</div>
+            <div class="period-card__value">
+              {% if period_mode == "range" %}
+                {{ period_start|date:"M j, Y" }} &rarr; {{ period_end|date:"M j, Y" }}
+              {% elif period_mode == "year" %}
+                {{ year }}
+              {% else %}
+                All time
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="dropdown-menu p-3 shadow" style="min-width:420px;">
+          <div class="btn-group btn-group-sm w-100 mb-3" role="group" id="periodModeGroup">
+            <input type="radio" class="btn-check" name="period_mode" id="modeAll"
+                   value="all" {% if period_mode == "all" %}checked{% endif %}>
+            <label class="btn btn-outline-secondary" for="modeAll">All time</label>
+            <input type="radio" class="btn-check" name="period_mode" id="modeYear"
+                   value="year" {% if period_mode == "year" %}checked{% endif %}>
+            <label class="btn btn-outline-secondary" for="modeYear">Calendar year</label>
+            <input type="radio" class="btn-check" name="period_mode" id="modeRange"
+                   value="range" {% if period_mode == "range" %}checked{% endif %}>
+            <label class="btn btn-outline-secondary" for="modeRange">Custom range</label>
+          </div>
+
+          <div class="period-year-block" {% if period_mode != "year" %}style="display:none;"{% endif %}>
+            <label class="form-label small fw-medium">Year</label>
+            <select name="year" class="form-select form-select-sm">
+              {% for y in year_options %}
+                <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="period-range-block" {% if period_mode != "range" %}style="display:none;"{% endif %}>
+            <div class="mb-2">
+              <label class="form-label small fw-medium">From</label>
+              <input type="date" name="start" class="form-control form-control-sm"
+                     value="{{ period_start|date:'Y-m-d' }}">
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-medium">To</label>
+              <input type="date" name="end" class="form-control form-control-sm"
+                     value="{{ period_end|date:'Y-m-d' }}">
+            </div>
+          </div>
+
+          <button class="btn btn-primary btn-sm w-100 mt-2" type="submit">
+            <i class="bi bi-check-lg me-1"></i>Apply
+          </button>
+        </div>
+      </div>
+
+      {% comment %} Workplace cards (centered) {% endcomment %}
+      <div class="picker-workplaces" id="wpPickerStrip">
+        <div class="wp-picker-card {% if is_all_selected %}selected{% endif %}"
+             data-wp-card="all" tabindex="0" role="button">
+          <span class="all-badge"><i class="bi bi-stack"></i></span>
+          <span class="fw-medium">All</span>
+        </div>
+        {% for wp in workplaces_for_picker %}
+          <div class="wp-picker-card {% if wp.selected %}selected{% endif %}"
+               data-wp-card="{{ wp.slug }}" tabindex="0" role="button">
+            {% include "analytics/_workplace_avatar.html" with avatar=wp.avatar size=36 %}
+            <span class="fw-medium">{{ wp.name }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div id="wpHiddenInputs"></div>
+  </div>
+</form>
+
+{% if workplace_rows|length > 1 %}
+  <div class="card mb-3">
+    <div class="wp-collapse-header"
+         data-bs-toggle="collapse"
+         data-bs-target="#combinedRateBody"
+         aria-expanded="true"
+         aria-controls="combinedRateBody">
+      <i class="bi bi-chevron-right chevron text-muted"></i>
+      <span class="all-badge" style="width:40px;height:40px;"><i class="bi bi-stack"></i></span>
+      <div class="flex-grow-1">
+        <div class="fw-semibold">All selected workplaces</div>
+        <div class="text-muted" style="font-size:0.78rem;">
+          Combined net &amp; total hourly rate across {{ workplace_rows|length }} workplaces
+        </div>
+      </div>
+    </div>
+    <div class="collapse show" id="combinedRateBody">
+      <div class="card-body pb-3">
+        <div style="position:relative;height:280px;">
+          <canvas id="combinedRateChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+{% for row in workplace_rows %}
+  <div class="card mb-3">
+    <div class="wp-collapse-header"
+         data-bs-toggle="collapse"
+         data-bs-target="#rateBody{{ forloop.counter }}"
+         aria-expanded="false"
+         aria-controls="rateBody{{ forloop.counter }}">
+      <i class="bi bi-chevron-right chevron text-muted"></i>
+      {% include "analytics/_workplace_avatar.html" with avatar=row.avatar size=40 %}
+      <div class="flex-grow-1">
+        <div class="fw-semibold">{{ row.workplace.name }}</div>
+        <div class="text-muted" style="font-size:0.78rem;">
+          {{ row.workplace.get_employment_type_display }} · {{ row.history|length }} rate change{{ row.history|length|pluralize }}
+        </div>
+      </div>
+    </div>
+    <div class="collapse" id="rateBody{{ forloop.counter }}">
+      {% if row.chart_points %}
+        <div class="card-body pb-0">
+          <div style="position:relative;height:200px;">
+            <canvas class="rate-chart"
+                    data-points="{{ row.chart_points_json|escape }}"
+                    data-name="{{ row.workplace.name }}"
+                    data-today="{{ row.today_iso }}"></canvas>
+          </div>
+        </div>
+      {% endif %}
+      <div class="table-responsive">
+        <table class="table analytics-table mb-0">
+          <thead>
+            <tr>
+              <th>Effective from</th>
+              {% if row.workplace.employment_type == 'hourly' %}
+                <th class="text-end">Gross / hour</th>
+                <th class="text-end">Effective / hour</th>
+                <th class="text-end">Total / hour</th>
+              {% else %}
+                <th class="text-end">Monthly salary</th>
+                <th class="text-end">Base / hour</th>
+                <th class="text-end">Total / hour</th>
+              {% endif %}
+              <th class="text-end">Gross / month</th>
+              <th class="text-end">Net / month</th>
+              <th class="text-end">Net / hour</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for h in row.history %}
+              <tr class="{% if forloop.last %}row-current{% else %}row-historic{% endif %}">
+                <td>{{ h.effective_from|date:"Y-m-d" }}</td>
+                {% if row.workplace.employment_type == 'hourly' %}
+                  <td class="text-end">{{ h.hourly_rate|dk:2|default:"—" }}</td>
+                  <td class="text-end">{{ h.effective_hourly|dk:2|default:"—" }}</td>
+                  <td class="text-end">{{ h.total_hourly|dk:2|default:"—" }}</td>
+                {% else %}
+                  <td class="text-end">{{ h.monthly_salary|dk:0|default:"—" }}</td>
+                  <td class="text-end">{{ h.base_hourly|dk:2|default:"—" }}</td>
+                  <td class="text-end">{{ h.total_hourly|dk:2|default:"—" }}</td>
+                {% endif %}
+                <td class="text-end">{{ h.gross_monthly|dk:0 }}</td>
+                <td class="text-end">{{ h.net_monthly|dk:0 }}</td>
+                <td class="text-end fw-semibold">{{ h.net_hourly|dk:2 }}</td>
+                <td>
+                  {% if forloop.last %}
+                    <span class="badge text-bg-info-subtle text-info-emphasis">
+                      <i class="bi bi-graph-up-arrow me-1"></i>Current &rarr; forward
+                    </span>
+                  {% else %}
+                    <span class="badge text-bg-light text-secondary">
+                      <i class="bi bi-clock-history me-1"></i>Historic
+                    </span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-body py-2 small text-muted">
+        Net values use the tax profile that was active on each
+        <em>effective from</em> date and the workplace's expected monthly hours.
+      </div>
+    </div>
+  </div>
+{% empty %}
+  <div class="text-center text-muted py-5">
+    <i class="bi bi-graph-up fs-1 d-block mb-2"></i>
+    No workplaces selected.
+  </div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  (function() {
+    const strip = document.getElementById('wpPickerStrip');
+    const hiddenWrap = document.getElementById('wpHiddenInputs');
+    const form = document.getElementById('rateFilterForm');
+
+    function syncHiddenInputs() {
+      hiddenWrap.innerHTML = '';
+      const cards = strip.querySelectorAll('.wp-picker-card');
+      const allCard = strip.querySelector('[data-wp-card="all"]');
+      const wpCards = Array.from(cards).filter(c => c.dataset.wpCard !== 'all');
+      const selectedWps = wpCards.filter(c => c.classList.contains('selected'));
+      if (allCard.classList.contains('selected') || selectedWps.length === wpCards.length) {
+        const i = document.createElement('input');
+        i.type = 'hidden'; i.name = 'workplace'; i.value = 'all';
+        hiddenWrap.appendChild(i);
+      } else {
+        selectedWps.forEach(c => {
+          const i = document.createElement('input');
+          i.type = 'hidden'; i.name = 'workplace'; i.value = c.dataset.wpCard;
+          hiddenWrap.appendChild(i);
+        });
+      }
+    }
+
+    function refreshAllCardState() {
+      const allCard = strip.querySelector('[data-wp-card="all"]');
+      const wpCards = strip.querySelectorAll('.wp-picker-card:not([data-wp-card="all"])');
+      const selectedCount = strip.querySelectorAll('.wp-picker-card.selected:not([data-wp-card="all"])').length;
+      if (selectedCount === wpCards.length && wpCards.length > 0) {
+        allCard.classList.add('selected');
+      } else {
+        allCard.classList.remove('selected');
+      }
+    }
+
+    let timer = null;
+    strip.addEventListener('click', function(e) {
+      const card = e.target.closest('.wp-picker-card');
+      if (!card) return;
+      const slug = card.dataset.wpCard;
+      if (slug === 'all') {
+        const willSelect = !card.classList.contains('selected');
+        strip.querySelectorAll('.wp-picker-card').forEach(c => c.classList.toggle('selected', willSelect));
+      } else {
+        card.classList.toggle('selected');
+        refreshAllCardState();
+      }
+      clearTimeout(timer);
+      timer = setTimeout(() => { syncHiddenInputs(); form.submit(); }, 350);
+    });
+
+    syncHiddenInputs();
+
+    // ----- Period mode toggle (year vs custom range) -----
+    const periodGroup = document.getElementById('periodModeGroup');
+    if (periodGroup) {
+      periodGroup.addEventListener('change', function(e) {
+        if (e.target.name !== 'period_mode') return;
+        const mode = e.target.value;
+        document.querySelectorAll('.period-year-block').forEach(el => {
+          el.style.display = mode === 'year' ? '' : 'none';
+        });
+        document.querySelectorAll('.period-range-block').forEach(el => {
+          el.style.display = mode === 'range' ? '' : 'none';
+        });
+      });
+    }
+  })();
+
+  // Rate history charts + combined chart
+  // (Period filtering is done server-side via the analytics-style filter form.)
+  (function() {
+    const PALETTE = [
+      '#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4',
+      '#a855f7', '#ec4899', '#14b8a6', '#84cc16', '#f97316',
+    ];
+
+    // Per-workplace charts
+    document.querySelectorAll('canvas.rate-chart').forEach(function(canvas) {
+      let points;
+      try { points = JSON.parse(canvas.dataset.points); } catch (e) { return; }
+      if (!points || points.length < 1) return;
+
+      const segmentDash = (ctx) => {
+        const p = points[ctx.p1DataIndex];
+        return p && p.projected ? [6, 4] : undefined;
+      };
+
+      new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels: points.map(p => p.date),
+          datasets: [
+            {
+              label: 'Total / hour (DKK)',
+              data: points.map(p => parseFloat(p.total_hourly)),
+              borderColor: '#6366f1',
+              backgroundColor: 'rgba(99,102,241,0.10)',
+              stepped: 'before',
+              pointRadius: 4, pointHoverRadius: 6, fill: false,
+              segment: { borderDash: segmentDash },
+            },
+            {
+              label: 'Net / hour (DKK)',
+              data: points.map(p => parseFloat(p.net_hourly)),
+              borderColor: '#22c55e',
+              backgroundColor: 'rgba(34,197,94,0.10)',
+              stepped: 'before',
+              pointRadius: 4, pointHoverRadius: 6, fill: false,
+              segment: { borderDash: segmentDash },
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: { ticks: { maxRotation: 0, autoSkip: true, font: { size: 10 } } },
+            y: {
+              beginAtZero: false,
+              ticks: { callback: v => v.toLocaleString('da-DK') },
+            },
+          },
+          plugins: {
+            legend: { position: 'bottom' },
+            tooltip: {
+              callbacks: {
+                label: ctx => ctx.dataset.label + ': '
+                  + ctx.parsed.y.toLocaleString('da-DK', { maximumFractionDigits: 2 }),
+              },
+            },
+          },
+        },
+      });
+    });
+
+    // Combined chart across all selected workplaces
+    const combinedCanvas = document.getElementById('combinedRateChart');
+    if (!combinedCanvas) return;
+
+    const series = [];
+    document.querySelectorAll('canvas.rate-chart').forEach(function(canvas, idx) {
+      let pts;
+      try { pts = JSON.parse(canvas.dataset.points); } catch (e) { return; }
+      if (!pts || !pts.length) return;
+      series.push({
+        name: canvas.dataset.name || ('Workplace ' + (idx + 1)),
+        color: PALETTE[idx % PALETTE.length],
+        points: pts,
+      });
+    });
+    if (!series.length) return;
+
+    // Union of dates across all series, sorted
+    const dateSet = new Set();
+    series.forEach(s => s.points.forEach(p => dateSet.add(p.date)));
+    const labels = Array.from(dateSet).sort();
+
+    const datasets = series.map(function(s) {
+      let idx = -1;
+      const data = labels.map(function(lbl) {
+        while (idx + 1 < s.points.length && s.points[idx + 1].date <= lbl) idx++;
+        if (idx < 0) return null;
+        return parseFloat(s.points[idx].total_hourly);
+      });
+      const segmentDash = (ctx) => {
+        const dateAtP1 = labels[ctx.p1DataIndex];
+        let i = -1;
+        for (let k = 0; k < s.points.length; k++) {
+          if (s.points[k].date <= dateAtP1) i = k; else break;
+        }
+        return i >= 0 && s.points[i].projected ? [6, 4] : undefined;
+      };
+      return {
+        label: s.name,
+        data,
+        borderColor: s.color,
+        backgroundColor: s.color + '20',
+        stepped: 'before',
+        pointRadius: 3, pointHoverRadius: 5, fill: false,
+        spanGaps: false,
+        segment: { borderDash: segmentDash },
+      };
+    });
+
+    new Chart(combinedCanvas, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: { ticks: { maxRotation: 0, autoSkip: true, font: { size: 10 } } },
+          y: {
+            beginAtZero: false,
+            ticks: { callback: v => v.toLocaleString('da-DK') },
+          },
+        },
+        plugins: {
+          legend: { position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: ctx => ctx.dataset.label + ': '
+                + (ctx.parsed.y == null
+                    ? '—'
+                    : ctx.parsed.y.toLocaleString('da-DK', { maximumFractionDigits: 2 })
+                  ) + ' DKK/h',
+            },
+          },
+        },
+      },
+    });
+  })();
+</script>
+{% endblock %}

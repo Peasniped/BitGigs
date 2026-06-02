@@ -1,0 +1,16 @@
+{% comment %}
+Renders a small workplace avatar circle.
+Context: avatar dict with keys initials, color, icon, custom_icon_url; size (px, optional).
+{% endcomment %}
+{% with size=size|default:36 %}
+<span class="wp-avatar-glyph"
+      style="width:{{ size }}px;height:{{ size }}px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-weight:700;font-size:0.75rem;background:{{ avatar.color }};overflow:hidden;">
+  {% if avatar.custom_icon_url %}
+    <img src="{{ avatar.custom_icon_url }}" alt="" style="width:100%;height:100%;object-fit:cover;">
+  {% elif avatar.icon %}
+    <i class="bi {{ avatar.icon }}" {% if avatar.accent_color %}style="color:{{ avatar.accent_color }};"{% endif %}></i>
+  {% else %}
+    {{ avatar.initials }}
+  {% endif %}
+</span>
+{% endwith %}

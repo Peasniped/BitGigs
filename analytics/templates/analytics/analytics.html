@@ -1,0 +1,537 @@
+{% extends "base.html" %}
+{% load dk_filters %}
+{% block title %}Analytics &middot; BitGigs{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Workplace picker cards */
+  .wp-picker-strip { display:flex; flex-wrap:wrap; gap:0.6rem; }
+  .wp-picker-card {
+    cursor:pointer;
+    border:1.5px solid #e2e8f0;
+    border-radius:0.75rem;
+    padding:0.55rem 0.95rem;
+    background:#fff;
+    display:flex; align-items:center; gap:0.55rem;
+    font-size:0.85rem; user-select:none;
+    transition: box-shadow .15s, transform .15s, border-color .15s, background .15s;
+    min-width:140px;
+  }
+  .wp-picker-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); transform:translateY(-1px); }
+  .wp-picker-card.selected {
+    border-color:#6366f1;
+    background:#eef2ff;
+    box-shadow:0 0 0 1.5px #6366f1, 0 4px 12px rgba(99,102,241,.18);
+  }
+  .wp-picker-card .all-badge,
+  .wp-picker-card .period-badge {
+    width:36px; height:36px; border-radius:50%;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:#0f172a; color:#fff; font-weight:700; flex-shrink:0;
+  }
+  .wp-picker-card .period-badge { background:#6366f1; }
+
+  /* Period picker card layout (label small, value big) */
+  .period-card {
+    background:#fff; border:1.5px solid #e2e8f0; border-radius:0.75rem;
+    padding:0.55rem 0.95rem;
+    display:flex; align-items:center; gap:0.6rem;
+    cursor:pointer; user-select:none;
+    transition: box-shadow .15s, transform .15s, border-color .15s, background .15s;
+  }
+  .period-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); transform:translateY(-1px); }
+  .period-card.show { border-color:#6366f1; box-shadow:0 0 0 1.5px #6366f1, 0 4px 12px rgba(99,102,241,.18); }
+  .period-card__label { font-size:0.7rem; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; line-height:1; }
+  .period-card__value { font-size:1.05rem; font-weight:700; color:#0f172a; line-height:1.15; margin-top:2px; }
+  .period-card .dropdown-toggle::after { display:none; }
+
+  .picker-row { display:flex; align-items:flex-start; gap:1rem; flex-wrap:wrap; }
+  .picker-workplaces {
+    flex:1 1 auto;
+    display:flex; flex-wrap:wrap; justify-content:center; gap:0.6rem;
+  }
+
+  /* Actual vs. Projected visual cues */
+  .row-actual    { }
+  .row-projected { background-color: rgba(100, 116, 139, 0.08) !important; color:#475569; }
+  .row-inactive  { color:#94a3b8; background-color:#f8fafc !important; }
+  .projected-tag {
+    display:inline-block; margin-left:0.4rem;
+    font-size:0.65rem; font-weight:600;
+    color:#64748b; background:#e2e8f0;
+    padding:1px 7px; border-radius:999px;
+    text-transform:uppercase; letter-spacing:0.04em;
+    vertical-align:middle;
+  }
+  .legend-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+
+  /* Padded analytics tables */
+  .analytics-table th,
+  .analytics-table td { padding:0.75rem 1rem; vertical-align:middle; }
+  .analytics-table th { font-weight:600; color:#475569; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.03em; }
+  .analytics-table tbody tr td:first-child { font-weight:600; }
+
+  /* Card header acting as a collapse trigger */
+  .wp-collapse-header {
+    cursor:pointer;
+    display:flex; align-items:center; gap:0.65rem;
+    padding:0.85rem 1.1rem;
+    transition:background .12s;
+  }
+  .wp-collapse-header:hover { background:#f8fafc; }
+  .wp-collapse-header .chevron { transition:transform .2s; }
+  .wp-collapse-header[aria-expanded="true"] .chevron { transform:rotate(90deg); }
+
+  /* Chart-mode toggle buttons */
+  .chart-mode-group .btn { padding:0.2rem 0.7rem; font-size:0.78rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+  <div>
+    <h4 class="mb-0"><i class="bi bi-bar-chart-line me-2"></i>Income Analytics</h4>
+    <small class="text-muted">
+      {% if period_mode == "range" %}
+        {{ period_start|date:"Y-m-d" }} &rarr; {{ period_end|date:"Y-m-d" }}
+      {% else %}
+        Calendar year {{ year }}
+      {% endif %}
+      &middot;
+      {% if method == "ema" %}EMA{% else %}Avg{% endif %} ({{ trailing_months }} mo)
+    </small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'core:settings' %}?next={{ next_url|urlencode }}"
+       class="btn btn-outline-secondary btn-sm" title="Configure projection method/period">
+      <i class="bi bi-gear me-1"></i>Settings
+    </a>
+    <a href="{% url 'analytics:rate-history' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-graph-up me-1"></i>Rate history
+    </a>
+  </div>
+</div>
+
+{% comment %} ── Filters ─────────────────────────────────────── {% endcomment %}
+<form method="get" class="card mb-4" id="analyticsFilterForm">
+  <input type="hidden" name="wp_set" value="1">
+  <div class="card-body">
+    <div class="picker-row">
+
+      {% comment %} Period card with dropdown popup {% endcomment %}
+      <div class="dropdown" id="periodDropdown">
+        <div class="period-card" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+             role="button" aria-expanded="false">
+          <span class="period-badge"><i class="bi bi-calendar3"></i></span>
+          <div>
+            <div class="period-card__label">Period</div>
+            <div class="period-card__value">
+              {% if period_mode == "range" %}
+                {{ period_start|date:"M j, Y" }} &rarr; {{ period_end|date:"M j, Y" }}
+              {% else %}
+                {{ year }}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="dropdown-menu p-3 shadow" style="min-width:320px;">
+          <div class="btn-group btn-group-sm w-100 mb-3" role="group" id="periodModeGroup">
+            <input type="radio" class="btn-check" name="period_mode" id="modeYear"
+                   value="year" {% if period_mode == "year" %}checked{% endif %}>
+            <label class="btn btn-outline-secondary" for="modeYear">Calendar year</label>
+            <input type="radio" class="btn-check" name="period_mode" id="modeRange"
+                   value="range" {% if period_mode == "range" %}checked{% endif %}>
+            <label class="btn btn-outline-secondary" for="modeRange">Custom range</label>
+          </div>
+
+          <div class="period-year-block" {% if period_mode == "range" %}style="display:none;"{% endif %}>
+            <label class="form-label small fw-medium">Year</label>
+            <select name="year" class="form-select form-select-sm">
+              {% for y in year_options %}
+                <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="period-range-block" {% if period_mode != "range" %}style="display:none;"{% endif %}>
+            <div class="mb-2">
+              <label class="form-label small fw-medium">From</label>
+              <input type="date" name="start" class="form-control form-control-sm"
+                     value="{{ period_start|date:'Y-m-d' }}">
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-medium">To</label>
+              <input type="date" name="end" class="form-control form-control-sm"
+                     value="{{ period_end|date:'Y-m-d' }}">
+            </div>
+          </div>
+
+          <button class="btn btn-primary btn-sm w-100 mt-2" type="submit">
+            <i class="bi bi-check-lg me-1"></i>Apply
+          </button>
+        </div>
+      </div>
+
+      {% comment %} Workplace cards (centered) {% endcomment %}
+      <div class="picker-workplaces" id="wpPickerStrip">
+        <div class="wp-picker-card {% if is_all_selected %}selected{% endif %}"
+             data-wp-card="all" tabindex="0" role="button">
+          <span class="all-badge"><i class="bi bi-stack"></i></span>
+          <span class="fw-medium">All</span>
+        </div>
+        {% for wp in workplaces_for_picker %}
+          <div class="wp-picker-card {% if wp.selected %}selected{% endif %}"
+               data-wp-card="{{ wp.slug }}" tabindex="0" role="button">
+            {% include "analytics/_workplace_avatar.html" with avatar=wp.avatar size=36 %}
+            <span class="fw-medium">{{ wp.name }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% comment %}Hidden inputs are filled by JS based on selection{% endcomment %}
+    <div id="wpHiddenInputs"></div>
+  </div>
+</form>
+
+{# ── Summary cards ───────────────────────────────── #}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-card__label">Avg hours / month</div>
+      <div class="stat-card__value">{{ combined_avg_monthly|dk:1 }} <small class="stat-card__sub">h</small></div>
+      <div class="stat-card__sub">Across selected</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-card__label">Avg hours / week</div>
+      <div class="stat-card__value">{{ combined_avg_weekly|dk:1 }} <small class="stat-card__sub">h</small></div>
+      <div class="stat-card__sub">{{ method|upper }} · {{ trailing_months }} mo</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-card__label">Year gross</div>
+      <div class="stat-card__value">{{ projection.year_gross|dk:0 }} <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">{{ year }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-card__label">Year net</div>
+      <div class="stat-card__value">{{ projection.year_net|dk:0 }} <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">After tax</div>
+    </div>
+  </div>
+</div>
+
+{# ── Monthly chart with mode toggle ─────────────── #}
+<div class="card mb-4">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <strong>Monthly income</strong>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <span class="small text-muted me-1">
+        <span class="legend-dot" style="background:rgba(34,197,94,0.8);"></span>Actual
+        <span class="legend-dot ms-2" style="background:rgba(245,158,11,0.85);"></span>Projected
+      </span>
+      <div class="btn-group btn-group-sm chart-mode-group" role="group" id="chartModeGroup">
+        <input type="radio" class="btn-check" name="chartMode" id="modeTotal" value="total" checked>
+        <label class="btn btn-outline-secondary" for="modeTotal">Total (gross/net)</label>
+        <input type="radio" class="btn-check" name="chartMode" id="modeDist" value="distribution">
+        <label class="btn btn-outline-secondary" for="modeDist">Distribution (net)</label>
+      </div>
+    </div>
+  </div>
+  <div class="card-body">
+    <canvas id="monthlyChart" height="120"></canvas>
+  </div>
+</div>
+
+{# ── Per-workplace collapsible tables ───────────── #}
+{% for item in workplaces_view %}
+  {% with wp=item.wp_proj %}
+  <div class="card mb-3">
+    <div class="wp-collapse-header"
+         data-bs-toggle="collapse"
+         data-bs-target="#wpBody{{ forloop.counter }}"
+         aria-expanded="false"
+         aria-controls="wpBody{{ forloop.counter }}">
+      <i class="bi bi-chevron-right chevron text-muted"></i>
+      {% include "analytics/_workplace_avatar.html" with avatar=item.avatar size=40 %}
+      <div class="flex-grow-1">
+        <div class="fw-semibold">{{ wp.workplace.name }}</div>
+        <div class="text-muted" style="font-size:0.78rem;">
+          Avg {{ wp.trailing_avg_monthly_hours|dk:1 }} h/mo
+          ({{ wp.trailing_avg_weekly_hours|dk:1 }} h/wk)
+          {% if wp.workplace.contract_start_date or wp.workplace.contract_end_date %}
+            · Contract:
+            {{ wp.workplace.contract_start_date|date:"Y-m-d"|default:"—" }}
+            &rarr;
+            {{ wp.workplace.contract_end_date|date:"Y-m-d"|default:"open" }}
+          {% endif %}
+        </div>
+      </div>
+      <div class="text-end small">
+        <div>Year <strong>{{ wp.year_gross|dk:0 }}</strong> DKK</div>
+        <div class="text-muted">Net {{ wp.year_net|dk:0 }} DKK</div>
+      </div>
+    </div>
+    <div class="collapse" id="wpBody{{ forloop.counter }}">
+      <div class="table-responsive">
+        <table class="table analytics-table mb-0">
+          <thead>
+            <tr>
+              <th>Month</th>
+              {% if wp.workplace.employment_type == 'salaried' %}
+                <th class="text-end">Salaried h</th>
+                <th class="text-end">Logged h</th>
+              {% else %}
+                <th class="text-end">Hours</th>
+              {% endif %}
+              <th class="text-end">Gross (DKK)</th>
+              <th class="text-end">Net (DKK)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in wp.months %}
+              <tr class="{% if not row.contract_active %}row-inactive{% elif row.is_projected %}row-projected{% else %}row-actual{% endif %}">
+                <td>
+                  {{ row.label }}
+                  {% if row.contract_active and row.is_projected %}
+                    <span class="projected-tag">projected</span>
+                  {% endif %}
+                </td>
+                {% if row.contract_active %}
+                  {% if wp.workplace.employment_type == 'salaried' %}
+                    <td class="text-end">{{ row.hours|dk:1 }}</td>
+                    <td class="text-end">
+                      {{ row.actual_hours|dk:1 }}
+                      {% if row.is_projected and row.actual_hours == 0 %}
+                        <span class="text-muted small">·</span>
+                      {% endif %}
+                    </td>
+                  {% else %}
+                    <td class="text-end">{{ row.hours|dk:1 }}</td>
+                  {% endif %}
+                  <td class="text-end">{{ row.gross|dk:0 }}</td>
+                  <td class="text-end">{{ row.net|dk:0 }}</td>
+                {% else %}
+                  <td colspan="{% if wp.workplace.employment_type == 'salaried' %}4{% else %}3{% endif %}" class="text-muted">
+                    <em>contract inactive</em>
+                  </td>
+                {% endif %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+{% empty %}
+  <div class="text-center text-muted py-5">
+    <i class="bi bi-bar-chart fs-1 d-block mb-2"></i>
+    No workplaces selected.
+  </div>
+{% endfor %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{{ month_labels_json|json_script:"monthLabels" }}
+{{ monthly_totals_gross_json|json_script:"monthTotalsGross" }}
+{{ monthly_totals_net_json|json_script:"monthTotalsNet" }}
+{{ distribution_datasets|json_script:"distDatasets" }}
+<script>
+  (function() {
+    // ----- Workplace card picker -----
+    const strip = document.getElementById('wpPickerStrip');
+    const hiddenWrap = document.getElementById('wpHiddenInputs');
+    const form = document.getElementById('analyticsFilterForm');
+
+    function syncHiddenInputs() {
+      hiddenWrap.innerHTML = '';
+      const cards = strip.querySelectorAll('.wp-picker-card');
+      const allCard = strip.querySelector('[data-wp-card="all"]');
+      const wpCards = Array.from(cards).filter(c => c.dataset.wpCard !== 'all');
+      const selectedWps = wpCards.filter(c => c.classList.contains('selected'));
+
+      if (allCard.classList.contains('selected') || selectedWps.length === wpCards.length) {
+        const i = document.createElement('input');
+        i.type = 'hidden'; i.name = 'workplace'; i.value = 'all';
+        hiddenWrap.appendChild(i);
+      } else {
+        selectedWps.forEach(c => {
+          const i = document.createElement('input');
+          i.type = 'hidden'; i.name = 'workplace'; i.value = c.dataset.wpCard;
+          hiddenWrap.appendChild(i);
+        });
+      }
+    }
+
+    function refreshAllCardState() {
+      const allCard = strip.querySelector('[data-wp-card="all"]');
+      const wpCards = strip.querySelectorAll('.wp-picker-card:not([data-wp-card="all"])');
+      const selectedCount = strip.querySelectorAll('.wp-picker-card.selected:not([data-wp-card="all"])').length;
+      if (selectedCount === wpCards.length && wpCards.length > 0) {
+        allCard.classList.add('selected');
+      } else {
+        allCard.classList.remove('selected');
+      }
+    }
+
+    strip.addEventListener('click', function(e) {
+      const card = e.target.closest('.wp-picker-card');
+      if (!card) return;
+      const slug = card.dataset.wpCard;
+      if (slug === 'all') {
+        const willSelect = !card.classList.contains('selected');
+        strip.querySelectorAll('.wp-picker-card').forEach(c => {
+          c.classList.toggle('selected', willSelect);
+        });
+      } else {
+        card.classList.toggle('selected');
+        refreshAllCardState();
+      }
+    });
+
+    // Submit on change of method/year/trailing already submits; for picker
+    // cards we submit on a small debounce so a user can multi-toggle.
+    let pickerTimer = null;
+    strip.addEventListener('click', function(e) {
+      if (!e.target.closest('.wp-picker-card')) return;
+      clearTimeout(pickerTimer);
+      pickerTimer = setTimeout(() => {
+        syncHiddenInputs();
+        form.submit();
+      }, 350);
+    });
+
+    syncHiddenInputs();
+
+    // ----- Period mode toggle -----
+    const periodGroup = document.getElementById('periodModeGroup');
+    if (periodGroup) {
+      periodGroup.addEventListener('change', function(e) {
+        if (e.target.name !== 'period_mode') return;
+        const mode = e.target.value;
+        document.querySelectorAll('.period-year-block').forEach(el => {
+          el.style.display = mode === 'year' ? '' : 'none';
+        });
+        document.querySelectorAll('.period-range-block').forEach(el => {
+          el.style.display = mode === 'range' ? '' : 'none';
+        });
+      });
+    }
+
+    // ----- Chart -----
+    const labels = JSON.parse(document.getElementById('monthLabels').textContent);
+    const grossTotals = JSON.parse(document.getElementById('monthTotalsGross').textContent).map(v => parseFloat(v));
+    const netTotals = JSON.parse(document.getElementById('monthTotalsNet').textContent).map(v => parseFloat(v));
+    const distDatasets = JSON.parse(document.getElementById('distDatasets').textContent);
+
+    // Build a per-month "any projected" mask for total mode
+    const anyProjected = labels.map((_, m) =>
+      distDatasets.some(d => d.projected[m])
+    );
+
+    function buildTotalConfig() {
+      const grossActualColor = 'rgba(34, 197, 94, 0.65)';
+      const grossProjColor   = 'rgba(245, 158, 11, 0.65)';
+      const netActualColor   = 'rgba(22, 101, 52, 0.65)';
+      const netProjColor     = 'rgba(180, 83, 9, 0.65)';
+      return {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Gross (DKK)',
+              data: grossTotals,
+              backgroundColor: anyProjected.map(p => p ? grossProjColor : grossActualColor),
+              borderColor: anyProjected.map(p => p ? '#d97706' : '#16a34a'),
+              borderWidth: 1,
+            },
+            {
+              label: 'Net (DKK)',
+              data: netTotals,
+              backgroundColor: anyProjected.map(p => p ? netProjColor : netActualColor),
+              borderColor: anyProjected.map(p => p ? '#92400e' : '#166534'),
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: commonOpts(false),
+      };
+    }
+
+    function buildDistConfig() {
+      function hexToRgba(hex, alpha) {
+        const h = hex.replace('#', '');
+        const r = parseInt(h.substring(0, 2), 16);
+        const g = parseInt(h.substring(2, 4), 16);
+        const b = parseInt(h.substring(4, 6), 16);
+        return `rgba(${r},${g},${b},${alpha})`;
+      }
+      const datasets = distDatasets.map(ds => ({
+        label: ds.label,
+        data: ds.net.map(v => parseFloat(v)),
+        // Mark projected months with reduced opacity + diagonal hatch pattern
+        backgroundColor: ds.net.map((_, m) =>
+          hexToRgba(ds.color, ds.projected[m] ? 0.45 : 0.85)
+        ),
+        borderColor: ds.color,
+        borderWidth: 1,
+        borderSkipped: false,
+        stack: 'net',
+      }));
+      return {
+        type: 'bar',
+        data: { labels, datasets },
+        options: commonOpts(true),
+      };
+    }
+
+    function commonOpts(stacked) {
+      return {
+        responsive: true,
+        scales: {
+          x: { stacked },
+          y: {
+            beginAtZero: true,
+            stacked,
+            ticks: { callback: v => v.toLocaleString('da-DK') },
+          },
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('da-DK') + ' DKK',
+              afterLabel: ctx => {
+                const ds = distDatasets[ctx.datasetIndex];
+                if (ds && ds.projected && ds.projected[ctx.dataIndex]) return '(projected)';
+                if (!ds && anyProjected[ctx.dataIndex]) return '(includes projected)';
+                return '';
+              }
+            }
+          }
+        }
+      };
+    }
+
+    let chart = new Chart(
+      document.getElementById('monthlyChart'),
+      buildTotalConfig()
+    );
+
+    document.querySelectorAll('input[name="chartMode"]').forEach(r => {
+      r.addEventListener('change', function() {
+        chart.destroy();
+        const cfg = this.value === 'distribution' ? buildDistConfig() : buildTotalConfig();
+        chart = new Chart(document.getElementById('monthlyChart'), cfg);
+      });
+    });
+  })();
+</script>
+{% endblock %}

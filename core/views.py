@@ -150,18 +150,30 @@ class TaxProfileDeleteView(View):
 
 
 class UserSettingsView(View):
+    def _safe_next(self, request, raw):
+        # Only allow same-origin relative redirects.
+        if raw and raw.startswith("/") and not raw.startswith("//"):
+            return raw
+        return None
+
     def get(self, request):
         settings = UserSettings.load()
         form = UserSettingsForm(instance=settings)
-        return render(request, "core/settings.html", {"form": form})
+        next_url = self._safe_next(request, request.GET.get("next"))
+        return render(request, "core/settings.html", {
+            "form": form, "next_url": next_url,
+        })
 
     def post(self, request):
         settings = UserSettings.load()
         form = UserSettingsForm(request.POST, instance=settings)
+        next_url = self._safe_next(request, request.POST.get("next"))
         if form.is_valid():
             form.save()
-            return redirect("core:settings")
-        return render(request, "core/settings.html", {"form": form})
+            return redirect(next_url or "core:settings")
+        return render(request, "core/settings.html", {
+            "form": form, "next_url": next_url,
+        })
 
 
 class SetupWizardView(View):

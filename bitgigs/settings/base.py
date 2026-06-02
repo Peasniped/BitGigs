@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "payroll.apps.PayrollConfig",
     "calendar_view.apps.CalendarViewConfig",
     "data_io.apps.DataIoConfig",
+    "analytics.apps.AnalyticsConfig",
 ]
 
 MIDDLEWARE = [

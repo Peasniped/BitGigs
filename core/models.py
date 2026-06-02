@@ -119,10 +119,27 @@ class UserSettings(models.Model):
         (6, "Sunday"),
     ]
 
+    PROJECTION_METHOD_CHOICES = [
+        ("ema", "Exponential moving average (recent months weighted higher)"),
+        ("avg", "Simple average"),
+    ]
+
     week_start = models.IntegerField(
         choices=WEEK_START_CHOICES,
         default=0,
         help_text="0 = Monday, 6 = Sunday",
+    )
+
+    # Analytics projection
+    projection_method = models.CharField(
+        max_length=10,
+        choices=PROJECTION_METHOD_CHOICES,
+        default="ema",
+        help_text="How to estimate future hours from your historical shifts.",
+    )
+    projection_trailing_months = models.PositiveIntegerField(
+        default=6,
+        help_text="Number of past months used to compute the projection.",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
