@@ -41,9 +41,15 @@ Django 5.1 app for tracking shifts and estimating Danish net pay across multiple
 - Charts: Chart.js v4 from CDN; category x-axis with ISO date labels; stepped lines for rate history; segment dash for projected tail.
 - Workplace icons: 256×256 PNG produced by Cropper.js; SVG uploads first go through `svgRecolorModal` (per-color or single-tint remap, hex + color-picker inputs, live preview) before being passed to the cropper.
 
-## Don't
+## Don'ts
 
 - Don't add new docstrings/comments/type hints to code you didn't change.
 - Don't run destructive git/db commands without confirmation.
 - Don't bypass `--settings=bitgigs.settings.local` in dev.
 - Don't introduce new dependencies without need.
+
+## Do's
+
+- Do write Git commits at a regular interval when it makes sense (You must show a preview to the user for their confirmation before any tools are called)
+- !!! Ignore this for now, will be important once the system is actively running. Do ask the user if they want to create a new feature branch, or change to an existing branch(search and see what there is) if it makes sense, each session before editing files.
+- Do make a copy of the database when creating a new branch

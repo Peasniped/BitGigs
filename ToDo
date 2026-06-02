@@ -2,18 +2,12 @@
 - - Should be customizable. Example at JKF i report hours in an excel sheet with cols Date, week, month, hours, break(30 min, yes/no), name. This transfer would be easiest with an excel-compatible copy-paste.
 - at JKF if there are multiple shifts in one day, I add them toghether to one per date. This should also be configurable.
 
-*** Analytics page: ***
-- The workplaces will not be shown in years where the contract is inactive
-- On the rate history page:
-- - The all jobs-graph should use workplace accent colors
+# NU     --------------------------------------------------------
 
-*** Big change: Full implementation of history, and implementation of contracts ***
-// se PLAN.md //
-- All workplace settings (bar the appearance) should be changeable with history. So when I change details about my employment (ie if i get better terms) previous data will not be changed.
-- Every time workplace settings are changed, it will create a snapshot that for admin-purposes can be edited (ie if i suddenly see that i have been using wrong data)
-- Workplaces now allow multiple contracts. ie at AAU i have had contracts at different labs, and I have also had a period of a few months, where I had no contract. For this use, right now I would have to add multiple workplaces for the different contracts, it would make more sense to have multiple different contracts that can have different terms (and settings)
-- - Contracts should not be able to overlap, as this will increase diffuculty, and the function is not usable for me currently.
-- - All contracts must have a start date and can optionally have an end date. This information should be used throughout the app, so workplaces are only shown if an active contract exists in the filtered timespace shown on the different pages.
+
+
+
+# SENERE --------------------------------------------------------
 
 *** Main Dashboard: ***
 - On the hour goal-statcard, when hovering over the grey portion of the progress bar, it should show the hour deficit(if any), ie how far you are from the goal, not just the goal.
