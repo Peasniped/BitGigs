@@ -43,6 +43,10 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: #1e293b; }
   justify-content: center;
   font-size: 1rem;
 }
+.brand-logo {
+  width: 32px; height: 32px;
+  object-fit: contain;
+}
 .nav-link {
   color: #64748b !important;
   font-weight: 500;
@@ -354,6 +358,10 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: #1e293b; }
   background: var(--brand-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+.setup-hero__logo {
+  width: 84px; height: 84px;
+  object-fit: contain;
 }
 
 /* Step indicator bar */

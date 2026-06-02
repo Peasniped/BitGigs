@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Welcome &middot; BitGigs Setup{% endblock %}
 
 {% block content %}
@@ -6,7 +7,7 @@
   <div class="col-12 col-md-10 col-lg-8">
 
     <div class="setup-hero mb-3">
-      <i class="bi bi-lightning-charge-fill"></i>
+      <img src="{% static 'BitGigs_Logo_192.png' %}" alt="BitGigs" class="setup-hero__logo">
       <h2 class="mt-3 mb-1">Welcome to BitGigs</h2>
       <p class="text-muted">Let's get you set up in three quick steps.</p>
     </div>
