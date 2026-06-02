@@ -10,7 +10,7 @@ class WorkplaceForm(forms.ModelForm):
 
     class Meta:
         model = Workplace
-        fields = ["name", "slug", "is_active"]
+        fields = ["name", "slug"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -73,7 +73,6 @@ class ContractTermSetForm(forms.ModelForm):
             "weekly_hours_max",
             "payroll_period_start_day",
             "tax_card_type",
-            "tax_pull_day",
             "vacation_type",
             "pension_employee_percent",
             "pension_employer_percent",
@@ -103,8 +102,28 @@ class ContractTermSetForm(forms.ModelForm):
         for f in [
             "hourly_rate", "monthly_salary", "weekly_hours_fixed",
             "weekly_hours_min", "weekly_hours_max",
+            "pension_employee_percent", "pension_employer_percent",
+            "fritvalgskonto_percent", "fritvalgskonto_payout_type",
+            "ferietillaeg_percent", "ferietillaeg_payout_months",
         ]:
             self.fields[f].required = False
+
+        # Seed model defaults so blank fields don't fail validation
+        _defaults = {
+            "pension_employee_percent": Decimal("0"),
+            "pension_employer_percent": Decimal("0"),
+            "fritvalgskonto_percent": Decimal("0"),
+            "ferietillaeg_percent": Decimal("1.00"),
+            "fritvalgskonto_payout_type": ContractTermSet.FritvalgsPayoutType.ACCRUES,
+            "ferietillaeg_payout_months": "5,8",
+            "payroll_period_start_day": 1,
+            "default_shift_break_minutes": 0,
+            "default_shift_type": "on_site",
+        }
+        if not self.data:  # only for unbound (GET) forms
+            for field, default in _defaults.items():
+                if not self.initial.get(field):
+                    self.initial[field] = default
 
         if not self.initial.get("effective_from") and not self.data:
             self.initial["effective_from"] = date.today()

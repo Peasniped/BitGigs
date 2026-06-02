@@ -18,9 +18,11 @@ class DashboardView(View):
         from workplaces.models import Workplace
         from calendar_view.services import CalendarService
 
-        # Setup redirect
-        if not TaxProfile.objects.exists() or not Workplace.objects.exists():
+        # Setup redirect — step by step
+        if not TaxProfile.objects.exists():
             return redirect("core:setup")
+        if not Workplace.objects.exists():
+            return redirect("/workplaces/new/?setup=1")
 
         today = date.today()
         year = int(request.GET.get("year", today.year))
@@ -177,39 +179,21 @@ class UserSettingsView(View):
 
 
 class SetupWizardView(View):
-    """First-time setup: tax profile + first workplace."""
+    """First-time setup — step 1: tax profile only."""
 
     def get(self, request):
         if TaxProfile.objects.exists():
             from workplaces.models import Workplace
             if Workplace.objects.exists():
                 return redirect("core:dashboard")
+            return redirect("/workplaces/new/?setup=1")
 
         tax_form = TaxProfileForm(prefix="tax")
-        from workplaces.forms import WorkplaceForm
-        from workplaces.views import MONTH_CHOICES
-        workplace_form = WorkplaceForm(prefix="wp")
-        return render(
-            request,
-            "core/setup.html",
-            {"tax_form": tax_form, "workplace_form": workplace_form,
-             "month_choices": MONTH_CHOICES},
-        )
+        return render(request, "core/setup.html", {"tax_form": tax_form})
 
     def post(self, request):
         tax_form = TaxProfileForm(request.POST, prefix="tax")
-        from workplaces.forms import WorkplaceForm
-        from workplaces.views import MONTH_CHOICES
-        workplace_form = WorkplaceForm(request.POST, prefix="wp")
-
-        if tax_form.is_valid() and workplace_form.is_valid():
+        if tax_form.is_valid():
             tax_form.save()
-            workplace_form.save()
-            return redirect("core:dashboard")
-
-        return render(
-            request,
-            "core/setup.html",
-            {"tax_form": tax_form, "workplace_form": workplace_form,
-             "month_choices": MONTH_CHOICES},
-        )
+            return redirect("/workplaces/new/?setup=1")
+        return render(request, "core/setup.html", {"tax_form": tax_form})

@@ -11,7 +11,8 @@
 </div>
 
 <div class="row g-3">
-  {% for wp in workplaces %}
+  {% for item in wp_data %}
+  {% with wp=item.workplace ts=item.termset %}
   <div class="col-12 col-sm-6 col-lg-4">
     <a href="{% url 'workplaces:workplace-detail' wp.slug %}" class="workplace-card d-flex flex-column align-items-center text-center py-3 px-3"
        {% if wp.accent_color %}style="border-left:4px solid {{ wp.accent_color }};"{% endif %}>
@@ -28,28 +29,27 @@
       {% endif %}
       <span class="workplace-card__name fw-semibold mt-2">{{ wp.name }}</span>
       {% if not wp.is_active %}<span class="badge bg-warning mt-1">Inactive</span>{% endif %}
+      {% if ts %}
       <div class="d-flex gap-3 mt-2" style="font-size:0.85rem;">
         <div class="text-center">
           <small class="text-muted d-block" style="font-size:0.7rem;">
-            {% if wp.employment_type == 'hourly' %}Eff. rate{% else %}Salary{% endif %}
+            {% if ts.employment_type == 'hourly' %}Eff. rate{% else %}Salary{% endif %}
           </small>
           <span class="fw-semibold">
-            {% if wp.employment_type == 'hourly' %}{{ wp.effective_hourly_rate|dk }} DKK/h{% else %}{{ wp.monthly_salary|dk }} DKK{% endif %}
-          </span>
-        </div>
-        <div class="text-center">
-          <small class="text-muted d-block" style="font-size:0.7rem;">Hours</small>
-          <span class="fw-semibold">
-            {% if wp.weekly_hours_fixed %}{{ wp.weekly_hours_fixed|dk }}h/wk{% else %}{{ wp.weekly_hours_min|dk }}–{{ wp.weekly_hours_max|dk }}h{% endif %}
+            {% if ts.employment_type == 'hourly' %}{{ ts.effective_hourly_rate|dk }} DKK/h{% else %}{{ ts.monthly_salary|dk }} DKK{% endif %}
           </span>
         </div>
         <div class="text-center">
           <small class="text-muted d-block" style="font-size:0.7rem;">Tax</small>
-          <span class="fw-semibold">{{ wp.get_tax_card_type_display }}</span>
+          <span class="fw-semibold">{{ ts.get_tax_card_type_display }}</span>
         </div>
       </div>
+      {% else %}
+      <div class="mt-2 text-muted" style="font-size:0.8rem;">No active terms</div>
+      {% endif %}
     </a>
   </div>
+  {% endwith %}
   {% empty %}
   <div class="col-12">
     <div class="text-center text-muted py-5">

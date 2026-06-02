@@ -1,0 +1,56 @@
+{% comment %}
+  Setup step indicator. Include with:
+  include "core/_setup_steps.html" with step=2 step1_url="/setup/" step2_url="..."
+  step=1|2|3  step1_url/step2_url = back-link URLs for completed steps
+{% endcomment %}
+<div class="setup-steps-bar mb-4">
+  <div class="setup-steps-track">
+
+    {# Step 1 #}
+    {% if step > 1 and step1_url %}
+      <a href="{{ step1_url }}" class="setup-step setup-step--done" title="Back to Tax Profile">
+        <span class="setup-step__circle"><i class="bi bi-check-lg"></i></span>
+        <span class="setup-step__label">Tax Profile</span>
+      </a>
+    {% elif step == 1 %}
+      <span class="setup-step setup-step--active">
+        <span class="setup-step__circle">1</span>
+        <span class="setup-step__label">Tax Profile</span>
+      </span>
+    {% else %}
+      <span class="setup-step setup-step--done">
+        <span class="setup-step__circle"><i class="bi bi-check-lg"></i></span>
+        <span class="setup-step__label">Tax Profile</span>
+      </span>
+    {% endif %}
+
+    <span class="setup-step__connector"></span>
+
+    {# Step 2 #}
+    {% if step > 2 and step2_url %}
+      <a href="{{ step2_url }}" class="setup-step setup-step--done" title="Back to Workplace">
+        <span class="setup-step__circle"><i class="bi bi-check-lg"></i></span>
+        <span class="setup-step__label">Workplace</span>
+      </a>
+    {% elif step == 2 %}
+      <span class="setup-step setup-step--active">
+        <span class="setup-step__circle">2</span>
+        <span class="setup-step__label">Workplace</span>
+      </span>
+    {% else %}
+      <span class="setup-step {% if step > 2 %}setup-step--done{% else %}setup-step--upcoming{% endif %}">
+        <span class="setup-step__circle">{% if step > 2 %}<i class="bi bi-check-lg"></i>{% else %}2{% endif %}</span>
+        <span class="setup-step__label">Workplace</span>
+      </span>
+    {% endif %}
+
+    <span class="setup-step__connector"></span>
+
+    {# Step 3 #}
+    <span class="setup-step {% if step == 3 %}setup-step--active{% else %}setup-step--upcoming{% endif %}">
+      <span class="setup-step__circle">3</span>
+      <span class="setup-step__label">Contract &amp; Terms</span>
+    </span>
+
+  </div>
+</div>

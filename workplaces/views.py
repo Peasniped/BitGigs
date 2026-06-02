@@ -51,9 +51,14 @@ def _tax_profile_json():
 
 class WorkplaceListView(View):
     def get(self, request):
+        today = date.today()
         workplaces = Workplace.objects.all()
+        wp_data = [
+            {"workplace": wp, "termset": wp.active_termset_on(today)}
+            for wp in workplaces
+        ]
         return render(
-            request, "workplaces/workplace_list.html", {"workplaces": workplaces}
+            request, "workplaces/workplace_list.html", {"wp_data": wp_data}
         )
 
 
@@ -259,35 +264,46 @@ class WorkplaceDetailView(View):
 
 class WorkplaceCreateView(View):
     def get(self, request):
+        setup = request.GET.get("setup") == "1"
         form = WorkplaceForm()
-        return render(request, "workplaces/workplace_form.html", {"form": form})
+        return render(request, "workplaces/workplace_form.html", {
+            "form": form, "setup": setup,
+        })
 
     def post(self, request):
+        setup = request.POST.get("setup") == "1"
         form = WorkplaceForm(request.POST)
         if form.is_valid():
             workplace = form.save()
-            return redirect("workplaces:contract-create", slug=workplace.slug)
-        return render(request, "workplaces/workplace_form.html", {"form": form})
+            dest = f"/workplaces/{workplace.slug}/contracts/add/{'?setup=1' if setup else ''}"
+            return redirect(dest)
+        return render(request, "workplaces/workplace_form.html", {
+            "form": form, "setup": setup,
+        })
 
 
 class WorkplaceUpdateView(View):
     def get(self, request, slug):
+        setup = request.GET.get("setup") == "1"
         workplace = get_object_or_404(Workplace, slug=slug)
         form = WorkplaceForm(instance=workplace)
         return render(
             request, "workplaces/workplace_form.html",
-            {"form": form, "workplace": workplace},
+            {"form": form, "workplace": workplace, "setup": setup},
         )
 
     def post(self, request, slug):
+        setup = request.POST.get("setup") == "1"
         workplace = get_object_or_404(Workplace, slug=slug)
         form = WorkplaceForm(request.POST, instance=workplace)
         if form.is_valid():
             form.save()
+            if setup:
+                return redirect(f"/workplaces/{workplace.slug}/contracts/add/?setup=1")
             return redirect("workplaces:workplace-detail", slug=workplace.slug)
         return render(
             request, "workplaces/workplace_form.html",
-            {"form": form, "workplace": workplace},
+            {"form": form, "workplace": workplace, "setup": setup},
         )
 
 
@@ -364,13 +380,17 @@ class ContractCreateView(View):
     """Create a new contract for a workplace, then redirect to add the first termset."""
 
     def get(self, request, slug):
+        setup = request.GET.get("setup") == "1"
         workplace = get_object_or_404(Workplace, slug=slug)
         form = WorkplaceContractForm(workplace=workplace)
         return render(request, "workplaces/contract_form.html", {
-            "form": form, "workplace": workplace, "is_first": not workplace.contracts.exists(),
+            "form": form, "workplace": workplace,
+            "is_first": not workplace.contracts.exists(),
+            "setup": setup,
         })
 
     def post(self, request, slug):
+        setup = request.POST.get("setup") == "1"
         workplace = get_object_or_404(Workplace, slug=slug)
         form = WorkplaceContractForm(request.POST, workplace=workplace)
         if form.is_valid():
@@ -381,12 +401,13 @@ class ContractCreateView(View):
             except Exception as e:
                 form.add_error(None, str(e))
                 return render(request, "workplaces/contract_form.html", {
-                    "form": form, "workplace": workplace,
+                    "form": form, "workplace": workplace, "setup": setup,
                 })
             contract.save()
-            return redirect("workplaces:termset-create", slug=slug, cpk=contract.pk)
+            dest = f"/workplaces/{slug}/contracts/{contract.pk}/terms/add/{'?setup=1' if setup else ''}"
+            return redirect(dest)
         return render(request, "workplaces/contract_form.html", {
-            "form": form, "workplace": workplace,
+            "form": form, "workplace": workplace, "setup": setup,
         })
 
 
@@ -451,9 +472,9 @@ class ContractTermSetCreateView(View):
     """Create a new termset (new effective date + settings) under a contract."""
 
     def get(self, request, slug, cpk):
+        setup = request.GET.get("setup") == "1"
         workplace = get_object_or_404(Workplace, slug=slug)
         contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
-        # Pre-fill from the most recent termset if one exists
         latest = contract.term_sets.first()
         initial = {}
         if latest:
@@ -465,9 +486,11 @@ class ContractTermSetCreateView(View):
         return render(request, "workplaces/termset_form.html", {
             "form": form, "workplace": workplace, "contract": contract,
             "tax_profile_json": _tax_profile_json(), "month_choices": MONTH_CHOICES,
+            "setup": setup,
         })
 
     def post(self, request, slug, cpk):
+        setup = request.POST.get("setup") == "1"
         workplace = get_object_or_404(Workplace, slug=slug)
         contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
         form = ContractTermSetForm(request.POST)
@@ -475,10 +498,13 @@ class ContractTermSetCreateView(View):
             termset = form.save(commit=False)
             termset.contract = contract
             termset.save()
+            if setup:
+                return redirect("core:dashboard")
             return redirect("workplaces:workplace-detail", slug=slug)
         return render(request, "workplaces/termset_form.html", {
             "form": form, "workplace": workplace, "contract": contract,
             "tax_profile_json": _tax_profile_json(), "month_choices": MONTH_CHOICES,
+            "setup": setup,
         })
 
 

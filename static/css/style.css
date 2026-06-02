@@ -347,7 +347,7 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: #1e293b; }
 /* ---- Setup wizard ---- */
 .setup-hero {
   text-align: center;
-  padding: 3rem 1rem;
+  padding: 2rem 1rem 1rem;
 }
 .setup-hero i {
   font-size: 3rem;
@@ -355,6 +355,65 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: #1e293b; }
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
+/* Step indicator bar */
+.setup-steps-bar { padding: 0 .5rem; }
+.setup-steps-track {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.setup-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .25rem;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.setup-step__circle {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .85rem;
+  font-weight: 700;
+  border: 2px solid #cbd5e1;
+  background: #fff;
+  color: #94a3b8;
+  transition: background .2s, border-color .2s, color .2s;
+}
+.setup-step__label {
+  font-size: .7rem;
+  font-weight: 500;
+  color: #94a3b8;
+  white-space: nowrap;
+  transition: color .2s;
+}
+.setup-step__connector {
+  flex: 1;
+  height: 2px;
+  background: #e2e8f0;
+  margin-bottom: 1.1rem; /* align with circle midpoint */
+  min-width: 1.5rem;
+}
+/* Active step */
+.setup-step--active .setup-step__circle {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+.setup-step--active .setup-step__label { color: #6366f1; font-weight: 600; }
+/* Done step */
+.setup-step--done .setup-step__circle {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #fff;
+}
+.setup-step--done .setup-step__label { color: #16a34a; }
+a.setup-step--done:hover .setup-step__circle { background: #16a34a; border-color: #16a34a; }
 
 /* ---- Utility ---- */
 .section-title {

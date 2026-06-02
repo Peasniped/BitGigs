@@ -31,7 +31,7 @@
     {% endif %}
     <div>
       <h2 class="mb-1">{{ workplace.name }}</h2>
-      <span class="workplace-card__type">{{ workplace.get_employment_type_display }}</span>
+      {% if active_termset %}<span class="workplace-card__type">{{ active_termset.get_employment_type_display }}</span>{% endif %}
       {% if not workplace.is_active %}<span class="badge bg-warning ms-2">Inactive</span>{% endif %}
     </div>
   </div>
@@ -39,9 +39,6 @@
     <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#customizeModal" title="Customize appearance">
       <i class="bi bi-palette"></i>
     </button>
-    <a href="{% url 'workplaces:payrate-create' workplace.slug %}" class="btn btn-outline-secondary btn-sm" title="Change hourly rate or salary">
-      <i class="bi bi-currency-exchange me-1"></i>Change Rate
-    </a>
     <a href="{% url 'workplaces:workplace-update' workplace.slug %}" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-pencil me-1"></i>Edit
     </a>
@@ -106,58 +103,82 @@
     <div class="stat-card">
       <div class="stat-card__label">Vacation</div>
       <div class="stat-card__value">
-        {% if workplace.vacation_type == 'feriekonto' %}
+        {% if viewed_termset and viewed_termset.vacation_type == 'feriekonto' %}
           {{ feriepenge_net|dk:0 }} <small class="stat-card__sub">DKK</small>
         {% else %}
           2,08 <small class="stat-card__sub">days/mo</small>
         {% endif %}
       </div>
       <div class="stat-card__sub">
-        {% if workplace.vacation_type == 'feriekonto' %}FerieKonto (net){% else %}Accrued leave{% endif %}
+        {% if viewed_termset and viewed_termset.vacation_type == 'feriekonto' %}FerieKonto (net){% else %}Accrued leave{% endif %}
       </div>
     </div>
   </div>
 </div>
 
-<!-- Pension & Fritvalgskonto -->
-{% if workplace.pension_total_percent or workplace.fritvalgskonto_percent or workplace.vacation_type == 'feriekonto' %}
+<!-- Current Terms + Pension & Fritvalgskonto -->
+{% if viewed_termset %}
 <div class="row g-3 mb-4">
-  {% if workplace.pension_total_percent %}
+  <div class="col-12 col-md-4">
+    <div class="card">
+      <div class="card-header">Current Terms</div>
+      <div class="card-body py-2" style="font-size:0.875rem;">
+        {% if viewed_termset.employment_type == 'hourly' %}
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Base rate</span><span>{{ viewed_termset.hourly_rate|dk }} DKK/h</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Effective rate</span><span class="fw-semibold">{{ viewed_termset.effective_hourly_rate|dk }} DKK/h</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Total rate</span><span>{{ viewed_termset.total_hourly_rate|dk }} DKK/h</span></div>
+        {% else %}
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Salary</span><span>{{ viewed_termset.monthly_salary|dk }} DKK/mo</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Base rate</span><span>{{ viewed_termset.base_hourly_rate|dk }} DKK/h</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Effective rate</span><span class="fw-semibold">{{ viewed_termset.effective_hourly_rate|dk }} DKK/h</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Total rate</span><span>{{ viewed_termset.total_hourly_rate|dk }} DKK/h</span></div>
+        {% endif %}
+        <div class="d-flex justify-content-between mb-1">
+          <span class="text-muted">Weekly hours</span>
+          <span>{% if viewed_termset.weekly_hours_fixed %}{{ viewed_termset.weekly_hours_fixed|dk }}{% else %}{{ viewed_termset.weekly_hours_min|dk }}–{{ viewed_termset.weekly_hours_max|dk }}{% endif %}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Payroll start</span><span>Day {{ viewed_termset.payroll_period_start_day }}</span></div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Tax card</span><span>{{ viewed_termset.get_tax_card_type_display }}</span></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">Vacation</span><span>{{ viewed_termset.get_vacation_type_display }}</span></div>
+      </div>
+    </div>
+  </div>
+  {% if viewed_termset.pension_total_percent %}
   <div class="col-12 col-md-4">
     <div class="card">
       <div class="card-header">Pension</div>
       <div class="card-body py-2">
         <div class="d-flex justify-content-between mb-1">
-          <small class="text-muted">Your contribution ({{ workplace.pension_employee_percent|dk }}%)</small>
+          <small class="text-muted">Your contribution ({{ viewed_termset.pension_employee_percent|dk }}%)</small>
           <span>{{ pension_employee|dk }} DKK</span>
         </div>
         <div class="d-flex justify-content-between mb-1">
-          <small class="text-muted">Employer's ({{ workplace.pension_employer_percent|dk }}%)</small>
+          <small class="text-muted">Employer's ({{ viewed_termset.pension_employer_percent|dk }}%)</small>
           <span>{{ pension_employer|dk }} DKK</span>
         </div>
         <hr class="my-1">
         <div class="d-flex justify-content-between fw-semibold">
-          <small>Total ({{ workplace.pension_total_percent|dk }}%)</small>
+          <small>Total ({{ viewed_termset.pension_total_percent|dk }}%)</small>
           <span>{{ pension_total|dk }} DKK</span>
         </div>
       </div>
     </div>
   </div>
   {% endif %}
-  {% if workplace.fritvalgskonto_percent %}
+  {% if viewed_termset.fritvalgskonto_percent %}
   <div class="col-12 col-md-4">
     <div class="card">
       <div class="card-header">Fritvalgskonto</div>
       <div class="card-body py-2">
         <div class="d-flex justify-content-between">
-          <small class="text-muted">{{ workplace.fritvalgskonto_percent|dk }}% of gross</small>
+          <small class="text-muted">{{ viewed_termset.fritvalgskonto_percent|dk }}% of gross</small>
           <span>{{ fritvalgskonto|dk }} DKK</span>
         </div>
       </div>
     </div>
   </div>
   {% endif %}
-  {% if workplace.vacation_type == 'feriekonto' %}
+  {% if viewed_termset.vacation_type == 'feriekonto' %}
   <div class="col-12 col-md-4">
     <div class="card">
       <div class="card-header">Feriepenge</div>
@@ -172,11 +193,11 @@
         </div>
         <div class="d-flex justify-content-between mb-1">
           <small class="text-muted">AM-bidrag</small>
-          <span>âˆ’{{ feriepenge_am|dk }} DKK</span>
+          <span>&minus;{{ feriepenge_am|dk }} DKK</span>
         </div>
         <div class="d-flex justify-content-between mb-1">
           <small class="text-muted">A-skat</small>
-          <span>âˆ’{{ feriepenge_a_skat|dk }} DKK</span>
+          <span>&minus;{{ feriepenge_a_skat|dk }} DKK</span>
         </div>
         <hr class="my-1">
         <div class="d-flex justify-content-between fw-semibold">
@@ -186,37 +207,9 @@
       </div>
     </div>
   </div>
-  {% endif %}
+  {% endif %}{# /feriekonto #}
 </div>
-{% endif %}
-
-<!-- Workplace info summary -->
-<div class="row g-3 mb-4">
-  <div class="col-12 col-md-4">
-    <div class="card">
-      <div class="card-header">Details</div>
-      <div class="card-body py-2" style="font-size:0.875rem;">
-        {% if workplace.employment_type == 'hourly' %}
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Base rate</span><span>{{ workplace.hourly_rate|dk }} DKK/h</span></div>
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Effective rate</span><span class="fw-semibold">{{ workplace.effective_hourly_rate|dk }} DKK/h</span></div>
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Total rate</span><span>{{ workplace.total_hourly_rate|dk }} DKK/h</span></div>
-        {% else %}
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Salary</span><span>{{ workplace.monthly_salary|dk }} DKK/mo</span></div>
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Base rate</span><span>{{ workplace.base_hourly_rate|dk }} DKK/h</span></div>
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Effective rate</span><span class="fw-semibold">{{ workplace.effective_hourly_rate|dk }} DKK/h</span></div>
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Total rate</span><span>{{ workplace.total_hourly_rate|dk }} DKK/h</span></div>
-        {% endif %}
-        <div class="d-flex justify-content-between mb-1">
-          <span class="text-muted">Weekly hours</span>
-          <span>{% if workplace.weekly_hours_fixed %}{{ workplace.weekly_hours_fixed|dk }}{% else %}{{ workplace.weekly_hours_min|dk }}.{{ workplace.weekly_hours_max|dk }}{% endif %}</span>
-        </div>
-        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Payroll start</span><span>Day {{ workplace.payroll_period_start_day }}</span></div>
-        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Tax card</span><span>{{ workplace.get_tax_card_type_display }}</span></div>
-        <div class="d-flex justify-content-between"><span class="text-muted">Vacation</span><span>{{ workplace.get_vacation_type_display }}</span></div>
-      </div>
-    </div>
-  </div>
-</div>
+{% endif %}{# /viewed_termset #}
 
 <!-- Payroll-period calendar -->
 <div class="row g-3 mb-4">
@@ -291,6 +284,75 @@
             <i class="bi bi-file-earmark-text me-1"></i>Open payslip editor
           </button>
         </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Contracts timeline + Current Terms sidebar -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-file-earmark-text me-2"></i>Contracts &amp; Pay Terms</span>
+        <a href="{% url 'workplaces:contract-create' workplace.slug %}" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-plus-lg me-1"></i>Add contract
+        </a>
+      </div>
+      <div class="card-body p-0">
+        {% for contract in contracts %}
+        <div class="border-bottom p-3">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+              <span class="fw-semibold">{% if contract.name %}{{ contract.name }}{% else %}Contract{% endif %}</span>
+              <span class="text-muted small ms-2">{{ contract.start_date }}{% if contract.end_date %} – {{ contract.end_date }}{% else %} – present{% endif %}</span>
+            </div>
+            <div class="d-flex gap-1 flex-shrink-0">
+              <a href="{% url 'workplaces:contract-update' workplace.slug contract.pk %}" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edit contract">
+                <i class="bi bi-pencil" style="font-size:0.75rem;"></i>
+              </a>
+              <a href="{% url 'workplaces:contract-delete' workplace.slug contract.pk %}" class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete contract">
+                <i class="bi bi-trash" style="font-size:0.75rem;"></i>
+              </a>
+              <a href="{% url 'workplaces:termset-create' workplace.slug contract.pk %}" class="btn btn-sm btn-outline-primary py-0 px-2" title="Add new pay terms">
+                <i class="bi bi-plus-lg" style="font-size:0.75rem;"></i> Terms
+              </a>
+            </div>
+          </div>
+          {% for ts in contract.term_sets.all %}
+          <div class="d-flex justify-content-between align-items-center ps-3 mt-2 flex-wrap gap-1" style="font-size:0.85rem;">
+            <div>
+              <span class="text-muted">From {{ ts.effective_from }}</span>
+              <span class="ms-2">{{ ts.get_employment_type_display }}</span>
+              {% if ts.employment_type == 'hourly' %}
+                <span class="ms-1 text-muted">&mdash; {{ ts.hourly_rate|dk }} DKK/h</span>
+              {% else %}
+                <span class="ms-1 text-muted">&mdash; {{ ts.monthly_salary|dk }} DKK/mo</span>
+              {% endif %}
+              {% if ts == active_termset %}<span class="badge bg-success ms-2" style="font-size:0.65rem;">Active</span>{% endif %}
+            </div>
+            <div class="d-flex gap-1">
+              <a href="{% url 'workplaces:termset-update' workplace.slug contract.pk ts.pk %}" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edit terms">
+                <i class="bi bi-pencil" style="font-size:0.7rem;"></i>
+              </a>
+              <a href="{% url 'workplaces:termset-delete' workplace.slug contract.pk ts.pk %}" class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete terms">
+                <i class="bi bi-trash" style="font-size:0.7rem;"></i>
+              </a>
+            </div>
+          </div>
+          {% empty %}
+          <div class="ps-3 mt-2 text-muted small">
+            No pay terms yet.
+            <a href="{% url 'workplaces:termset-create' workplace.slug contract.pk %}">Add initial terms</a>
+          </div>
+          {% endfor %}
+        </div>
+        {% empty %}
+        <div class="p-3 text-muted small">
+          No contracts yet.
+          <a href="{% url 'workplaces:contract-create' workplace.slug %}">Add the first contract</a>
+        </div>
+        {% endfor %}
       </div>
     </div>
   </div>

@@ -33,6 +33,11 @@
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-12 col-md-10 col-lg-8">
+
+    {% if setup %}
+      {% include "core/_setup_steps.html" with step=2 step1_url="/setup/" %}
+    {% endif %}
+
     <div class="card">
       <div class="card-header">
         <i class="bi bi-building me-2"></i>{% if workplace %}Edit {{ workplace.name }}{% else %}New Workplace{% endif %}
@@ -40,16 +45,24 @@
       <div class="card-body">
         <form method="post">
           {% csrf_token %}
+          {% if setup %}<input type="hidden" name="setup" value="1">{% endif %}
           {% include "workplaces/_form_fields.html" with form=form %}
           <div class="d-flex gap-2 mt-3">
             <button type="submit" class="btn btn-primary flex-fill">
-              <i class="bi bi-check-lg me-1"></i>Save
+              {% if setup %}Continue <i class="bi bi-arrow-right ms-1"></i>{% else %}<i class="bi bi-check-lg me-1"></i>Save{% endif %}
             </button>
-            <a href="{% if workplace %}{% url 'workplaces:workplace-detail' workplace.slug %}{% else %}{% url 'workplaces:workplace-list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+            {% if setup %}
+              <a href="{% url 'core:setup' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back
+              </a>
+            {% else %}
+              <a href="{% if workplace %}{% url 'workplaces:workplace-detail' workplace.slug %}{% else %}{% url 'workplaces:workplace-list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+            {% endif %}
           </div>
         </form>
       </div>
     </div>
+
   </div>
 </div>
 {% endblock %}

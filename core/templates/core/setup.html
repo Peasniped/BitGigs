@@ -5,51 +5,39 @@
 <div class="row justify-content-center">
   <div class="col-12 col-md-10 col-lg-8">
 
-    <!-- Hero -->
-    <div class="setup-hero mb-4">
+    <div class="setup-hero mb-3">
       <i class="bi bi-lightning-charge-fill"></i>
       <h2 class="mt-3 mb-1">Welcome to BitGigs</h2>
-      <p class="text-muted">Let's set up your tax profile and first workplace to get started.</p>
+      <p class="text-muted">Let's get you set up in three quick steps.</p>
     </div>
 
-    <form method="post">
-      {% csrf_token %}
+    {% include "core/_setup_steps.html" with step=1 %}
 
-      <!-- Step 1: Tax Profile -->
-      <div class="card mb-4">
-        <div class="card-header">
-          <span class="badge bg-primary bg-opacity-75 me-2">1</span>
-          Tax Profile
-        </div>
-        <div class="card-body">
-          <p class="text-muted small mb-3">
-            Enter your tax card details. You can find these on your
-            <strong>forskudsopgørelse</strong> from SKAT.
-          </p>
+    <div class="card">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-receipt me-2"></i>Your tax details
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          Enter your tax card details — you can find these on your
+          <strong>forskudsopgørelse</strong> from SKAT.
+        </p>
+        <form method="post">
+          {% csrf_token %}
+          {% if tax_form.non_field_errors %}
+            <div class="alert alert-danger py-2">
+              {% for err in tax_form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+            </div>
+          {% endif %}
           {% include "core/_taxprofile_form_fields.html" with form=tax_form %}
-        </div>
+          <div class="d-flex justify-content-end mt-4">
+            <button type="submit" class="btn btn-primary px-5">
+              Continue <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+          </div>
+        </form>
       </div>
-
-      <!-- Step 2: First Workplace -->
-      <div class="card mb-4">
-        <div class="card-header">
-          <span class="badge bg-primary bg-opacity-75 me-2">2</span>
-          First Workplace
-        </div>
-        <div class="card-body">
-          <p class="text-muted small mb-3">
-            Add your first employer or gig. You can add more later.
-          </p>
-          {% include "workplaces/_form_fields.html" with form=workplace_form %}
-        </div>
-      </div>
-
-      <div class="text-end">
-        <button type="submit" class="btn btn-primary btn-lg px-5">
-          <i class="bi bi-check-lg me-2"></i>Complete Setup
-        </button>
-      </div>
-    </form>
+    </div>
 
   </div>
 </div>

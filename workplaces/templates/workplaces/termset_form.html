@@ -1,0 +1,671 @@
+{% extends "base.html" %}
+{% block title %}{% if termset %}Edit Pay Terms{% else %}Add Pay Terms{% endif %} &mdash; {{ workplace.name }} &middot; BitGigs{% endblock %}
+
+{% block extra_css %}
+{% with accent=workplace.accent_color|default:"#6366f1" %}
+<style>
+  .accent-btn-group .btn-check:checked + .btn {
+    background: linear-gradient(135deg, {{ accent }}, {{ accent }}cc) !important;
+    border-color: {{ accent }} !important;
+    color: #fff !important;
+  }
+  .accent-btn-group .btn-outline-primary, .accent-btn-group .btn-outline-secondary {
+    border-color: {{ accent }}55; color: {{ accent }};
+  }
+  .accent-btn-group .btn-outline-primary:hover, .accent-btn-group .btn-outline-secondary:hover {
+    background: {{ accent }}15;
+  }
+  .form-check-input:checked { background-color: {{ accent }} !important; border-color: {{ accent }} !important; }
+  .form-check-input:focus { border-color: {{ accent }}88 !important; box-shadow: 0 0 0 .25rem {{ accent }}25 !important; }
+</style>
+{% endwith %}
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-10 col-lg-8">
+
+    {% if setup %}
+      {% with step2_url="/workplaces/"|add:workplace.slug|add:"/edit/?setup=1" %}
+        {% include "core/_setup_steps.html" with step=3 step1_url="/setup/" step2_url=step2_url %}
+      {% endwith %}
+    {% else %}
+      <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="{% url 'workplaces:workplace-list' %}">Workplaces</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'workplaces:workplace-detail' workplace.slug %}">{{ workplace.name }}</a></li>
+          <li class="breadcrumb-item active">{% if termset %}Edit Pay Terms{% else %}Add Pay Terms{% endif %}</li>
+        </ol>
+      </nav>
+    {% endif %}
+
+    {% if termset and shift_count > 0 %}
+    <div class="alert alert-warning d-flex align-items-start gap-2 py-2 mb-3">
+      <i class="bi bi-exclamation-triangle-fill mt-1 flex-shrink-0"></i>
+      <div>
+        <strong>{{ shift_count }} shift{{ shift_count|pluralize }}</strong> currently reference these terms.
+        Use <em>Update these terms</em> to correct a data entry error (affects existing shifts),
+        or <em>New terms from&hellip;</em> to add a new version (old shifts are unaffected).
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-file-earmark-ruled me-2"></i>
+        {% if termset %}Edit Pay Terms{% else %}New Pay Terms{% endif %}
+        <span class="text-muted fw-normal small ms-2">{{ contract.name|default:contract.start_date }}</span>
+      </div>
+      <div class="card-body">
+        <form method="post" id="termsetForm" {% if tax_profile_json %}data-tax-profile="{{ tax_profile_json }}"{% endif %}>
+          {% csrf_token %}
+          <input type="hidden" name="action" id="formAction" value="overwrite">
+          {% if setup %}<input type="hidden" name="setup" value="1">{% endif %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger py-2">
+              {% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+            </div>
+          {% endif %}
+
+          {# ── Effective from ─────────────────────────── #}
+          <div class="mb-4">
+            <label for="{{ form.effective_from.id_for_label }}" class="form-label fw-medium">Terms effective from</label>
+            <div class="d-flex align-items-center gap-2">
+              <input type="date" name="{{ form.effective_from.html_name }}" id="{{ form.effective_from.id_for_label }}"
+                     value="{{ form.effective_from.value|default_if_none:'' }}"
+                     class="form-control {% if form.effective_from.errors %}is-invalid{% endif %}"
+                     style="max-width:200px;" required>
+              <button type="button" class="btn btn-outline-secondary btn-sm"
+                      onclick="document.getElementById('{{ form.effective_from.id_for_label }}').value=new Date().toLocaleDateString('sv');">
+                Today
+              </button>
+            </div>
+            <div class="form-text">Rates apply from this date forward until replaced by a newer entry.</div>
+            {% for err in form.effective_from.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+          </div>
+
+          <div data-form="workplace">
+
+            {# ── Employment Type ─────────────────────── #}
+            <div class="mb-4">
+              <label class="form-label fw-medium d-block">Employment type</label>
+              <div class="btn-group w-100 accent-btn-group" role="group">
+                <input type="radio" class="btn-check" name="{{ form.employment_type.html_name }}"
+                       id="{{ form.employment_type.id_for_label }}_sal" value="salaried" autocomplete="off"
+                       data-emp-type="salaried"
+                       {% if form.employment_type.value == 'salaried' or not form.employment_type.value %}checked{% endif %}>
+                <label class="btn btn-outline-primary" for="{{ form.employment_type.id_for_label }}_sal">
+                  <i class="bi bi-briefcase me-1"></i>Salaried
+                </label>
+                <input type="radio" class="btn-check" name="{{ form.employment_type.html_name }}"
+                       id="{{ form.employment_type.id_for_label }}_hr" value="hourly" autocomplete="off"
+                       data-emp-type="hourly"
+                       {% if form.employment_type.value == 'hourly' %}checked{% endif %}>
+                <label class="btn btn-outline-primary" for="{{ form.employment_type.id_for_label }}_hr">
+                  <i class="bi bi-clock me-1"></i>Hourly
+                </label>
+              </div>
+              {% for err in form.employment_type.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+            </div>
+
+            {# ── SALARIED section ─────────────────────── #}
+            <div data-section="salaried" {% if form.employment_type.value == 'hourly' %}style="display:none"{% endif %}>
+              <div class="mb-3">
+                <label class="form-label fw-medium d-block">Working time</label>
+                <div class="btn-group w-100 accent-btn-group" role="group">
+                  <input type="radio" class="btn-check" name="{{ form.work_time_type.html_name }}"
+                         id="{{ form.work_time_type.id_for_label }}_ft" value="fuldtid" autocomplete="off"
+                         data-wtt="fuldtid"
+                         {% if form.work_time_type.value == 'fuldtid' or not form.work_time_type.value %}checked{% endif %}>
+                  <label class="btn btn-outline-secondary" for="{{ form.work_time_type.id_for_label }}_ft">
+                    Fuldtid (160,33 h/mo)
+                  </label>
+                  <input type="radio" class="btn-check" name="{{ form.work_time_type.html_name }}"
+                         id="{{ form.work_time_type.id_for_label }}_dt" value="deltid" autocomplete="off"
+                         data-wtt="deltid"
+                         {% if form.work_time_type.value == 'deltid' %}checked{% endif %}>
+                  <label class="btn btn-outline-secondary" for="{{ form.work_time_type.id_for_label }}_dt">
+                    Deltid
+                  </label>
+                </div>
+              </div>
+              <div data-subsection="deltid-hours" class="mb-3"
+                   {% if form.work_time_type.value != 'deltid' %}style="display:none"{% endif %}>
+                <label for="{{ form.weekly_hours_fixed.id_for_label }}" class="form-label">Hours per week</label>
+                <div class="d-flex align-items-center gap-2">
+                  <div class="input-group">
+                    <input type="text" inputmode="decimal"
+                           name="{{ form.weekly_hours_fixed.html_name }}" id="{{ form.weekly_hours_fixed.id_for_label }}"
+                           value="{{ form.weekly_hours_fixed.value|default_if_none:'' }}"
+                           class="form-control dk-number {% if form.weekly_hours_fixed.errors %}is-invalid{% endif %}"
+                           data-calc-trigger="employment-pct">
+                    <span class="input-group-text text-muted">h/week</span>
+                    {% for err in form.weekly_hours_fixed.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+                  </div>
+                  <div class="p-2 rounded" style="background:#f8fafc;white-space:nowrap;">
+                    <span class="text-muted small">Besk&aelig;ftigelses&shy;procent:</span>
+                    <span data-display="employment-pct" class="fw-semibold" style="color:#6366f1;">&ndash;</span>
+                  </div>
+                </div>
+              </div>
+              <div class="mb-3">
+                <label for="{{ form.monthly_salary.id_for_label }}" class="form-label">Grundl&oslash;n</label>
+                <div class="input-group">
+                  <input type="text" inputmode="decimal"
+                         name="{{ form.monthly_salary.html_name }}" id="{{ form.monthly_salary.id_for_label }}"
+                         value="{{ form.monthly_salary.value|default_if_none:'' }}"
+                         class="form-control dk-number {% if form.monthly_salary.errors %}is-invalid{% endif %}"
+                         data-calc-trigger="hourly-rate">
+                  <span class="input-group-text text-muted">DKK/mo</span>
+                  {% for err in form.monthly_salary.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+                </div>
+              </div>
+              <div class="mb-3 p-2 rounded" style="background:#f8fafc;">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="text-muted small">Calculated hourly rate</span>
+                  <span data-display="hourly-rate" class="fw-semibold" style="color:#6366f1;">&ndash;</span>
+                </div>
+              </div>
+            </div><!-- /salaried -->
+
+            {# ── HOURLY section ───────────────────────── #}
+            <div data-section="hourly" {% if form.employment_type.value != 'hourly' %}style="display:none"{% endif %}>
+              <div class="mb-3">
+                <label for="{{ form.hourly_rate.id_for_label }}" class="form-label">Hourly rate</label>
+                <div class="input-group">
+                  <input type="text" inputmode="decimal"
+                         name="{{ form.hourly_rate.html_name }}" id="{{ form.hourly_rate.id_for_label }}"
+                         value="{{ form.hourly_rate.value|default_if_none:'' }}"
+                         class="form-control dk-number {% if form.hourly_rate.errors %}is-invalid{% endif %}">
+                  <span class="input-group-text text-muted">DKK/h</span>
+                  {% for err in form.hourly_rate.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-medium d-block">Working hours</label>
+                <div class="btn-group w-100 accent-btn-group" role="group">
+                  <input type="radio" class="btn-check" name="{{ form.hours_type.html_name }}"
+                         id="{{ form.hours_type.id_for_label }}_fx" value="fixed" autocomplete="off"
+                         data-ht="fixed"
+                         {% if form.hours_type.value == 'fixed' or not form.hours_type.value %}checked{% endif %}>
+                  <label class="btn btn-outline-secondary" for="{{ form.hours_type.id_for_label }}_fx">Fixed</label>
+                  <input type="radio" class="btn-check" name="{{ form.hours_type.html_name }}"
+                         id="{{ form.hours_type.id_for_label }}_vr" value="variable" autocomplete="off"
+                         data-ht="variable"
+                         {% if form.hours_type.value == 'variable' %}checked{% endif %}>
+                  <label class="btn btn-outline-secondary" for="{{ form.hours_type.id_for_label }}_vr">Variable</label>
+                </div>
+              </div>
+              <div data-subsection="fixed-hours" class="mb-3"
+                   {% if form.hours_type.value == 'variable' %}style="display:none"{% endif %}>
+                <label for="{{ form.weekly_hours_fixed.id_for_label }}_hourly" class="form-label">Hours per week</label>
+                <div class="input-group">
+                  <input type="text" inputmode="decimal"
+                         name="{{ form.weekly_hours_fixed.html_name }}" id="{{ form.weekly_hours_fixed.id_for_label }}_hourly"
+                         value="{{ form.weekly_hours_fixed.value|default_if_none:'' }}"
+                         class="form-control dk-number {% if form.weekly_hours_fixed.errors %}is-invalid{% endif %}">
+                  <span class="input-group-text text-muted">h/week</span>
+                  {% for err in form.weekly_hours_fixed.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+                </div>
+              </div>
+              <div data-subsection="variable-hours" class="mb-3"
+                   {% if form.hours_type.value != 'variable' %}style="display:none"{% endif %}>
+                <label class="form-label">Hours per week (range)</label>
+                <div class="d-flex align-items-center gap-2">
+                  <div class="input-group">
+                    <input type="text" inputmode="decimal"
+                           name="{{ form.weekly_hours_min.html_name }}" id="{{ form.weekly_hours_min.id_for_label }}"
+                           value="{{ form.weekly_hours_min.value|default_if_none:'' }}"
+                           class="form-control dk-number {% if form.weekly_hours_min.errors %}is-invalid{% endif %}"
+                           placeholder="Min">
+                    <span class="input-group-text text-muted">h</span>
+                  </div>
+                  <span class="text-muted fw-medium">to</span>
+                  <div class="input-group">
+                    <input type="text" inputmode="decimal"
+                           name="{{ form.weekly_hours_max.html_name }}" id="{{ form.weekly_hours_max.id_for_label }}"
+                           value="{{ form.weekly_hours_max.value|default_if_none:'' }}"
+                           class="form-control dk-number {% if form.weekly_hours_max.errors %}is-invalid{% endif %}"
+                           placeholder="Max">
+                    <span class="input-group-text text-muted">h</span>
+                  </div>
+                </div>
+                {% for err in form.weekly_hours_min.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+              </div>
+              <div class="mb-3">
+                <label for="{{ form.payroll_period_start_day.id_for_label }}" class="form-label">Payroll period start day</label>
+                <div class="input-group">
+                  <input type="number" min="1" max="31"
+                         name="{{ form.payroll_period_start_day.html_name }}"
+                         id="{{ form.payroll_period_start_day.id_for_label }}"
+                         value="{{ form.payroll_period_start_day.value|default_if_none:'1' }}"
+                         class="form-control {% if form.payroll_period_start_day.errors %}is-invalid{% endif %}"
+                         data-payroll-start>
+                  <span class="input-group-text text-muted">of month</span>
+                  {% for err in form.payroll_period_start_day.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="form-text" data-payroll-period-msg></div>
+              </div>
+              <div class="mb-3 p-2 rounded" style="background:#f8fafc;" data-gross-pay-box>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="text-muted small">Estimated gross pay</span>
+                  <span data-display="gross-pay" class="fw-semibold" style="color:#6366f1;">&ndash;</span>
+                </div>
+                <div data-display="gross-pay-goal" class="text-muted small mt-1" style="display:none;"></div>
+              </div>
+            </div><!-- /hourly -->
+
+            {# Hidden payroll start for salaried #}
+            <input type="hidden" name="{{ form.payroll_period_start_day.html_name }}"
+                   data-hidden-payroll-start value="1">
+
+            {# ── Hour Goal ───────────────────────────── #}
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="section-title mb-0">Hour Goal <small class="text-muted fw-normal text-lowercase">(optional)</small></span>
+                <div class="form-check form-switch">
+                  <input type="checkbox" class="form-check-input" role="switch"
+                         id="hourGoalToggle"
+                         {% if form.hour_goal_type.value %}checked{% endif %}>
+                  <label class="form-check-label small" for="hourGoalToggle">Configure</label>
+                </div>
+              </div>
+              <div id="hourGoalFields" style="{% if not form.hour_goal_type.value %}display:none{% endif %}">
+                <p class="form-text mt-0 mb-2">Set a personal hour target shown in the planning calendar.</p>
+                <p class="form-text mt-0 mb-2 text-info-emphasis" data-goal-salaried-hint style="display:none;">
+                  <i class="bi bi-info-circle me-1"></i>For salaried positions, the default is your contracted monthly hours.
+                </p>
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                  <div class="btn-group btn-group-sm accent-btn-group" role="group">
+                    <input type="radio" class="btn-check" name="goalMode" id="goalModeTarget" value="target"
+                           {% if not form.hour_goal_max.value %}checked{% endif %}>
+                    <label class="btn btn-outline-secondary" for="goalModeTarget">Target</label>
+                    <input type="radio" class="btn-check" name="goalMode" id="goalModeRange" value="range"
+                           {% if form.hour_goal_max.value %}checked{% endif %}>
+                    <label class="btn btn-outline-secondary" for="goalModeRange">Range</label>
+                  </div>
+                  <div class="input-group input-group-sm" style="width:auto;">
+                    <input type="text" inputmode="decimal"
+                           name="{{ form.hour_goal_min.html_name }}" id="{{ form.hour_goal_min.id_for_label }}"
+                           value="{{ form.hour_goal_min.value|floatformat:2|default_if_none:'' }}"
+                           class="form-control form-control-sm dk-number" placeholder="15,00" style="width:90px;">
+                    <span class="input-group-text text-muted" style="font-size:0.75rem;">hours</span>
+                  </div>
+                  <span class="text-muted small" id="goalToLabel" style="{% if not form.hour_goal_max.value %}display:none{% endif %}">to</span>
+                  <div class="input-group input-group-sm" id="goalMaxWrapper" style="width:auto;{% if not form.hour_goal_max.value %}display:none{% endif %}">
+                    <input type="text" inputmode="decimal"
+                           name="{{ form.hour_goal_max.html_name }}" id="{{ form.hour_goal_max.id_for_label }}"
+                           value="{{ form.hour_goal_max.value|floatformat:2|default_if_none:'' }}"
+                           class="form-control form-control-sm dk-number" placeholder="25,00" style="width:90px;">
+                    <span class="input-group-text text-muted" style="font-size:0.75rem;">hours</span>
+                  </div>
+                  <span class="text-muted small">per</span>
+                  <div class="btn-group btn-group-sm accent-btn-group" role="group">
+                    <input type="radio" class="btn-check" name="{{ form.hour_goal_type.html_name }}" id="goalPeriodWeekly" value="weekly"
+                           {% if form.hour_goal_type.value != 'monthly' %}checked{% endif %}>
+                    <label class="btn btn-outline-secondary" for="goalPeriodWeekly">Week</label>
+                    <input type="radio" class="btn-check" name="{{ form.hour_goal_type.html_name }}" id="goalPeriodMonthly" value="monthly"
+                           {% if form.hour_goal_type.value == 'monthly' %}checked{% endif %}>
+                    <label class="btn btn-outline-secondary" for="goalPeriodMonthly">Month</label>
+                  </div>
+                </div>
+                <div class="text-danger small mt-1" id="goalRangeWarning" style="display:none;"></div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            {# ── Tax card ─────────────────────────────── #}
+            <div class="mb-3">
+              <label for="{{ form.tax_card_type.id_for_label }}" class="form-label fw-medium">Tax card</label>
+              <select name="{{ form.tax_card_type.html_name }}" id="{{ form.tax_card_type.id_for_label }}"
+                      class="form-select {% if form.tax_card_type.errors %}is-invalid{% endif %}"
+                      data-tax-card-select>
+                {% for val, label in form.tax_card_type.field.choices %}
+                  <option value="{{ val }}" {% if form.tax_card_type.value == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text" data-tax-card-desc></div>
+              {% for err in form.tax_card_type.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+            </div>
+
+            {# ── Vacation type ────────────────────────── #}
+            <div class="mb-3">
+              <label for="{{ form.vacation_type.id_for_label }}" class="form-label fw-medium">Vacation type</label>
+              <select name="{{ form.vacation_type.html_name }}" id="{{ form.vacation_type.id_for_label }}"
+                      class="form-select {% if form.vacation_type.errors %}is-invalid{% endif %}">
+                {% for val, label in form.vacation_type.field.choices %}
+                  <option value="{{ val }}" {% if form.vacation_type.value == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text" data-vacation-note="accrued" style="{% if form.vacation_type.value == 'feriekonto' %}display:none{% endif %}">
+                Vacation accrual: 2,08 days/month
+              </div>
+              <div class="form-text mt-1" data-vacation-note="feriekonto" style="{% if form.vacation_type.value != 'feriekonto' %}display:none{% endif %}">
+                <i class="bi bi-info-circle me-1"></i>12,5% of gross pay (before tax) is transferred to FerieKonto.
+              </div>
+              {% for err in form.vacation_type.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+            </div>
+
+            {# ── Pension ──────────────────────────────── #}
+            <div class="section-title mt-4">Pension</div>
+            <div class="d-flex align-items-end gap-2 mb-3 flex-wrap">
+              <div style="flex:1;min-width:120px;">
+                <label for="{{ form.pension_employer_percent.id_for_label }}" class="form-label small mb-1">Employer</label>
+                <div class="input-group">
+                  <input type="text" inputmode="decimal"
+                         name="{{ form.pension_employer_percent.html_name }}" id="{{ form.pension_employer_percent.id_for_label }}"
+                         value="{{ form.pension_employer_percent.value|default_if_none:'' }}"
+                         class="form-control dk-number {% if form.pension_employer_percent.errors %}is-invalid{% endif %}"
+                         data-pension-field="employer">
+                  <span class="input-group-text text-muted">%</span>
+                  {% for err in form.pension_employer_percent.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+                </div>
+              </div>
+              <span class="fw-bold text-muted pb-2">+</span>
+              <div style="flex:1;min-width:120px;">
+                <label for="{{ form.pension_employee_percent.id_for_label }}" class="form-label small mb-1">Your share</label>
+                <div class="input-group">
+                  <input type="text" inputmode="decimal"
+                         name="{{ form.pension_employee_percent.html_name }}" id="{{ form.pension_employee_percent.id_for_label }}"
+                         value="{{ form.pension_employee_percent.value|default_if_none:'' }}"
+                         class="form-control dk-number {% if form.pension_employee_percent.errors %}is-invalid{% endif %}"
+                         data-pension-field="employee">
+                  <span class="input-group-text text-muted">%</span>
+                  {% for err in form.pension_employee_percent.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+                </div>
+              </div>
+              <span class="fw-bold text-muted pb-2">=</span>
+              <div class="pb-2">
+                <span data-display="pension-total" class="fw-semibold" style="color:#6366f1;white-space:nowrap;">0 %</span>
+              </div>
+            </div>
+
+            {# ── Fritvalgskonto ───────────────────────── #}
+            <div class="mb-3" data-section-fritvalgskonto>
+              <div class="form-check form-switch mb-2">
+                <input type="checkbox" class="form-check-input" role="switch"
+                       name="{{ form.fritvalgskonto_enabled.html_name }}"
+                       id="{{ form.fritvalgskonto_enabled.id_for_label }}"
+                       data-fritvalgskonto-toggle
+                       {% if form.fritvalgskonto_enabled.value %}checked{% endif %}>
+                <label class="form-check-label fw-medium" for="{{ form.fritvalgskonto_enabled.id_for_label }}">Fritvalgskonto</label>
+              </div>
+              <div data-fritvalgskonto-fields style="{% if not form.fritvalgskonto_enabled.value %}display:none{% endif %}">
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <div class="input-group">
+                      <input type="text" inputmode="decimal"
+                             name="{{ form.fritvalgskonto_percent.html_name }}" id="{{ form.fritvalgskonto_percent.id_for_label }}"
+                             value="{{ form.fritvalgskonto_percent.value|default_if_none:'' }}"
+                             class="form-control dk-number {% if form.fritvalgskonto_percent.errors %}is-invalid{% endif %}">
+                      <span class="input-group-text text-muted">% of gross</span>
+                      {% for err in form.fritvalgskonto_percent.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <select name="{{ form.fritvalgskonto_payout_type.html_name }}" id="{{ form.fritvalgskonto_payout_type.id_for_label }}"
+                            class="form-select {% if form.fritvalgskonto_payout_type.errors %}is-invalid{% endif %}">
+                      {% for val, label in form.fritvalgskonto_payout_type.field.choices %}
+                        <option value="{{ val }}" {% if form.fritvalgskonto_payout_type.value == val %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                    {% for err in form.fritvalgskonto_payout_type.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {# ── Ferietillæg ──────────────────────────── #}
+            <div class="mb-3" data-section-ferietillaeg>
+              <div class="form-check form-switch mb-2">
+                <input type="checkbox" class="form-check-input" role="switch"
+                       name="{{ form.ferietillaeg_enabled.html_name }}"
+                       id="{{ form.ferietillaeg_enabled.id_for_label }}"
+                       data-ferietillaeg-toggle
+                       {% if form.ferietillaeg_enabled.value %}checked{% endif %}>
+                <label class="form-check-label fw-medium" for="{{ form.ferietillaeg_enabled.id_for_label }}">Ferietill&aelig;g</label>
+              </div>
+              <div data-ferietillaeg-fields style="{% if not form.ferietillaeg_enabled.value %}display:none{% endif %}">
+                <div class="input-group mb-2">
+                  <input type="text" inputmode="decimal"
+                         name="{{ form.ferietillaeg_percent.html_name }}" id="{{ form.ferietillaeg_percent.id_for_label }}"
+                         value="{{ form.ferietillaeg_percent.value|default_if_none:'1,00' }}"
+                         class="form-control dk-number {% if form.ferietillaeg_percent.errors %}is-invalid{% endif %}">
+                  <span class="input-group-text text-muted">% of yearly gross</span>
+                  {% for err in form.ferietillaeg_percent.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+                </div>
+                <label class="form-label small text-muted mb-1">Payout months</label>
+                <div class="d-flex flex-wrap gap-1 mb-1">
+                  {% for m_val, m_label in month_choices %}
+                    <span class="btn btn-sm btn-outline-secondary py-0 px-2"
+                          style="font-size:0.75rem;cursor:pointer;" data-ft-month="{{ m_val }}">
+                      {{ m_label }}
+                    </span>
+                  {% endfor %}
+                </div>
+                <input type="hidden" name="{{ form.ferietillaeg_payout_months.html_name }}"
+                       id="{{ form.ferietillaeg_payout_months.id_for_label }}"
+                       value="{{ form.ferietillaeg_payout_months.value|default_if_none:'5,8' }}"
+                       data-ft-payout-hidden>
+                <div class="form-text">Select which months the till&aelig;g is paid out.</div>
+              </div>
+            </div>
+
+            {# ── Default shift ────────────────────────── #}
+            <hr class="my-4">
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="section-title mb-0">Default Shift <small class="text-muted fw-normal text-lowercase">(optional)</small></span>
+                <div class="form-check form-switch">
+                  <input type="checkbox" class="form-check-input" role="switch"
+                         id="defaultShiftToggle"
+                         {% if form.default_shift_start_time.value %}checked{% endif %}>
+                  <label class="form-check-label small" for="defaultShiftToggle">Configure</label>
+                </div>
+              </div>
+              <div id="defaultShiftFields" style="{% if not form.default_shift_start_time.value %}display:none{% endif %}">
+                <p class="form-text mt-0 mb-2">Pre-fill shift details when planning in the planning calendar.</p>
+                <div class="row g-2 mb-2">
+                  <div class="col-6">
+                    <label class="form-label small">Start time</label>
+                    <input type="time" name="{{ form.default_shift_start_time.html_name }}"
+                           id="{{ form.default_shift_start_time.id_for_label }}"
+                           value="{{ form.default_shift_start_time.value|time:'H:i'|default_if_none:'' }}"
+                           class="form-control form-control-sm">
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small">End time</label>
+                    <input type="time" name="{{ form.default_shift_end_time.html_name }}"
+                           id="{{ form.default_shift_end_time.id_for_label }}"
+                           value="{{ form.default_shift_end_time.value|time:'H:i'|default_if_none:'' }}"
+                           class="form-control form-control-sm">
+                  </div>
+                </div>
+                <div class="row g-2 mb-2">
+                  <div class="col-6">
+                    <label class="form-label small">Break (min)</label>
+                    <input type="number" name="{{ form.default_shift_break_minutes.html_name }}"
+                           id="{{ form.default_shift_break_minutes.id_for_label }}"
+                           value="{{ form.default_shift_break_minutes.value|default:'0' }}"
+                           class="form-control form-control-sm" min="0">
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small">Type</label>
+                    <select name="{{ form.default_shift_type.html_name }}" id="{{ form.default_shift_type.id_for_label }}"
+                            class="form-select form-select-sm">
+                      {% for val, label in form.default_shift_type.field.choices %}
+                        <option value="{{ val }}" {% if form.default_shift_type.value == val %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- /data-form="workplace" -->
+
+          {# ── Save buttons ─────────────────────────── #}
+          {% if termset %}
+            <div class="d-flex gap-2 mt-4 flex-wrap">
+              <button type="submit" class="btn btn-warning flex-fill" onclick="document.getElementById('formAction').value='overwrite';">
+                <i class="bi bi-pencil me-1"></i>Update these terms
+                {% if shift_count > 0 %}
+                  <small class="opacity-75">(affects {{ shift_count }} shift{{ shift_count|pluralize }})</small>
+                {% endif %}
+              </button>
+              <button type="submit" class="btn btn-primary flex-fill" onclick="document.getElementById('formAction').value='fork';">
+                <i class="bi bi-plus-circle me-1"></i>New terms from <span id="forkDateLabel">…</span>
+              </button>
+            </div>
+            <div class="mt-2">
+              <a href="{% url 'workplaces:workplace-detail' workplace.slug %}" class="btn btn-outline-secondary w-100">Cancel</a>
+            </div>
+          {% elif setup %}
+            <div class="d-flex gap-2 mt-4">
+              <button type="submit" class="btn btn-primary flex-fill">
+                Finish setup <i class="bi bi-check-lg ms-1"></i>
+              </button>
+              <a href="/workplaces/{{ workplace.slug }}/contracts/add/?setup=1" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back
+              </a>
+            </div>
+          {% else %}
+            <div class="d-flex gap-2 mt-4">
+              <button type="submit" class="btn btn-primary flex-fill">
+                <i class="bi bi-check-lg me-1"></i>Save terms
+              </button>
+              <a href="{% url 'workplaces:workplace-detail' workplace.slug %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          {% endif %}
+
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// Update fork button label with the effective_from date
+(function() {
+  var dateInput = document.getElementById('{{ form.effective_from.id_for_label }}');
+  var label = document.getElementById('forkDateLabel');
+  if (!dateInput || !label) return;
+  function updateLabel() {
+    label.textContent = dateInput.value || '…';
+  }
+  dateInput.addEventListener('input', updateLabel);
+  updateLabel();
+})();
+
+// Default shift toggle
+document.getElementById('defaultShiftToggle').addEventListener('change', function() {
+  document.getElementById('defaultShiftFields').style.display = this.checked ? '' : 'none';
+  if (!this.checked) {
+    document.getElementById('defaultShiftFields').querySelectorAll('input[type=time]').forEach(function(i) { i.value = ''; });
+  }
+});
+
+// Hour goal toggle
+document.getElementById('hourGoalToggle').addEventListener('change', function() {
+  document.getElementById('hourGoalFields').style.display = this.checked ? '' : 'none';
+  if (!this.checked) {
+    document.querySelectorAll('input[name="{{ form.hour_goal_type.html_name }}"]').forEach(function(r) { r.checked = false; });
+    document.querySelector('[name="{{ form.hour_goal_min.html_name }}"]').value = '';
+    document.querySelector('[name="{{ form.hour_goal_max.html_name }}"]').value = '';
+    document.getElementById('goalRangeWarning').style.display = 'none';
+  } else {
+    var any = document.querySelector('input[name="{{ form.hour_goal_type.html_name }}"]:checked');
+    if (!any) document.getElementById('goalPeriodWeekly').checked = true;
+    autoPopulateGoal();
+  }
+});
+document.querySelectorAll('input[name="goalMode"]').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    var isRange = this.value === 'range';
+    document.getElementById('goalMaxWrapper').style.display = isRange ? '' : 'none';
+    document.getElementById('goalToLabel').style.display = isRange ? '' : 'none';
+    if (!isRange) document.querySelector('[name="{{ form.hour_goal_max.html_name }}"]').value = '';
+  });
+});
+
+// ── Auto-populate hour goal from contracted hours ─────────────────────────
+function _parseDk(v) {
+  if (!v) return NaN;
+  return parseFloat(String(v).replace(/\./g, '').replace(',', '.'));
+}
+
+function getSuggestedGoal() {
+  var empChecked = document.querySelector('[data-emp-type]:checked');
+  if (!empChecked) return null;
+
+  if (empChecked.value === 'salaried') {
+    var wttChecked = document.querySelector('[data-wtt]:checked');
+    var isFuldtid = !wttChecked || wttChecked.value === 'fuldtid';
+    var weeklyHours;
+    if (isFuldtid) {
+      weeklyHours = 37;
+    } else {
+      weeklyHours = _parseDk(
+        document.getElementById('{{ form.weekly_hours_fixed.id_for_label }}').value
+      );
+    }
+    if (isNaN(weeklyHours) || weeklyHours <= 0) return null;
+    return { hours: Math.round(weeklyHours * 52 / 12 * 100) / 100, period: 'monthly' };
+
+  } else {
+    // hourly
+    var htChecked = document.querySelector('[data-ht]:checked');
+    var isFixed = !htChecked || htChecked.value === 'fixed';
+    var weeklyHours;
+    if (isFixed) {
+      weeklyHours = _parseDk(
+        document.getElementById('{{ form.weekly_hours_fixed.id_for_label }}_hourly').value
+      );
+    } else {
+      var min = _parseDk(document.getElementById('{{ form.weekly_hours_min.id_for_label }}').value);
+      var max = _parseDk(document.getElementById('{{ form.weekly_hours_max.id_for_label }}').value);
+      if (!isNaN(min) && !isNaN(max) && min > 0 && max > 0) {
+        weeklyHours = (min + max) / 2;
+      } else if (!isNaN(min) && min > 0) {
+        weeklyHours = min;
+      }
+    }
+    if (isNaN(weeklyHours) || weeklyHours <= 0) return null;
+    return { hours: weeklyHours, period: 'weekly' };
+  }
+}
+
+function autoPopulateGoal() {
+  if (!document.getElementById('hourGoalToggle').checked) return;
+  var s = getSuggestedGoal();
+  if (!s) return;
+
+  // Set period radio
+  var periodEl = document.getElementById(s.period === 'monthly' ? 'goalPeriodMonthly' : 'goalPeriodWeekly');
+  if (periodEl) periodEl.checked = true;
+
+  // Populate goal min
+  var goalMinEl = document.querySelector('[name="{{ form.hour_goal_min.html_name }}"]');
+  if (goalMinEl) goalMinEl.value = toDanish(s.hours.toFixed(2));
+}
+
+// Wire up triggers that should refresh the goal suggestion
+['[data-emp-type]', '[data-wtt]', '[data-ht]'].forEach(function(sel) {
+  document.querySelectorAll(sel).forEach(function(el) {
+    el.addEventListener('change', autoPopulateGoal);
+  });
+});
+[
+  '{{ form.weekly_hours_fixed.id_for_label }}',
+  '{{ form.weekly_hours_fixed.id_for_label }}_hourly',
+  '{{ form.weekly_hours_min.id_for_label }}',
+  '{{ form.weekly_hours_max.id_for_label }}',
+].forEach(function(id) {
+  var el = document.getElementById(id);
+  if (el) el.addEventListener('input', autoPopulateGoal);
+});
+</script>
+{% endblock %}
