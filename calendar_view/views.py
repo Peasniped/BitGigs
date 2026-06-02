@@ -2,10 +2,12 @@
 from datetime import date, time
 from decimal import Decimal
 
+from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.views import View
 
+from core.services import TaxCalculationService
 from workplaces.models import Workplace
 from workplaces.services import workplaces_active_today, workplaces_active_in_period, hidden_workplace_count
 from shifts.models import PlannedShift, Shift
@@ -116,9 +118,6 @@ class PlanningCalendarView(View):
         workplace_data = []
         for wp in workplaces:
             initials, color = avatar_for_name(wp.name)
-            # Attach computed avatar fields for the server-rendered workplace strip
-            wp.avatar_color = wp.color or color
-            wp.avatar_initials = initials
             mid = date(year, month, 15)
             terms = wp.active_termset_on(mid)
 
@@ -148,6 +147,15 @@ class PlanningCalendarView(View):
                 Decimal("0"),
             )
 
+            # Contract date intervals (for client-side bounds checking in the grid)
+            contract_intervals = [
+                {
+                    "start": c.start_date.isoformat(),
+                    "end": c.end_date.isoformat() if c.end_date else "",
+                }
+                for c in wp.contracts.all()
+            ]
+
             workplace_data.append({
                 "id": wp.pk,
                 "name": wp.name,
@@ -156,10 +164,11 @@ class PlanningCalendarView(View):
                 "color": wp.color or color,
                 "accent_color": wp.accent_color or "",
                 "initials": initials,
-                "default_start": terms.default_shift_start_time.strftime("%H:%M") if terms and terms.default_shift_start_time else "",
-                "default_end": terms.default_shift_end_time.strftime("%H:%M") if terms and terms.default_shift_end_time else "",
-                "default_break": terms.default_shift_break_minutes if terms else 0,
-                "default_type": terms.default_shift_type if terms else "on_site",
+                "contract_intervals": contract_intervals,
+                "default_start": wp.default_shift_start_time.strftime("%H:%M") if wp.default_shift_start_time else "",
+                "default_end": wp.default_shift_end_time.strftime("%H:%M") if wp.default_shift_end_time else "",
+                "default_break": wp.default_shift_break_minutes,
+                "default_type": wp.default_shift_type,
                 "period_start": period_start.isoformat(),
                 "period_end": period_end.isoformat(),
                 "planned_hours": str(planned_hours),
@@ -253,7 +262,12 @@ class PlannedShiftAPIView(View):
 
 
 class PlannedShiftUpdateAPIView(View):
-    """Update or delete a planned shift."""
+    """Read, update, or delete a planned shift."""
+
+    def get(self, request, pk):
+        """Return a planned shift's data (used when copying — no validation)."""
+        shift = get_object_or_404(PlannedShift, pk=pk, status=PlannedShift.Status.PLANNED)
+        return JsonResponse({"ok": True, "shift": _shift_to_dict(shift)})
 
     def post(self, request, pk):
         """Update a planned shift."""
@@ -332,25 +346,19 @@ class BulkDeleteShiftsView(View):
 
 
 class DefaultShiftAPIView(View):
-    """Return default shift config from the active ContractTermSet."""
+    """Return / store the workplace's default shift config (planning convenience)."""
 
     def get(self, request, pk):
         wp = get_object_or_404(Workplace, pk=pk)
-        terms = wp.active_termset_on(date.today())
-        if terms is None:
-            return JsonResponse({"default_start": "", "default_end": "", "default_break": 0, "default_type": "on_site"})
         return JsonResponse({
-            "default_start": terms.default_shift_start_time.strftime("%H:%M") if terms.default_shift_start_time else "",
-            "default_end": terms.default_shift_end_time.strftime("%H:%M") if terms.default_shift_end_time else "",
-            "default_break": terms.default_shift_break_minutes,
-            "default_type": terms.default_shift_type,
+            "default_start": wp.default_shift_start_time.strftime("%H:%M") if wp.default_shift_start_time else "",
+            "default_end": wp.default_shift_end_time.strftime("%H:%M") if wp.default_shift_end_time else "",
+            "default_break": wp.default_shift_break_minutes,
+            "default_type": wp.default_shift_type,
         })
 
     def post(self, request, pk):
         wp = get_object_or_404(Workplace, pk=pk)
-        terms = wp.active_termset_on(date.today())
-        if terms is None:
-            return JsonResponse({"ok": False, "error": "No active contract."}, status=400)
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -358,11 +366,11 @@ class DefaultShiftAPIView(View):
 
         start = data.get("start_time", "")
         end = data.get("end_time", "")
-        terms.default_shift_start_time = time.fromisoformat(start) if start else None
-        terms.default_shift_end_time = time.fromisoformat(end) if end else None
-        terms.default_shift_break_minutes = int(data.get("break_minutes", 0) or 0)
-        terms.default_shift_type = data.get("shift_type", "on_site") or "on_site"
-        terms.save(update_fields=["default_shift_start_time", "default_shift_end_time", "default_shift_break_minutes", "default_shift_type"])
+        wp.default_shift_start_time = time.fromisoformat(start) if start else None
+        wp.default_shift_end_time = time.fromisoformat(end) if end else None
+        wp.default_shift_break_minutes = int(data.get("break_minutes", 0) or 0)
+        wp.default_shift_type = data.get("shift_type", "on_site") or "on_site"
+        wp.save(update_fields=["default_shift_start_time", "default_shift_end_time", "default_shift_break_minutes", "default_shift_type"])
         return JsonResponse({"ok": True})
 
 
@@ -434,6 +442,7 @@ class ApproveShiftsView(View):
             edits = {str(e["id"]): e for e in data.get("edits", [])}
 
             approved_count = 0
+            uncovered_dates = []
             for sid in shift_ids:
                 try:
                     shift = PlannedShift.objects.get(
@@ -452,9 +461,14 @@ class ApproveShiftsView(View):
                             shift.shift_type = edit["shift_type"]
                         shift.save()
                     shift.approve()
+                    if TaxCalculationService.coverage_warning(shift.date):
+                        uncovered_dates.append(shift.date)
                     approved_count += 1
                 except PlannedShift.DoesNotExist:
                     continue
+
+            if uncovered_dates:
+                messages.warning(request, TaxCalculationService.coverage_warning(min(uncovered_dates)))
 
             return JsonResponse({"ok": True, "approved_count": approved_count})
 
@@ -462,6 +476,7 @@ class ApproveShiftsView(View):
         shift_ids = request.POST.getlist("shift_ids")
 
         approved_count = 0
+        uncovered_dates = []
         for sid in shift_ids:
             try:
                 shift = PlannedShift.objects.get(
@@ -470,15 +485,16 @@ class ApproveShiftsView(View):
                     status=PlannedShift.Status.PLANNED,
                 )
                 shift.approve()
+                if TaxCalculationService.coverage_warning(shift.date):
+                    uncovered_dates.append(shift.date)
                 approved_count += 1
             except PlannedShift.DoesNotExist:
                 continue
 
-        from django.contrib import messages
         messages.success(request, f"{approved_count} shift(s) approved and converted to work sessions.")
+        if uncovered_dates:
+            messages.warning(request, TaxCalculationService.coverage_warning(min(uncovered_dates)))
         from django.shortcuts import redirect
-        from workplaces.models import Workplace
-        workplace = get_object_or_404(Workplace, pk=workplace_id)
         return redirect("workplaces:workplace-detail", slug=workplace.slug)
 
 
@@ -498,6 +514,7 @@ class BulkApproveShiftsView(View):
         edits = {str(e["id"]): e for e in data.get("edits", [])}
 
         approved_count = 0
+        uncovered_dates = []
         for sid in shift_ids:
             try:
                 shift = PlannedShift.objects.get(
@@ -514,9 +531,14 @@ class BulkApproveShiftsView(View):
                         shift.shift_type = edit["shift_type"]
                     shift.save()
                 shift.approve()
+                if TaxCalculationService.coverage_warning(shift.date):
+                    uncovered_dates.append(shift.date)
                 approved_count += 1
             except PlannedShift.DoesNotExist:
                 continue
+
+        if uncovered_dates:
+            messages.warning(request, TaxCalculationService.coverage_warning(min(uncovered_dates)))
 
         return JsonResponse({"ok": True, "approved_count": approved_count})
 

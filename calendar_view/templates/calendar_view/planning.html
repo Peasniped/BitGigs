@@ -620,7 +620,7 @@
   <div class="modal-dialog modal-sm modal-dialog-centered">
     <div class="modal-content" style="border-radius:var(--card-radius);border:2px solid #fca5a5;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);background:#fef2f2;">
       <div class="modal-header border-0 pb-0" style="background:transparent;">
-        <span class="fw-semibold" style="color:#dc3545;"><i class="bi bi-exclamation-triangle me-2"></i>Wrong payroll period</span>
+        <span class="fw-semibold" style="color:#dc3545;"><i class="bi bi-exclamation-triangle me-2"></i><span id="periodWarningTitle">Wrong payroll period</span></span>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body pt-2" style="background:transparent;">
@@ -888,9 +888,8 @@
     var shiftId = parseInt(chip.dataset.shiftId);
     var url = '{% url "calendar_view:planned-shift-update-api" pk=0 %}'.replace('/0/', '/' + shiftId + '/');
     fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-      body: JSON.stringify({}),
+      method: 'GET',
+      headers: { 'X-CSRFToken': CSRF },
     }).then(function(r) { return r.json(); }).then(function(data) {
       if (!data.ok) return;
       var s = data.shift;
@@ -916,12 +915,11 @@
   function pasteShiftToDate(dateStr) {
     if (!copiedShift) return;
     if (!isInPeriod(copiedShift.workplace_id, dateStr)) {
-      var info = outOfPeriodMessage(copiedShift.workplace_id, dateStr);
-      document.getElementById('periodWarningText').textContent = info.text;
-      document.getElementById('periodWarningHint').textContent = info.hint;
-      document.getElementById('periodWarningGoBtnLabel').textContent = 'Go to ' + info.targetName;
-      document.getElementById('periodWarningGoBtn').href = '?year=' + info.targetYear + '&month=' + info.targetMonth;
-      new bootstrap.Modal(document.getElementById('periodWarningModal')).show();
+      showPeriodWarning(copiedShift.workplace_id, dateStr);
+      return;
+    }
+    if (!isInContract(copiedShift.workplace_id, dateStr)) {
+      showContractWarning(copiedShift.workplace_id, dateStr);
       return;
     }
     var body = {
@@ -994,7 +992,7 @@
     } else if (wp && wp.icon) {
       avatarHtml = '<i class="bi ' + wp.icon + '"></i>';
     } else {
-      avatarHtml = (wp ? wp.name.charAt(0) : '?');
+      avatarHtml = (wp ? (wp.initials ? wp.initials.charAt(0) : wp.name.charAt(0)) : '?');
     }
     div.innerHTML =
       '<span class="shift-chip__avatar" style="background:' + (wp && wp.color ? wp.color : '#6366f1') + ';">' + avatarHtml + '</span>' +
@@ -1093,6 +1091,9 @@
   }
 
   function fastCreateShift(workplaceId, dateStr) {
+    // Block fast-create outside the payroll period or contract bounds
+    if (!isInPeriod(workplaceId, dateStr)) { showPeriodWarning(workplaceId, dateStr); return; }
+    if (!isInContract(workplaceId, dateStr)) { showContractWarning(workplaceId, dateStr); return; }
     var wp = wpMap[workplaceId];
     if (!wp || !wp.default_start || !wp.default_end) {
       // No defaults configured . show yellow warning inside modal
@@ -1326,7 +1327,7 @@
     var accentRgb = wp.accent_color ? hexToRgb(wp.accent_color) : null;
     document.querySelectorAll('.planning-calendar .calendar-day[data-date]').forEach(function(td) {
       var d = td.dataset.date;
-      if (d >= wp.period_start && d <= wp.period_end) {
+      if (d >= wp.period_start && d <= wp.period_end && isInContract(wpId, d)) {
         td.classList.add('in-period-highlight');
         if (accentRgb) td.style.setProperty('--wp-accent-rgb', accentRgb);
       }
@@ -1344,6 +1345,22 @@
     var wp = wpMap[wpId];
     if (!wp || !wp.period_start || !wp.period_end) return true;
     return dateStr >= wp.period_start && dateStr <= wp.period_end;
+  }
+
+  // True when the date falls within one of the workplace's contracts
+  function isInContract(wpId, dateStr) {
+    var wp = wpMap[wpId];
+    if (!wp || !wp.contract_intervals || !wp.contract_intervals.length) return true;
+    return wp.contract_intervals.some(function(iv) {
+      if (dateStr < iv.start) return false;
+      if (iv.end && dateStr > iv.end) return false;
+      return true;
+    });
+  }
+
+  // A date is a valid drop target only if it's in the payroll period AND in contract
+  function isValidDrop(wpId, dateStr) {
+    return isInPeriod(wpId, dateStr) && isInContract(wpId, dateStr);
   }
 
   /**
@@ -1390,13 +1407,38 @@
     return m ? parseInt(m[1],16)+','+parseInt(m[2],16)+','+parseInt(m[3],16) : null;
   }
 
+  // ----- Warning modal helpers -----
+  function showPeriodWarning(wpId, dateStr) {
+    var info = outOfPeriodMessage(wpId, dateStr);
+    document.getElementById('periodWarningTitle').textContent = 'Wrong payroll period';
+    document.getElementById('periodWarningText').textContent = info.text;
+    document.getElementById('periodWarningHint').textContent = info.hint;
+    var go = document.getElementById('periodWarningGoBtn');
+    document.getElementById('periodWarningGoBtnLabel').textContent = 'Go to ' + info.targetName;
+    go.href = '?year=' + info.targetYear + '&month=' + info.targetMonth;
+    go.style.display = '';
+    new bootstrap.Modal(document.getElementById('periodWarningModal')).show();
+  }
+
+  function showContractWarning(wpId, dateStr) {
+    var wp = wpMap[wpId];
+    document.getElementById('periodWarningTitle').textContent = 'Outside contract dates';
+    document.getElementById('periodWarningText').textContent =
+      wp.name + ' has no active contract on ' + dateStr + '.';
+    document.getElementById('periodWarningHint').textContent =
+      'Adjust the contract dates (or add a contract) to cover this date before planning a shift.';
+    // No month to jump to — hide the navigation button
+    document.getElementById('periodWarningGoBtn').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('periodWarningModal')).show();
+  }
+
   // ----- Drop targets (calendar days) -----
   document.querySelectorAll('.planning-calendar .calendar-day[data-date]').forEach(function(td) {
     td.addEventListener('dragover', function(e) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       if (draggedWorkplaceId) {
-        if (isInPeriod(draggedWorkplaceId, td.dataset.date)) {
+        if (isValidDrop(draggedWorkplaceId, td.dataset.date)) {
           td.classList.add('drag-over');
         } else {
           td.classList.add('drag-over-invalid');
@@ -1415,13 +1457,13 @@
       var targetDate = td.dataset.date;
 
       if (data.type === 'new-shift') {
+        // Block drops outside the payroll period or contract bounds
         if (!isInPeriod(data.workplace_id, targetDate)) {
-          var info = outOfPeriodMessage(data.workplace_id, targetDate);
-          document.getElementById('periodWarningText').textContent = info.text;
-          document.getElementById('periodWarningHint').textContent = info.hint;
-          document.getElementById('periodWarningGoBtnLabel').textContent = 'Go to ' + info.targetName;
-          document.getElementById('periodWarningGoBtn').href = '?year=' + info.targetYear + '&month=' + info.targetMonth;
-          new bootstrap.Modal(document.getElementById('periodWarningModal')).show();
+          showPeriodWarning(data.workplace_id, targetDate);
+          return;
+        }
+        if (!isInContract(data.workplace_id, targetDate)) {
+          showContractWarning(data.workplace_id, targetDate);
           return;
         }
         if (fastCreateMode) {
@@ -1430,15 +1472,14 @@
           openNewShiftModal(data.workplace_id, targetDate);
         }
       } else if (data.type === 'move-shift') {
-        // Block moves outside the shift's workplace period
+        // Block moves outside the shift's workplace period or contract
         var moveWpId = data.workplace_id;
         if (moveWpId && !isInPeriod(moveWpId, targetDate)) {
-          var info = outOfPeriodMessage(moveWpId, targetDate);
-          document.getElementById('periodWarningText').textContent = info.text;
-          document.getElementById('periodWarningHint').textContent = info.hint;
-          document.getElementById('periodWarningGoBtnLabel').textContent = 'Go to ' + info.targetName;
-          document.getElementById('periodWarningGoBtn').href = '?year=' + info.targetYear + '&month=' + info.targetMonth;
-          new bootstrap.Modal(document.getElementById('periodWarningModal')).show();
+          showPeriodWarning(moveWpId, targetDate);
+          return;
+        }
+        if (moveWpId && !isInContract(moveWpId, targetDate)) {
+          showContractWarning(moveWpId, targetDate);
           return;
         }
         moveShift(data.shift_id, targetDate);
@@ -1451,17 +1492,8 @@
       hideWpPicker();
       var dateStr = td.dataset.date;
 
-      // In fast-create-stamp mode, stamp shift immediately
+      // In fast-create-stamp mode, stamp shift immediately (fastCreateShift gates bounds)
       if (fastCreateMode && fastCreateWpId) {
-        if (!isInPeriod(fastCreateWpId, dateStr)) {
-          var info = outOfPeriodMessage(fastCreateWpId, dateStr);
-          document.getElementById('periodWarningText').textContent = info.text;
-          document.getElementById('periodWarningHint').textContent = info.hint;
-          document.getElementById('periodWarningGoBtnLabel').textContent = 'Go to ' + info.targetName;
-          document.getElementById('periodWarningGoBtn').href = '?year=' + info.targetYear + '&month=' + info.targetMonth;
-          new bootstrap.Modal(document.getElementById('periodWarningModal')).show();
-          return;
-        }
         fastCreateShift(fastCreateWpId, dateStr);
         return;
       }
@@ -1472,24 +1504,24 @@
         return;
       }
 
-      // Find which workplaces cover this date
-      var validWps = WORKPLACES.filter(function(wp) { return isInPeriod(wp.id, dateStr); });
-      if (validWps.length === 0) {
-        // Outside all periods . show warning for the first workplace
-        if (WORKPLACES.length > 0) {
-          var info = outOfPeriodMessage(WORKPLACES[0].id, dateStr);
-          document.getElementById('periodWarningText').textContent = info.text;
-          document.getElementById('periodWarningHint').textContent = info.hint;
-          document.getElementById('periodWarningGoBtnLabel').textContent = 'Go to ' + info.targetName;
-          document.getElementById('periodWarningGoBtn').href = '?year=' + info.targetYear + '&month=' + info.targetMonth;
-          new bootstrap.Modal(document.getElementById('periodWarningModal')).show();
-        }
-        return;
-      }
+      // Workplaces in payroll period, then those also within contract bounds
+      var inPeriodWps = WORKPLACES.filter(function(wp) { return isInPeriod(wp.id, dateStr); });
+      var validWps = inPeriodWps.filter(function(wp) { return isInContract(wp.id, dateStr); });
+
       if (validWps.length === 1) {
         openNewShiftModal(validWps[0].id, dateStr);
-      } else {
+        return;
+      }
+      if (validWps.length > 1) {
         showWpPicker(td, dateStr, validWps);
+        return;
+      }
+      // Nothing valid: explain why
+      if (inPeriodWps.length === 0) {
+        if (WORKPLACES.length > 0) showPeriodWarning(WORKPLACES[0].id, dateStr);
+      } else {
+        // In payroll period but no contract covers this date
+        showContractWarning(inPeriodWps[0].id, dateStr);
       }
     });
   });
@@ -1556,6 +1588,9 @@
   function openNewShiftModal(workplaceId, dateStr, showFastCreateWarn) {
     var wp = wpMap[workplaceId];
     if (!wp) return;
+    // Never open the create modal outside the payroll period or contract bounds
+    if (!isInPeriod(workplaceId, dateStr)) { showPeriodWarning(workplaceId, dateStr); return; }
+    if (!isInContract(workplaceId, dateStr)) { showContractWarning(workplaceId, dateStr); return; }
     document.getElementById('shiftModalTitle').textContent = 'Plan Shift';
     document.getElementById('shiftSaveLabel').textContent = 'Save Shift';
     document.getElementById('shiftDeleteBtn').classList.add('d-none');
