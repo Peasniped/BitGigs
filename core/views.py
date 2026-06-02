@@ -185,17 +185,21 @@ class SetupWizardView(View):
     """First-time setup — step 1: tax profile only."""
 
     def get(self, request):
-        if TaxProfile.objects.exists():
-            from workplaces.models import Workplace
-            if Workplace.objects.exists():
-                return redirect("core:dashboard")
-            return redirect("/workplaces/new/?setup=1")
+        from workplaces.models import Workplace
+        # Setup fully complete → dashboard
+        if TaxProfile.objects.exists() and Workplace.objects.exists():
+            return redirect("core:dashboard")
 
-        tax_form = TaxProfileForm(prefix="tax")
+        # Otherwise show step 1. If a profile already exists (e.g. the user
+        # clicked the step-1 indicator to go back), edit it instead of starting
+        # blank, so the back-navigation lands on the tax form rather than skipping.
+        existing = TaxProfile.objects.order_by("-effective_from").first()
+        tax_form = TaxProfileForm(prefix="tax", instance=existing)
         return render(request, "core/setup.html", {"tax_form": tax_form})
 
     def post(self, request):
-        tax_form = TaxProfileForm(request.POST, prefix="tax")
+        existing = TaxProfile.objects.order_by("-effective_from").first()
+        tax_form = TaxProfileForm(request.POST, prefix="tax", instance=existing)
         if tax_form.is_valid():
             tax_form.save()
             return redirect("/workplaces/new/?setup=1")
