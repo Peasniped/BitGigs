@@ -82,18 +82,12 @@ class ContractTermSetForm(forms.ModelForm):
             "ferietillaeg_enabled",
             "ferietillaeg_percent",
             "ferietillaeg_payout_months",
-            "default_shift_start_time",
-            "default_shift_end_time",
-            "default_shift_break_minutes",
-            "default_shift_type",
             "hour_goal_type",
             "hour_goal_min",
             "hour_goal_max",
         ]
         widgets = {
             "effective_from": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "default_shift_start_time": forms.TimeInput(attrs={"type": "time", "class": "form-control"}),
-            "default_shift_end_time": forms.TimeInput(attrs={"type": "time", "class": "form-control"}),
         }
 
     def __init__(self, *args, contract=None, **kwargs):
@@ -122,8 +116,6 @@ class ContractTermSetForm(forms.ModelForm):
             "fritvalgskonto_payout_type": ContractTermSet.FritvalgsPayoutType.ACCRUES,
             "ferietillaeg_payout_months": "5,8",
             "payroll_period_start_day": 1,
-            "default_shift_break_minutes": 0,
-            "default_shift_type": "on_site",
         }
         if not self.data:  # only for unbound (GET) forms
             for field, default in _defaults.items():

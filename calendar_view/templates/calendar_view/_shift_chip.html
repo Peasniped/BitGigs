@@ -12,13 +12,13 @@
      title="{{ item.workplace.name }}: {{ item.start_time|time:'H:i' }}-{{ item.end_time|time:'H:i' }} ({{ item.net_hours|dk }}h)"
      {% if editable_shift %}data-session-id="{{ item.pk }}" data-workplace-id="{{ item.workplace_id }}"{% endif %}>
 {% endif %}
-  <span class="shift-chip__avatar" style="background:{{ item.workplace.color|default:'#6366f1' }};">
+  <span class="shift-chip__avatar" style="background:{{ item.workplace.avatar_color }};">
     {% if item.workplace.custom_icon %}
       <img src="{{ item.workplace.custom_icon.url }}" alt="">
     {% elif item.workplace.icon %}
       <i class="bi {{ item.workplace.icon }}"></i>
     {% else %}
-      {{ item.workplace.name|truncatechars:1 }}
+      {{ item.workplace.avatar_initials|slice:":1" }}
     {% endif %}
   </span>
   <small class="shift-chip__time">{{ item.start_time|time:"H:i" }}-{{ item.end_time|time:"H:i" }}</small>

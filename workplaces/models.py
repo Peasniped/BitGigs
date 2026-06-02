@@ -39,6 +39,22 @@ class Workplace(models.Model):
         help_text="Accent hex colour for icon tint and page theming.",
     )
 
+    # Default shift (planning convenience — not a versioned employment term)
+    default_shift_start_time = models.TimeField(null=True, blank=True)
+    default_shift_end_time = models.TimeField(null=True, blank=True)
+    default_shift_break_minutes = models.PositiveIntegerField(default=0)
+    default_shift_type = models.CharField(
+        max_length=15,
+        choices=[
+            ("on_site", "On-site"),
+            ("remote", "Remote"),
+            ("sick_leave", "Sick leave (with pay)"),
+            ("paid_absence", "Paid absence"),
+            ("vacation", "Vacation"),
+        ],
+        default="on_site",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -58,6 +74,18 @@ class Workplace(models.Model):
                 n += 1
             self.slug = slug
         super().save(*args, **kwargs)
+
+    @property
+    def avatar_color(self) -> str:
+        """Background colour for the avatar: custom colour, else derived from name."""
+        from core.utils import avatar_for_name
+        return self.color or avatar_for_name(self.name)[1]
+
+    @property
+    def avatar_initials(self) -> str:
+        """Initials shown when there's no icon/custom icon."""
+        from core.utils import avatar_for_name
+        return avatar_for_name(self.name)[0]
 
     @property
     def is_active(self) -> bool:
@@ -305,22 +333,6 @@ class ContractTermSet(models.Model):
     ferietillaeg_payout_months = models.CharField(
         max_length=50, default="5,8", blank=True,
         help_text="Comma-separated month numbers for payout (e.g. '5,8' for May & August).",
-    )
-
-    # Default shift (used when planning)
-    default_shift_start_time = models.TimeField(null=True, blank=True)
-    default_shift_end_time = models.TimeField(null=True, blank=True)
-    default_shift_break_minutes = models.PositiveIntegerField(default=0)
-    default_shift_type = models.CharField(
-        max_length=15,
-        choices=[
-            ("on_site", "On-site"),
-            ("remote", "Remote"),
-            ("sick_leave", "Sick leave (with pay)"),
-            ("paid_absence", "Paid absence"),
-            ("vacation", "Vacation"),
-        ],
-        default="on_site",
     )
 
     # Hour goal

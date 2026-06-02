@@ -270,10 +270,6 @@ def _termset_to_dict(ts):
         "ferietillaeg_enabled": ts.ferietillaeg_enabled,
         "ferietillaeg_percent": str(ts.ferietillaeg_percent),
         "ferietillaeg_payout_months": ts.ferietillaeg_payout_months,
-        "default_shift_start_time": ts.default_shift_start_time.strftime("%H:%M") if ts.default_shift_start_time else None,
-        "default_shift_end_time": ts.default_shift_end_time.strftime("%H:%M") if ts.default_shift_end_time else None,
-        "default_shift_break_minutes": ts.default_shift_break_minutes,
-        "default_shift_type": ts.default_shift_type,
         "hour_goal_type": ts.hour_goal_type,
         "hour_goal_min": str(ts.hour_goal_min) if ts.hour_goal_min else None,
         "hour_goal_max": str(ts.hour_goal_max) if ts.hour_goal_max else None,
@@ -310,6 +306,10 @@ def _wp_to_dict(wp):
         "color": wp.color,
         "accent_color": wp.accent_color,
         "custom_icon": custom_icon_data,
+        "default_shift_start_time": wp.default_shift_start_time.strftime("%H:%M") if wp.default_shift_start_time else None,
+        "default_shift_end_time": wp.default_shift_end_time.strftime("%H:%M") if wp.default_shift_end_time else None,
+        "default_shift_break_minutes": wp.default_shift_break_minutes,
+        "default_shift_type": wp.default_shift_type,
         "contracts": contracts,
     }
 
@@ -354,12 +354,17 @@ def _create_workplace_from_dict(d):
     from datetime import time as _time, date as _date
     from workplaces.models import WorkplaceContract, ContractTermSet
 
+    from datetime import time as _time2
     wp = Workplace.objects.create(
         name=d["name"],
         slug=d.get("slug", ""),
         icon=d.get("icon", ""),
         color=d.get("color", ""),
         accent_color=d.get("accent_color", ""),
+        default_shift_start_time=_time2.fromisoformat(d["default_shift_start_time"]) if d.get("default_shift_start_time") else None,
+        default_shift_end_time=_time2.fromisoformat(d["default_shift_end_time"]) if d.get("default_shift_end_time") else None,
+        default_shift_break_minutes=d.get("default_shift_break_minutes", 0) or 0,
+        default_shift_type=d.get("default_shift_type", "on_site") or "on_site",
     )
 
     # Restore custom icon from base64 data
@@ -414,8 +419,6 @@ def _create_termset_from_dict(contract, d):
         "ferietillaeg_enabled": d.get("ferietillaeg_enabled", False),
         "ferietillaeg_percent": Decimal(d.get("ferietillaeg_percent", "1.00")),
         "ferietillaeg_payout_months": d.get("ferietillaeg_payout_months", "5,8"),
-        "default_shift_break_minutes": d.get("default_shift_break_minutes", 0),
-        "default_shift_type": d.get("default_shift_type", "on_site"),
         "hour_goal_type": d.get("hour_goal_type", ""),
     }
     if d.get("hourly_rate"):
@@ -430,10 +433,6 @@ def _create_termset_from_dict(contract, d):
         kwargs["weekly_hours_min"] = Decimal(d["weekly_hours_min"])
     if d.get("weekly_hours_max"):
         kwargs["weekly_hours_max"] = Decimal(d["weekly_hours_max"])
-    if d.get("default_shift_start_time"):
-        kwargs["default_shift_start_time"] = _time.fromisoformat(d["default_shift_start_time"])
-    if d.get("default_shift_end_time"):
-        kwargs["default_shift_end_time"] = _time.fromisoformat(d["default_shift_end_time"])
     if d.get("hour_goal_min"):
         kwargs["hour_goal_min"] = Decimal(d["hour_goal_min"])
     if d.get("hour_goal_max"):

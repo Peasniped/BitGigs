@@ -75,14 +75,22 @@
               <input type="date" name="{{ form.effective_from.html_name }}" id="{{ form.effective_from.id_for_label }}"
                      value="{{ form.effective_from.value|default_if_none:'' }}"
                      class="form-control {% if form.effective_from.errors %}is-invalid{% endif %}"
-                     style="max-width:200px;" required>
-              <button type="button" class="btn btn-outline-secondary btn-sm"
-                      onclick="document.getElementById('{{ form.effective_from.id_for_label }}').value=new Date().toLocaleDateString('sv');">
+                     style="max-width:200px;" required
+                     data-effective-from
+                     data-contract-start="{{ contract.start_date|date:'Y-m-d' }}"
+                     data-contract-end="{{ contract.end_date|date:'Y-m-d'|default:'' }}">
+              <button type="button" class="btn btn-outline-secondary btn-sm" data-today-btn>
                 Today
               </button>
             </div>
-            <div class="form-text">Rates apply from this date forward until replaced by a newer entry.</div>
-            {% for err in form.effective_from.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+            <div class="form-text">
+              Rates apply from this date forward until replaced by a newer entry.
+              {% if contract %}Contract runs {{ contract.start_date }}{% if contract.end_date %} &ndash; {{ contract.end_date }}{% else %} &ndash; present{% endif %}.{% endif %}
+            </div>
+            {# Server-side errors (d-block so they show regardless of sibling structure) #}
+            {% for err in form.effective_from.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+            {# Live client-side error #}
+            <div class="text-danger small mt-1" data-effective-from-error style="display:none;"></div>
           </div>
 
           <div data-form="workplace">
@@ -453,57 +461,6 @@
               </div>
             </div>
 
-            {# ── Default shift ────────────────────────── #}
-            <hr class="my-4">
-            <div class="mb-3">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="section-title mb-0">Default Shift <small class="text-muted fw-normal text-lowercase">(optional)</small></span>
-                <div class="form-check form-switch">
-                  <input type="checkbox" class="form-check-input" role="switch"
-                         id="defaultShiftToggle"
-                         {% if form.default_shift_start_time.value %}checked{% endif %}>
-                  <label class="form-check-label small" for="defaultShiftToggle">Configure</label>
-                </div>
-              </div>
-              <div id="defaultShiftFields" style="{% if not form.default_shift_start_time.value %}display:none{% endif %}">
-                <p class="form-text mt-0 mb-2">Pre-fill shift details when planning in the planning calendar.</p>
-                <div class="row g-2 mb-2">
-                  <div class="col-6">
-                    <label class="form-label small">Start time</label>
-                    <input type="time" name="{{ form.default_shift_start_time.html_name }}"
-                           id="{{ form.default_shift_start_time.id_for_label }}"
-                           value="{{ form.default_shift_start_time.value|time:'H:i'|default_if_none:'' }}"
-                           class="form-control form-control-sm">
-                  </div>
-                  <div class="col-6">
-                    <label class="form-label small">End time</label>
-                    <input type="time" name="{{ form.default_shift_end_time.html_name }}"
-                           id="{{ form.default_shift_end_time.id_for_label }}"
-                           value="{{ form.default_shift_end_time.value|time:'H:i'|default_if_none:'' }}"
-                           class="form-control form-control-sm">
-                  </div>
-                </div>
-                <div class="row g-2 mb-2">
-                  <div class="col-6">
-                    <label class="form-label small">Break (min)</label>
-                    <input type="number" name="{{ form.default_shift_break_minutes.html_name }}"
-                           id="{{ form.default_shift_break_minutes.id_for_label }}"
-                           value="{{ form.default_shift_break_minutes.value|default:'0' }}"
-                           class="form-control form-control-sm" min="0">
-                  </div>
-                  <div class="col-6">
-                    <label class="form-label small">Type</label>
-                    <select name="{{ form.default_shift_type.html_name }}" id="{{ form.default_shift_type.id_for_label }}"
-                            class="form-select form-select-sm">
-                      {% for val, label in form.default_shift_type.field.choices %}
-                        <option value="{{ val }}" {% if form.default_shift_type.value == val %}selected{% endif %}>{{ label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-
           </div><!-- /data-form="workplace" -->
 
           {# ── Save buttons ─────────────────────────── #}
@@ -548,6 +505,52 @@
 </div>
 
 <script>
+// Live validation of effective_from against the contract's date bounds
+(function() {
+  var input = document.querySelector('[data-effective-from]');
+  if (!input) return;
+  var errEl = document.querySelector('[data-effective-from-error]');
+  var start = input.dataset.contractStart || '';
+  var end = input.dataset.contractEnd || '';
+
+  function validate() {
+    // ISO yyyy-mm-dd strings compare correctly lexicographically
+    var v = input.value;
+    var msg = '';
+    if (v) {
+      if (start && v < start) {
+        msg = 'Date must be on or after the contract start (' + start + ').';
+      } else if (end && v > end) {
+        msg = 'Date must be on or before the contract end (' + end + ').';
+      }
+    }
+    if (msg) {
+      input.classList.add('is-invalid');
+      errEl.textContent = msg;
+      errEl.style.display = '';
+    } else {
+      input.classList.remove('is-invalid');
+      errEl.style.display = 'none';
+    }
+  }
+  input.addEventListener('input', validate);
+  input.addEventListener('change', validate);
+  validate();
+  // Expose so the Today button can re-validate after setting the value
+  input._validateBounds = validate;
+})();
+
+// Today button: set today's date and re-validate
+(function() {
+  var btn = document.querySelector('[data-today-btn]');
+  var input = document.querySelector('[data-effective-from]');
+  if (!btn || !input) return;
+  btn.addEventListener('click', function() {
+    input.value = new Date().toLocaleDateString('sv');  // yyyy-mm-dd
+    input.dispatchEvent(new Event('input'));
+  });
+})();
+
 // Update fork button label with the effective_from date
 (function() {
   var dateInput = document.getElementById('{{ form.effective_from.id_for_label }}');
@@ -559,14 +562,6 @@
   dateInput.addEventListener('input', updateLabel);
   updateLabel();
 })();
-
-// Default shift toggle
-document.getElementById('defaultShiftToggle').addEventListener('change', function() {
-  document.getElementById('defaultShiftFields').style.display = this.checked ? '' : 'none';
-  if (!this.checked) {
-    document.getElementById('defaultShiftFields').querySelectorAll('input[type=time]').forEach(function(i) { i.value = ''; });
-  }
-});
 
 // Hour goal toggle
 document.getElementById('hourGoalToggle').addEventListener('change', function() {
