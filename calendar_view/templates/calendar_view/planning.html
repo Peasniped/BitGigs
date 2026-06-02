@@ -360,21 +360,23 @@
   </button>
 </div>
 
+{% include "_period_filter_notice.html" %}
+
 <!-- Workplace cards (horizontal, centered, draggable) -->
 <div class="wp-strip mb-3" id="wpStrip">
   {% for wp in workplaces %}
   <div class="wp-card" draggable="true" data-workplace-id="{{ wp.pk }}">
     {% if wp.custom_icon %}
-      <span class="wp-avatar" style="background:{{ wp.color|default:'#6366f1' }};">
+      <span class="wp-avatar" style="background:{{ wp.avatar_color }};">
         <img src="{{ wp.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;">
       </span>
     {% elif wp.icon %}
-      <span class="wp-avatar" style="background:{{ wp.color|default:'#6366f1' }};">
+      <span class="wp-avatar" style="background:{{ wp.avatar_color }};">
         <i class="bi {{ wp.icon }}" style="font-size:0.75rem;"></i>
       </span>
     {% else %}
-      <span class="wp-avatar" style="background:{{ wp.color|default:'#6366f1' }};">
-        {{ wp.name|truncatechars:2 }}
+      <span class="wp-avatar" style="background:{{ wp.avatar_color }};">
+        {{ wp.avatar_initials }}
       </span>
     {% endif %}
     <div class="wp-card__info">

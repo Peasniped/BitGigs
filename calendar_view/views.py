@@ -7,7 +7,7 @@ from django.shortcuts import render, get_object_or_404
 from django.views import View
 
 from workplaces.models import Workplace
-from workplaces.services import workplaces_active_today
+from workplaces.services import workplaces_active_today, workplaces_active_in_period, hidden_workplace_count
 from shifts.models import PlannedShift, Shift
 from core.utils import avatar_for_name, prev_next_month
 from .services import CalendarService
@@ -27,7 +27,10 @@ class MonthCalendarView(View):
         # Navigation
         prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
 
-        workplaces = workplaces_active_today()
+        import calendar as _cal_mod
+        _m_start = date(year, month, 1)
+        _m_end = date(year, month, _cal_mod.monthrange(year, month)[1])
+        workplaces = workplaces_active_in_period(_m_start, _m_end)
 
         return render(
             request,
@@ -42,6 +45,7 @@ class MonthCalendarView(View):
                 "next_year": next_year,
                 "next_month": next_month,
                 "workplaces": workplaces,
+                "hidden_workplace_count": hidden_workplace_count(workplaces.count()),
             },
         )
 
@@ -56,7 +60,10 @@ class PayrollPeriodCalendarView(View):
 
         if not workplace_id:
             # If no workplace selected, show workplace picker
-            workplaces = workplaces_active_today()
+            import calendar as _cal_mod
+            _m_start = date(year, month, 1)
+            _m_end = date(year, month, _cal_mod.monthrange(year, month)[1])
+            workplaces = workplaces_active_in_period(_m_start, _m_end)
             return render(
                 request,
                 "calendar_view/payroll_period_select.html",
@@ -100,14 +107,18 @@ class PlanningCalendarView(View):
         # Navigation
         prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
 
-        workplaces = workplaces_active_today()
-
         import calendar as _cal_mod
+        _m_start = date(year, month, 1)
+        _m_end = date(year, month, _cal_mod.monthrange(year, month)[1])
+        workplaces = list(workplaces_active_in_period(_m_start, _m_end))
 
         # Build workplace data with avatars, default shifts, payroll periods, monthly hours
         workplace_data = []
         for wp in workplaces:
             initials, color = avatar_for_name(wp.name)
+            # Attach computed avatar fields for the server-rendered workplace strip
+            wp.avatar_color = wp.color or color
+            wp.avatar_initials = initials
             mid = date(year, month, 15)
             terms = wp.active_termset_on(mid)
 
@@ -177,6 +188,7 @@ class PlanningCalendarView(View):
                 "next_year": next_year,
                 "next_month": next_month,
                 "workplaces": workplaces,
+                "hidden_workplace_count": hidden_workplace_count(len(workplaces)),
                 "workplace_json": _json.dumps(workplace_data),
                 "month_names_json": month_names_json,
                 "today": today,

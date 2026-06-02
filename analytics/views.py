@@ -8,7 +8,7 @@ from django.views import View
 from core.models import UserSettings
 from core.utils import avatar_for_name
 from workplaces.models import Workplace
-from workplaces.services import workplaces_active_today
+from workplaces.services import workplaces_active_today, hidden_workplace_count
 from .services import AnalyticsService
 
 
@@ -170,6 +170,7 @@ class AnalyticsView(View):
             "period_mode": period_mode,
             "period_start": start,
             "period_end": end,
+            "hidden_workplace_count": hidden_workplace_count(all_workplaces_qs.count()),
             "trailing_months": trailing_months,
             "method": method,
             "workplaces_for_picker": workplaces_for_picker,
@@ -297,6 +298,7 @@ class RateHistoryView(View):
         return render(request, self.template_name, {
             "workplace_rows": workplace_rows,
             "workplaces_for_picker": workplaces_for_picker,
+            "hidden_workplace_count": hidden_workplace_count(all_workplaces_qs.count()),
             "is_all_selected": is_all,
             "today": today,
             "period_mode": period_mode,

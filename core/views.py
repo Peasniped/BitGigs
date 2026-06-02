@@ -41,11 +41,14 @@ class DashboardView(View):
         # Today's banner
         todays_banner, todays_shifts_json, todays_banner_shifts_json = get_todays_banner(today)
 
+        from workplaces.services import hidden_workplace_count
+
         return render(
             request,
             "dashboard.html",
             {
                 "grid": grid,
+                "hidden_workplace_count": hidden_workplace_count(len(dashboard.workplace_data)),
                 "year": year,
                 "month": month,
                 "prev_year": prev_year,

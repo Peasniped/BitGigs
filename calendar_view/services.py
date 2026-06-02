@@ -211,14 +211,13 @@ class CalendarService:
         periods for the selected month.  This ensures that every date belonging
         to *any* workplace's period is visible.
         """
-        from workplaces.services import workplaces_active_today
+        from workplaces.services import workplaces_active_in_period
         from payroll.services import PayrollPeriodService
-
-        workplaces = workplaces_active_today()
 
         # Start with the calendar month as the baseline range
         first_day = date(year, month, 1)
         last_day = date(year, month, calendar.monthrange(year, month)[1])
+        workplaces = workplaces_active_in_period(first_day, last_day)
         range_start = first_day
         range_end = last_day
 

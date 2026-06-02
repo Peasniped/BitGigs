@@ -14,7 +14,7 @@ from core.utils import WEEKS_PER_MONTH, avatar_for_name
 from payroll.services import PayrollPeriodService, SalaryEstimateService
 from shifts.models import Shift, PlannedShift
 from workplaces.models import Workplace, ContractTermSet
-from workplaces.services import workplaces_active_today
+from workplaces.services import workplaces_active_today, workplaces_active_in_period
 
 
 TWO_PLACES = Decimal("0.01")
@@ -74,9 +74,11 @@ class DashboardDataService:
     def get_stats(cls, year: int, month: int) -> DashboardStats:
         """Compute stat-card values only (used by the JSON API)."""
         stats = DashboardStats()
-        workplaces = workplaces_active_today()
-
         import calendar as _cal_
+        _m_start = date(year, month, 1)
+        _m_end = date(year, month, _cal_.monthrange(year, month)[1])
+        workplaces = workplaces_active_in_period(_m_start, _m_end)
+
         for wp in workplaces:
             # Bootstrap period using mid-month termset (payroll_period_start_day needed)
             _mid = date(year, month, 15)
@@ -114,9 +116,11 @@ class DashboardDataService:
     def get_full(cls, year: int, month: int) -> DashboardData:
         """Compute full dashboard data (stats + workplace cards + cross-period info)."""
         data = DashboardData()
-        workplaces = workplaces_active_today()
-
         import calendar as _cal_
+        _m_start = date(year, month, 1)
+        _m_end = date(year, month, _cal_.monthrange(year, month)[1])
+        workplaces = workplaces_active_in_period(_m_start, _m_end)
+
         for wp in workplaces:
             # Bootstrap period using mid-month termset
             _mid = date(year, month, 15)

@@ -1,0 +1,14 @@
+{% comment %}
+  Shown when period-based workplace filtering hid every workplace.
+  Expects: hidden_workplace_count (int). Renders nothing when 0/None.
+{% endcomment %}
+{% if hidden_workplace_count %}
+<div class="alert alert-secondary d-flex align-items-center gap-2 py-2 mb-4 border-0 shadow-sm">
+  <i class="bi bi-calendar-x fs-5"></i>
+  <span>
+    No workplaces have an active contract in this period.
+    <strong>{{ hidden_workplace_count }}</strong> workplace{{ hidden_workplace_count|pluralize }}
+    hidden &mdash; add or adjust a contract to see {{ hidden_workplace_count|pluralize:"it,them" }} here.
+  </span>
+</div>
+{% endif %}
