@@ -26,7 +26,7 @@
           {% endif %}
 
           <!-- Live hour calculation -->
-          <div class="mb-3 p-3 rounded" style="background:#f8fafc;">
+          <div class="mb-3 p-3 rounded" style="background:var(--bg-light);">
             <div class="d-flex justify-content-between align-items-center">
               <span class="text-muted small">Total working time</span>
               <span id="Shift-total" class="Shift-total-display">.</span>
@@ -46,55 +46,6 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}
-<script>
-// Live calculation of hours/minutes from start_time and end_time fields
-function calcShiftTotal() {
-  const startEl = document.getElementById('id_start_time');
-  const endEl = document.getElementById('id_end_time');
-  const breakEl = document.getElementById('id_break_minutes');
-  const display = document.getElementById('Shift-total');
-
-  if (!startEl || !endEl || !display) return;
-
-  const start = startEl.value;
-  const end = endEl.value;
-
-  if (!start || !end) {
-    display.textContent = '.';
-    return;
-  }
-
-  const [sh, sm] = start.split(':').map(Number);
-  const [eh, em] = end.split(':').map(Number);
-  let totalMin = (eh * 60 + em) - (sh * 60 + sm);
-
-  const breakMin = parseInt(breakEl ? breakEl.value : 0) || 0;
-  totalMin -= breakMin;
-
-  if (totalMin <= 0) {
-    display.textContent = '.';
-    return;
-  }
-
-  const hours = Math.floor(totalMin / 60);
-  const mins = totalMin % 60;
-  const decHours = (totalMin / 60).toFixed(2);
-
-  display.textContent = hours + 'h ' + mins + 'm (' + toDanish(decHours) + 'h)';
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-  ['id_start_time', 'id_end_time', 'id_break_minutes'].forEach(function(id) {
-    const el = document.getElementById(id);
-    if (el) {
-      el.addEventListener('input', calcShiftTotal);
-      el.addEventListener('change', calcShiftTotal);
-    }
-  });
-  calcShiftTotal();
-});
-</script>
-{% endblock %}
+{# Live shift-total calculation is handled by initShiftCalc() in static/js/app.js #}
 
 

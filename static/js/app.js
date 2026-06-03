@@ -606,7 +606,7 @@ function initShiftCalc() {
     var hours = Math.floor(totalMin / 60);
     var mins = totalMin % 60;
     var dec = (totalMin / 60).toFixed(2);
-    display.textContent = hours + 'h ' + mins + 'm (' + dec + 'h)';
+    display.textContent = hours + 'h ' + mins + 'm (' + toDanish(dec) + 'h)';
   }
 
   ['id_start_time', 'id_end_time', 'id_break_minutes'].forEach(function (id) {
