@@ -361,9 +361,31 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
   box-shadow: 0 0 0 0.2rem rgba(var(--primary-rgb),.15);
 }
 
-/* Per-workplace accent (value supplied inline as --wp-accent) */
-.wp-accent-bar { background: var(--wp-accent, var(--primary)); }
-.wp-accent-text { color: var(--wp-accent, var(--primary)); }
+/* Per-workplace accent form styling.
+   Scope: an .accent-form wrapper that supplies the colour inline via --wp-accent.
+   Alpha tints use color-mix (equivalent to the old 8-digit hex suffixes). */
+.accent-form .accent-btn-group .btn-check:checked + .btn {
+  background: linear-gradient(135deg, var(--wp-accent), color-mix(in srgb, var(--wp-accent) 80%, transparent)) !important;
+  border-color: var(--wp-accent) !important;
+  color: #fff !important;
+}
+.accent-form .accent-btn-group .btn-outline-primary,
+.accent-form .accent-btn-group .btn-outline-secondary {
+  border-color: color-mix(in srgb, var(--wp-accent) 33%, transparent);
+  color: var(--wp-accent);
+}
+.accent-form .accent-btn-group .btn-outline-primary:hover,
+.accent-form .accent-btn-group .btn-outline-secondary:hover {
+  background: color-mix(in srgb, var(--wp-accent) 8%, transparent);
+}
+.accent-form .form-check-input:checked {
+  background-color: var(--wp-accent) !important;
+  border-color: var(--wp-accent) !important;
+}
+.accent-form .form-check-input:focus {
+  border-color: color-mix(in srgb, var(--wp-accent) 53%, transparent) !important;
+  box-shadow: 0 0 0 .25rem color-mix(in srgb, var(--wp-accent) 15%, transparent) !important;
+}
 
 /* ---- Badges ---- */
 .badge { font-weight: 500; }

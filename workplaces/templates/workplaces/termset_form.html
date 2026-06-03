@@ -1,28 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{% if termset %}Edit Pay Terms{% else %}Add Pay Terms{% endif %} &mdash; {{ workplace.name }} &middot; BitGigs{% endblock %}
 
-{% block extra_css %}
-{% with accent=workplace.accent_color|default:"#6366f1" %}
-<style>
-  .accent-btn-group .btn-check:checked + .btn {
-    background: linear-gradient(135deg, {{ accent }}, {{ accent }}cc) !important;
-    border-color: {{ accent }} !important;
-    color: #fff !important;
-  }
-  .accent-btn-group .btn-outline-primary, .accent-btn-group .btn-outline-secondary {
-    border-color: {{ accent }}55; color: {{ accent }};
-  }
-  .accent-btn-group .btn-outline-primary:hover, .accent-btn-group .btn-outline-secondary:hover {
-    background: {{ accent }}15;
-  }
-  .form-check-input:checked { background-color: {{ accent }} !important; border-color: {{ accent }} !important; }
-  .form-check-input:focus { border-color: {{ accent }}88 !important; box-shadow: 0 0 0 .25rem {{ accent }}25 !important; }
-</style>
-{% endwith %}
-{% endblock %}
-
 {% block content %}
-<div class="row justify-content-center">
+<div class="row justify-content-center accent-form" style="--wp-accent: {{ workplace.accent_color|default:'#6366f1' }};">
   <div class="col-12 col-md-10 col-lg-8">
 
     {% if setup %}
@@ -151,9 +131,9 @@
                     <span class="input-group-text text-muted">h/week</span>
                     {% for err in form.weekly_hours_fixed.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
                   </div>
-                  <div class="p-2 rounded" style="background:#f8fafc;white-space:nowrap;">
+                  <div class="p-2 rounded" style="background:var(--bg-light);white-space:nowrap;">
                     <span class="text-muted small">Besk&aelig;ftigelses&shy;procent:</span>
-                    <span data-display="employment-pct" class="fw-semibold" style="color:#6366f1;">&ndash;</span>
+                    <span data-display="employment-pct" class="fw-semibold" style="color:var(--primary);">&ndash;</span>
                   </div>
                 </div>
               </div>
@@ -169,10 +149,10 @@
                   {% for err in form.monthly_salary.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
                 </div>
               </div>
-              <div class="mb-3 p-2 rounded" style="background:#f8fafc;">
+              <div class="mb-3 p-2 rounded" style="background:var(--bg-light);">
                 <div class="d-flex justify-content-between align-items-center">
                   <span class="text-muted small">Calculated hourly rate</span>
-                  <span data-display="hourly-rate" class="fw-semibold" style="color:#6366f1;">&ndash;</span>
+                  <span data-display="hourly-rate" class="fw-semibold" style="color:var(--primary);">&ndash;</span>
                 </div>
               </div>
             </div><!-- /salaried -->
@@ -255,10 +235,10 @@
                 </div>
                 <div class="form-text" data-payroll-period-msg></div>
               </div>
-              <div class="mb-3 p-2 rounded" style="background:#f8fafc;" data-gross-pay-box>
+              <div class="mb-3 p-2 rounded" style="background:var(--bg-light);" data-gross-pay-box>
                 <div class="d-flex justify-content-between align-items-center">
                   <span class="text-muted small">Estimated gross pay</span>
-                  <span data-display="gross-pay" class="fw-semibold" style="color:#6366f1;">&ndash;</span>
+                  <span data-display="gross-pay" class="fw-semibold" style="color:var(--primary);">&ndash;</span>
                 </div>
                 <div data-display="gross-pay-goal" class="text-muted small mt-1" style="display:none;"></div>
               </div>
@@ -386,7 +366,7 @@
               </div>
               <span class="fw-bold text-muted pb-2">=</span>
               <div class="pb-2">
-                <span data-display="pension-total" class="fw-semibold" style="color:#6366f1;white-space:nowrap;">0 %</span>
+                <span data-display="pension-total" class="fw-semibold" style="color:var(--primary);white-space:nowrap;">0 %</span>
               </div>
             </div>
 
