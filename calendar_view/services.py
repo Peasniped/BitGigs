@@ -29,6 +29,23 @@ class CalendarDay:
     def is_weekend(self):
         return self.date.weekday() >= 5
 
+    @property
+    def sorted_shifts(self):
+        """Approved + planned shifts merged and ordered by start time.
+
+        Each item is tagged with ``is_planned`` so the planning template can
+        render both kinds from a single time-ordered container. References the
+        same objects ``annotate_overlaps`` mutates, so ``.overlapping`` is kept.
+        """
+        for s in self.approved_shifts:
+            s.is_planned = False
+        for p in self.planned_shifts:
+            p.is_planned = True
+        return sorted(
+            list(self.approved_shifts) + list(self.planned_shifts),
+            key=lambda x: x.start_time,
+        )
+
 
 @dataclass
 class CalendarWeek:

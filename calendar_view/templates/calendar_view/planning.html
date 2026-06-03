@@ -113,16 +113,6 @@
   .planning-calendar .calendar-day.chip-hover .day-hover-overlay { opacity: 0 !important; }
   .planning-calendar .calendar-day.chip-hover .day-wp-indicator { opacity: 0 !important; }
 
-  /* Shift chip stacking: use flex-column so gap is predictable and chips don't
-     float; approved chips (direct td children) also form a tighter stack. */
-  .planning-calendar .planned-shifts-container {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-  .planning-calendar .planned-shifts-container .shift-chip { margin-bottom: 0; }
-  .planning-calendar > * > * > .calendar-day > .shift-chip--approved { margin-bottom: 1px; }
-
   /* Copy-paste mode */
   body.copy-mode .shift-chip--planned { cursor: copy; }
   body.copy-mode .shift-chip--planned:hover { outline: 2px solid #6366f1; outline-offset: 1px; border-radius: 6px; }
@@ -403,17 +393,11 @@
   {% endfor %}
 </div>
 
-{% if has_overlaps %}
-<div id="overlapBanner" class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-3" role="alert">
+<div id="overlapBanner" class="alert alert-warning py-2 mb-3" role="alert"
+     style="{% if has_overlaps %}display:flex;{% else %}display:none;{% endif %}align-items:center;gap:0.5rem;">
   <i class="bi bi-exclamation-triangle-fill"></i>
   <span>One or more shifts this month overlap in time. Overlapping shifts are highlighted in amber.</span>
 </div>
-{% else %}
-<div id="overlapBanner" class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-3" role="alert" style="display:none!important;">
-  <i class="bi bi-exclamation-triangle-fill"></i>
-  <span>One or more shifts this month overlap in time. Overlapping shifts are highlighted in amber.</span>
-</div>
-{% endif %}
 
 <!-- Power Edit Toolbar -->
 <div class="power-toolbar mb-3" id="powerToolbar">
@@ -479,14 +463,14 @@
                   <span class="badge bg-primary bg-opacity-75 calendar-day__hours">{{ day.total_hours|dk }}h</span>
                 {% endif %}
               </div>
-              <!-- Existing work sessions (editable from planning view) -->
-              {% for session in day.approved_shifts %}
-                {% include "calendar_view/_shift_chip.html" with item=session is_planned=False editable_session=True is_overlapping=session.overlapping %}
-              {% endfor %}
-              <!-- Planned shifts -->
+              <!-- All shifts (approved + planned) in one time-ordered container -->
               <div class="planned-shifts-container" data-date="{{ day.date|date:'Y-m-d' }}">
-              {% for shift in day.planned_shifts %}
-                {% include "calendar_view/_shift_chip.html" with item=shift is_planned=True draggable=True is_overlapping=shift.overlapping %}
+              {% for s in day.sorted_shifts %}
+                {% if s.is_planned %}
+                  {% include "calendar_view/_shift_chip.html" with item=s is_planned=True draggable=True is_overlapping=s.overlapping %}
+                {% else %}
+                  {% include "calendar_view/_shift_chip.html" with item=s is_planned=False editable_shift=True is_overlapping=s.overlapping %}
+                {% endif %}
               {% endfor %}
               </div>
             </td>
@@ -997,7 +981,7 @@
           if (container) {
             var wp = wpMap[copiedShift.workplace_id];
             var chip = buildShiftChip(data.shift, wp);
-            container.appendChild(chip);
+            insertChipSorted(container, chip);
             updateDayHourBadge(td);
             recheckOverlaps();
           }
@@ -1103,7 +1087,26 @@
     });
   }
 
+  // Parse "HH:MM" into minutes-since-midnight.
+  function toMinutes(hhmm) {
+    var p = String(hhmm).trim().split(':');
+    return parseInt(p[0]) * 60 + parseInt(p[1]);
+  }
+
+  // Insert a chip into a day container keeping chips ordered by start time.
+  function insertChipSorted(container, chip) {
+    var el = chip.querySelector('.shift-chip__time');
+    var startMin = el ? toMinutes(el.textContent.trim().split('-')[0]) : 0;
+    var ref = Array.from(container.children).find(function(c) {
+      var e = c.querySelector('.shift-chip__time');
+      return e && toMinutes(e.textContent.trim().split('-')[0]) > startMin;
+    });
+    container.insertBefore(chip, ref || null);
+  }
+
   // Re-detect overlaps client-side and update chip styling + banner visibility.
+  // Counts every chip on a day (including faded prior-period and approved
+  // chips) so the warning matches the server's annotate_overlaps.
   function recheckOverlaps() {
     // Clear existing overlap styling
     document.querySelectorAll('.planning-calendar .shift-chip--overlap').forEach(function(c) {
@@ -1113,18 +1116,14 @@
 
     var hasAny = false;
     document.querySelectorAll('.planning-calendar td[data-date]').forEach(function(td) {
-      var chips = Array.from(td.querySelectorAll('.shift-chip:not(.shift-chip--prior-period)'));
+      var chips = Array.from(td.querySelectorAll('.shift-chip'));
       if (chips.length < 2) return;
       var items = chips.map(function(c) {
         var el = c.querySelector('.shift-chip__time');
         if (!el) return null;
         var parts = el.textContent.trim().split('-');
         if (parts.length !== 2) return null;
-        var toMin = function(hhmm) {
-          var p = hhmm.split(':');
-          return parseInt(p[0]) * 60 + parseInt(p[1]);
-        };
-        return { el: c, start: toMin(parts[0]), end: toMin(parts[1]) };
+        return { el: c, start: toMinutes(parts[0]), end: toMinutes(parts[1]) };
       }).filter(Boolean);
 
       var overlapping = new Set();
@@ -1145,12 +1144,18 @@
     });
 
     var banner = document.getElementById('overlapBanner');
-    if (banner) banner.style.display = hasAny ? '' : 'none';
+    if (banner) {
+      if (hasAny) {
+        banner.style.display = 'flex';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
   }
 
   // Recalculate and update the hour badge for a day cell
   function updateDayHourBadge(td) {
-    var chips = td.querySelectorAll('.shift-chip[data-shift-id], .shift-chip[data-shift-id]');
+    var chips = td.querySelectorAll('.shift-chip');
     var totalMinutes = 0;
     chips.forEach(function(c) {
       var m = c.querySelector('.shift-chip__hours');
@@ -1247,7 +1252,7 @@
           var container = td.querySelector('.planned-shifts-container');
           if (container) {
             var chip = buildShiftChip(data.shift, wp);
-            container.appendChild(chip);
+            insertChipSorted(container, chip);
             updateDayHourBadge(td);
             updateWpCardProgress(workplaceId);
             recheckOverlaps();
@@ -1348,7 +1353,7 @@
   });
 
   // ----- Click approved sessions to edit -----
-  document.querySelectorAll('.shift-chip--editable-shift[data-shift-id]').forEach(function(chip) {
+  document.querySelectorAll('.shift-chip--editable-shift[data-session-id]').forEach(function(chip) {
     chip.addEventListener('click', function(e) {
       e.stopPropagation();
       openEditApprovedShiftModal(parseInt(chip.dataset.sessionId));
@@ -1922,7 +1927,7 @@
           var newContainer = newTd.querySelector('.planned-shifts-container');
           if (newContainer) {
             var newChip = buildShiftChip(data.shift, newWp);
-            newContainer.appendChild(newChip);
+            insertChipSorted(newContainer, newChip);
             updateDayHourBadge(newTd);
             if (newWp) updateWpCardProgress(data.shift.workplace_id);
           }
@@ -2055,6 +2060,10 @@
   document.getElementById('saveDefaultShift').addEventListener('click', function() {
     saveDefaultShift(false);
   });
+
+  // DOM is the single source of truth for the overlap warning: recompute on
+  // load so the banner + amber highlights always match what's rendered.
+  recheckOverlaps();
 })();
 </script>
 {% endblock %}

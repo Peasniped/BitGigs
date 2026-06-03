@@ -5,16 +5,20 @@
 # NU     --------------------------------------------------------
 
 *** Planning mode ***
-- Add a banner warning of overlapping shifts
-- Add a highlight to all overlapping shifts
-- It seems like the shift placement (horizontal position) within the date-boxes is strange. Test with a completely fresh db if this is still the case.
-- When setup has not been completed, all pages should redirect to /setup/
-- Power Edit > Delete All should be able to remove all shifts (across all workplaces) for a single day when clicked.
+- A fast created shift cannot be dragged to another date until the page is updated
+- The positioning of shifts inside the date box is still weird.
+- - When the overlap-warning is displayed, the positioning of the shifts from top to bottom is [space], [shift 1], [space], [shift 2] (this also seems to happen when two non-overlapping shifts are on the same day) -- this persists on page reload
+- - Shifts planned using click on date > save are placed in the bottom of the date box, where shifts planned using Fast Create or copy/paste are placed in the top of the box.
+- - on page reload shifts seems to be 
+- If overlapping shifts are resolved using Power Edit > Delete or Delete All, the warning message is not removed until page reload
 
-- On the workplace dashboard, it seems like the 'Contracts & Pay Terms'-div only takes up the left 2/3 of the content width
 
-- On the analytics > rate history (with only one workplace created), the all workplaces graph is not showing. Maybe, if only one workplace is added, the workplace should just be expanded.
-- Also, it does not make a lot of sense to have an 'All'-button when there is only one workplace. (:
+*** Complete walkthrough of the code ***
+- Check for repeated or unused code and make as much reusable as possible
+- Check that all code lives up to the general style and that everything is best practices
+- Check if there is a better way to implement the dk style / locale for numbers and values than what is currently implemented (which seems like a bit of a heavy hack)
+- Check the entire code for security vulnerabilities
+- Can all the Django code be moved one level down into a source/src/django folder so it is easier to see the instance, statis folders and administrative files such as manage.py, requirements, Dockerfile etc.
 
 # SENERE --------------------------------------------------------
 
@@ -121,10 +125,3 @@ A page that lets me configure studieaktivitet for each month in the year, and th
 -- 2 (SU fravalgt eller Orlov/Lønnet praktik/studieinaktiv)
 -- 3 (Ikke er indskrevet, ikke flere SU klip).
 - The amounts for each level are changed every year and should thus be easily configurable like with ATP. The current rates are 1: 20.749 kr. per måned, 2: 23.598 kr. per måned, 3: 45.420 kr. per måned. If you have kids under 18, the yearly limit is increased by 34.129 kr. per child in 2026. -- so amount of children should also be configurable on the SU page. 
-
-*** Complete walkthrough of the code ***
-- Check for repeated or unused code and make as much reusable as possible
-- Check that all code lives up to the general style and that everything is best practices
-- Check if there is a better way to implement the dk style / locale for numbers and values than what is currently implemented (which seems like a bit of a heavy hack)
-- Check the entire code for security vulnerabilities
-- Can all the Django code be moved one level down into a source/src folder so it is easier to see the instance, statis folders and administrative files such as manage.py, requirements, Dockerfile etc.
