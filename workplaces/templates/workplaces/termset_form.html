@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}{% if termset %}Edit Pay Terms{% else %}Add Pay Terms{% endif %} &mdash; {{ workplace.name }} &middot; BitGigs{% endblock %}
 
 {% block content %}
@@ -37,7 +38,14 @@
         <span class="text-muted fw-normal small ms-2">{{ contract.name|default:contract.start_date }}</span>
       </div>
       <div class="card-body">
-        <form method="post" id="termsetForm" {% if tax_profile_json %}data-tax-profile="{{ tax_profile_json }}"{% endif %}>
+        <form method="post" id="termsetForm" {% if tax_profile_json %}data-tax-profile="{{ tax_profile_json }}"{% endif %}
+              data-field-effective-from="{{ form.effective_from.id_for_label }}"
+              data-field-weekly-fixed="{{ form.weekly_hours_fixed.id_for_label }}"
+              data-field-weekly-min="{{ form.weekly_hours_min.id_for_label }}"
+              data-field-weekly-max="{{ form.weekly_hours_max.id_for_label }}"
+              data-name-goal-type="{{ form.hour_goal_type.html_name }}"
+              data-name-goal-min="{{ form.hour_goal_min.html_name }}"
+              data-name-goal-max="{{ form.hour_goal_max.html_name }}">
           {% csrf_token %}
           <input type="hidden" name="action" id="formAction" value="overwrite">
           {% if setup %}<input type="hidden" name="setup" value="1">{% endif %}
@@ -483,164 +491,8 @@
 
   </div>
 </div>
+{% endblock %}
 
-<script>
-// Live validation of effective_from against the contract's date bounds
-(function() {
-  var input = document.querySelector('[data-effective-from]');
-  if (!input) return;
-  var errEl = document.querySelector('[data-effective-from-error]');
-  var start = input.dataset.contractStart || '';
-  var end = input.dataset.contractEnd || '';
-
-  function validate() {
-    // ISO yyyy-mm-dd strings compare correctly lexicographically
-    var v = input.value;
-    var msg = '';
-    if (v) {
-      if (start && v < start) {
-        msg = 'Date must be on or after the contract start (' + start + ').';
-      } else if (end && v > end) {
-        msg = 'Date must be on or before the contract end (' + end + ').';
-      }
-    }
-    if (msg) {
-      input.classList.add('is-invalid');
-      errEl.textContent = msg;
-      errEl.style.display = '';
-    } else {
-      input.classList.remove('is-invalid');
-      errEl.style.display = 'none';
-    }
-  }
-  input.addEventListener('input', validate);
-  input.addEventListener('change', validate);
-  validate();
-  // Expose so the Today button can re-validate after setting the value
-  input._validateBounds = validate;
-})();
-
-// Today button: set today's date and re-validate
-(function() {
-  var btn = document.querySelector('[data-today-btn]');
-  var input = document.querySelector('[data-effective-from]');
-  if (!btn || !input) return;
-  btn.addEventListener('click', function() {
-    input.value = new Date().toLocaleDateString('sv');  // yyyy-mm-dd
-    input.dispatchEvent(new Event('input'));
-  });
-})();
-
-// Update fork button label with the effective_from date
-(function() {
-  var dateInput = document.getElementById('{{ form.effective_from.id_for_label }}');
-  var label = document.getElementById('forkDateLabel');
-  if (!dateInput || !label) return;
-  function updateLabel() {
-    label.textContent = dateInput.value || '…';
-  }
-  dateInput.addEventListener('input', updateLabel);
-  updateLabel();
-})();
-
-// Hour goal toggle
-document.getElementById('hourGoalToggle').addEventListener('change', function() {
-  document.getElementById('hourGoalFields').style.display = this.checked ? '' : 'none';
-  if (!this.checked) {
-    document.querySelectorAll('input[name="{{ form.hour_goal_type.html_name }}"]').forEach(function(r) { r.checked = false; });
-    document.querySelector('[name="{{ form.hour_goal_min.html_name }}"]').value = '';
-    document.querySelector('[name="{{ form.hour_goal_max.html_name }}"]').value = '';
-    document.getElementById('goalRangeWarning').style.display = 'none';
-  } else {
-    var any = document.querySelector('input[name="{{ form.hour_goal_type.html_name }}"]:checked');
-    if (!any) document.getElementById('goalPeriodWeekly').checked = true;
-    autoPopulateGoal();
-  }
-});
-document.querySelectorAll('input[name="goalMode"]').forEach(function(radio) {
-  radio.addEventListener('change', function() {
-    var isRange = this.value === 'range';
-    document.getElementById('goalMaxWrapper').style.display = isRange ? '' : 'none';
-    document.getElementById('goalToLabel').style.display = isRange ? '' : 'none';
-    if (!isRange) document.querySelector('[name="{{ form.hour_goal_max.html_name }}"]').value = '';
-  });
-});
-
-// ── Auto-populate hour goal from contracted hours ─────────────────────────
-function _parseDk(v) {
-  if (!v) return NaN;
-  return parseFloat(String(v).replace(/\./g, '').replace(',', '.'));
-}
-
-function getSuggestedGoal() {
-  var empChecked = document.querySelector('[data-emp-type]:checked');
-  if (!empChecked) return null;
-
-  if (empChecked.value === 'salaried') {
-    var wttChecked = document.querySelector('[data-wtt]:checked');
-    var isFuldtid = !wttChecked || wttChecked.value === 'fuldtid';
-    var weeklyHours;
-    if (isFuldtid) {
-      weeklyHours = 37;
-    } else {
-      weeklyHours = _parseDk(
-        document.getElementById('{{ form.weekly_hours_fixed.id_for_label }}').value
-      );
-    }
-    if (isNaN(weeklyHours) || weeklyHours <= 0) return null;
-    return { hours: Math.round(weeklyHours * 52 / 12 * 100) / 100, period: 'monthly' };
-
-  } else {
-    // hourly
-    var htChecked = document.querySelector('[data-ht]:checked');
-    var isFixed = !htChecked || htChecked.value === 'fixed';
-    var weeklyHours;
-    if (isFixed) {
-      weeklyHours = _parseDk(
-        document.getElementById('{{ form.weekly_hours_fixed.id_for_label }}_hourly').value
-      );
-    } else {
-      var min = _parseDk(document.getElementById('{{ form.weekly_hours_min.id_for_label }}').value);
-      var max = _parseDk(document.getElementById('{{ form.weekly_hours_max.id_for_label }}').value);
-      if (!isNaN(min) && !isNaN(max) && min > 0 && max > 0) {
-        weeklyHours = (min + max) / 2;
-      } else if (!isNaN(min) && min > 0) {
-        weeklyHours = min;
-      }
-    }
-    if (isNaN(weeklyHours) || weeklyHours <= 0) return null;
-    return { hours: weeklyHours, period: 'weekly' };
-  }
-}
-
-function autoPopulateGoal() {
-  if (!document.getElementById('hourGoalToggle').checked) return;
-  var s = getSuggestedGoal();
-  if (!s) return;
-
-  // Set period radio
-  var periodEl = document.getElementById(s.period === 'monthly' ? 'goalPeriodMonthly' : 'goalPeriodWeekly');
-  if (periodEl) periodEl.checked = true;
-
-  // Populate goal min
-  var goalMinEl = document.querySelector('[name="{{ form.hour_goal_min.html_name }}"]');
-  if (goalMinEl) goalMinEl.value = toDanish(s.hours.toFixed(2));
-}
-
-// Wire up triggers that should refresh the goal suggestion
-['[data-emp-type]', '[data-wtt]', '[data-ht]'].forEach(function(sel) {
-  document.querySelectorAll(sel).forEach(function(el) {
-    el.addEventListener('change', autoPopulateGoal);
-  });
-});
-[
-  '{{ form.weekly_hours_fixed.id_for_label }}',
-  '{{ form.weekly_hours_fixed.id_for_label }}_hourly',
-  '{{ form.weekly_hours_min.id_for_label }}',
-  '{{ form.weekly_hours_max.id_for_label }}',
-].forEach(function(id) {
-  var el = document.getElementById(id);
-  if (el) el.addEventListener('input', autoPopulateGoal);
-});
-</script>
+{% block extra_js %}
+<script src="{% static 'js/termset_form.js' %}"></script>
 {% endblock %}
