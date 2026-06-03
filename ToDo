@@ -4,21 +4,17 @@
 
 # NU     --------------------------------------------------------
 
-*** Planning mode ***
-- A fast created shift cannot be dragged to another date until the page is updated
-- The positioning of shifts inside the date box is still weird.
-- - When the overlap-warning is displayed, the positioning of the shifts from top to bottom is [space], [shift 1], [space], [shift 2] (this also seems to happen when two non-overlapping shifts are on the same day) -- this persists on page reload
-- - Shifts planned using click on date > save are placed in the bottom of the date box, where shifts planned using Fast Create or copy/paste are placed in the top of the box.
-- - on page reload shifts seems to be 
-- If overlapping shifts are resolved using Power Edit > Delete or Delete All, the warning message is not removed until page reload
-
-
 *** Complete walkthrough of the code ***
 - Check for repeated or unused code and make as much reusable as possible
 - Check that all code lives up to the general style and that everything is best practices
 - Check if there is a better way to implement the dk style / locale for numbers and values than what is currently implemented (which seems like a bit of a heavy hack)
 - Check the entire code for security vulnerabilities
 - Can all the Django code be moved one level down into a source/src/django folder so it is easier to see the instance, statis folders and administrative files such as manage.py, requirements, Dockerfile etc.
+- Clean up in CSS
+- Split up files into seperate HTML, CSS, JS where it makes sense to keep file sizes manageable.
+
+
+--> Efter refactor, lav en base hjemmeside, så andre Bit-apps kan laves med et lignende visuelt udtryk. Gem denne til D:\Github\BitBase\
 
 # SENERE --------------------------------------------------------
 
@@ -50,6 +46,8 @@
 - Automatic recalculation after each change (when creating/removing or moving a custom line.) -- remove the manual recalculate button.
 
 - In the navbar, color the page you are currently on, to help with navigation / knowing where you are
+
+- Implementation question: I don't understand the payroll / generate period page. The payslip editor was created in order to adjust for additions/deductions on the payslip that would change the net amount. This would also help with singular month bonusses or variable bonusses, but I do not understand the payroll page.
 
 *** Changes to workplace calendar: ***
 - Work shifts for days that are before the start or after the end of the payroll period should be greyed out on the calendar. -- just like on the planning calendar
