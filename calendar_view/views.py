@@ -12,7 +12,7 @@ from workplaces.models import Workplace
 from workplaces.services import workplaces_active_today, workplaces_active_in_period, hidden_workplace_count
 from shifts.models import PlannedShift, Shift
 from core.utils import avatar_for_name, prev_next_month
-from .services import CalendarService
+from .services import CalendarService, approve_planned_shifts
 
 
 class MonthCalendarView(View):
@@ -115,7 +115,9 @@ class PlanningCalendarView(View):
         import calendar as _cal_mod
         _m_start = date(year, month, 1)
         _m_end = date(year, month, _cal_mod.monthrange(year, month)[1])
-        workplaces = list(workplaces_active_in_period(_m_start, _m_end))
+        workplaces = list(
+            workplaces_active_in_period(_m_start, _m_end).prefetch_related("contracts")
+        )
 
         # Build workplace data with avatars, default shifts, payroll periods, monthly hours
         workplace_data = []
@@ -459,31 +461,9 @@ class ApproveShiftsView(View):
             shift_ids = data.get("shift_ids", [])
             edits = {str(e["id"]): e for e in data.get("edits", [])}
 
-            approved_count = 0
-            uncovered_dates = []
-            for sid in shift_ids:
-                try:
-                    shift = PlannedShift.objects.get(
-                        pk=int(sid),
-                        workplace=workplace,
-                        status=PlannedShift.Status.PLANNED,
-                    )
-                    # Apply inline edits if provided
-                    edit = edits.get(str(sid))
-                    if edit:
-                        if "start_time" in edit:
-                            shift.start_time = time.fromisoformat(edit["start_time"])
-                        if "end_time" in edit:
-                            shift.end_time = time.fromisoformat(edit["end_time"])
-                        if "shift_type" in edit:
-                            shift.shift_type = edit["shift_type"]
-                        shift.save()
-                    shift.approve()
-                    if TaxCalculationService.coverage_warning(shift.date):
-                        uncovered_dates.append(shift.date)
-                    approved_count += 1
-                except PlannedShift.DoesNotExist:
-                    continue
+            approved_count, uncovered_dates = approve_planned_shifts(
+                shift_ids, edits=edits, workplace=workplace
+            )
 
             if uncovered_dates:
                 messages.warning(request, TaxCalculationService.coverage_warning(min(uncovered_dates)))
@@ -493,21 +473,9 @@ class ApproveShiftsView(View):
         # Traditional form POST (fallback)
         shift_ids = request.POST.getlist("shift_ids")
 
-        approved_count = 0
-        uncovered_dates = []
-        for sid in shift_ids:
-            try:
-                shift = PlannedShift.objects.get(
-                    pk=int(sid),
-                    workplace=workplace,
-                    status=PlannedShift.Status.PLANNED,
-                )
-                shift.approve()
-                if TaxCalculationService.coverage_warning(shift.date):
-                    uncovered_dates.append(shift.date)
-                approved_count += 1
-            except PlannedShift.DoesNotExist:
-                continue
+        approved_count, uncovered_dates = approve_planned_shifts(
+            shift_ids, workplace=workplace
+        )
 
         messages.success(request, f"{approved_count} shift(s) approved and converted to work sessions.")
         if uncovered_dates:
@@ -531,29 +499,7 @@ class BulkApproveShiftsView(View):
         shift_ids = data.get("shift_ids", [])
         edits = {str(e["id"]): e for e in data.get("edits", [])}
 
-        approved_count = 0
-        uncovered_dates = []
-        for sid in shift_ids:
-            try:
-                shift = PlannedShift.objects.get(
-                    pk=int(sid),
-                    status=PlannedShift.Status.PLANNED,
-                )
-                edit = edits.get(str(sid))
-                if edit:
-                    if "start_time" in edit:
-                        shift.start_time = time.fromisoformat(edit["start_time"])
-                    if "end_time" in edit:
-                        shift.end_time = time.fromisoformat(edit["end_time"])
-                    if "shift_type" in edit:
-                        shift.shift_type = edit["shift_type"]
-                    shift.save()
-                shift.approve()
-                if TaxCalculationService.coverage_warning(shift.date):
-                    uncovered_dates.append(shift.date)
-                approved_count += 1
-            except PlannedShift.DoesNotExist:
-                continue
+        approved_count, uncovered_dates = approve_planned_shifts(shift_ids, edits=edits)
 
         if uncovered_dates:
             messages.warning(request, TaxCalculationService.coverage_warning(min(uncovered_dates)))

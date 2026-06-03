@@ -8,6 +8,8 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 from django.utils.text import slugify
 
+from core.utils import weekly_to_monthly_hours
+
 
 class Workplace(models.Model):
     """A workplace / employer — appearance and identification only.
@@ -420,7 +422,7 @@ class ContractTermSet(models.Model):
         if self.employment_type == self.EmploymentType.HOURLY:
             return self.hourly_rate
         if self.monthly_salary and self.expected_weekly_hours:
-            monthly_hours = self.expected_weekly_hours * Decimal("52") / Decimal("12")
+            monthly_hours = weekly_to_monthly_hours(self.expected_weekly_hours)
             return (self.monthly_salary / monthly_hours).quantize(Decimal("0.01"))
         return None
 

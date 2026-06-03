@@ -23,6 +23,7 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 
 from .models import TaxProfile, ATPConfiguration
+from .utils import active_dated_row
 
 
 TWO_PLACES = Decimal("0.01")
@@ -51,16 +52,7 @@ class ATPService:
     def get_active_config(as_of: date | None = None) -> ATPConfiguration | None:
         if as_of is None:
             as_of = date.today()
-        config = (
-            ATPConfiguration.objects
-            .filter(effective_from__lte=as_of)
-            .order_by("-effective_from")
-            .first()
-        )
-        if config is None:
-            # Fall back to the earliest available configuration
-            config = ATPConfiguration.objects.order_by("effective_from").first()
-        return config
+        return active_dated_row(ATPConfiguration.objects.all(), as_of)
 
     @classmethod
     def get_contributions(
@@ -95,15 +87,7 @@ class TaxCalculationService:
         """
         if as_of is None:
             as_of = date.today()
-        profile = (
-            TaxProfile.objects.filter(effective_from__lte=as_of)
-            .order_by("-effective_from")
-            .first()
-        )
-        if profile is None:
-            # Fall back to the earliest available profile
-            profile = TaxProfile.objects.order_by("effective_from").first()
-        return profile
+        return active_dated_row(TaxProfile.objects.all(), as_of)
 
     @staticmethod
     def coverage_warning(as_of: date) -> str | None:

@@ -1,11 +1,13 @@
 ﻿import json
 from datetime import date
+from decimal import Decimal
 
 from django.db import models
 from django.http import JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.views import View
 
+from core.utils import parse_danish_decimal
 from workplaces.models import Workplace
 from workplaces.services import workplaces_active_today
 from .models import PayrollPeriod, PayslipLine, CommutingRecord, VacationBalance
@@ -126,19 +128,9 @@ class PayslipLineAddView(View):
         raw_type = request.POST.get("line_type", "deduct")
         line_type = "pre_tax_add" if raw_type == "add" else "pre_tax_deduct"
 
-        from decimal import Decimal as D, InvalidOperation
-
-        def parse_dk(s):
-            if not s:
-                return None
-            try:
-                return D(s.replace(".", "").replace(",", "."))
-            except (InvalidOperation, ValueError):
-                return None
-
-        quantity = parse_dk(quantity_str) or D("1")
-        rate = parse_dk(rate_str) or D("0")
-        amount = (quantity * rate).quantize(D("0.01"))
+        quantity = parse_danish_decimal(quantity_str) or Decimal("1")
+        rate = parse_danish_decimal(rate_str) or Decimal("0")
+        amount = (quantity * rate).quantize(Decimal("0.01"))
 
         # Place after last line
         max_sort = PayslipLine.objects.filter(
@@ -172,26 +164,16 @@ class PayslipLineEditView(View):
         if period.is_locked:
             return redirect("payroll:period-detail", pk=period.pk)
 
-        from decimal import Decimal as D, InvalidOperation
-
-        def parse_dk(s):
-            if not s:
-                return None
-            try:
-                return D(s.replace(".", "").replace(",", "."))
-            except (InvalidOperation, ValueError):
-                return None
-
         name = request.POST.get("name", line.name)
-        quantity = parse_dk(request.POST.get("quantity", "")) or D("1")
-        rate = parse_dk(request.POST.get("rate", "")) or D("0")
+        quantity = parse_danish_decimal(request.POST.get("quantity", "")) or Decimal("1")
+        rate = parse_danish_decimal(request.POST.get("rate", "")) or Decimal("0")
         raw_type = request.POST.get("line_type", "add")
         line_type = "pre_tax_add" if raw_type == "add" else "pre_tax_deduct"
 
         line.name = name
         line.quantity = quantity
         line.rate = rate
-        line.amount = (quantity * rate).quantize(D("0.01"))
+        line.amount = (quantity * rate).quantize(Decimal("0.01"))
         line.line_type = line_type
         line.save()
 

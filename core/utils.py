@@ -2,10 +2,45 @@
 Shared utilities used across multiple apps.
 """
 import re
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 
 WEEKS_PER_MONTH = Decimal("4.33")
+WEEKS_PER_YEAR = Decimal("52")
+MONTHS_PER_YEAR = Decimal("12")
+
+
+def weekly_to_monthly_hours(weekly_hours: Decimal) -> Decimal:
+    """Convert weekly hours to the monthly equivalent (52 weeks / 12 months).
+
+    Returns the unrounded product; callers quantize as needed.
+    """
+    return weekly_hours * WEEKS_PER_YEAR / MONTHS_PER_YEAR
+
+
+def active_dated_row(qs, as_of, field="effective_from"):
+    """Return the row whose ``field`` is the latest value <= ``as_of``.
+
+    Falls back to the earliest row if none is effective on that date (e.g. a
+    row created after the date being queried).
+    """
+    row = qs.filter(**{f"{field}__lte": as_of}).order_by(f"-{field}").first()
+    if row is None:
+        row = qs.order_by(field).first()
+    return row
+
+
+def parse_danish_decimal(value: str) -> Decimal | None:
+    """Parse a Danish-formatted number string (1.234,56) into a Decimal.
+
+    Returns None for empty or unparseable input.
+    """
+    if not value:
+        return None
+    try:
+        return Decimal(value.replace(".", "").replace(",", "."))
+    except (InvalidOperation, ValueError):
+        return None
 
 # SVG sanitisation — strip active content that could execute in the browser.
 _SVG_SCRIPT_RE = re.compile(r"<script\b[^>]*>.*?</script>", re.IGNORECASE | re.DOTALL)

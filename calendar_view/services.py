@@ -9,10 +9,13 @@ from __future__ import annotations
 import calendar
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 from decimal import Decimal
 
+from django.db import transaction
+
 from core.models import UserSettings
+from core.services import TaxCalculationService
 from shifts.models import Shift, PlannedShift
 
 
@@ -272,3 +275,39 @@ class CalendarService:
         title = f"{month_name} {year}"
 
         return cls._build_grid(range_start, range_end, title)
+
+
+@transaction.atomic
+def approve_planned_shifts(shift_ids, edits=None, workplace=None):
+    """Approve planned shifts, optionally applying inline edits.
+
+    ``edits`` maps a string shift id to a dict that may contain ``start_time``,
+    ``end_time`` and/or ``shift_type``. When ``workplace`` is given, only that
+    workplace's shifts are eligible. Returns ``(approved_count, uncovered_dates)``.
+    """
+    edits = edits or {}
+    lookup = {"status": PlannedShift.Status.PLANNED}
+    if workplace is not None:
+        lookup["workplace"] = workplace
+
+    approved_count = 0
+    uncovered_dates = []
+    for sid in shift_ids:
+        try:
+            shift = PlannedShift.objects.get(pk=int(sid), **lookup)
+        except PlannedShift.DoesNotExist:
+            continue
+        edit = edits.get(str(sid))
+        if edit:
+            if "start_time" in edit:
+                shift.start_time = time.fromisoformat(edit["start_time"])
+            if "end_time" in edit:
+                shift.end_time = time.fromisoformat(edit["end_time"])
+            if "shift_type" in edit:
+                shift.shift_type = edit["shift_type"]
+            shift.save()
+        shift.approve()
+        if TaxCalculationService.coverage_warning(shift.date):
+            uncovered_dates.append(shift.date)
+        approved_count += 1
+    return approved_count, uncovered_dates

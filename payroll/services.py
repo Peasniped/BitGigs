@@ -10,9 +10,12 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
+from django.db import transaction
+
 from workplaces.models import Workplace, ContractTermSet
 from shifts.models import Shift
 from core.services import TaxCalculationService, TaxBreakdown, ATPService
+from core.utils import weekly_to_monthly_hours
 
 TWO_PLACES = Decimal("0.01")
 FERIEPENGE_PERCENT = Decimal("12.50")
@@ -111,6 +114,7 @@ class PayrollPeriodService:
         return period, created
 
     @staticmethod
+    @transaction.atomic
     def _populate_template_lines(period):
         from .models import PayslipLine, PayslipLineTemplate
 
@@ -235,7 +239,7 @@ class SalaryEstimateService:
 
         if terms.employment_type == ContractTermSet.EmploymentType.SALARIED:
             weekly = terms.expected_weekly_hours or Decimal("37")
-            atp_hours = (weekly * Decimal("52") / Decimal("12")).quantize(TWO_PLACES)
+            atp_hours = weekly_to_monthly_hours(weekly).quantize(TWO_PLACES)
         else:
             atp_hours = total_hours
         employee_atp, employer_atp = ATPService.get_contributions(atp_hours, as_of=as_of)
@@ -385,6 +389,7 @@ class PayslipService:
     ]
 
     @classmethod
+    @transaction.atomic
     def populate_standard_lines(cls, period) -> None:
         from .models import PayslipLine
 
@@ -529,12 +534,12 @@ class PayslipService:
         else:
             gross_qty = total_hours
             weekly = terms.expected_weekly_hours or Decimal("37")
-            monthly_norm = (weekly * Decimal("52") / Decimal("12")).quantize(TWO_PLACES)
+            monthly_norm = weekly_to_monthly_hours(weekly).quantize(TWO_PLACES)
             gross_rate = ((terms.monthly_salary or Decimal("0")) / monthly_norm).quantize(TWO_PLACES) if monthly_norm else None
 
         if terms.employment_type == ContractTermSet.EmploymentType.SALARIED:
             weekly_h = terms.expected_weekly_hours or Decimal("37")
-            atp_hours = (weekly_h * Decimal("52") / Decimal("12")).quantize(TWO_PLACES)
+            atp_hours = weekly_to_monthly_hours(weekly_h).quantize(TWO_PLACES)
         else:
             atp_hours = total_hours
 

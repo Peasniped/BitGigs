@@ -15,7 +15,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.db.models import Q
 
-from core.utils import WEEKS_PER_MONTH
+from core.utils import WEEKS_PER_MONTH, weekly_to_monthly_hours
 from payroll.services import SalaryEstimateService
 from shifts.models import Shift
 from workplaces.models import Workplace, ContractTermSet
@@ -253,7 +253,7 @@ class AnalyticsService:
                     estimate = SalaryEstimateService.estimate(termset, hours, as_of=as_of)
                 else:  # SALARIED
                     weekly = termset.expected_weekly_hours or Decimal("37")
-                    hours = (weekly * Decimal("52") / Decimal("12")).quantize(TWO_PLACES, ROUND_HALF_UP)
+                    hours = weekly_to_monthly_hours(weekly).quantize(TWO_PLACES, ROUND_HALF_UP)
                     is_projected = not is_past
                     estimate = SalaryEstimateService.estimate(termset, hours, as_of=as_of)
 
@@ -301,7 +301,7 @@ class AnalyticsService:
 
 def _rate_row(ts: ContractTermSet, as_of: date) -> dict:
     weekly = ts.expected_weekly_hours or Decimal("37")
-    monthly_hours = (weekly * Decimal("52") / Decimal("12")).quantize(TWO_PLACES, ROUND_HALF_UP)
+    monthly_hours = weekly_to_monthly_hours(weekly).quantize(TWO_PLACES, ROUND_HALF_UP)
 
     estimate = SalaryEstimateService.estimate(ts, monthly_hours, as_of=as_of)
 
