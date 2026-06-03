@@ -289,6 +289,13 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: #1e293b; }
   outline: 1px solid rgba(34,197,94,.3);
 }
 
+/* Overlap indicator — shown when two shifts on the same day share time */
+.shift-chip--overlap {
+  border-color: #f59e0b !important;
+  background: rgba(245,158,11,.10) !important;
+  outline: 1px solid rgba(245,158,11,.4);
+}
+
 /* ---- Day panel (sidebar/modal for sessions on clicked day) ---- */
 .day-panel {
   border: 1px solid #e2e8f0;

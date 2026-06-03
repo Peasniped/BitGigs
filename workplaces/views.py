@@ -95,6 +95,7 @@ class WorkplaceDetailView(View):
         avatar_initials, avatar_color = avatar_for_name(workplace.name)
 
         grid = CalendarService.payroll_period_calendar(workplace.pk, year, month)
+        grid.annotate_overlaps()
 
         # Period dates and earnings
         if viewed_termset:

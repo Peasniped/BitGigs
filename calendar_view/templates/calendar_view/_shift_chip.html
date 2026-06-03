@@ -3,13 +3,13 @@
 {% load dk_filters %}
 
 {% if is_planned %}
-<div class="shift-chip shift-chip--planned"
+<div class="shift-chip shift-chip--planned{% if is_overlapping %} shift-chip--overlap{% endif %}"
      {% if item.workplace.accent_color %}style="border-color:{{ item.workplace.accent_color }};"{% elif item.workplace.color %}style="border-color:{{ item.workplace.color }};"{% endif %}
-     title="[Planned] {{ item.workplace.name }}: {{ item.start_time|time:'H:i' }}-{{ item.end_time|time:'H:i' }} ({{ item.net_hours|dk }}h)"
+     title="{% if is_overlapping %}⚠ Overlapping shift — {% endif %}[Planned] {{ item.workplace.name }}: {{ item.start_time|time:'H:i' }}-{{ item.end_time|time:'H:i' }} ({{ item.net_hours|dk }}h)"
      {% if draggable %}draggable="true" data-shift-id="{{ item.pk }}" data-workplace-id="{{ item.workplace_id }}"{% endif %}>
 {% else %}
-<div class="shift-chip shift-chip--approved{% if editable_shift %} shift-chip--editable-shift{% endif %}"
-     title="{{ item.workplace.name }}: {{ item.start_time|time:'H:i' }}-{{ item.end_time|time:'H:i' }} ({{ item.net_hours|dk }}h)"
+<div class="shift-chip shift-chip--approved{% if editable_shift %} shift-chip--editable-shift{% endif %}{% if is_overlapping %} shift-chip--overlap{% endif %}"
+     title="{% if is_overlapping %}⚠ Overlapping shift — {% endif %}{{ item.workplace.name }}: {{ item.start_time|time:'H:i' }}-{{ item.end_time|time:'H:i' }} ({{ item.net_hours|dk }}h)"
      {% if editable_shift %}data-session-id="{{ item.pk }}" data-workplace-id="{{ item.workplace_id }}"{% endif %}>
 {% endif %}
   <span class="shift-chip__avatar" style="background:{{ item.workplace.avatar_color }};">

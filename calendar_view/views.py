@@ -25,6 +25,7 @@ class MonthCalendarView(View):
         workplace_id = int(workplace_id) if workplace_id else None
 
         grid = CalendarService.month_calendar(year, month, workplace_id)
+        grid.annotate_overlaps()
 
         # Navigation
         prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
@@ -73,6 +74,7 @@ class PayrollPeriodCalendarView(View):
             )
 
         grid = CalendarService.payroll_period_calendar(workplace_id, year, month)
+        grid.annotate_overlaps()
 
         # Navigation
         prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
@@ -105,6 +107,7 @@ class PlanningCalendarView(View):
         month = int(request.GET.get("month", today.month))
 
         grid = CalendarService.planning_calendar(year, month)
+        has_overlaps = grid.annotate_overlaps()
 
         # Navigation
         prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
@@ -201,6 +204,7 @@ class PlanningCalendarView(View):
                 "workplace_json": _json.dumps(workplace_data),
                 "month_names_json": month_names_json,
                 "today": today,
+                "has_overlaps": has_overlaps,
             },
         )
 

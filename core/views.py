@@ -29,6 +29,7 @@ class DashboardView(View):
         month = int(request.GET.get("month", today.month))
 
         grid = CalendarService.month_calendar(year, month)
+        grid.annotate_overlaps()
         prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
 
         # Core stats + workplace cards

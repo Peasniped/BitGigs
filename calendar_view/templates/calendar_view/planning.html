@@ -391,6 +391,13 @@
   {% endfor %}
 </div>
 
+{% if has_overlaps %}
+<div class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-3" role="alert">
+  <i class="bi bi-exclamation-triangle-fill"></i>
+  <span>One or more shifts this month overlap in time. Overlapping shifts are highlighted in amber.</span>
+</div>
+{% endif %}
+
 <!-- Power Edit Toolbar -->
 <div class="power-toolbar mb-3" id="powerToolbar">
   <button type="button" class="power-toolbar__btn" id="peCreateBtn" title="Toggle fast create: drop workplace cards to instantly create default shifts">
@@ -457,12 +464,12 @@
               </div>
               <!-- Existing work sessions (editable from planning view) -->
               {% for session in day.approved_shifts %}
-                {% include "calendar_view/_shift_chip.html" with item=session is_planned=False editable_session=True %}
+                {% include "calendar_view/_shift_chip.html" with item=session is_planned=False editable_session=True is_overlapping=session.overlapping %}
               {% endfor %}
               <!-- Planned shifts -->
               <div class="planned-shifts-container" data-date="{{ day.date|date:'Y-m-d' }}">
               {% for shift in day.planned_shifts %}
-                {% include "calendar_view/_shift_chip.html" with item=shift is_planned=True draggable=True %}
+                {% include "calendar_view/_shift_chip.html" with item=shift is_planned=True draggable=True is_overlapping=shift.overlapping %}
               {% endfor %}
               </div>
             </td>

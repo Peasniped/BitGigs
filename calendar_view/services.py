@@ -42,6 +42,24 @@ class CalendarGrid:
     period_end: date
     weeks: list[CalendarWeek] = field(default_factory=list)
     day_headers: list[str] = field(default_factory=list)
+    has_overlaps: bool = False
+
+    def annotate_overlaps(self) -> bool:
+        """Mark overlapping shift instances with .overlapping = True and set has_overlaps."""
+        for week in self.weeks:
+            for day in week.days:
+                all_shifts = list(day.approved_shifts) + list(day.planned_shifts)
+                overlapping_oids = set()
+                for i, s1 in enumerate(all_shifts):
+                    for s2 in all_shifts[i + 1:]:
+                        if s1.start_time < s2.end_time and s2.start_time < s1.end_time:
+                            overlapping_oids.add(id(s1))
+                            overlapping_oids.add(id(s2))
+                for s in all_shifts:
+                    s.overlapping = id(s) in overlapping_oids
+                if overlapping_oids:
+                    self.has_overlaps = True
+        return self.has_overlaps
 
 
 class CalendarService:

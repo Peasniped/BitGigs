@@ -3,6 +3,12 @@
 {% load dk_filters %}
 
 <div class="calendar-component">
+  {% if grid.has_overlaps %}
+  <div class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-2" role="alert">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <span>One or more shifts on this calendar overlap in time. Overlapping shifts are highlighted in amber.</span>
+  </div>
+  {% endif %}
   <table class="table table-bordered calendar-table mb-0">
     <thead>
       <tr class="table-light">
@@ -28,10 +34,10 @@
             {% endif %}
           </div>
           {% for session in day.approved_shifts %}
-            {% include "calendar_view/_shift_chip.html" with item=session is_planned=False %}
+            {% include "calendar_view/_shift_chip.html" with item=session is_planned=False is_overlapping=session.overlapping %}
           {% endfor %}
           {% for shift in day.planned_shifts %}
-            {% include "calendar_view/_shift_chip.html" with item=shift is_planned=True draggable=False %}
+            {% include "calendar_view/_shift_chip.html" with item=shift is_planned=True draggable=False is_overlapping=shift.overlapping %}
           {% endfor %}
         </td>
         {% endfor %}
