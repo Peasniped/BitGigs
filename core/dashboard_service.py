@@ -5,7 +5,6 @@ Used by both the full-page DashboardView and the DashboardStatsAPIView
 to avoid logic duplication.
 """
 import calendar as cal_mod
-import json
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -276,8 +275,8 @@ class DashboardDataService:
                 })
 
 
-def get_pending_shifts(today: date) -> tuple[str, int]:
-    """Return (JSON string, count) of shifts pending approval."""
+def get_pending_shifts(today: date) -> tuple[list, int]:
+    """Return (list, count) of shifts pending approval (for json_script)."""
     now_time = datetime.now().time()
     all_pending = PlannedShift.objects.filter(
         workplace__in=workplaces_active_today(),
@@ -293,7 +292,7 @@ def get_pending_shifts(today: date) -> tuple[str, int]:
         ).time() <= now_time
     ]
 
-    pending_json = json.dumps([
+    pending_data = [
         {
             "id": s.pk,
             "workplace_id": s.workplace_id,
@@ -308,12 +307,12 @@ def get_pending_shifts(today: date) -> tuple[str, int]:
             "net_hours": str(s.net_hours.quantize(TWO_PLACES)),
         }
         for s in pending_shifts
-    ])
-    return pending_json, len(pending_shifts)
+    ]
+    return pending_data, len(pending_shifts)
 
 
-def get_todays_banner(today: date) -> tuple[dict | None, str, str]:
-    """Return (banner_dict_or_None, shifts_json, banner_shifts_json)."""
+def get_todays_banner(today: date) -> tuple[dict | None, list, list]:
+    """Return (banner_dict_or_None, shifts_list, banner_shifts_list) for json_script."""
     all_todays_shifts = list(PlannedShift.objects.filter(
         workplace__in=workplaces_active_today(),
         status=PlannedShift.Status.PLANNED,
@@ -321,7 +320,7 @@ def get_todays_banner(today: date) -> tuple[dict | None, str, str]:
     ).select_related("workplace").order_by("start_time"))
 
     if not all_todays_shifts:
-        return None, "[]", "[]"
+        return None, [], []
 
     workplaces_info = []
     seen_wp = set()
@@ -365,13 +364,13 @@ def get_todays_banner(today: date) -> tuple[dict | None, str, str]:
 
     # Unconfirmed shifts for the arrival queue (JS)
     unconfirmed = [s for s in all_todays_shifts if not s.arrival_confirmed]
-    todays_shifts_json = json.dumps([
+    todays_shifts_data = [
         {"id": s.pk, "start_time": s.start_time.strftime("%H:%M")}
         for s in unconfirmed
-    ])
+    ]
 
     # All shifts for countdown timer (JS)
-    banner_shifts_json = json.dumps([
+    banner_shifts_data = [
         {
             "start_time": s.start_time.strftime("%H:%M"),
             "end_time": s.end_time.strftime("%H:%M"),
@@ -380,6 +379,6 @@ def get_todays_banner(today: date) -> tuple[dict | None, str, str]:
             "shift_type": s.get_shift_type_display(),
         }
         for s in all_todays_shifts
-    ])
+    ]
 
-    return banner, todays_shifts_json, banner_shifts_json
+    return banner, todays_shifts_data, banner_shifts_data

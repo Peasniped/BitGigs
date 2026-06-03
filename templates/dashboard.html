@@ -264,6 +264,9 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ todays_shifts_json|json_script:"todaysShiftsData" }}
+{{ todays_banner_shifts_json|json_script:"todaysBannerShiftsData" }}
+{{ pending_shifts_json|json_script:"pendingShiftsData" }}
 <script>
 {% if has_any_goal %}
 // â•â•â•â•â•â•â• Goal Tooltip â•â•â•â•â•â•â•
@@ -297,7 +300,7 @@
 {% if todays_banner and todays_banner.has_unconfirmed %}
 // â•â•â•â•â•â•â• Today's Shift . Arrival Queue â•â•â•â•â•â•â•
 (function() {
-  var queue = {{ todays_shifts_json|safe }};
+  var queue = JSON.parse(document.getElementById('todaysShiftsData').textContent);
   var multiple = {{ todays_banner.multiple|yesno:"true,false" }};
   var wrap = document.getElementById('todayArrivalWrap');
   var input = document.getElementById('todayArrivalTime');
@@ -412,7 +415,7 @@
 {% if todays_banner %}
 // â•â•â•â•â•â•â• Today's Shift . Live Countdown â•â•â•â•â•â•â•
 (function() {
-  var shifts = {{ todays_banner_shifts_json|safe }};
+  var shifts = JSON.parse(document.getElementById('todaysBannerShiftsData').textContent);
   var el = document.getElementById('todayShiftStatus');
   if (!el || shifts.length === 0) return;
 
@@ -504,7 +507,7 @@
 {% if pending_shifts_count %}
 // â•â•â•â•â•â•â• Dashboard Approve Modal â•â•â•â•â•â•â•
 (function() {
-  var SHIFTS = {{ pending_shifts_json|safe }};
+  var SHIFTS = JSON.parse(document.getElementById('pendingShiftsData').textContent);
   var body = document.getElementById('dashApproveBody');
   var countSpan = document.getElementById('dashApproveSelectedCount');
   var UPDATE_URL = '{% url "calendar_view:planned-shift-update-api" pk=0 %}';

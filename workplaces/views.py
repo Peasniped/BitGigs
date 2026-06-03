@@ -3,13 +3,14 @@ from decimal import Decimal
 import json
 import os
 
+from django.core.files.base import ContentFile
 from django.http import JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.views import View
 
 from .models import Workplace, WorkplaceContract, ContractTermSet
 from .forms import WorkplaceForm, WorkplaceContractForm, ContractTermSetForm
-from core.utils import avatar_for_name, prev_next_month, WEEKS_PER_MONTH
+from core.utils import avatar_for_name, prev_next_month, WEEKS_PER_MONTH, sanitize_svg
 
 # Curated icon choices for the workplace icon picker
 ICON_CHOICES = [
@@ -201,7 +202,7 @@ class WorkplaceDetailView(View):
             ).order_by("date", "start_time")
         )
         pending_shifts_count = len(pending_shifts)
-        pending_shifts_json = json.dumps([
+        pending_shifts_json = [
             {
                 "id": s.pk,
                 "date": s.date.isoformat(),
@@ -213,7 +214,7 @@ class WorkplaceDetailView(View):
                 "net_hours": str(s.net_hours.quantize(Decimal("0.01"))),
             }
             for s in pending_shifts
-        ])
+        ]
 
         # All contracts for the timeline section
         contracts = workplace.contracts.prefetch_related("term_sets").order_by("start_date")
@@ -320,6 +321,7 @@ class WorkplaceDeleteView(View):
 # ─────────────────────────────────────────────────────────────────────────────
 
 _ALLOWED_ICON_TYPES = {"image/png", "image/svg+xml"}
+_ALLOWED_ICON_EXTS = {".png", ".svg"}
 _MAX_ICON_SIZE = 512 * 1024  # 512 KB
 
 
@@ -343,7 +345,8 @@ class WorkplaceCustomizeView(View):
 
         custom_icon_file = request.FILES.get("custom_icon")
         if custom_icon_file:
-            if custom_icon_file.content_type not in _ALLOWED_ICON_TYPES:
+            ext = os.path.splitext(custom_icon_file.name or "")[1].lower()
+            if custom_icon_file.content_type not in _ALLOWED_ICON_TYPES or ext not in _ALLOWED_ICON_EXTS:
                 return JsonResponse(
                     {"ok": False, "error": "Only PNG and SVG files are allowed."}, status=400
                 )
@@ -353,7 +356,14 @@ class WorkplaceCustomizeView(View):
                 )
             if workplace.custom_icon:
                 workplace.custom_icon.delete(save=False)
-            workplace.custom_icon = custom_icon_file
+            is_svg = custom_icon_file.content_type == "image/svg+xml" or ext == ".svg"
+            if is_svg:
+                cleaned = sanitize_svg(custom_icon_file.read())
+                workplace.custom_icon.save(
+                    custom_icon_file.name, ContentFile(cleaned), save=False
+                )
+            else:
+                workplace.custom_icon = custom_icon_file
             workplace.icon = ""
         elif remove_custom_icon and workplace.custom_icon:
             workplace.custom_icon.delete(save=False)

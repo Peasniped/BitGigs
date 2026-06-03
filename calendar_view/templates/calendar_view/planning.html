@@ -644,12 +644,14 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ workplace_json|json_script:"workplaceData" }}
+{{ month_names_json|json_script:"monthNamesData" }}
 <script>
 (function() {
-  const WORKPLACES = {{ workplace_json|safe }};
+  const WORKPLACES = JSON.parse(document.getElementById('workplaceData').textContent);
   const CSRF = getCsrfToken();
   const API_BASE = '{% url "calendar_view:planned-shift-api" %}';
-  const MONTH_NAMES = {{ month_names_json|safe }};
+  const MONTH_NAMES = JSON.parse(document.getElementById('monthNamesData').textContent);
   const CURRENT_YEAR = {{ year }};
   const CURRENT_MONTH = {{ month }};
 

@@ -1,10 +1,34 @@
 """
 Shared utilities used across multiple apps.
 """
+import re
 from decimal import Decimal
 
 
 WEEKS_PER_MONTH = Decimal("4.33")
+
+# SVG sanitisation — strip active content that could execute in the browser.
+_SVG_SCRIPT_RE = re.compile(r"<script\b[^>]*>.*?</script>", re.IGNORECASE | re.DOTALL)
+_SVG_SELF_CLOSING_SCRIPT_RE = re.compile(r"<script\b[^>]*/>", re.IGNORECASE)
+_SVG_EVENT_ATTR_RE = re.compile(
+    r"""\s+on[a-zA-Z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)""", re.IGNORECASE
+)
+_SVG_JS_URI_RE = re.compile(
+    r"""((?:xlink:)?href)\s*=\s*(["'])\s*javascript:[^"']*\2""", re.IGNORECASE
+)
+
+
+def sanitize_svg(data: bytes) -> bytes:
+    """Remove <script> elements, on* event handlers and javascript: URIs from SVG bytes."""
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        text = data.decode("latin-1")
+    text = _SVG_SCRIPT_RE.sub("", text)
+    text = _SVG_SELF_CLOSING_SCRIPT_RE.sub("", text)
+    text = _SVG_EVENT_ATTR_RE.sub("", text)
+    text = _SVG_JS_URI_RE.sub(r'\1=\2#\2', text)
+    return text.encode("utf-8")
 
 # Palette of pleasant colours for workplace avatars
 _AVATAR_COLORS = [

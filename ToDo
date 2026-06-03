@@ -5,13 +5,15 @@
 # NU     --------------------------------------------------------
 
 *** Complete walkthrough of the code ***
-- Check for repeated or unused code and make as much reusable as possible
-- Check that all code lives up to the general style and that everything is best practices
-- Check if there is a better way to implement the dk style / locale for numbers and values than what is currently implemented (which seems like a bit of a heavy hack)
-- Check the entire code for security vulnerabilities
-- Can all the Django code be moved one level down into a source/src/django folder so it is easier to see the instance, statis folders and administrative files such as manage.py, requirements, Dockerfile etc.
-- Clean up in CSS
-- Split up files into seperate HTML, CSS, JS where it makes sense to keep file sizes manageable.
+ A – Security hardening: prod security headers, json_script over |safe, SVG upload sanitization + extension check
+ B – Dedup & reuse: extract parse_dk / date-versioned selector / 52÷12 constant; dedupe approval logic; add transaction.atomic + select_related
+ C – CSS cleanup: consolidate style.css, drop needless !important, dedupe analytics/rate_history picker styles
+ D – Split large files: extract inline JS/CSS from workplace_detail.html, planning.html, analytics; modularize app.js
+ E – Move Django into src/ (high risk, isolated): relocate code, update BASE_DIR/settings paths/CLAUDE.md, copy DB first
+ 
+ F – dk locale rework (do last, test in isolation): simplify the Danish-number filter internals. Add locale selector to settings
+
+ G - Update CLAUDE.md so new code / changes is appropriately styled, hardened etc.
 
 
 --> Efter refactor, lav en base hjemmeside, så andre Bit-apps kan laves med et lignende visuelt udtryk. Gem denne til D:\Github\BitBase\

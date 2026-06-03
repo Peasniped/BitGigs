@@ -827,6 +827,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ pending_shifts_json|json_script:"pendingShiftsData" }}
 <script>
 // Go-to-month navigation
 document.getElementById('gotoMonthBtn').addEventListener('click', function() {
@@ -1488,7 +1489,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // â•â•â•â•â•â•â• Approve Modal Logic â•â•â•â•â•â•â•
 {% if pending_shifts_count %}
 (function() {
-  var SHIFTS = {{ pending_shifts_json|safe }};
+  var SHIFTS = JSON.parse(document.getElementById('pendingShiftsData').textContent);
   var tbody = document.getElementById('approveTableBody');
   var selectAll = document.getElementById('approveSelectAll');
   var countSpan = document.getElementById('approveSelectedCount');

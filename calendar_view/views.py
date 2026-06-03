@@ -182,11 +182,10 @@ class PlanningCalendarView(View):
                 "hour_goal_max": str(terms.hour_goal_max) if terms and terms.hour_goal_max else "",
             })
 
-        import json as _json
         import calendar as _cal
 
-        # Month names for JS warning messages
-        month_names_json = _json.dumps({str(i): _cal.month_name[i] for i in range(1, 13)})
+        # Month names for JS warning messages (rendered via json_script)
+        month_names = {str(i): _cal.month_name[i] for i in range(1, 13)}
 
         return render(
             request,
@@ -201,8 +200,8 @@ class PlanningCalendarView(View):
                 "next_month": next_month,
                 "workplaces": workplaces,
                 "hidden_workplace_count": hidden_workplace_count(len(workplaces)),
-                "workplace_json": _json.dumps(workplace_data),
-                "month_names_json": month_names_json,
+                "workplace_json": workplace_data,
+                "month_names_json": month_names,
                 "today": today,
                 "has_overlaps": has_overlaps,
             },
