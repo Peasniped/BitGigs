@@ -33,13 +33,13 @@
       <div class="stat-card__label">Hour Goal</div>
       <div class="stat-card__value" style="font-size:1.05rem;"><span id="stat-planned-hours">{{ total_planned_hours|dk }}</span>h <small class="stat-card__sub">+</small> <span id="stat-approved-hours">{{ total_approved_hours|dk }}</span>h <small class="stat-card__sub">/ <span id="stat-goal-range">{{ total_goal_min|dk:0 }}{% if total_goal_max %}.{{ total_goal_max|dk:0 }}{% endif %}</span>h</small></div>
       <div class="stat-card__sub" style="visibility:hidden;">&nbsp;</div>
-      <div class="goal-bar" style="position:absolute;bottom:0;left:0;right:0;height:10px;background:#e2e8f0;display:flex;">
-        <div id="goal-bar-approved" class="goal-bar__seg" style="width:{{ goal_approved_pct }}%;background:#22c55e;"
-             data-goal-color="#22c55e" data-goal-label="Approved: {{ total_approved_hours|dk:1 }}h"></div>
-        <div id="goal-bar-planned" class="goal-bar__seg" style="width:{{ goal_planned_pct }}%;background:#3b82f6;"
-             data-goal-color="#3b82f6" data-goal-label="Planned: {{ total_planned_hours|dk:1 }}h"></div>
+      <div class="goal-bar" style="position:absolute;bottom:0;left:0;right:0;height:10px;background:var(--border);display:flex;">
+        <div id="goal-bar-approved" class="goal-bar__seg" style="width:{{ goal_approved_pct }}%;background:var(--success);"
+             data-goal-color="var(--success)" data-goal-label="Approved: {{ total_approved_hours|dk:1 }}h"></div>
+        <div id="goal-bar-planned" class="goal-bar__seg" style="width:{{ goal_planned_pct }}%;background:var(--info);"
+             data-goal-color="var(--info)" data-goal-label="Planned: {{ total_planned_hours|dk:1 }}h"></div>
         <div class="goal-bar__seg" style="flex:1;"
-             data-goal-color="#94a3b8" data-goal-label="Goal: {{ total_goal_min|dk:0 }}{% if total_goal_max %}.{{ total_goal_max|dk:0 }}{% endif %}h"></div>
+             data-goal-color="var(--text-subtle)" data-goal-label="Goal: {{ total_goal_min|dk:0 }}{% if total_goal_max %}.{{ total_goal_max|dk:0 }}{% endif %}h"></div>
       </div>
     </div>
     <div class="goal-tooltip" id="goalTooltip" style="display:none;position:fixed;z-index:1000;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;color:#fff;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.18);white-space:nowrap;">
@@ -166,7 +166,7 @@
     </a>
   </div>
   {% for info in cross_period_info %}
-  <div class="px-3 py-2 border-bottom d-flex align-items-center gap-2" style="background:#f8fafc;font-size:0.8rem;">
+  <div class="px-3 py-2 border-bottom d-flex align-items-center gap-2" style="background:var(--bg-light);font-size:0.8rem;">
     <span style="width:8px;height:8px;border-radius:50%;background:{{ info.color }};flex-shrink:0;"></span>
     {% if info.direction == "prev" %}
       <span><strong>{{ info.count }}</strong> shift{{ info.count|pluralize }} in {{ info.other_month }} belong{{ info.count|pluralize:"s," }} to <strong>{{ info.payroll_month }} payroll</strong> ({{ info.hours|dk }}h)</span>
@@ -185,7 +185,7 @@
 <div class="modal fade" id="dashApproveModal" tabindex="-1" aria-labelledby="dashApproveModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
-      <div class="modal-header border-bottom" style="border-color:#f1f5f9 !important;">
+      <div class="modal-header border-bottom" style="border-color:var(--bg-lighter) !important;">
         <h5 class="modal-title" id="dashApproveModalLabel">
           <i class="bi bi-check2-all me-2" style="color:#16a34a;"></i>Review & Approve Shifts
         </h5>
@@ -280,7 +280,7 @@
     seg.addEventListener('mouseenter', function(e) {
       dot.style.background = seg.dataset.goalColor;
       txt.textContent = seg.dataset.goalLabel;
-      tip.style.background = '#1e293b';
+      tip.style.background = 'var(--text)';
       tip.style.display = '';
       positionTip(e);
     });

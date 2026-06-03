@@ -450,7 +450,7 @@
 <div class="modal fade" id="customizeModal" tabindex="-1" aria-labelledby="customizeModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
-      <div class="modal-header border-bottom" style="border-color:#f1f5f9 !important;">
+      <div class="modal-header border-bottom" style="border-color:var(--bg-lighter) !important;">
         <h5 class="modal-title" id="customizeModalLabel"><i class="bi bi-palette me-2"></i>Customize Appearance</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
@@ -512,7 +512,7 @@
           <div class="tab-pane fade {% if workplace.custom_icon %}show active{% endif %}" id="pane-logo" role="tabpanel">
             <div class="d-flex align-items-center gap-3 mb-2">
               <div id="customIconPreview" class="d-flex align-items-center justify-content-center"
-                   style="width:64px;height:64px;border-radius:50%;background:#f1f5f9;overflow:hidden;flex-shrink:0;border:2px dashed #cbd5e1;{% if not workplace.custom_icon %}{% endif %}">
+                   style="width:64px;height:64px;border-radius:50%;background:var(--bg-lighter);overflow:hidden;flex-shrink:0;border:2px dashed #cbd5e1;{% if not workplace.custom_icon %}{% endif %}">
                 {% if workplace.custom_icon %}
                   <img src="{{ workplace.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;">
                 {% else %}
@@ -601,11 +601,11 @@
 <div class="modal fade" id="cropModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
-      <div class="modal-header border-bottom" style="border-color:#f1f5f9 !important;">
+      <div class="modal-header border-bottom" style="border-color:var(--bg-lighter) !important;">
         <h6 class="modal-title"><i class="bi bi-crop me-2"></i>Crop &amp; Position</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body p-0" style="background:#1e293b;">
+      <div class="modal-body p-0" style="background:var(--text);">
         <div id="cropContainer">
           <img id="cropImage" src="" alt="" style="display:block;max-width:100%;">
         </div>
@@ -639,7 +639,7 @@
 <div class="modal fade" id="svgRecolorModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content" style="border-radius:var(--card-radius);border:none;">
-      <div class="modal-header border-bottom" style="border-color:#f1f5f9 !important;">
+      <div class="modal-header border-bottom" style="border-color:var(--bg-lighter) !important;">
         <h6 class="modal-title"><i class="bi bi-palette me-2"></i>Recolor SVG (optional)</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
@@ -651,7 +651,7 @@
         <div class="d-flex justify-content-center mb-3">
           <div id="svgRecolorPreview"
                style="width:140px;height:140px;display:flex;align-items:center;justify-content:center;
-                      border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;padding:14px;"></div>
+                      border:1px solid var(--border);border-radius:12px;background:var(--bg-light);padding:14px;"></div>
         </div>
         <div class="mb-3 p-2 border rounded" style="background:#fafafa;">
           <label class="form-label small fw-medium d-block mb-1">Single tint (overrides all colors)</label>
@@ -690,7 +690,7 @@
 <div class="modal fade" id="addMonthModal" tabindex="-1" aria-labelledby="addMonthModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-sm modal-dialog-centered">
     <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
-      <div class="modal-header border-bottom" style="border-color:#f1f5f9 !important;">
+      <div class="modal-header border-bottom" style="border-color:var(--bg-lighter) !important;">
         <h6 class="modal-title" id="addMonthModalLabel"><i class="bi bi-calendar-plus me-2"></i>Go to month</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
@@ -724,7 +724,7 @@
 <div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
-      <div class="modal-header border-bottom" style="border-color:#f1f5f9 !important;">
+      <div class="modal-header border-bottom" style="border-color:var(--bg-lighter) !important;">
         <h5 class="modal-title" id="approveModalLabel">
           <i class="bi bi-check2-all me-2" style="color:#16a34a;"></i>Review & Approve Shifts
         </h5>

@@ -54,7 +54,7 @@
           <div class="d-flex justify-content-between mb-1"><span class="text-muted">AM-bidrag</span><span>{{ estimate.tax_breakdown.am_bidrag|dk }} DKK</span></div>
           <div class="d-flex justify-content-between mb-1"><span class="text-muted">A-skat</span><span>{{ estimate.tax_breakdown.a_skat|dk }} DKK</span></div>
           <hr class="my-1">
-          <div class="d-flex justify-content-between"><span class="text-muted">Net (est.)</span><span class="fw-semibold" style="color:#6366f1;">{{ estimate.tax_breakdown.net_pay|dk }} DKK</span></div>
+          <div class="d-flex justify-content-between"><span class="text-muted">Net (est.)</span><span class="fw-semibold" style="color:var(--primary);">{{ estimate.tax_breakdown.net_pay|dk }} DKK</span></div>
         {% endif %}
       </div>
     </div>
