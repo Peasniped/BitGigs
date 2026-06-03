@@ -5,9 +5,11 @@ import re
 from decimal import Decimal, InvalidOperation
 
 
-WEEKS_PER_MONTH = Decimal("4.33")
 WEEKS_PER_YEAR = Decimal("52")
 MONTHS_PER_YEAR = Decimal("12")
+# Exact average weeks per month (52/12 = 4.3333...). Matches the Danish
+# full-time standard of 160.33 monthly hours (37 * 52/12).
+WEEKS_PER_MONTH = WEEKS_PER_YEAR / MONTHS_PER_YEAR
 
 
 def weekly_to_monthly_hours(weekly_hours: Decimal) -> Decimal:
