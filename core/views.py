@@ -15,14 +15,7 @@ class DashboardView(View):
     """Home page — calendar, pay counters, and workplace cards."""
 
     def get(self, request):
-        from workplaces.models import Workplace
         from calendar_view.services import CalendarService
-
-        # Setup redirect — step by step
-        if not TaxProfile.objects.exists():
-            return redirect("core:setup")
-        if not Workplace.objects.exists():
-            return redirect("/workplaces/new/?setup=1")
 
         today = date.today()
         year = int(request.GET.get("year", today.year))
