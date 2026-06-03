@@ -146,7 +146,7 @@
 
       {% comment %} Workplace cards (centered) {% endcomment %}
       <div class="picker-workplaces" id="wpPickerStrip">
-        <div class="wp-picker-card {% if is_all_selected %}selected{% endif %}"
+        <div class="wp-picker-card {% if is_all_selected %}selected{% endif %}{% if workplaces_for_picker|length <= 1 %} d-none{% endif %}"
              data-wp-card="all" tabindex="0" role="button">
           <span class="all-badge"><i class="bi bi-stack"></i></span>
           <span class="fw-medium">All</span>
@@ -197,7 +197,7 @@
     <div class="wp-collapse-header"
          data-bs-toggle="collapse"
          data-bs-target="#rateBody{{ forloop.counter }}"
-         aria-expanded="false"
+         aria-expanded="{% if workplace_rows|length == 1 %}true{% else %}false{% endif %}"
          aria-controls="rateBody{{ forloop.counter }}">
       <i class="bi bi-chevron-right chevron text-muted"></i>
       {% include "analytics/_workplace_avatar.html" with avatar=row.avatar size=40 %}
@@ -208,7 +208,7 @@
         </div>
       </div>
     </div>
-    <div class="collapse" id="rateBody{{ forloop.counter }}">
+    <div class="collapse{% if workplace_rows|length == 1 %} show{% endif %}" id="rateBody{{ forloop.counter }}">
       {% if row.chart_points %}
         <div class="card-body pb-0">
           <div style="position:relative;height:200px;">
