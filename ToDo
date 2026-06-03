@@ -5,37 +5,48 @@
 # NU     --------------------------------------------------------
 
 *** Complete walkthrough of the code ***
- A – Security hardening: prod security headers, json_script over |safe, SVG upload sanitization + extension check
- B – Dedup & reuse: extract parse_dk / date-versioned selector / 52÷12 constant; dedupe approval logic; add transaction.atomic + select_related
- C – CSS cleanup: consolidate style.css, drop needless !important, dedupe analytics/rate_history picker styles
-
  D – Split large files: extract inline JS/CSS from workplace_detail.html, planning.html, analytics; modularize app.js
-   - - I would also like a central place for key style management (like colors used in the UI, so primary and secondary and font and so on can easily be changed)
-    
-    HTML files with integrated JS -- should this be moved out of the files and into seperate JS files? what is best practices for Django?
-    - calendar_view\templates\calendar_view\approve_shifts.html
-    - calendar_view\templates\calendar_view\planning.html
-    - payroll\templates\payroll\period_detail.html
-    - shifts\templates\shifts\shift_form.html
-    - templates\dashboard.html
-    - workplaces\templates\workplaces\_form_fields.html
-    - workplaces\templates\workplaces\termset_form.html
-    - workplaces\templates\workplaces\workplace_detail.html
-    - workplaces\templates\workplaces\workplace_form.html
+   --- Progress (branch: refactor) ---
+   DONE & committed:
+     * Design tokens in static/css/style.css (:root) — colours/font tweakable in one place
+     * planning.html CSS -> static/css/planning.css
+     * per-workplace accent CSS -> single --wp-accent custom property (.accent-form)
+     * shift_form live-calc JS deduped into app.js initShiftCalc()
+     * inline hex colours tokenized (dashboard, analytics, period_detail, modals)
+     * JS extracted to static: period_detail->payslip_detail.js, approve_shifts->approve_shifts.js,
+       termset_form->termset_form.js
+   Reusable pattern for the rest: move inline <script> to static/js/<page>.js; hand server data
+     (URLs, form field ids) to it via data-* attributes or json_script (NEVER {% %} inside the .js);
+     reuse global getCsrfToken()/toDanish() from app.js; load via {% block extra_js %} + {% static %}.
+   STILL TO DO (the "giants" — best one-per-commit in a fresh session, lots of JS):
+     - templates\dashboard.html  (~461 lines JS; json_script + {% url %} + {% if %})
+     - calendar_view\templates\calendar_view\planning.html  (~621 lines JS; json_script + several {% url %})
+     - workplaces\templates\workplaces\workplace_detail.html  (~730 lines JS; customize/cropper/SVG-recolor + {{ }})
+     - workplaces\templates\workplaces\_form_fields.html  (~51 lines slug JS; it's a PARTIAL — includer must load the static js)
+   TO VERIFY (manual click-test, no JS tests): period_detail (add/edit/reorder line, totals toggle,
+     tax-pull-day edit), approve_shifts (select-all, pencil-edit save), termset_form (toggles, hour-goal
+     auto-populate, effective-from Today button).
 
 
  E – Move Django into src/ (high risk, isolated): relocate code, update BASE_DIR/settings paths/CLAUDE.md, copy DB first
- 
  F – dk locale rework (do last, test in isolation): simplify the Danish-number filter internals. Add locale selector to settings
-
  G - Update CLAUDE.md so new code / changes is appropriately styled, hardened etc.
 
 
-Need to fix before merge:
+Need to fix after refactor->main merge:
+This was aparrently broken before the big code refactor/walkthrough...
+- Hour goal card no longer shown on main dashboard
+- no money is shown on main dashboard, neither planned or earned.
+It seems like this happens when a new workplace contract and/or term set starts within the current month. If I change the effective from-date to last month, the missing info is shown. If the effective date is the 1st of the month, no earned money is shown for that month.
+
+- When editing a contract or term sheet, the date should be populated with what is currently saved.
+- Need handling of how much you earn in a salaried position that starts in the middle of a month.
 
 
-- Remove migration files, as code is not deployed/in production and a db wipe/recreation is not currently a problem
+Extra work before making base template
+- Remove migration files, as code is not deployed/in production and a db wipe/recreation is not currently a problem !!!!!!! important, export data and copy hours from work laptop to Google Sheets (This is the only copy of most recent hours)
 - Remove worksessions app?
+- Design glow up?
 - Dark mode when?
 
 --> Efter refactor, lav en base hjemmeside, så andre Bit-apps kan laves med et lignende visuelt udtryk. Gem denne til D:\Github\BitBase\
@@ -52,15 +63,8 @@ Need to fix before merge:
 *** Changes to Workplace dashboard: ***
 - Add a button that includes planned shifts in the stats etc.
 - The month picker should be at the top, just under the workplace name.
-- Edit Workplace, Customize Appearance, Delete, and Payslip editor should be moved to a hamburger menu that is located where the delete button is (top/left in the same level as the company name/logo)
 - Back-button: if you change the month, the back button should not go back to the month you were on bekeep fore, it should go back to the main dashboard or workplaces overview.
-- The tables are a bit cluttered. Their position should automatically changed according to what is configured for the workplace. They should go from top/left to bottom/right in the following order:
-1. Details
-2. Feriepenge / Flexkonto
-3. Pension
-4. Fritvalgskonto
-- In the details table, it should calculate base / effective / total hourly wage for salaried positions
-- In the details table, please put a hr below the wages and the weekly hours
+- The calendar and the shift-cards within should be changed to behave more like the shift chips in the planning calendar
 
 *** Changes to Payslip Editor ***
 - Buttons to change month
