@@ -8,13 +8,35 @@
  A – Security hardening: prod security headers, json_script over |safe, SVG upload sanitization + extension check
  B – Dedup & reuse: extract parse_dk / date-versioned selector / 52÷12 constant; dedupe approval logic; add transaction.atomic + select_related
  C – CSS cleanup: consolidate style.css, drop needless !important, dedupe analytics/rate_history picker styles
+
  D – Split large files: extract inline JS/CSS from workplace_detail.html, planning.html, analytics; modularize app.js
+   - - I would also like a central place for key style management (like colors used in the UI, so primary and secondary and font and so on can easily be changed)
+    
+    HTML files with integrated JS -- should this be moved out of the files and into seperate JS files? what is best practices for Django?
+    - calendar_view\templates\calendar_view\approve_shifts.html
+    - calendar_view\templates\calendar_view\planning.html
+    - payroll\templates\payroll\period_detail.html
+    - shifts\templates\shifts\shift_form.html
+    - templates\dashboard.html
+    - workplaces\templates\workplaces\_form_fields.html
+    - workplaces\templates\workplaces\termset_form.html
+    - workplaces\templates\workplaces\workplace_detail.html
+    - workplaces\templates\workplaces\workplace_form.html
+
+
  E – Move Django into src/ (high risk, isolated): relocate code, update BASE_DIR/settings paths/CLAUDE.md, copy DB first
  
  F – dk locale rework (do last, test in isolation): simplify the Danish-number filter internals. Add locale selector to settings
 
  G - Update CLAUDE.md so new code / changes is appropriately styled, hardened etc.
 
+
+Need to fix before merge:
+
+
+- Remove migration files, as code is not deployed/in production and a db wipe/recreation is not currently a problem
+- Remove worksessions app?
+- Dark mode when?
 
 --> Efter refactor, lav en base hjemmeside, så andre Bit-apps kan laves med et lignende visuelt udtryk. Gem denne til D:\Github\BitBase\
 
@@ -31,7 +53,7 @@
 - Add a button that includes planned shifts in the stats etc.
 - The month picker should be at the top, just under the workplace name.
 - Edit Workplace, Customize Appearance, Delete, and Payslip editor should be moved to a hamburger menu that is located where the delete button is (top/left in the same level as the company name/logo)
-- Back-button: if you change the month, the back button should not go back to the month you were on before, it should go back to the main dashboard or workplaces overview.
+- Back-button: if you change the month, the back button should not go back to the month you were on bekeep fore, it should go back to the main dashboard or workplaces overview.
 - The tables are a bit cluttered. Their position should automatically changed according to what is configured for the workplace. They should go from top/left to bottom/right in the following order:
 1. Details
 2. Feriepenge / Flexkonto
@@ -125,3 +147,4 @@ A page that lets me configure studieaktivitet for each month in the year, and th
 -- 2 (SU fravalgt eller Orlov/Lønnet praktik/studieinaktiv)
 -- 3 (Ikke er indskrevet, ikke flere SU klip).
 - The amounts for each level are changed every year and should thus be easily configurable like with ATP. The current rates are 1: 20.749 kr. per måned, 2: 23.598 kr. per måned, 3: 45.420 kr. per måned. If you have kids under 18, the yearly limit is increased by 34.129 kr. per child in 2026. -- so amount of children should also be configurable on the SU page. 
+
