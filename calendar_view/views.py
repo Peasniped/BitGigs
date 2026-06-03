@@ -323,7 +323,7 @@ class PlannedShiftUpdateAPIView(View):
 
 
 class BulkDeleteShiftsView(View):
-    """Delete all planned shifts for a workplace within a payroll period."""
+    """Delete all planned shifts — either for a workplace/period or for a single date."""
 
     def post(self, request):
         try:
@@ -331,6 +331,21 @@ class BulkDeleteShiftsView(View):
         except json.JSONDecodeError:
             return JsonResponse({"ok": False, "error": "Invalid JSON."}, status=400)
 
+        # Date-only deletion: remove all planned shifts across all workplaces on one day
+        if data.get("date") and not data.get("workplace_id"):
+            try:
+                target_date = date.fromisoformat(data["date"])
+            except ValueError:
+                return JsonResponse({"ok": False, "error": "Invalid date."}, status=400)
+            shifts = PlannedShift.objects.filter(
+                date=target_date,
+                status=PlannedShift.Status.PLANNED,
+            )
+            count = shifts.count()
+            shifts.delete()
+            return JsonResponse({"ok": True, "deleted": count})
+
+        # Workplace/period deletion (original behaviour)
         workplace_id = data.get("workplace_id")
         period_start = data.get("period_start")
         period_end = data.get("period_end")

@@ -129,6 +129,8 @@
   body.delete-all-mode .shift-chip--planned:hover { outline: 2px solid #dc2626; outline-offset: 1px; border-radius: 6px; background: rgba(220,38,38,.12); }
   body.delete-all-mode .day-hover-overlay { display: none !important; }
   body.delete-all-mode .wp-card { cursor: pointer; }
+  body.delete-all-mode .calendar-day[data-date] { cursor: pointer; }
+  body.delete-all-mode .calendar-day[data-date]:hover { background: rgba(220,38,38,.08) !important; outline: 2px dashed #dc2626; outline-offset: -2px; }
 
   /* Fast-create-stamp selected card */
   .wp-card--selected,
@@ -414,7 +416,7 @@
     <i class="bi bi-trash3"></i>
     Delete
   </button>
-  <button type="button" class="power-toolbar__btn" id="peDeleteAllBtn" title="Delete all shifts for a workplace in this period" style="display:none;">
+  <button type="button" class="power-toolbar__btn" id="peDeleteAllBtn" title="Click a workplace card to delete all its shifts, or click a day to delete all shifts on that day" style="display:none;">
     <i class="bi bi-trash3-fill"></i>
     Delete All
   </button>
@@ -848,7 +850,7 @@
     document.body.classList.remove('delete-mode');
     document.body.classList.add('delete-all-mode');
     peDeleteAllBtn.classList.add('active');
-    peHint.textContent = 'Click a shift or workplace card to delete ALL its planned shifts';
+    peHint.textContent = 'Click a workplace card to delete ALL its shifts, or click a calendar day to delete all shifts on that day';
   });
 
   function deleteAllForWorkplace(wpId) {
@@ -887,6 +889,34 @@
         updateWpCardProgress(wpId);
         exitAllModes();
         peHint.textContent = 'Deleted ' + data.deleted + ' shift(s) for ' + (wp ? wp.name : 'workplace');
+      }
+    });
+  }
+
+  function deleteAllForDay(dateStr) {
+    var chips = document.querySelectorAll('.planning-calendar td[data-date="' + dateStr + '"] .shift-chip--planned');
+    var count = chips.length;
+    if (count === 0) return;
+    var parts = dateStr.split('-');
+    var label = parts[2] + '/' + parts[1] + '/' + parts[0];
+    if (!confirm('Delete all ' + count + ' planned shift(s) on ' + label + '?')) return;
+    fetch(BULK_DELETE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ date: dateStr }),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.ok) {
+        var td = document.querySelector('.planning-calendar td[data-date="' + dateStr + '"]');
+        if (td) {
+          td.querySelectorAll('.shift-chip--planned').forEach(function(chip) {
+            var wpId = parseInt(chip.dataset.workplaceId);
+            chip.remove();
+            if (wpId) updateWpCardProgress(wpId);
+          });
+          updateDayHourBadge(td);
+        }
+        exitAllModes();
+        peHint.textContent = 'Deleted ' + data.deleted + ' shift(s) on ' + label;
       }
     });
   }
@@ -1498,6 +1528,12 @@
       if (e.target.closest('.shift-chip--planned') || e.target.closest('.shift-chip--approved') || e.target.closest('.wp-picker')) return;
       hideWpPicker();
       var dateStr = td.dataset.date;
+
+      // In delete-all mode, delete all planned shifts for this day
+      if (deleteAllMode) {
+        deleteAllForDay(dateStr);
+        return;
+      }
 
       // In fast-create-stamp mode, stamp shift immediately (fastCreateShift gates bounds)
       if (fastCreateMode && fastCreateWpId) {
