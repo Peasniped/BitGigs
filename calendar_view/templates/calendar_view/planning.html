@@ -113,6 +113,16 @@
   .planning-calendar .calendar-day.chip-hover .day-hover-overlay { opacity: 0 !important; }
   .planning-calendar .calendar-day.chip-hover .day-wp-indicator { opacity: 0 !important; }
 
+  /* Shift chip stacking: use flex-column so gap is predictable and chips don't
+     float; approved chips (direct td children) also form a tighter stack. */
+  .planning-calendar .planned-shifts-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .planning-calendar .planned-shifts-container .shift-chip { margin-bottom: 0; }
+  .planning-calendar > * > * > .calendar-day > .shift-chip--approved { margin-bottom: 1px; }
+
   /* Copy-paste mode */
   body.copy-mode .shift-chip--planned { cursor: copy; }
   body.copy-mode .shift-chip--planned:hover { outline: 2px solid #6366f1; outline-offset: 1px; border-radius: 6px; }
@@ -394,7 +404,12 @@
 </div>
 
 {% if has_overlaps %}
-<div class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-3" role="alert">
+<div id="overlapBanner" class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-3" role="alert">
+  <i class="bi bi-exclamation-triangle-fill"></i>
+  <span>One or more shifts this month overlap in time. Overlapping shifts are highlighted in amber.</span>
+</div>
+{% else %}
+<div id="overlapBanner" class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-3" role="alert" style="display:none!important;">
   <i class="bi bi-exclamation-triangle-fill"></i>
   <span>One or more shifts this month overlap in time. Overlapping shifts are highlighted in amber.</span>
 </div>
@@ -887,6 +902,7 @@
           }
         });
         updateWpCardProgress(wpId);
+        recheckOverlaps();
         exitAllModes();
         peHint.textContent = 'Deleted ' + data.deleted + ' shift(s) for ' + (wp ? wp.name : 'workplace');
       }
@@ -915,6 +931,7 @@
           });
           updateDayHourBadge(td);
         }
+        recheckOverlaps();
         exitAllModes();
         peHint.textContent = 'Deleted ' + data.deleted + ' shift(s) on ' + label;
       }
@@ -982,6 +999,7 @@
             var chip = buildShiftChip(data.shift, wp);
             container.appendChild(chip);
             updateDayHourBadge(td);
+            recheckOverlaps();
           }
         }
       }
@@ -1006,6 +1024,7 @@
           chip.remove();
           if (td) updateDayHourBadge(td);
           updateWpCardProgress(wpId);
+          recheckOverlaps();
         }, 200);
       }
     });
@@ -1037,25 +1056,96 @@
       '<small class="shift-chip__hours">(' + toDanish(s.net_hours) + 'h)</small>' +
       '<i class="bi bi-pencil shift-chip__edit"></i>';
 
-    // Wire up click for copy/delete/edit
-    div.addEventListener('click', function(e) {
-      e.stopPropagation();
-      if (copyMode) { selectShiftForCopy(div); return; }
-      if (deleteMode) { deleteShiftImmediate(div); return; }
-      openEditShiftModal(s.id);
-    });
-
-    // Chip hover class for overlay suppression
-    div.addEventListener('mouseenter', function() {
-      var td = div.closest('.calendar-day');
-      if (td) td.classList.add('chip-hover');
-    });
-    div.addEventListener('mouseleave', function() {
-      var td = div.closest('.calendar-day');
-      if (td) td.classList.remove('chip-hover');
-    });
-
+    wireShiftChip(div, s.workplace_id);
     return div;
+  }
+
+  // Attach drag, click, and hover handlers to a dynamically created or page-loaded chip.
+  function wireShiftChip(chip, wpId) {
+    var td = chip.closest('td[data-date]');
+    var dateStr = td ? td.dataset.date : '';
+
+    if (wpId && dateStr && !isInPeriod(wpId, dateStr)) {
+      chip.classList.add('shift-chip--prior-period');
+      chip.removeAttribute('draggable');
+      return;
+    }
+
+    chip.addEventListener('dragstart', function(e) {
+      e.stopPropagation();
+      draggedWorkplaceId = wpId;
+      e.dataTransfer.setData('text/plain', JSON.stringify({
+        type: 'move-shift',
+        shift_id: parseInt(chip.dataset.shiftId),
+        workplace_id: wpId,
+      }));
+      e.dataTransfer.effectAllowed = 'move';
+      highlightPeriodDays(wpId);
+    });
+    chip.addEventListener('dragend', function() {
+      draggedWorkplaceId = null;
+      clearPeriodHighlights();
+    });
+    chip.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (copyMode) { selectShiftForCopy(chip); return; }
+      if (deleteMode) { deleteShiftImmediate(chip); return; }
+      if (deleteAllMode) { deleteAllForWorkplace(wpId); return; }
+      openEditShiftModal(parseInt(chip.dataset.shiftId));
+    });
+    chip.addEventListener('mouseenter', function() {
+      var parent = chip.closest('.calendar-day');
+      if (parent) parent.classList.add('chip-hover');
+    });
+    chip.addEventListener('mouseleave', function() {
+      var parent = chip.closest('.calendar-day');
+      if (parent) parent.classList.remove('chip-hover');
+    });
+  }
+
+  // Re-detect overlaps client-side and update chip styling + banner visibility.
+  function recheckOverlaps() {
+    // Clear existing overlap styling
+    document.querySelectorAll('.planning-calendar .shift-chip--overlap').forEach(function(c) {
+      c.classList.remove('shift-chip--overlap');
+      c.title = c.title.replace(/^⚠ Overlapping shift — /, '');
+    });
+
+    var hasAny = false;
+    document.querySelectorAll('.planning-calendar td[data-date]').forEach(function(td) {
+      var chips = Array.from(td.querySelectorAll('.shift-chip:not(.shift-chip--prior-period)'));
+      if (chips.length < 2) return;
+      var items = chips.map(function(c) {
+        var el = c.querySelector('.shift-chip__time');
+        if (!el) return null;
+        var parts = el.textContent.trim().split('-');
+        if (parts.length !== 2) return null;
+        var toMin = function(hhmm) {
+          var p = hhmm.split(':');
+          return parseInt(p[0]) * 60 + parseInt(p[1]);
+        };
+        return { el: c, start: toMin(parts[0]), end: toMin(parts[1]) };
+      }).filter(Boolean);
+
+      var overlapping = new Set();
+      for (var i = 0; i < items.length; i++) {
+        for (var j = i + 1; j < items.length; j++) {
+          if (items[i].start < items[j].end && items[j].start < items[i].end) {
+            overlapping.add(i);
+            overlapping.add(j);
+          }
+        }
+      }
+      overlapping.forEach(function(idx) {
+        var chip = items[idx].el;
+        chip.classList.add('shift-chip--overlap');
+        if (!chip.title.startsWith('⚠')) chip.title = '⚠ Overlapping shift — ' + chip.title;
+        hasAny = true;
+      });
+    });
+
+    var banner = document.getElementById('overlapBanner');
+    if (banner) banner.style.display = hasAny ? '' : 'none';
   }
 
   // Recalculate and update the hour badge for a day cell
@@ -1160,6 +1250,7 @@
             container.appendChild(chip);
             updateDayHourBadge(td);
             updateWpCardProgress(workplaceId);
+            recheckOverlaps();
           }
         }
       }
@@ -1253,51 +1344,7 @@
 
   // ----- Mark prior-period chips & set up drag/click for current-period chips -----
   document.querySelectorAll('.shift-chip--planned[draggable]').forEach(function(chip) {
-    var td = chip.closest('td[data-date]');
-    var wpId = parseInt(chip.dataset.workplaceId);
-    var dateStr = td ? td.dataset.date : '';
-
-    // Grey-out chips that belong to a prior (or future) payroll period
-    if (wpId && dateStr && !isInPeriod(wpId, dateStr)) {
-      chip.classList.add('shift-chip--prior-period');
-      chip.removeAttribute('draggable');
-      return; // skip drag/click handlers for prior-period chips
-    }
-
-    chip.addEventListener('dragstart', function(e) {
-      e.stopPropagation();
-      var shiftId = parseInt(chip.dataset.shiftId);
-      draggedWorkplaceId = wpId;
-      e.dataTransfer.setData('text/plain', JSON.stringify({
-        type: 'move-shift',
-        shift_id: shiftId,
-        workplace_id: wpId,
-      }));
-      e.dataTransfer.effectAllowed = 'move';
-      highlightPeriodDays(wpId);
-    });
-    chip.addEventListener('dragend', function() {
-      draggedWorkplaceId = null;
-      clearPeriodHighlights();
-    });
-
-    // Click to edit (or copy/delete/delete-all in power edit modes)
-    chip.addEventListener('click', function(e) {
-      e.stopPropagation();
-      if (copyMode) {
-        selectShiftForCopy(chip);
-        return;
-      }
-      if (deleteMode) {
-        deleteShiftImmediate(chip);
-        return;
-      }
-      if (deleteAllMode) {
-        deleteAllForWorkplace(wpId);
-        return;
-      }
-      openEditShiftModal(parseInt(chip.dataset.shiftId));
-    });
+    wireShiftChip(chip, parseInt(chip.dataset.workplaceId));
   });
 
   // ----- Click approved sessions to edit -----
@@ -1866,7 +1913,24 @@
         return;
       }
       shiftModal.hide();
-      location.reload();
+      // New planned shift: insert chip via JS instead of reloading
+      if (!shiftId && !sessionId && data.shift) {
+        var newDateStr = data.shift.date;
+        var newWp = wpMap[data.shift.workplace_id];
+        var newTd = document.querySelector('.planning-calendar td[data-date="' + newDateStr + '"]');
+        if (newTd) {
+          var newContainer = newTd.querySelector('.planned-shifts-container');
+          if (newContainer) {
+            var newChip = buildShiftChip(data.shift, newWp);
+            newContainer.appendChild(newChip);
+            updateDayHourBadge(newTd);
+            if (newWp) updateWpCardProgress(data.shift.workplace_id);
+          }
+        }
+        recheckOverlaps();
+      } else {
+        location.reload();
+      }
     });
   });
 
