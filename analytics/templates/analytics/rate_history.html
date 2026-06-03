@@ -3,68 +3,10 @@
 {% block title %}Rate History &middot; BitGigs{% endblock %}
 
 {% block extra_css %}
+{# Shared filter-bar / picker / table styles live in static/css/style.css. #}
 <style>
-  .wp-picker-strip { display:flex; flex-wrap:wrap; gap:0.6rem; justify-content:center; }
-  .wp-picker-card {
-    cursor:pointer;
-    border:1.5px solid #e2e8f0;
-    border-radius:0.75rem;
-    padding:0.55rem 0.95rem;
-    background:#fff;
-    display:flex; align-items:center; gap:0.55rem;
-    font-size:0.85rem; user-select:none;
-    transition: box-shadow .15s, transform .15s, border-color .15s, background .15s;
-    min-width:140px;
-  }
-  .wp-picker-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); transform:translateY(-1px); }
-  .wp-picker-card.selected {
-    border-color:#6366f1; background:#eef2ff;
-    box-shadow:0 0 0 1.5px #6366f1, 0 4px 12px rgba(99,102,241,.18);
-  }
-  .wp-picker-card .all-badge,
-  .wp-picker-card .period-badge {
-    width:36px; height:36px; border-radius:50%;
-    display:inline-flex; align-items:center; justify-content:center;
-    background:#0f172a; color:#fff; font-weight:700; flex-shrink:0;
-  }
-  .wp-picker-card .period-badge { background:#6366f1; }
-
-  /* Period picker card layout (label small, value big) */
-  .period-card {
-    background:#fff; border:1.5px solid #e2e8f0; border-radius:0.75rem;
-    padding:0.55rem 0.95rem;
-    display:flex; align-items:center; gap:0.6rem;
-    cursor:pointer; user-select:none;
-    transition: box-shadow .15s, transform .15s, border-color .15s, background .15s;
-  }
-  .period-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); transform:translateY(-1px); }
-  .period-card.show { border-color:#6366f1; box-shadow:0 0 0 1.5px #6366f1, 0 4px 12px rgba(99,102,241,.18); }
-  .period-card__label { font-size:0.7rem; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; line-height:1; }
-  .period-card__value { font-size:1.05rem; font-weight:700; color:#0f172a; line-height:1.15; margin-top:2px; }
-  .period-card .dropdown-toggle::after { display:none; }
-
-  .picker-row { display:flex; align-items:flex-start; gap:1rem; flex-wrap:wrap; }
-  .picker-workplaces {
-    flex:1 1 auto;
-    display:flex; flex-wrap:wrap; justify-content:center; gap:0.6rem;
-  }
-
   .row-current { background-color: rgba(59, 130, 246, 0.10) !important; }
   .row-historic { background-color: rgba(148, 163, 184, 0.06) !important; }
-
-  .analytics-table th,
-  .analytics-table td { padding:0.75rem 1rem; vertical-align:middle; }
-  .analytics-table th { font-weight:600; color:#475569; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.03em; }
-
-  .wp-collapse-header {
-    cursor:pointer;
-    display:flex; align-items:center; gap:0.65rem;
-    padding:0.85rem 1.1rem;
-    transition:background .12s;
-  }
-  .wp-collapse-header:hover { background:#f8fafc; }
-  .wp-collapse-header .chevron { transition:transform .2s; }
-  .wp-collapse-header[aria-expanded="true"] .chevron { transform:rotate(90deg); }
 </style>
 {% endblock %}
 
