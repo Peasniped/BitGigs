@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}{% if workplace %}Edit{% else %}New{% endif %} Workplace &middot; BitGigs{% endblock %}
 
 {% block content %}
@@ -36,4 +37,8 @@
 
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/slug_field.js' %}"></script>
 {% endblock %}

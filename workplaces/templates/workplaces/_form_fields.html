@@ -11,7 +11,11 @@
 </div>
 
 {# Slug preview — hidden input unless user clicks [change] #}
-<div class="mb-3" id="slugRow">
+<div class="mb-3" id="slugRow"
+     data-name-id="{{ form.name.id_for_label }}"
+     data-slug-id="{{ form.slug.id_for_label }}"
+     data-slug-value="{{ form.slug.value|default_if_none:'' }}"
+     data-has-error="{{ form.slug.errors|yesno:'1,' }}">
   <div id="slugPreview" class="form-text mt-0" style="display:none;">
     ( Will use slug
     <i id="slugPreviewText">{{ form.slug.value|default_if_none:'' }}</i>
@@ -27,54 +31,3 @@
     <div class="form-text">{{ form.slug.help_text }}</div>
   </div>
 </div>
-<script>
-(function () {
-  var nameInput = document.getElementById('{{ form.name.id_for_label }}');
-  var slugInput = document.getElementById('{{ form.slug.id_for_label }}');
-  var previewText = document.getElementById('slugPreviewText');
-  var previewRow = document.getElementById('slugPreview');
-  var editRow = document.getElementById('slugEditRow');
-  var changeLink = document.getElementById('slugChangeLink');
-
-  function toSlug(s) {
-    return s.toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .trim()
-      .replace(/[\s_]+/g, '-')
-      .replace(/-+/g, '-');
-  }
-
-  nameInput.addEventListener('input', function () {
-    var slug = toSlug(this.value);
-    previewText.textContent = slug;
-    if (editRow.style.display === 'none') {
-      previewRow.style.display = slug ? '' : 'none';
-    } else {
-      // Edit mode: update the placeholder so the auto-generated slug stays visible
-      slugInput.placeholder = slug || 'auto-generated from name';
-    }
-  });
-
-  changeLink.addEventListener('click', function (e) {
-    e.preventDefault();
-    slugInput.value = '';
-    slugInput.placeholder = toSlug(nameInput.value) || 'auto-generated from name';
-    previewRow.style.display = 'none';
-    editRow.style.display = '';
-    slugInput.focus();
-  });
-
-  // Initialise on page load
-  {% if form.slug.errors %}
-    // Server returned a slug error — show edit row directly
-    editRow.style.display = '';
-  {% else %}
-    var initialSlug = '{{ form.slug.value|default_if_none:'' }}' || toSlug(nameInput.value);
-    if (initialSlug) {
-      previewText.textContent = initialSlug;
-      previewRow.style.display = '';
-    }
-    // If both are empty (blank new form), leave both rows hidden
-  {% endif %}
-})();
-</script>
