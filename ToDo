@@ -4,30 +4,6 @@
 
 # NU     --------------------------------------------------------
 
-*** Complete walkthrough of the code ***
- D – Split large files: extract inline JS/CSS from workplace_detail.html, planning.html, analytics; modularize app.js
-   --- Progress (branch: refactor) ---
-   DONE & committed:
-     * Design tokens in static/css/style.css (:root) — colours/font tweakable in one place
-     * planning.html CSS -> static/css/planning.css
-     * per-workplace accent CSS -> single --wp-accent custom property (.accent-form)
-     * shift_form live-calc JS deduped into app.js initShiftCalc()
-     * inline hex colours tokenized (dashboard, analytics, period_detail, modals)
-     * JS extracted to static: period_detail->payslip_detail.js, approve_shifts->approve_shifts.js,
-       termset_form->termset_form.js
-   Reusable pattern for the rest: move inline <script> to static/js/<page>.js; hand server data
-     (URLs, form field ids) to it via data-* attributes or json_script (NEVER {% %} inside the .js);
-     reuse global getCsrfToken()/toDanish() from app.js; load via {% block extra_js %} + {% static %}.
-   STILL TO DO (the "giants" — best one-per-commit in a fresh session, lots of JS):
-     - templates\dashboard.html  (~461 lines JS; json_script + {% url %} + {% if %})
-     - calendar_view\templates\calendar_view\planning.html  (~621 lines JS; json_script + several {% url %})
-     - workplaces\templates\workplaces\workplace_detail.html  (~730 lines JS; customize/cropper/SVG-recolor + {{ }})
-     - workplaces\templates\workplaces\_form_fields.html  (~51 lines slug JS; it's a PARTIAL — includer must load the static js)
-   TO VERIFY (manual click-test, no JS tests): period_detail (add/edit/reorder line, totals toggle,
-     tax-pull-day edit), approve_shifts (select-all, pencil-edit save), termset_form (toggles, hour-goal
-     auto-populate, effective-from Today button).
-
-
  E – Move Django into src/ (high risk, isolated): relocate code, update BASE_DIR/settings paths/CLAUDE.md, copy DB first
  F – dk locale rework (do last, test in isolation): simplify the Danish-number filter internals. Add locale selector to settings
  G - Update CLAUDE.md so new code / changes is appropriately styled, hardened etc.
@@ -104,7 +80,19 @@ Allow the system to send out calender invites to my work emails and add to my Go
 - - There should be a test button that checks: is the connection ok and without errors
 - The system should not care about replies to the events or anything.
 
-*** Non-work events in planning calendar. ***
+## Planning Calendar
+
+- UX Improve: Power Edit-mode nudging
+- - Helps the user with what to click
+- - I'm thinking of something in the form of a diffuse backlight to the elements you can click when the different modes are activated
+- - Fast Create active -> Hightlights workplace cards
+- - Copy-mode active -> Hightlights shifts eligible for copying
+- - Delete-mode active -> Hightlights shifts eligible for deletion
+- - Delete All-mode active -> Hightlights Workplace cards and date cells
+- Make the Power Edit X (in the top right corner) more bigger and more visible
+
+
+*** Non-work events ***
 - Possibility to add events to the calendar that are non-work related, but helps avoid collissions when planning shifts
 - Only visible in the planning calendar. (Maybe you can toggle this on settings-page, like: "Non-work events visible in calendars on pages: [x] Planning calendar, [] Main Dashboard, [] Workplace calendars") -- if none is selected, the function is disabled -- default is planning calendar only.
 - Drag onto the calendar like a workplace shift, but is not selectable by clicking on a date.
