@@ -17,9 +17,9 @@ env/
 # Django
 db.sqlite3
 db.sqlite3-journal
-instance/
+instance/*
+!instance/.gitkeep
 staticfiles/
-media/
 
 # IDE
 .vscode/
