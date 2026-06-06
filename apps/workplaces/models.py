@@ -1,4 +1,5 @@
 import calendar as _cal
+import os
 from datetime import date as _date
 from decimal import Decimal
 
@@ -9,6 +10,13 @@ from django.core.exceptions import ValidationError
 from django.utils.text import slugify
 
 from core.utils import weekly_to_monthly_hours
+
+
+def workplace_icon_upload_to(instance, filename):
+    """Store custom icons as workplace_icons/<slug>_icon.<ext> so files are
+    identifiable per workplace and a re-upload overwrites the previous one."""
+    ext = os.path.splitext(filename)[1].lower() or ".png"
+    return f"workplace_icons/{instance.slug}_icon{ext}"
 
 
 class Workplace(models.Model):
@@ -27,7 +35,7 @@ class Workplace(models.Model):
         help_text="Bootstrap Icons class, e.g. 'bi-briefcase'.",
     )
     custom_icon = models.FileField(
-        upload_to="workplace_icons/",
+        upload_to=workplace_icon_upload_to,
         blank=True,
         default="",
         help_text="Custom icon (PNG or SVG, max 512 KB).",
