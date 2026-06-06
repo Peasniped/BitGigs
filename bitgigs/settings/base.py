@@ -12,6 +12,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # before the app registry, so this single insert covers manage.py/wsgi/asgi.
 sys.path.insert(0, str(BASE_DIR / "apps"))
 
+# Editable reference-data files (e.g. ATP rates) live here.
+DATA_DIR = BASE_DIR / "data"
+
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
     "django-insecure-CHANGE-ME-in-production-bitgigs",

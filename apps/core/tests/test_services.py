@@ -144,3 +144,47 @@ class TaxCalculationServiceTest(TestCase):
         self.assertEqual(result.a_skat, Decimal("8654.76"))
         # Net = 30000 - 99 - 600 - 2344.08 - 8654.76 = 18302.16
         self.assertEqual(result.net_pay, Decimal("18302.16"))
+
+
+class ATPServiceBracketTest(TestCase):
+    """ATP brackets are lower-bound tiers: fractional hours between integer tier
+    edges must resolve to the lower tier, never fall into a gap."""
+
+    def setUp(self):
+        # post_migrate seeds the real CSV into the test DB; start from a clean slate.
+        ATPConfiguration.objects.all().delete()
+        config = ATPConfiguration.objects.create(effective_from=date(2024, 1, 1))
+        for h_min, h_max, emp, empr in [
+            (0, 38, "0", "0"),
+            (39, 77, "33.00", "66.00"),
+            (78, 116, "66.00", "132.00"),
+            (117, None, "99.00", "198.00"),
+        ]:
+            ATPBracket.objects.create(
+                configuration=config,
+                hours_min=Decimal(h_min),
+                hours_max=Decimal(h_max) if h_max is not None else None,
+                employee_amount=Decimal(emp),
+                employer_amount=Decimal(empr),
+            )
+        self.as_of = date(2024, 6, 1)
+
+    def _emp(self, hours):
+        return ATPService.get_contributions(Decimal(hours), as_of=self.as_of)[0]
+
+    def test_tier_edges_and_gaps(self):
+        self.assertEqual(self._emp("38"), Decimal("0"))
+        self.assertEqual(self._emp("38.5"), Decimal("0"))   # below 39 → 0
+        self.assertEqual(self._emp("39"), Decimal("33.00"))
+        self.assertEqual(self._emp("77.5"), Decimal("33.00"))  # gap edge, was 0
+        self.assertEqual(self._emp("78"), Decimal("66.00"))
+        self.assertEqual(self._emp("116.5"), Decimal("66.00"))  # gap edge, was 0
+        self.assertEqual(self._emp("117"), Decimal("99.00"))
+        self.assertEqual(self._emp("200"), Decimal("99.00"))   # open-ended top
+
+    def test_no_config_returns_zero(self):
+        ATPConfiguration.objects.all().delete()
+        self.assertEqual(
+            ATPService.get_contributions(Decimal("100"), as_of=self.as_of),
+            (Decimal("0"), Decimal("0")),
+        )

@@ -61,18 +61,24 @@ class ATPService:
         """
         Return (employee_amount, employer_amount) for the given monthly hours.
         Returns (0, 0) if no ATP configuration exists or hours fall below all brackets.
+
+        ATP tiers are defined by lower thresholds (>=39, >=78, >=117 h/month), so the
+        applicable bracket is the highest one whose hours_min <= hours. hours_max is
+        descriptive only and intentionally not used for matching, so fractional hours
+        between tier edges can never fall into a gap.
         """
         config = cls.get_active_config(as_of)
         if config is None:
             return Decimal("0"), Decimal("0")
 
+        match = None
         for bracket in config.brackets.all():
-            in_lower = monthly_hours >= bracket.hours_min
-            in_upper = bracket.hours_max is None or monthly_hours <= bracket.hours_max
-            if in_lower and in_upper:
-                return bracket.employee_amount, bracket.employer_amount
+            if monthly_hours >= bracket.hours_min and (match is None or bracket.hours_min > match.hours_min):
+                match = bracket
 
-        return Decimal("0"), Decimal("0")
+        if match is None:
+            return Decimal("0"), Decimal("0")
+        return match.employee_amount, match.employer_amount
 
 
 class TaxCalculationService:
