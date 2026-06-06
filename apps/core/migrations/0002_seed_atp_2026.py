@@ -7,7 +7,6 @@ ATP-satser 2026 for lønmodtager:
   39–77 timer/md:  33,00 kr.
   Under 39 timer/md: 0 kr.
 """
-
 from datetime import date
 from decimal import Decimal
 
@@ -54,7 +53,7 @@ def remove_atp_2026(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("core", "0002_atpconfiguration_atpbracket"),
+        ("core", "0001_initial"),
     ]
 
     operations = [
