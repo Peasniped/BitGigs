@@ -7,13 +7,20 @@ Django 5.1 app for tracking shifts and estimating Danish net pay across multiple
 - Activate venv: `.venv\Scripts\Activate.ps1` (Windows PowerShell). Always use `--settings=bitgigs.settings.local` for dev.
 - Smoke check after edits: `python manage.py check --settings=bitgigs.settings.local`
 - Quick page render check: `python manage.py shell --settings=bitgigs.settings.local -c "from django.test import Client; print(Client().get('/PATH/').status_code)"`
-- Tests: `python manage.py test --settings=bitgigs.settings.local`
+- Tests: `python manage.py test apps --settings=bitgigs.settings.local` (the `apps` label is required — see layout note below)
 
-## Apps (each = `models.py`, `views.py`, `services.py`, `urls.py`, `templates/<app>/`, `tests/`)
+## Project layout
+
+- Feature apps live under `apps/`. `apps/` is a plain directory placed on `sys.path` (via a one-line insert in `bitgigs/settings/base.py`), **not** a Python package — so import names and app labels stay bare (`core`, `workplaces`, …) and `INSTALLED_APPS` is unchanged. Never add `apps/__init__.py`.
+- Because `apps/` isn't a package, `manage.py test` with no args discovers 0 tests — always pass the `apps` label (or specific app labels).
+- `bitgigs/` (project config) stays at the repo root, so `BASE_DIR` and `DJANGO_SETTINGS_MODULE`/`wsgi`/`asgi` paths are unaffected.
+- Project-level assets live under `assets/`: `assets/static/{css,js,graphics}` (the staticfiles root) and `assets/templates/` (project-level templates). `graphics/` holds bundled images like the logos (referenced as `{% static 'graphics/…' %}`); user-uploaded files stay in `media/`.
+
+## Apps (each = `models.py`, `views.py`, `services.py`, `urls.py`, `templates/<app>/`, `tests/`; all under `apps/`)
 
 | App | Purpose |
 |---|---|
-| `bitgigs/` | Project config; settings split into `base.py` / `local.py` / `production.py`; root `urls.py` |
+| `bitgigs/` | Project config (at repo root, not under `apps/`); settings split into `base.py` / `local.py` / `production.py`; root `urls.py` |
 | `core/` | `UserSettings` (singleton), `TaxProfile` (date-versioned), `ATPConfiguration`/`ATPBracket`, dashboard, settings page, `templatetags/dk_filters.py` (`dk` number filter) |
 | `workplaces/` | `Workplace`, `WorkplacePayRate` (date-versioned hourly/salary). Detail page hosts the customize-appearance modal (icon upload + Cropper.js + SVG recolor modal) |
 | `shifts/` | `Shift` (approved + planned). Daily/monthly overviews. Forms in `forms.py`. |
@@ -21,8 +28,8 @@ Django 5.1 app for tracking shifts and estimating Danish net pay across multiple
 | `calendar_view/` | Cross-workplace month grid; planning + approve flow |
 | `analytics/` | Income projection (`analytics.html`) and rate history (`rate_history.html`). Shared filter helpers `_resolve_workplace_filter` and `_resolve_period` in `views.py` |
 | `data_io/` | Import/export |
-| `templates/` | Project-level `base.html`, `dashboard.html` |
-| `static/` | `css/style.css`, `js/app.js` |
+| `assets/templates/` | Project-level `base.html`, `dashboard.html`, `_period_filter_notice.html` |
+| `assets/static/` | `css/style.css`, `css/planning.css`, `js/app.js` (+ per-page JS), `graphics/` (logos) |
 
 ## Conventions
 
@@ -32,7 +39,7 @@ Django 5.1 app for tracking shifts and estimating Danish net pay across multiple
 - Filter forms use a hidden `wp_set=1` marker + multiple `workplace=<slug>` (or `workplace=all`) values; `_resolve_workplace_filter` decodes them.
 - Period filter uses `period_mode=year|range` + `year=` or `start=`/`end=`; decoded by `_resolve_period`.
 - Analytics filter bar (period card + workplace cards in `picker-row`) is shared verbatim between `analytics.html` and `rate_history.html`.
-- Bootstrap modals stacked over the customize-appearance modal must hide the parent first (see SVG recolor flow in `workplaces/templates/workplaces/workplace_detail.html`).
+- Bootstrap modals stacked over the customize-appearance modal must hide the parent first (see SVG recolor flow in `apps/workplaces/templates/workplaces/workplace_detail.html`).
 - Some templates contain mojibake bytes (`â•Ð…`) in section comments. `replace_string_in_file` may fail to match those lines — use a small Python script with explicit `\u00e2\u2022\u0090` escapes when needed.
 - Multi-line `{# … #}` Django comments don't exist; use `{% comment %}…{% endcomment %}`.
 
