@@ -2,9 +2,15 @@
 Base settings shared across all environments.
 """
 import os
+import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+# Feature apps live under apps/ (a plain directory on the path, not a package),
+# so they keep their bare import names (core, workplaces, …). Settings load
+# before the app registry, so this single insert covers manage.py/wsgi/asgi.
+sys.path.insert(0, str(BASE_DIR / "apps"))
 
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
