@@ -523,7 +523,7 @@ document.addEventListener('DOMContentLoaded', function() {
         alert('Cropped image is too large. Try zooming in more or use a smaller image.');
         return;
       }
-      pendingFile = new File([blob], 'icon.png', { type: 'image/png' });
+      pendingFile = new File([blob], (cfg.slug || 'workplace') + '_icon.png', { type: 'image/png' });
       pendingDataUrl = canvas.toDataURL('image/png');
       willRemoveCustomIcon = false;
 

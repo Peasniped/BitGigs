@@ -837,6 +837,7 @@
      data-icon-mode="{{ workplace.custom_icon|yesno:'logo,icons' }}"
      data-avatar-color="{{ avatar_color }}"
      data-avatar-initials="{{ avatar_initials }}"
+     data-slug="{{ workplace.slug }}"
      data-selected-date="{{ selected_date|default:'' }}"></div>
 <script src="{% static 'js/workplace_detail.js' %}"></script>
 {% endblock %}
