@@ -203,7 +203,7 @@ class SetupWizardView(View):
 class LogoView(View):
     """Serve the BitGigs logo file for other apps/services to consume."""
 
-    LOGO_NAME = "BitGigs_Logo.png"
+    LOGO_NAME = "graphics/BitGigs_Logo.png"
 
     def get(self, request):
         import os
