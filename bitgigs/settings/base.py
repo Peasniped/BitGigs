@@ -89,6 +89,16 @@ TIME_ZONE = "Europe/Copenhagen"
 USE_I18N = True
 USE_TZ = True
 
+# Danish number formatting ("en-DK"): English UI text, Danish decimals.
+# The en override in bitgigs/formats sets comma decimals + period thousands,
+# so bare {{ number }} output localizes automatically.
+FORMAT_MODULE_PATH = "bitgigs.formats"
+# Intentionally OFF: Django's thousands grouping is magnitude-based and cannot
+# distinguish money from a year or a database id, so enabling it globally would
+# render e.g. 2026 -> "2.026" and pk 1500 -> "1.500" and break JS parseInt.
+# Grouped money ("1.234,56") comes from the dk filter, which forces grouping.
+USE_THOUSAND_SEPARATOR = False
+
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "assets" / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"

@@ -4,6 +4,8 @@ Shared utilities used across multiple apps.
 import re
 from decimal import Decimal, InvalidOperation
 
+from django.utils.formats import get_format
+
 
 WEEKS_PER_YEAR = Decimal("52")
 MONTHS_PER_YEAR = Decimal("12")
@@ -33,14 +35,19 @@ def active_dated_row(qs, as_of, field="effective_from"):
 
 
 def parse_danish_decimal(value: str) -> Decimal | None:
-    """Parse a Danish-formatted number string (1.234,56) into a Decimal.
+    """Parse a locale-formatted number string (e.g. 1.234,56) into a Decimal.
 
-    Returns None for empty or unparseable input.
+    Uses the active locale's separators (via ``get_format``): strips the
+    thousands separator and normalises the decimal separator to a dot. Returns
+    None for empty or unparseable input.
     """
     if not value:
         return None
+    thousand_sep = get_format("THOUSAND_SEPARATOR")
+    decimal_sep = get_format("DECIMAL_SEPARATOR")
     try:
-        return Decimal(value.replace(".", "").replace(",", "."))
+        normalized = str(value).replace(thousand_sep, "").replace(decimal_sep, ".")
+        return Decimal(normalized)
     except (InvalidOperation, ValueError):
         return None
 

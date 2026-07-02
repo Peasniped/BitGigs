@@ -1,6 +1,6 @@
 # BitGigs — Agent Quick Reference
 
-Django 5.1 app for tracking shifts and estimating Danish net pay across multiple workplaces. Bootstrap 5 + Bootstrap Icons UI, Cropper.js for icon cropping, Chart.js (CDN) for analytics charts. SQLite in dev, Postgres in prod.
+Django 6.0 app for tracking shifts and estimating Danish net pay across multiple workplaces. Bootstrap 5 + Bootstrap Icons UI, Cropper.js for icon cropping, Chart.js (CDN) for analytics charts. SQLite in dev, Postgres in prod.
 
 ## Run / verify
 
@@ -33,7 +33,8 @@ Django 5.1 app for tracking shifts and estimating Danish net pay across multiple
 
 ## Conventions
 
-- Money: `Decimal` everywhere; never float. Use `core.templatetags.dk_filters.dk` for display (Danish formatting).
+- Money: `Decimal` everywhere; never float.
+- Number formatting is "en-DK": English UI, Danish numbers. Decimal comma is **automatic** via Django L10N (`FORMAT_MODULE_PATH = "bitgigs.formats"`, en override) — bare `{{ value }}` already renders `1234,56`. Use `|dk:N` (or `|floatformat:"Ng"`) only when you also want **thousands grouping** (`1.234,56`); `dk` now delegates to Django's `floatformat` + Unicode minus. Parse locale input with `core.utils.parse_danish_decimal` (uses `get_format` separators). **Never enable `USE_THOUSAND_SEPARATOR`** — grouping is magnitude-based and would corrupt years/IDs (`2026 → "2.026"`, breaking JS `parseInt`).
 - Tax profiles and pay rates are **date-versioned**: pick the row whose `effective_from <= date`. Never mutate historical rows.
 - Services pattern: heavy logic lives in `<app>/services.py`; views stay thin.
 - Filter forms use a hidden `wp_set=1` marker + multiple `workplace=<slug>` (or `workplace=all`) values; `_resolve_workplace_filter` decodes them.
@@ -57,7 +58,7 @@ Django 5.1 app for tracking shifts and estimating Danish net pay across multiple
 
 ## Do's
 
-- Whenever I send a prompt, ask youself if what I am asking makes sense if not, ask. (:
+- Whenever I send a prompt, ask youself if what I am asking makes sense if not, ask. I am not the smartest person in the world, and may make mistakes or ask for things that does not make sense (:
 - Always DO ask me if you are ever uncertain about something
 - Do write Git commits at a regular interval when it makes sense
 - You must show a preview of git commits in text to the user for their confirmation before any tools are called.
