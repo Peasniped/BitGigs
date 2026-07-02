@@ -101,7 +101,7 @@
       return;
     }
     var s = queue[idx];
-    input.value = s.start_time;
+    window.setTimeValue(input, s.start_time);
     if (multiple) {
       label.textContent = 'Did you arrive early for your ' + s.start_time + ' shift?';
     } else {
@@ -322,6 +322,9 @@
       body.appendChild(wrapper);
     });
 
+    // Apply the 12/24h time-picker enhancement to the freshly-built rows.
+    if (window.initTimePickers) window.initTimePickers(body);
+
     // Attach per-workplace select all
     body.querySelectorAll('.wp-select-all').forEach(function(cb) {
       cb.addEventListener('change', function() {
@@ -412,8 +415,8 @@
       var s = data.shift;
       document.getElementById('dashEditShiftId').value = s.id;
       document.getElementById('dashEditDate').value = s.date;
-      document.getElementById('dashEditStart').value = s.start_time;
-      document.getElementById('dashEditEnd').value = s.end_time;
+      window.setTimeValue(document.getElementById('dashEditStart'), s.start_time);
+      window.setTimeValue(document.getElementById('dashEditEnd'), s.end_time);
       document.getElementById('dashEditBreak').value = s.break_minutes;
       document.getElementById('dashEditType').value = s.shift_type;
       document.getElementById('dashEditNotes').value = s.notes;

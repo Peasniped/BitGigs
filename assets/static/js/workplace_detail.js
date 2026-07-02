@@ -774,8 +774,8 @@ document.addEventListener('DOMContentLoaded', function() {
       var s = data.shift;
       document.getElementById('editApproveShiftId').value = s.id;
       document.getElementById('editApproveDate').value = s.date;
-      document.getElementById('editApproveStart').value = s.start_time;
-      document.getElementById('editApproveEnd').value = s.end_time;
+      window.setTimeValue(document.getElementById('editApproveStart'), s.start_time);
+      window.setTimeValue(document.getElementById('editApproveEnd'), s.end_time);
       document.getElementById('editApproveBreak').value = s.break_minutes;
       document.getElementById('editApproveType').value = s.shift_type;
       document.getElementById('editApproveNotes').value = s.notes;

@@ -1054,8 +1054,8 @@
     document.getElementById('shiftIsSession').value = '';
     document.getElementById('shiftWorkplaceId').value = workplaceId;
     document.getElementById('shiftDate').value = dateStr;
-    document.getElementById('shiftStart').value = wp.default_start || '';
-    document.getElementById('shiftEnd').value = wp.default_end || '';
+    window.setTimeValue(document.getElementById('shiftStart'), wp.default_start || '');
+    window.setTimeValue(document.getElementById('shiftEnd'), wp.default_end || '');
     document.getElementById('shiftBreak').value = wp.default_break ?? 0;
     document.getElementById('shiftType').value = wp.default_type || 'on_site';
     document.getElementById('shiftNotes').value = '';
@@ -1090,8 +1090,8 @@
       document.getElementById('shiftIsSession').value = '';
       document.getElementById('shiftWorkplaceId').value = s.workplace_id;
       document.getElementById('shiftDate').value = s.date;
-      document.getElementById('shiftStart').value = s.start_time;
-      document.getElementById('shiftEnd').value = s.end_time;
+      window.setTimeValue(document.getElementById('shiftStart'), s.start_time);
+      window.setTimeValue(document.getElementById('shiftEnd'), s.end_time);
       document.getElementById('shiftBreak').value = s.break_minutes;
       document.getElementById('shiftType').value = s.shift_type;
       document.getElementById('shiftNotes').value = s.notes;
@@ -1119,8 +1119,8 @@
       document.getElementById('shiftIsSession').value = s.id;
       document.getElementById('shiftWorkplaceId').value = s.workplace_id;
       document.getElementById('shiftDate').value = s.date;
-      document.getElementById('shiftStart').value = s.start_time;
-      document.getElementById('shiftEnd').value = s.end_time;
+      window.setTimeValue(document.getElementById('shiftStart'), s.start_time);
+      window.setTimeValue(document.getElementById('shiftEnd'), s.end_time);
       document.getElementById('shiftBreak').value = s.break_minutes;
       document.getElementById('shiftType').value = s.shift_type;
       document.getElementById('shiftNotes').value = s.notes;
@@ -1356,8 +1356,8 @@
     document.getElementById('defFields').style.display = hasDefault ? '' : 'none';
     document.getElementById('saveDefaultShift').style.display = hasDefault ? '' : 'none';
     updateDefDescription(hasDefault);
-    document.getElementById('defStart').value = wp.default_start || '';
-    document.getElementById('defEnd').value = wp.default_end || '';
+    window.setTimeValue(document.getElementById('defStart'), wp.default_start || '');
+    window.setTimeValue(document.getElementById('defEnd'), wp.default_end || '');
     document.getElementById('defBreak').value = wp.default_break || 0;
     document.getElementById('defType').value = wp.default_type || 'on_site';
     defModal.show();
@@ -1374,8 +1374,8 @@
     document.getElementById('saveDefaultShift').style.display = this.checked ? '' : 'none';
     updateDefDescription(this.checked);
     if (!this.checked) {
-      document.getElementById('defStart').value = '';
-      document.getElementById('defEnd').value = '';
+      window.setTimeValue(document.getElementById('defStart'), '');
+      window.setTimeValue(document.getElementById('defEnd'), '');
       document.getElementById('defBreak').value = 0;
       document.getElementById('defType').value = 'on_site';
       saveDefaultShift(true);

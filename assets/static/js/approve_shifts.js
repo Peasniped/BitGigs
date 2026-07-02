@@ -32,8 +32,8 @@
         var s = data.shift;
         document.getElementById('editShiftId').value = s.id;
         document.getElementById('editDate').value = s.date;
-        document.getElementById('editStart').value = s.start_time;
-        document.getElementById('editEnd').value = s.end_time;
+        window.setTimeValue(document.getElementById('editStart'), s.start_time);
+        window.setTimeValue(document.getElementById('editEnd'), s.end_time);
         document.getElementById('editBreak').value = s.break_minutes;
         document.getElementById('editType').value = s.shift_type;
         document.getElementById('editNotes').value = s.notes;

@@ -31,7 +31,180 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ----- Work Shift modal (AJAX) -----
   initShiftModal();
+
+  // ----- Time pickers (custom 24-hour segmented input) -----
+  initTimePickers(document);
 });
+
+
+/* ===========================================================================
+ *  TIME PICKERS — custom, always 24-hour, segmented like the native control
+ *
+ *  Native <input type="time"> can't be forced to 24h (it follows the browser
+ *  locale), so we convert each one to a plain text input and drive the editing
+ *  ourselves: focus selects the hour pair, typing auto-advances to the minutes,
+ *  and Up/Down/Left/Right adjust or move between segments. The value stays a
+ *  24-hour "HH:MM" string, so server parsing and other JS are unaffected.
+ * =========================================================================*/
+
+var TIME_PLACEHOLDER = '--:--';
+
+function pad2(n) { return ('0' + n).slice(-2); }
+
+/**
+ * Convert every <input type="time"> within `root` into a segmented 24h input.
+ * Exposed on window so dynamically-inserted inputs can be initialised too.
+ */
+function initTimePickers(root) {
+  (root || document).querySelectorAll('input[type="time"]').forEach(function (el) {
+    if (el.dataset.time24) return;
+    el.dataset.time24 = '1';
+    el.type = 'text';
+    el.classList.add('time-24-input');           // clock glyph via CSS
+    el.setAttribute('inputmode', 'numeric');
+    el.setAttribute('autocomplete', 'off');
+    el.maxLength = 5;
+    if (!el.getAttribute('placeholder')) el.setAttribute('placeholder', TIME_PLACEHOLDER);
+    if (el.value) normalizeTimeInput(el);
+
+    el.addEventListener('focus', function () {
+      if (!el.value) el.value = TIME_PLACEHOLDER;
+      selectTimeSegment(el, 0);
+    });
+    el.addEventListener('mouseup', function () {
+      setTimeout(function () { selectTimeSegment(el, caretSegment(el)); }, 0);
+    });
+    el.addEventListener('keydown', function (e) { onTimeKeydown(el, e); });
+    el.addEventListener('blur', function () { normalizeTimeInput(el); });
+  });
+}
+window.initTimePickers = initTimePickers;
+
+/** Set a time value programmatically (val = "HH:MM" 24h, or empty to clear). */
+function setTimeValue(el, val) {
+  if (!el) return;
+  el.dataset.buf = '';
+  el.value = val || '';
+  if (el.value && el.dataset.time24) normalizeTimeInput(el);
+}
+window.setTimeValue = setTimeValue;
+
+function timeSegs(el) {
+  var v = el.value || TIME_PLACEHOLDER;
+  var i = v.indexOf(':');
+  return i === -1 ? [v.slice(0, 2), '--'] : [v.slice(0, i), v.slice(i + 1)];
+}
+
+function renderTime(el, hh, mm) { el.value = hh + ':' + mm; }
+
+function caretSegment(el) {
+  var i = el.value.indexOf(':');
+  return (i === -1 || el.selectionStart <= i) ? 0 : 1;
+}
+
+/** Highlight a segment; resets the typing buffer (fresh entry into the segment). */
+function selectTimeSegment(el, seg) {
+  el.dataset.seg = String(seg);
+  el.dataset.buf = '';
+  selectTimeRange(el, seg);
+}
+
+/** Highlight a segment without touching the typing buffer. */
+function selectTimeRange(el, seg) {
+  var i = el.value.indexOf(':');
+  if (i === -1) { renderTime(el, timeSegs(el)[0] || '--', '--'); i = 2; }
+  if (seg === 0) el.setSelectionRange(0, i);
+  else el.setSelectionRange(i + 1, el.value.length);
+}
+
+function onTimeKeydown(el, e) {
+  var seg = parseInt(el.dataset.seg || '0', 10);
+  if (/^[0-9]$/.test(e.key)) {
+    e.preventDefault();
+    typeTimeDigit(el, seg, parseInt(e.key, 10));
+  } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    e.preventDefault();
+    stepTimeSegment(el, seg, e.key === 'ArrowUp' ? 1 : -1);
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    selectTimeSegment(el, 0);
+  } else if (e.key === 'ArrowRight' || e.key === ':') {
+    e.preventDefault();
+    selectTimeSegment(el, 1);
+  } else if (e.key === 'Backspace' || e.key === 'Delete') {
+    e.preventDefault();
+    var parts = timeSegs(el);
+    parts[seg] = '--';
+    renderTime(el, parts[0], parts[1]);
+    selectTimeSegment(el, seg);
+  }
+  // Tab / Enter and modifier combos fall through to default behaviour.
+}
+
+function typeTimeDigit(el, seg, d) {
+  var parts = timeSegs(el);
+  var buf = el.dataset.buf || '';
+  if (seg === 0) {
+    if (buf === '') {
+      parts[0] = '0' + d;
+      renderTime(el, parts[0], parts[1]);
+      if (d >= 3) { selectTimeSegment(el, 1); }          // 3-9 can't lead a 2-digit hour
+      else { el.dataset.buf = String(d); selectTimeRange(el, 0); }
+    } else {
+      var h = parseInt(buf, 10) * 10 + d;
+      if (h <= 23) { parts[0] = pad2(h); renderTime(el, parts[0], parts[1]); selectTimeSegment(el, 1); }
+      else {                                             // e.g. "2" then "5" -> hour 02, 5 starts minutes
+        parts[0] = '0' + buf; renderTime(el, parts[0], parts[1]);
+        selectTimeSegment(el, 1);
+        typeTimeDigit(el, 1, d);
+        return;
+      }
+    }
+  } else {
+    if (buf === '') {
+      parts[1] = '0' + d;
+      renderTime(el, parts[0], parts[1]);
+      if (d >= 6) { selectTimeRange(el, 1); }            // 6-9 can't lead a 2-digit minute
+      else { el.dataset.buf = String(d); selectTimeRange(el, 1); }
+    } else {
+      parts[1] = pad2(parseInt(buf, 10) * 10 + d);       // buf <= 5 -> always <= 59
+      renderTime(el, parts[0], parts[1]);
+      el.dataset.buf = '';
+      selectTimeRange(el, 1);
+    }
+  }
+  fireTimeInput(el);
+}
+
+function stepTimeSegment(el, seg, delta) {
+  var parts = timeSegs(el);
+  var h = parseInt(parts[0], 10) || 0;
+  var m = parseInt(parts[1], 10) || 0;
+  if (seg === 0) h = (h + delta + 24) % 24;
+  else m = (m + delta + 60) % 60;
+  renderTime(el, pad2(h), pad2(m));
+  el.dataset.buf = '';
+  selectTimeRange(el, seg);
+  fireTimeInput(el);
+}
+
+/** Pad/clamp to a valid "HH:MM" (or empty) and notify listeners. */
+function normalizeTimeInput(el) {
+  var parts = timeSegs(el);
+  var hd = parts[0].replace(/\D/g, '');
+  var md = parts[1].replace(/\D/g, '');
+  if (hd === '' && md === '') { el.value = ''; }
+  else {
+    var h = Math.min(23, parseInt(hd || '0', 10));
+    var m = Math.min(59, parseInt(md || '0', 10));
+    el.value = pad2(h) + ':' + pad2(m);
+  }
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function fireTimeInput(el) {
+  if (/^\d\d:\d\d$/.test(el.value)) el.dispatchEvent(new Event('input', { bubbles: true }));
+}
 
 
 /* ===========================================================================
