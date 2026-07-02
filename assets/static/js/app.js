@@ -66,6 +66,7 @@ function initTimePickers(root) {
     el.maxLength = 5;
     if (!el.getAttribute('placeholder')) el.setAttribute('placeholder', TIME_PLACEHOLDER);
     if (el.value) normalizeTimeInput(el);
+    updateClockIcon(el);
 
     el.addEventListener('focus', function () {
       if (!el.value) el.value = TIME_PLACEHOLDER;
@@ -86,6 +87,7 @@ function setTimeValue(el, val) {
   el.dataset.buf = '';
   el.value = val || '';
   if (el.value && el.dataset.time24) normalizeTimeInput(el);
+  else if (el.dataset.time24) updateClockIcon(el);
 }
 window.setTimeValue = setTimeValue;
 
@@ -95,7 +97,56 @@ function timeSegs(el) {
   return i === -1 ? [v.slice(0, 2), '--'] : [v.slice(0, i), v.slice(i + 1)];
 }
 
-function renderTime(el, hh, mm) { el.value = hh + ':' + mm; }
+function renderTime(el, hh, mm) { el.value = hh + ':' + mm; updateClockIcon(el); }
+
+/** Build the clock-face background image for the given hand angles (deg from 12). */
+function clockBg(hAngle, mAngle) {
+  function hand(angle, len, w) {
+    var a = angle * Math.PI / 180;
+    return "<line x1='8' y1='8' x2='" + (8 + len * Math.sin(a)).toFixed(2) +
+           "' y2='" + (8 - len * Math.cos(a)).toFixed(2) +
+           "' stroke='#6c757d' stroke-width='" + w + "' stroke-linecap='round'/>";
+  }
+  var svg =
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'>" +
+    "<circle cx='8' cy='8' r='7.2' fill='none' stroke='#6c757d' stroke-width='1'/>" +
+    hand(hAngle, 3.0, 1.3) + hand(mAngle, 4.6, 1) +
+    "<circle cx='8' cy='8' r='0.7' fill='#6c757d'/></svg>";
+  return 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")';
+}
+
+function shortestAngle(from, to) { return ((to - from + 540) % 360) - 180; }
+
+/** Point the clock glyph at the input's current time, sweeping the hands there. */
+function updateClockIcon(el) {
+  var p = timeSegs(el);
+  var h = parseInt(p[0], 10); if (isNaN(h)) h = 0;   // empty -> 12:00
+  var m = parseInt(p[1], 10); if (isNaN(m)) m = 0;
+  var targetH = (h % 12) * 30 + m * 0.5;
+  var targetM = m * 6;
+  var fromH = (el._clockH == null) ? targetH : el._clockH;   // no sweep on first paint
+  var fromM = (el._clockM == null) ? targetM : el._clockM;
+  var dH = shortestAngle(fromH, targetH);
+  var dM = shortestAngle(fromM, targetM);
+  if (el._clockRAF) cancelAnimationFrame(el._clockRAF);
+  if (Math.abs(dH) < 0.1 && Math.abs(dM) < 0.1) {
+    el._clockH = targetH; el._clockM = targetM;
+    el.style.backgroundImage = clockBg(targetH, targetM);
+    return;
+  }
+  var dur = 220, start = null;
+  function frame(ts) {
+    if (start == null) start = ts;
+    var k = Math.min((ts - start) / dur, 1);
+    var e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;   // easeInOutQuad
+    var curH = fromH + dH * e, curM = fromM + dM * e;
+    el._clockH = curH; el._clockM = curM;                            // track for smooth chaining
+    el.style.backgroundImage = clockBg(curH, curM);
+    if (k < 1) { el._clockRAF = requestAnimationFrame(frame); }
+    else { el._clockH = targetH; el._clockM = targetM; el._clockRAF = null; }
+  }
+  el._clockRAF = requestAnimationFrame(frame);
+}
 
 function caretSegment(el) {
   var i = el.value.indexOf(':');
@@ -199,6 +250,7 @@ function normalizeTimeInput(el) {
     var m = Math.min(59, parseInt(md || '0', 10));
     el.value = pad2(h) + ':' + pad2(m);
   }
+  updateClockIcon(el);
   el.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
