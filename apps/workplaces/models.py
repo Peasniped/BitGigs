@@ -138,6 +138,29 @@ class Workplace(models.Model):
         month_end = _date(year, month, last_day)
         return self.contracts_in_period(month_start, month_end).exists()
 
+    def active_termset_in_month(self, year: int, month: int) -> "ContractTermSet | None":
+        """The term set representing this workplace's pay terms for a calendar
+        month — the terms in effect on the latest day the workplace has an active
+        contract within the month.
+
+        Robust to contracts/term sets that start or end anywhere in the month
+        (a fixed mid-month probe would miss e.g. a contract starting on the 20th).
+        """
+        last_day = _cal.monthrange(year, month)[1]
+        month_start = _date(year, month, 1)
+        month_end = _date(year, month, last_day)
+        contract = (
+            self.contracts
+            .filter(start_date__lte=month_end)
+            .filter(Q(end_date__isnull=True) | Q(end_date__gte=month_start))
+            .order_by("-start_date")
+            .first()
+        )
+        if contract is None:
+            return None
+        anchor = month_end if contract.end_date is None else min(month_end, contract.end_date)
+        return contract.active_termset_on(anchor)
+
 
 class WorkplaceContract(models.Model):
     """An employment arrangement spanning a date range."""

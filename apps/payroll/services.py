@@ -93,8 +93,7 @@ class PayrollPeriodService:
         """Get or create the PayrollPeriod object for a workplace and month."""
         from .models import PayrollPeriod
 
-        mid = date(year, month, 15)
-        terms = workplace.active_termset_on(mid)
+        terms = workplace.active_termset_in_month(year, month)
 
         if terms is not None:
             start_date, end_date = cls.get_period_dates(terms, year, month)
@@ -202,8 +201,11 @@ class SalaryEstimateService:
         terms: ContractTermSet,
         total_hours: Decimal,
         as_of: date | None = None,
+        monthly_salary_override: Decimal | None = None,
     ) -> SalaryEstimate:
         hourly_rate, monthly_salary = terms.get_rate_as_of(as_of)
+        if monthly_salary_override is not None:
+            monthly_salary = monthly_salary_override
 
         if terms.employment_type == ContractTermSet.EmploymentType.HOURLY:
             base_rate = hourly_rate or Decimal("0")
@@ -277,6 +279,58 @@ class SalaryEstimateService:
             employer_atp=employer_atp,
             tax_breakdown=tax_breakdown,
         )
+
+    @staticmethod
+    def _termset_active_range(terms: ContractTermSet) -> tuple[date, date | None]:
+        """The date range during which *terms* is the active pay rate within its
+        contract: from its effective_from until the day before the next term set
+        (or the contract end, or open-ended). ``end`` is None when open-ended."""
+        contract = terms.contract
+        next_ts = (
+            contract.term_sets
+            .filter(effective_from__gt=terms.effective_from)
+            .order_by("effective_from")
+            .first()
+        )
+        if next_ts:
+            end = next_ts.effective_from - timedelta(days=1)
+        else:
+            end = contract.end_date  # may be None (open-ended)
+        return terms.effective_from, end
+
+    @classmethod
+    def active_day_split(
+        cls, terms: ContractTermSet, year: int, month: int, today: date,
+    ) -> tuple[int, int, int]:
+        """Split a month's calendar days by the days *terms* is the active pay
+        rate: days on or before *today* are earned, later ones planned. The pay
+        rate comes from the term set, so proration follows the term set's
+        effective window (not the whole contract). Returns
+        (earned_days, planned_days, days_in_month)."""
+        start, end = cls._termset_active_range(terms)
+        days_in_month = calendar.monthrange(year, month)[1]
+        earned = planned = 0
+        for day in range(1, days_in_month + 1):
+            d = date(year, month, day)
+            if d < start or (end and d > end):
+                continue
+            if d <= today:
+                earned += 1
+            else:
+                planned += 1
+        return earned, planned, days_in_month
+
+    @classmethod
+    def covered_salary(cls, terms: ContractTermSet, year: int, month: int) -> Decimal:
+        """Monthly salary prorated to the calendar days this term set is the
+        active pay rate in the month (Månedsløn × lønnede dage / dage i måneden)."""
+        last_day = calendar.monthrange(year, month)[1]
+        earned, planned, days_in_month = cls.active_day_split(
+            terms, year, month, date(year, month, last_day)
+        )
+        covered = earned + planned
+        salary = terms.monthly_salary or Decimal("0")
+        return (salary * covered / days_in_month).quantize(TWO_PLACES, ROUND_HALF_UP)
 
 
 # ---------------------------------------------------------------------------
@@ -711,8 +765,7 @@ class VacationService:
     def update_balance(workplace: Workplace, year: int, month: int):
         from .models import VacationBalance
 
-        mid = date(year, month, 15)
-        terms = workplace.active_termset_on(mid)
+        terms = workplace.active_termset_in_month(year, month)
         if terms is None or terms.vacation_type != ContractTermSet.VacationType.ACCRUED:
             return None
 

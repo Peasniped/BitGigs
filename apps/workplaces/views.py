@@ -89,9 +89,8 @@ class WorkplaceDetailView(View):
         year = int(request.GET.get("year", today_payroll_year))
         month = int(request.GET.get("month", today_payroll_month))
 
-        # Resolve termset for the viewed month's mid-point (may differ from today)
-        viewed_mid = date(year, month, 15)
-        viewed_termset = workplace.active_termset_on(viewed_mid) or active_termset
+        # Resolve the representative termset for the viewed month (may differ from today)
+        viewed_termset = workplace.active_termset_in_month(year, month) or active_termset
 
         avatar_initials, avatar_color = avatar_for_name(workplace.name)
 
@@ -130,7 +129,15 @@ class WorkplaceDetailView(View):
         fritvalgskonto = Decimal("0")
 
         if viewed_termset:
-            estimate = SalaryEstimateService.estimate(viewed_termset, actual_hours, as_of=tax_pull_date)
+            # Salaried pay is prorated to the contract-active days in the month
+            # (a mid-month start earns only part of the salary).
+            salary_override = None
+            if viewed_termset.employment_type == ContractTermSet.EmploymentType.SALARIED:
+                salary_override = SalaryEstimateService.covered_salary(viewed_termset, year, month)
+            estimate = SalaryEstimateService.estimate(
+                viewed_termset, actual_hours, as_of=tax_pull_date,
+                monthly_salary_override=salary_override,
+            )
 
             if viewed_termset.vacation_type == ContractTermSet.VacationType.FERIEKONTO:
                 feriepenge_rate = Decimal("12.50")

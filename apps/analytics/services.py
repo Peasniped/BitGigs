@@ -230,8 +230,9 @@ class AnalyticsService:
                 is_past = _is_past_month(y, m, today)
                 as_of = _midmonth(y, m)
 
-                # Resolve the active termset for this month
-                termset = wp.active_termset_on(as_of)
+                # Resolve the representative termset for this month (as_of is
+                # kept as the tax-profile date for the estimate below).
+                termset = wp.active_termset_in_month(y, m)
                 if termset is None:
                     # Contract exists but no termset found — skip
                     wp_proj.months.append(MonthRow(

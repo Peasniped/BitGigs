@@ -123,8 +123,7 @@ class PlanningCalendarView(View):
         workplace_data = []
         for wp in workplaces:
             initials, color = avatar_for_name(wp.name)
-            mid = date(year, month, 15)
-            terms = wp.active_termset_on(mid)
+            terms = wp.active_termset_in_month(year, month)
 
             if terms is not None:
                 period_start, period_end = PayrollPeriodService.get_period_dates(terms, year, month)

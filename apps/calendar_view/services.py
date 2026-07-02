@@ -226,7 +226,7 @@ class CalendarService:
         from payroll.services import PayrollPeriodService
 
         workplace = Workplace.objects.get(pk=workplace_id)
-        terms = workplace.active_termset_on(_date(year, month, 15))
+        terms = workplace.active_termset_in_month(year, month)
         if terms is not None:
             start_date, end_date = PayrollPeriodService.get_period_dates(terms, year, month)
         else:

@@ -58,6 +58,15 @@ class DashboardStats:
 
 
 @dataclass
+class PayBreakdown:
+    """Earned/planned gross+net for a single workplace over a month."""
+    earned_gross: Decimal = Decimal("0")
+    earned_net: Decimal = Decimal("0")
+    planned_gross: Decimal = Decimal("0")
+    planned_net: Decimal = Decimal("0")
+
+
+@dataclass
 class DashboardData:
     """Full dashboard context (stats + per-workplace details + banners)."""
     stats: DashboardStats = field(default_factory=DashboardStats)
@@ -73,15 +82,16 @@ class DashboardDataService:
     def get_stats(cls, year: int, month: int) -> DashboardStats:
         """Compute stat-card values only (used by the JSON API)."""
         stats = DashboardStats()
+        today = date.today()
         import calendar as _cal_
         _m_start = date(year, month, 1)
         _m_end = date(year, month, _cal_.monthrange(year, month)[1])
         workplaces = workplaces_active_in_period(_m_start, _m_end)
 
         for wp in workplaces:
-            # Bootstrap period using mid-month termset (payroll_period_start_day needed)
-            _mid = date(year, month, 15)
-            _terms_mid = wp.active_termset_on(_mid)
+            # Bootstrap period using the month's representative termset
+            # (payroll_period_start_day needed).
+            _terms_mid = wp.active_termset_in_month(year, month)
             if _terms_mid:
                 period_start, period_end = PayrollPeriodService.get_period_dates(_terms_mid, year, month)
             else:
@@ -91,19 +101,17 @@ class DashboardDataService:
             actual_hours = cls._sum_shift_hours(wp, period_start, period_end)
             planned_hours = cls._sum_planned_hours(wp, period_start, period_end)
 
-            terms = wp.active_termset_on(period_start)
+            # Resolve terms with the mid-month termset, not period_start: when
+            # payroll_period_start_day != 1, period_start falls in the previous
+            # month and predates a contract/termset that first takes effect this
+            # month, which would wrongly yield None (no pay, no hour-goal card).
+            terms = _terms_mid
             tax_pull_date = PayrollPeriodService.get_tax_pull_date(terms, year, month) if terms else period_end
-            earned_est = SalaryEstimateService.estimate(terms, actual_hours, as_of=tax_pull_date) if terms else None
-            if earned_est:
-                stats.total_earned_gross += earned_est.taxable_gross
-                if earned_est.tax_breakdown:
-                    stats.total_earned_net += earned_est.tax_breakdown.net_pay
-
-            if terms and terms.employment_type == ContractTermSet.EmploymentType.HOURLY and planned_hours:
-                planned_est = SalaryEstimateService.estimate(terms, planned_hours, as_of=tax_pull_date)
-                stats.total_planned_gross += planned_est.taxable_gross
-                if planned_est.tax_breakdown:
-                    stats.total_planned_net += planned_est.tax_breakdown.net_pay
+            pay = cls._compute_pay(terms, actual_hours, planned_hours, year, month, tax_pull_date, today)
+            stats.total_earned_gross += pay.earned_gross
+            stats.total_earned_net += pay.earned_net
+            stats.total_planned_gross += pay.planned_gross
+            stats.total_planned_net += pay.planned_net
 
             cls._accumulate_goals(stats, terms)
             stats.total_planned_hours += planned_hours
@@ -115,15 +123,15 @@ class DashboardDataService:
     def get_full(cls, year: int, month: int) -> DashboardData:
         """Compute full dashboard data (stats + workplace cards + cross-period info)."""
         data = DashboardData()
+        today = date.today()
         import calendar as _cal_
         _m_start = date(year, month, 1)
         _m_end = date(year, month, _cal_.monthrange(year, month)[1])
         workplaces = workplaces_active_in_period(_m_start, _m_end)
 
         for wp in workplaces:
-            # Bootstrap period using mid-month termset
-            _mid = date(year, month, 15)
-            _terms_mid = wp.active_termset_on(_mid)
+            # Bootstrap period using the month's representative termset.
+            _terms_mid = wp.active_termset_in_month(year, month)
             if _terms_mid:
                 period_start, period_end = PayrollPeriodService.get_period_dates(_terms_mid, year, month)
             else:
@@ -147,21 +155,15 @@ class DashboardDataService:
             # Planned hours
             planned_hours = cls._sum_planned_hours(wp, period_start, period_end)
 
-            terms = wp.active_termset_on(period_start)
+            # See get_stats: resolve terms with the mid-month termset so a
+            # contract/termset first effective this month isn't missed.
+            terms = _terms_mid
             tax_pull_date = PayrollPeriodService.get_tax_pull_date(terms, year, month) if terms else period_end
-            earned_est = SalaryEstimateService.estimate(terms, actual_hours, as_of=tax_pull_date) if terms else None
-            if earned_est:
-                data.stats.total_earned_gross += earned_est.taxable_gross
-                if earned_est.tax_breakdown:
-                    data.stats.total_earned_net += earned_est.tax_breakdown.net_pay
-
-            # Planned estimate (hourly only)
-            planned_est = None
-            if terms and terms.employment_type == ContractTermSet.EmploymentType.HOURLY and planned_hours:
-                planned_est = SalaryEstimateService.estimate(terms, planned_hours, as_of=tax_pull_date)
-                data.stats.total_planned_gross += planned_est.taxable_gross
-                if planned_est.tax_breakdown:
-                    data.stats.total_planned_net += planned_est.tax_breakdown.net_pay
+            pay = cls._compute_pay(terms, actual_hours, planned_hours, year, month, tax_pull_date, today)
+            data.stats.total_earned_gross += pay.earned_gross
+            data.stats.total_earned_net += pay.earned_net
+            data.stats.total_planned_gross += pay.planned_gross
+            data.stats.total_planned_net += pay.planned_net
 
             # Hour goals
             cls._accumulate_goals(data.stats, terms)
@@ -172,9 +174,9 @@ class DashboardDataService:
                 "workplace": wp,
                 "actual_hours": actual_hours,
                 "avg_hours_per_week": avg_hours_per_week,
-                "earned_gross": earned_est.taxable_gross if earned_est else Decimal("0"),
-                "earned_net": (earned_est.tax_breakdown.net_pay if earned_est.tax_breakdown else earned_est.taxable_gross) if earned_est else Decimal("0"),
-                "planned_gross": planned_est.taxable_gross if planned_est else Decimal("0"),
+                "earned_gross": pay.earned_gross,
+                "earned_net": pay.earned_net,
+                "planned_gross": pay.planned_gross,
                 "avatar_initials": avatar_for_name(wp.name)[0],
                 "avatar_color": avatar_for_name(wp.name)[1],
             })
@@ -184,6 +186,69 @@ class DashboardDataService:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _compute_pay(
+        terms, actual_hours: Decimal, planned_hours: Decimal,
+        year: int, month: int, tax_pull_date: date, today: date,
+    ) -> PayBreakdown:
+        """Split pay into earned (up to today) and planned (after today).
+
+        Hourly: earned from approved hours, planned from planned hours.
+        Salaried: the monthly salary accrues per calendar day the contract is
+        active. Days on or before *today* are earned, later days planned — so a
+        contract starting mid-month shows its prorated salary as planned until
+        each day arrives (Månedsløn × lønnede dage / dage i måneden).
+        """
+        pay = PayBreakdown()
+        if terms is None:
+            return pay
+
+        if terms.employment_type == ContractTermSet.EmploymentType.HOURLY:
+            earned = SalaryEstimateService.estimate(terms, actual_hours, as_of=tax_pull_date)
+            pay.earned_gross = earned.taxable_gross
+            pay.earned_net = earned.tax_breakdown.net_pay if earned.tax_breakdown else earned.taxable_gross
+            if planned_hours:
+                planned = SalaryEstimateService.estimate(terms, planned_hours, as_of=tax_pull_date)
+                pay.planned_gross = planned.taxable_gross
+                pay.planned_net = planned.tax_breakdown.net_pay if planned.tax_breakdown else planned.taxable_gross
+            return pay
+
+        # Salaried — a month may span several term sets (e.g. a mid-month
+        # raise), so sum each one's prorated pay by the days it is the active
+        # rate. Days on or before today are Earned, later ones Planned.
+        month_end = date(year, month, cal_mod.monthrange(year, month)[1])
+        term_sets = terms.contract.term_sets.filter(
+            effective_from__lte=month_end,
+            employment_type=ContractTermSet.EmploymentType.SALARIED,
+        )
+        for ts in term_sets:
+            earned_days, planned_days, days_in_month = SalaryEstimateService.active_day_split(
+                ts, year, month, today
+            )
+            covered_days = earned_days + planned_days
+            if covered_days == 0:
+                continue
+            covered_salary = (
+                (ts.monthly_salary or Decimal("0")) * covered_days / days_in_month
+            ).quantize(TWO_PLACES)
+            est = SalaryEstimateService.estimate(
+                ts, Decimal("0"), as_of=tax_pull_date,
+                monthly_salary_override=covered_salary,
+            )
+            total_gross = est.taxable_gross
+            total_net = est.tax_breakdown.net_pay if est.tax_breakdown else est.taxable_gross
+
+            # Tax is computed once per term set on its covered salary; the
+            # earned/planned split is then linear by day.
+            earned_ratio = Decimal(earned_days) / Decimal(covered_days)
+            earned_gross = (total_gross * earned_ratio).quantize(TWO_PLACES)
+            earned_net = (total_net * earned_ratio).quantize(TWO_PLACES)
+            pay.earned_gross += earned_gross
+            pay.earned_net += earned_net
+            pay.planned_gross += total_gross - earned_gross
+            pay.planned_net += total_net - earned_net
+        return pay
 
     @staticmethod
     def _sum_shift_hours(wp: Workplace, period_start: date, period_end: date) -> Decimal:
