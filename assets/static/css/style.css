@@ -637,6 +637,22 @@ a.setup-step--done:hover .setup-step__circle { background: #16a34a; border-color
 .period-card__value { font-size:1.05rem; font-weight:700; color:#0f172a; line-height:1.15; margin-top:2px; }
 .period-card .dropdown-toggle::after { display:none; }
 
+/* Inline Air Datepicker range calendar inside the period dropdown */
+.period-range-cal .air-datepicker { width:100%; border:none; box-shadow:none; }
+
+/* Subtle primary tint marking the current-year quick-pick chip */
+.period-quick-current { background:rgba(var(--primary-rgb),.08); }
+
+/* Year quick-picks: wrap normally, or scroll horizontally when there are many */
+.period-quick-years.period-quick--scroll {
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  scrollbar-width:thin;
+  padding-bottom:4px;
+  scroll-behavior:smooth;
+}
+.period-quick-years.period-quick--scroll .btn { flex:0 0 auto; }
+
 .analytics-table th,
 .analytics-table td { padding:0.75rem 1rem; vertical-align:middle; }
 .analytics-table th { font-weight:600; color:#475569; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.03em; }

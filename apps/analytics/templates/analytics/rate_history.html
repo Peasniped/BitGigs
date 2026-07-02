@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load dk_filters %}
+{% load static %}
 {% block title %}Rate History &middot; BitGigs{% endblock %}
 
 {% block extra_css %}
@@ -34,7 +35,7 @@
           <span class="period-badge"><i class="bi bi-calendar3"></i></span>
           <div>
             <div class="period-card__label">Period</div>
-            <div class="period-card__value">
+            <div class="period-card__value" id="periodCardValue">
               {% if period_mode == "range" %}
                 {{ period_start|date:"M j, Y" }} &rarr; {{ period_end|date:"M j, Y" }}
               {% elif period_mode == "year" %}
@@ -45,40 +46,23 @@
             </div>
           </div>
         </div>
-        <div class="dropdown-menu p-3 shadow" style="min-width:420px;">
-          <div class="btn-group btn-group-sm w-100 mb-3" role="group" id="periodModeGroup">
-            <input type="radio" class="btn-check" name="period_mode" id="modeAll"
-                   value="all" {% if period_mode == "all" %}checked{% endif %}>
-            <label class="btn btn-outline-secondary" for="modeAll">All time</label>
-            <input type="radio" class="btn-check" name="period_mode" id="modeYear"
-                   value="year" {% if period_mode == "year" %}checked{% endif %}>
-            <label class="btn btn-outline-secondary" for="modeYear">Calendar year</label>
-            <input type="radio" class="btn-check" name="period_mode" id="modeRange"
-                   value="range" {% if period_mode == "range" %}checked{% endif %}>
-            <label class="btn btn-outline-secondary" for="modeRange">Custom range</label>
-          </div>
-
-          <div class="period-year-block" {% if period_mode != "year" %}style="display:none;"{% endif %}>
-            <label class="form-label small fw-medium">Year</label>
-            <select name="year" class="form-select form-select-sm">
+        <div class="dropdown-menu p-3 shadow" style="min-width:320px;">
+          <div class="mb-2" id="periodQuickPicks">
+            {% now "Y" as current_year %}
+            <button type="button" class="btn btn-sm btn-outline-secondary mb-1" data-quick="all">All time</button>
+            <div class="period-quick-years d-flex gap-1 {% if year_options|length > 8 %}period-quick--scroll{% else %}flex-wrap{% endif %}">
               {% for y in year_options %}
-                <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                <button type="button" class="btn btn-sm {% if y|stringformat:'s' == current_year %}btn-outline-primary period-quick-current{% else %}btn-outline-secondary{% endif %}" data-quick-year="{{ y }}">{{ y }}</button>
               {% endfor %}
-            </select>
+            </div>
           </div>
 
-          <div class="period-range-block" {% if period_mode != "range" %}style="display:none;"{% endif %}>
-            <div class="mb-2">
-              <label class="form-label small fw-medium">From</label>
-              <input type="date" name="start" class="form-control form-control-sm"
-                     value="{{ period_start|date:'Y-m-d' }}">
-            </div>
-            <div class="mb-2">
-              <label class="form-label small fw-medium">To</label>
-              <input type="date" name="end" class="form-control form-control-sm"
-                     value="{{ period_end|date:'Y-m-d' }}">
-            </div>
-          </div>
+          <div id="periodRangeCal" class="period-range-cal"></div>
+
+          <input type="hidden" name="period_mode" id="periodModeField" value="{{ period_mode }}">
+          <input type="hidden" name="year" id="periodYearField" value="{{ year }}">
+          <input type="hidden" name="start" id="periodStartField" value="{{ period_start|date:'Y-m-d' }}">
+          <input type="hidden" name="end" id="periodEndField" value="{{ period_end|date:'Y-m-d' }}">
 
           <button class="btn btn-primary btn-sm w-100 mt-2" type="submit">
             <i class="bi bi-check-lg me-1"></i>Apply
@@ -230,6 +214,7 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/period_picker.js' %}"></script>
 <script>
   (function() {
     const strip = document.getElementById('wpPickerStrip');
@@ -284,20 +269,8 @@
 
     syncHiddenInputs();
 
-    // ----- Period mode toggle (year vs custom range) -----
-    const periodGroup = document.getElementById('periodModeGroup');
-    if (periodGroup) {
-      periodGroup.addEventListener('change', function(e) {
-        if (e.target.name !== 'period_mode') return;
-        const mode = e.target.value;
-        document.querySelectorAll('.period-year-block').forEach(el => {
-          el.style.display = mode === 'year' ? '' : 'none';
-        });
-        document.querySelectorAll('.period-range-block').forEach(el => {
-          el.style.display = mode === 'range' ? '' : 'none';
-        });
-      });
-    }
+    // ----- Period picker (inline range calendar + quick picks) -----
+    if (window.initPeriodPicker) window.initPeriodPicker();
   })();
 
   // Rate history charts + combined chart

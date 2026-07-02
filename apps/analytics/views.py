@@ -91,6 +91,27 @@ def _resolve_period(request, today: date):
     return date(year, 1, 1), date(year, 12, 31), "year", year
 
 
+def _data_years(today: date, *extra_years: int) -> list[int]:
+    """Years that actually have data — any shift, or any year a contract spans —
+    plus the current year and any *extra_years* (e.g. the selected period).
+
+    Mirrors the workplace calendar's data-driven picker so the analytics year
+    chips only show years the user has worked, ascending.
+    """
+    from shifts.models import Shift
+    from workplaces.models import WorkplaceContract
+
+    years = set(
+        y for y in Shift.objects.values_list("date__year", flat=True).distinct() if y
+    )
+    for start, end in WorkplaceContract.objects.values_list("start_date", "end_date"):
+        last = (end or today).year
+        years.update(range(start.year, last + 1))
+    years.add(today.year)
+    years.update(y for y in extra_years if y)
+    return sorted(years)
+
+
 class AnalyticsView(View):
     """Income projection page."""
 
@@ -128,8 +149,8 @@ class AnalyticsView(View):
                 "avatar": _avatar_payload(wp),
             })
 
-        # Year picker range
-        year_options = list(range(today.year - 5, today.year + 4))
+        # Year picker — only years with data (plus current + selected)
+        year_options = _data_years(today, year)
 
         # Combined trailing average across selected workplaces
         combined_avg_monthly = sum(
@@ -217,7 +238,7 @@ class RateHistoryView(View):
             request, all_workplaces_qs
         )
 
-        year_options = list(range(today.year - 5, today.year + 4))
+        year_options = _data_years(today, year)
         start_iso = start.isoformat() if start else None
         end_iso = end.isoformat() if end else None
 
