@@ -45,6 +45,22 @@ Django 6.0 app for tracking shifts and estimating Danish net pay across multiple
 - Some templates contain mojibake bytes (`â•Ð…`) in section comments. `replace_string_in_file` may fail to match those lines — use a small Python script with explicit `\u00e2\u2022\u0090` escapes when needed.
 - Multi-line `{# … #}` Django comments don't exist; use `{% comment %}…{% endcomment %}`.
 
+## Code style & hardening
+
+How new code / changes should be written:
+
+- Match the surrounding code's style; don't restyle or re-comment code you didn't change.
+- Keep views thin — heavy logic goes in `<app>/services.py`.
+- Money is `Decimal` (never float), shown via en-DK L10N / the `dk` filter (see Conventions).
+- Date-versioned data (tax profiles, pay rates): pick the effective row with `core.utils.active_dated_row`; never mutate historical rows.
+- Ship new logic with a test under `apps/<app>/tests/` (run with the `apps` label).
+- No new dependencies without a real need.
+- Parse user input via helpers, don't hand-roll — e.g. `core.utils.parse_danish_decimal` for locale numbers.
+- Sanitize uploads: SVGs go through `core.utils.sanitize_svg`; raster icons are re-encoded to PNG by Cropper.js.
+- Redirect only to same-origin URLs — follow the `_safe_next` pattern in `apps/core/views.py`.
+- Use the ORM / Django forms (no raw SQL); rely on template auto-escaping — never `|safe` untrusted data.
+- Keep secrets/config in env vars (see `bitgigs/settings/production.py`); never commit secrets. Don't weaken the production hardening there (HTTPS/HSTS/secure cookies, gated by `DJANGO_ENABLE_HTTPS`).
+
 ## Frontend bits
 
 - Charts: Chart.js v4 from CDN; category x-axis with ISO date labels; stepped lines for rate history; segment dash for projected tail.
