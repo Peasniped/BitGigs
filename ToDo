@@ -1,10 +1,5 @@
 
 # NU     --------------------------------------------------------
-
- F – dk locale rework (do last, test in isolation): simplify the Danish-number filter internals. Add locale selector to settings
- G - Update CLAUDE.md so new code / changes is appropriately styled, hardened etc.
-
-
 Need to fix after refactor->main merge:
 This was aparrently broken before the big code refactor/walkthrough...
 - Hour goal card no longer shown on main dashboard
