@@ -1053,7 +1053,7 @@
     document.getElementById('shiftId').value = '';
     document.getElementById('shiftIsSession').value = '';
     document.getElementById('shiftWorkplaceId').value = workplaceId;
-    document.getElementById('shiftDate').value = dateStr;
+    window.setDateValue(document.getElementById('shiftDate'), dateStr);
     window.setTimeValue(document.getElementById('shiftStart'), wp.default_start || '');
     window.setTimeValue(document.getElementById('shiftEnd'), wp.default_end || '');
     document.getElementById('shiftBreak').value = wp.default_break ?? 0;
@@ -1089,7 +1089,7 @@
       document.getElementById('shiftId').value = s.id;
       document.getElementById('shiftIsSession').value = '';
       document.getElementById('shiftWorkplaceId').value = s.workplace_id;
-      document.getElementById('shiftDate').value = s.date;
+      window.setDateValue(document.getElementById('shiftDate'), s.date);
       window.setTimeValue(document.getElementById('shiftStart'), s.start_time);
       window.setTimeValue(document.getElementById('shiftEnd'), s.end_time);
       document.getElementById('shiftBreak').value = s.break_minutes;
@@ -1118,7 +1118,7 @@
       document.getElementById('shiftId').value = '';
       document.getElementById('shiftIsSession').value = s.id;
       document.getElementById('shiftWorkplaceId').value = s.workplace_id;
-      document.getElementById('shiftDate').value = s.date;
+      window.setDateValue(document.getElementById('shiftDate'), s.date);
       window.setTimeValue(document.getElementById('shiftStart'), s.start_time);
       window.setTimeValue(document.getElementById('shiftEnd'), s.end_time);
       document.getElementById('shiftBreak').value = s.break_minutes;

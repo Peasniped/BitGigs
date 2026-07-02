@@ -31,7 +31,7 @@
         if (!data.ok) return;
         var s = data.shift;
         document.getElementById('editShiftId').value = s.id;
-        document.getElementById('editDate').value = s.date;
+        window.setDateValue(document.getElementById('editDate'), s.date);
         window.setTimeValue(document.getElementById('editStart'), s.start_time);
         window.setTimeValue(document.getElementById('editEnd'), s.end_time);
         document.getElementById('editBreak').value = s.break_minutes;

@@ -659,3 +659,22 @@ a.setup-step--done:hover .setup-step__circle { background: #16a34a; border-color
   background-size: 0.9rem 0.9rem;
   padding-left: 1.9rem;
 }
+
+/* Air Datepicker (see initDatePickers in app.js) — themed to the app palette. */
+.air-datepicker {
+  --adp-accent-color: var(--primary);
+  --adp-color-current-date: var(--primary);
+  --adp-day-name-color: var(--primary);
+  --adp-day-name-color-hover: #4f46e5;
+  --adp-cell-background-color-selected: var(--primary);
+  --adp-cell-background-color-selected-hover: #4f46e5;
+  --adp-cell-background-color-in-range: rgba(var(--primary-rgb), .12);
+  --adp-cell-background-color-in-range-hover: rgba(var(--primary-rgb), .20);
+  --adp-cell-border-radius: 8px;
+  --adp-color: var(--text);
+  --adp-border-color: var(--border);
+  --adp-border-color-inner: var(--border);
+  --adp-btn-color: var(--primary);
+  --adp-btn-color-hover: #4f46e5;
+  --adp-z-index: 1060;   /* above Bootstrap modals (~1055) */
+}

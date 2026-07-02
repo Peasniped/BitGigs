@@ -34,6 +34,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ----- Time pickers (custom 24-hour segmented input) -----
   initTimePickers(document);
+
+  // ----- Date pickers (dd/mm/yyyy display, ISO submit) -----
+  initDatePickers(document);
 });
 
 
@@ -257,6 +260,94 @@ function normalizeTimeInput(el) {
 function fireTimeInput(el) {
   if (/^\d\d:\d\d$/.test(el.value)) el.dispatchEvent(new Event('input', { bubbles: true }));
 }
+
+
+/* ===========================================================================
+ *  DATE PICKERS — Air Datepicker calendar, dd/mm/yyyy display, ISO value
+ *
+ *  Native <input type="date"> renders in the browser locale (US -> mm/dd/yyyy)
+ *  and can't be forced to dd/mm/yyyy. Each date input is demoted to a hidden
+ *  ISO (yyyy-mm-dd) carrier that keeps its name + id — so form submits and JS
+ *  reads still see ISO — and a sibling text input gets the Air Datepicker
+ *  calendar showing dd/mm/yyyy. JS writes go through setDateValue.
+ *  (Air Datepicker defaults to Russian, hence the explicit English locale.)
+ * =========================================================================*/
+
+var ADP_EN_LOCALE = {
+  days: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  daysShort: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  daysMin: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+  months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+  monthsShort: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+  today: 'Today', clear: 'Clear', dateFormat: 'dd/MM/yyyy', timeFormat: 'HH:mm', firstDay: 1
+};
+
+function dateFromIso(iso) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+}
+function isoFromDate(d) {
+  return d ? d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2) : '';
+}
+
+function initDatePickers(root) {
+  if (typeof AirDatepicker === 'undefined') return;
+  (root || document).querySelectorAll('input[type="date"]').forEach(function (el) {
+    if (el.dataset.adpInit) return;
+    el.dataset.adpInit = '1';
+
+    var iso = /^\d{4}-\d{2}-\d{2}$/.test(el.value) ? el.value : '';
+
+    // Visible display input (dd/mm/yyyy); original becomes a hidden ISO carrier.
+    var disp = document.createElement('input');
+    disp.type = 'text';
+    disp.className = el.className;
+    disp.setAttribute('placeholder', 'dd/mm/yyyy');
+    disp.setAttribute('inputmode', 'numeric');
+    disp.setAttribute('autocomplete', 'off');
+    if (el.getAttribute('style')) disp.setAttribute('style', el.getAttribute('style'));
+    if (el.required) { disp.required = true; el.required = false; }
+    el.type = 'hidden';
+    el.value = iso;
+    el.parentNode.insertBefore(disp, el.nextSibling);
+
+    el._adp = new AirDatepicker(disp, {
+      locale: ADP_EN_LOCALE,
+      dateFormat: 'dd/MM/yyyy',
+      autoClose: true,
+      selectedDates: iso ? [dateFromIso(iso)] : [],
+      onSelect: function (o) {
+        var d = Array.isArray(o.date) ? o.date[0] : o.date;
+        el.value = isoFromDate(d);
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+    el._adpDisplay = disp;
+
+    // Keep clicks inside the calendar (date select, month/year nav — which
+    // re-render and detach nodes mid-click) from bubbling to Bootstrap's
+    // dropdown "auto-close outside" handler, which would close a host popup
+    // (e.g. the analytics period dropdown).
+    if (el._adp.$datepicker) {
+      el._adp.$datepicker.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+      el._adp.$datepicker.addEventListener('click', function (e) { e.stopPropagation(); });
+    }
+  });
+}
+window.initDatePickers = initDatePickers;
+
+/** Set a date input's value (iso = "yyyy-mm-dd" or empty), updating the picker. */
+function setDateValue(el, iso) {
+  if (!el) return;
+  el.value = iso || '';
+  if (el._adp) {
+    var d = dateFromIso(iso);
+    if (d) el._adp.selectDate(d, { silent: true });
+    else el._adp.clear();
+  }
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+}
+window.setDateValue = setDateValue;
 
 
 /* ===========================================================================

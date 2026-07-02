@@ -414,7 +414,7 @@
       if (!data.ok) return;
       var s = data.shift;
       document.getElementById('dashEditShiftId').value = s.id;
-      document.getElementById('dashEditDate').value = s.date;
+      window.setDateValue(document.getElementById('dashEditDate'), s.date);
       window.setTimeValue(document.getElementById('dashEditStart'), s.start_time);
       window.setTimeValue(document.getElementById('dashEditEnd'), s.end_time);
       document.getElementById('dashEditBreak').value = s.break_minutes;
