@@ -290,6 +290,17 @@ function isoFromDate(d) {
   return d ? d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2) : '';
 }
 
+/** Parse a typed dd/mm/yyyy (also d/m/yyyy, '.', '-' separators) to ISO, or ''. */
+function isoFromDisplay(s) {
+  var m = /^\s*(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})\s*$/.exec(s || '');
+  if (!m) return '';
+  var dd = parseInt(m[1], 10), mm = parseInt(m[2], 10), yy = parseInt(m[3], 10);
+  var d = new Date(yy, mm - 1, dd);
+  // Reject impossible dates (e.g. 31/02/2025 rolling over).
+  if (d.getFullYear() !== yy || d.getMonth() !== mm - 1 || d.getDate() !== dd) return '';
+  return isoFromDate(d);
+}
+
 function initDatePickers(root) {
   if (typeof AirDatepicker === 'undefined') return;
   (root || document).querySelectorAll('input[type="date"]').forEach(function (el) {
@@ -323,6 +334,32 @@ function initDatePickers(root) {
       }
     });
     el._adpDisplay = disp;
+
+    // Air Datepicker's onSelect only fires for calendar clicks, so a *typed*
+    // dd/mm/yyyy edit would never reach the hidden ISO carrier and the form
+    // would submit the stale value. Sync typed input on change (fires on blur).
+    disp.addEventListener('change', function () {
+      var typed = disp.value.trim();
+      if (typed === '') {
+        if (el.value !== '') {
+          el.value = '';
+          el._adp.clear();
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        return;
+      }
+      var iso2 = isoFromDisplay(typed);
+      if (iso2) {
+        if (iso2 !== el.value) {
+          el.value = iso2;
+          el._adp.selectDate(dateFromIso(iso2), { silent: true });
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      } else if (el.value) {
+        // Unparseable text — restore the display to the last valid value.
+        el._adp.selectDate(dateFromIso(el.value), { silent: true });
+      }
+    });
 
     // Keep clicks inside the calendar (date select, month/year nav — which
     // re-render and detach nodes mid-click) from bubbling to Bootstrap's

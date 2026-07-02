@@ -47,7 +47,9 @@
     var input = document.querySelector('[data-effective-from]');
     if (!btn || !input) return;
     btn.addEventListener('click', function() {
-      input.value = new Date().toLocaleDateString('sv');  // yyyy-mm-dd
+      var iso = new Date().toLocaleDateString('sv');  // yyyy-mm-dd
+      if (window.setDateValue) window.setDateValue(input, iso);
+      else input.value = iso;
       input.dispatchEvent(new Event('input'));
     });
   })();
@@ -61,6 +63,7 @@
       label.textContent = dateInput.value || '…';
     }
     dateInput.addEventListener('input', updateLabel);
+    dateInput.addEventListener('change', updateLabel);
     updateLabel();
   })();
 
