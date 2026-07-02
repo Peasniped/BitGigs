@@ -6,13 +6,15 @@ This was aparrently broken before the big code refactor/walkthrough...
 - no money is shown on main dashboard, neither planned or earned.
 It seems like this happens when a new workplace contract and/or term set starts within the current month. If I change the effective from-date to last month, the missing info is shown. If the effective date is the 1st of the month, no earned money is shown for that month.
 
-- When editing a contract or term sheet, the date should be populated with what is currently saved.
+- New contracts should have a 'today'-button for the start date like new term-sets.
 - Need handling of how much you earn in a salaried position that starts in the middle of a month.
+- - ie if you start on the 15th, you should earn half a months salary? - not sure how to calculate this accurately
+- - If today is the 1st, and you have a new contract starting on the 15th, it should show that half salary in the planned statcard until the 15th, where it should move to the earned.
+- - Can be for example: Månedsløn × antal lønnede dage i første måned / antal dage i måneden
 
 
 Extra work before making base template
 - Remove migration files, as code is not deployed/in production and a db wipe/recreation is not currently a problem !!!!!!! important, export data and copy hours from work laptop to Google Sheets (This is the only copy of most recent hours)
-- Remove worksessions app?
 - Design glow up?
 - Dark mode when?
 
