@@ -1,34 +1,39 @@
 
 # NU     --------------------------------------------------------
-Need to fix after refactor->main merge:
-This was aparrently broken before the big code refactor/walkthrough...
-- Hour goal card no longer shown on main dashboard
-- no money is shown on main dashboard, neither planned or earned.
-It seems like this happens when a new workplace contract and/or term set starts within the current month. If I change the effective from-date to last month, the missing info is shown. If the effective date is the 1st of the month, no earned money is shown for that month.
 
-- New contracts should have a 'today'-button for the start date like new term-sets.
-- Need handling of how much you earn in a salaried position that starts in the middle of a month.
-- - ie if you start on the 15th, you should earn half a months salary? - not sure how to calculate this accurately
-- - If today is the 1st, and you have a new contract starting on the 15th, it should show that half salary in the planned statcard until the 15th, where it should move to the earned.
-- - Can be for example: Månedsløn × antal lønnede dage i første måned / antal dage i måneden
+- Move this banner "No workplaces have an active contract in this period. 4 workplaces hidden — add or adjust a contract to see them here." down where the workplace cards would have been.
 
+To explore:
+- What happens if a workplace has two or more active term sets at the same time?
 
 Extra work before making base template
-- Remove migration files, as code is not deployed/in production and a db wipe/recreation is not currently a problem !!!!!!! important, export data and copy hours from work laptop to Google Sheets (This is the only copy of most recent hours)
+- Kindly ask Claude Fable look the entire codebase through and accept that everything is in good working order, secure, and that no dead/repeated code exists in the codebase.
 - Design glow up?
-- Dark mode when?
+- - Central color management -- one source of truth for all colors (user/admin accessible?)
+- Dark mode also?
 
 --> Efter refactor, lav en base hjemmeside, så andre Bit-apps kan laves med et lignende visuelt udtryk. Gem denne til D:\Github\BitBase\
 
 # SENERE --------------------------------------------------------
 
+- Hour calculator/display in approval flow does not update when you adjust the start/stop times of shifts for apprival.
+
 - A page I can use to transfer shift info to whatever kind of system the workplace uses for me to report my hours
 - - Should be customizable. Example at JKF i report hours in an excel sheet with cols Date, week, month, hours, break(30 min, yes/no), name. This transfer would be easiest with an excel-compatible copy-paste.
 - at JKF if there are multiple shifts in one day, I add them toghether to one per date. This should also be configurable.
 
+- Workplace detail page — multi-rate months. The detail still renders a single term set's payslip (the mid-month rate). For a mid-month raise it shows one rate's slice (~30000), not the full 70000 the main dashboard shows. Making it sum multiple rates means reworking the payslip breakdown UI (feriepenge/pension/tax lines are built for one rate). Biggest remaining item.
+
+- Formal payslip (PayslipService). Still uses the full monthly salary — not prorated for partial months or multiple rates. Separate from the dashboards you flagged.
+
+- Net-tax approximation. Earned/planned and multi-term-set nets each apply the full monthly tax deduction per slice (same approximation the hourly path already used). Gross is exact; combined net can be slightly overstated. Correct-but-harder fix: tax the summed monthly gross once.
+
 *** Main Dashboard: ***
 - On the hour goal-statcard, when hovering over the grey portion of the progress bar, it should show the hour deficit(if any), ie how far you are from the goal, not just the goal.
 - The message "2 shifts in February belong to March payroll (19,70h)" is nice, but maybe you can click to expand, so it shows the shifts/dates and the hours? -- maybe hovering over it and/or clicking highlights the shifts if they are visible on the calendar.
+
+*** Analytics Page: ***
+On the rate history you should be able to click the records, which would expand showing the extra things that are counted in the total rate (such as company pension contrib, fritvalgskonto etc.+)
 
 *** All Calendars: ***
 - Possibility to change to a list view where each shift is a row in a list/table

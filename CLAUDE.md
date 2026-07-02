@@ -77,8 +77,9 @@ How new code / changes should be written:
 
 - Whenever I send a prompt, ask youself if what I am asking makes sense if not, ask. I am not the smartest person in the world, and may make mistakes or ask for things that does not make sense (:
 - Always DO ask me if you are ever uncertain about something
+- DO make sure to keep CLAUDE.md up to date if making changes that contradict or add to something written in here.
+- When you are done implementing a feature before git commit, DO let me know what to test in order to asses the implementation (user steps)
 - Do write Git commits at a regular interval when it makes sense
-- You must show a preview of git commits in text to the user for their confirmation before any tools are called.
-- !!! Ignore this for now, will be important once the system is actively running. Do ask the user if they want to create a new feature branch, or change to an existing branch(search and see what there is) if it makes sense, each session before editing files.
-- Do make a copy of the database when creating a new branch
-- Do make sure to keep CLAUDE.md up to date if making changes that contradict or add to something written in here.
+- You must DO show a preview of git commits in text to the user for their confirmation before any tools are called.
+- (!!! Ignore this for now, will be important once the system is actively running.) DO ask the user if they want to create a new feature branch, or change to an existing branch(search and see what there is) if it makes sense, each session before editing files.
+- DO make a copy of the database when creating a new branch
