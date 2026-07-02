@@ -1,6 +1,3 @@
-- A page I can use to transfer shift info to whatever kind of system the workplace uses for me to report my hours
-- - Should be customizable. Example at JKF i report hours in an excel sheet with cols Date, week, month, hours, break(30 min, yes/no), name. This transfer would be easiest with an excel-compatible copy-paste.
-- at JKF if there are multiple shifts in one day, I add them toghether to one per date. This should also be configurable.
 
 # NU     --------------------------------------------------------
 
@@ -28,6 +25,10 @@ Extra work before making base template
 --> Efter refactor, lav en base hjemmeside, så andre Bit-apps kan laves med et lignende visuelt udtryk. Gem denne til D:\Github\BitBase\
 
 # SENERE --------------------------------------------------------
+
+- A page I can use to transfer shift info to whatever kind of system the workplace uses for me to report my hours
+- - Should be customizable. Example at JKF i report hours in an excel sheet with cols Date, week, month, hours, break(30 min, yes/no), name. This transfer would be easiest with an excel-compatible copy-paste.
+- at JKF if there are multiple shifts in one day, I add them toghether to one per date. This should also be configurable.
 
 *** Main Dashboard: ***
 - On the hour goal-statcard, when hovering over the grey portion of the progress bar, it should show the hour deficit(if any), ie how far you are from the goal, not just the goal.
