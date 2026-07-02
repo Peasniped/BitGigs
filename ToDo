@@ -1,7 +1,6 @@
 
 # NU     --------------------------------------------------------
 
- E – Move Django into src/ (high risk, isolated): relocate code, update BASE_DIR/settings paths/CLAUDE.md, copy DB first
  F – dk locale rework (do last, test in isolation): simplify the Danish-number filter internals. Add locale selector to settings
  G - Update CLAUDE.md so new code / changes is appropriately styled, hardened etc.
 
