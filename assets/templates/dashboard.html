@@ -4,7 +4,6 @@
 {% block title %}Dashboard &middot; BitGigs{% endblock %}
 
 {% block content %}
-{% include "_period_filter_notice.html" %}
 <!-- ===== Pay stat counters ===== -->
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">
@@ -141,10 +140,14 @@
   </a>
   </div>
   {% empty %}
+  {% if hidden_workplace_count %}
+  <div class="col-12">{% include "_period_filter_notice.html" %}</div>
+  {% else %}
   <div class="col-12 text-center text-muted py-5">
     <i class="bi bi-building fs-1 d-block mb-2"></i>
     No active workplaces yet. <a href="{% url 'workplaces:workplace-create' %}">Add one</a>.
   </div>
+  {% endif %}
   {% endfor %}
 </div>
 

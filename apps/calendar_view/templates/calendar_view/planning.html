@@ -15,8 +15,6 @@
   </button>
 </div>
 
-{% include "_period_filter_notice.html" %}
-
 <!-- Workplace cards (horizontal, centered, draggable) -->
 <div class="wp-strip mb-3" id="wpStrip">
   {% for wp in workplaces %}
@@ -45,6 +43,8 @@
   </div>
   {% endfor %}
 </div>
+
+{% include "_period_filter_notice.html" %}
 
 <div id="overlapBanner" class="alert alert-warning py-2 mb-3" role="alert"
      style="{% if has_overlaps %}display:flex;{% else %}display:none;{% endif %}align-items:center;gap:0.5rem;">
