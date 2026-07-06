@@ -123,7 +123,53 @@ def detect_workplace_conflicts(data):
     return conflicts
 
 
-def perform_import(data, workplace_mapping):
+def _intervals_overlap(a_start, a_end, b_start, b_end):
+    """True if closed date intervals [a_start, a_end] and [b_start, b_end] overlap.
+
+    An end of ``None`` means open-ended (still active), i.e. +infinity — matching
+    ``WorkplaceContract.clean()``'s overlap rule.
+    """
+    cond1 = b_end is None or a_start <= b_end
+    cond2 = a_end is None or b_start <= a_end
+    return cond1 and cond2
+
+
+def detect_contract_overlaps(data):
+    """Find imported workplaces whose own contracts overlap in time.
+
+    Clean exports never contain overlaps (the source data is validated), so this
+    only catches hand-edited/corrupt files. Returns a dict of
+    ``{workplace_name: [(contract_label_a, contract_label_b), ...]}`` for every
+    workplace with at least one clashing pair.
+    """
+    problems = {}
+    for wp in data.get("workplaces", []):
+        parsed = []
+        for c in wp.get("contracts", []):
+            try:
+                start = date.fromisoformat(c["start_date"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            end = None
+            if c.get("end_date"):
+                try:
+                    end = date.fromisoformat(c["end_date"])
+                except (TypeError, ValueError):
+                    end = None
+            label = c.get("name") or f"contract from {start}"
+            parsed.append((label, start, end))
+
+        clashes = []
+        for i in range(len(parsed)):
+            for j in range(i + 1, len(parsed)):
+                if _intervals_overlap(parsed[i][1], parsed[i][2], parsed[j][1], parsed[j][2]):
+                    clashes.append((parsed[i][0], parsed[j][0]))
+        if clashes:
+            problems[wp["name"]] = clashes
+    return problems
+
+
+def perform_import(data, workplace_mapping, skip_workplaces=None):
     """
     Import data into the database.
 
@@ -132,14 +178,19 @@ def perform_import(data, workplace_mapping):
       {"action": "map", "target_id": int} . map to existing workplace id
       {"action": "skip"} . skip shifts for this workplace
 
+    skip_workplaces: set of imported workplace names to treat as "skip"
+      regardless of their mapping (used to drop workplaces with overlapping
+      contracts).
+
     Returns a summary dict with counts.
     """
+    skip_workplaces = skip_workplaces or set()
     existing_by_name = {wp.name: wp for wp in Workplace.objects.all()}
     # Resolve mapping: build imported_name -> Workplace instance
     resolved = {}
 
     for name, action in workplace_mapping.items():
-        if action["action"] == "skip":
+        if name in skip_workplaces or action["action"] == "skip":
             resolved[name] = None
         elif action["action"] == "map":
             resolved[name] = Workplace.objects.get(pk=action["target_id"])
@@ -378,13 +429,22 @@ def _create_workplace_from_dict(d):
 
     if d.get("contracts"):
         # New-format export: restore full contract/termset structure
+        from django.core.exceptions import ValidationError
         for c_data in d["contracts"]:
-            contract = WorkplaceContract.objects.create(
+            contract = WorkplaceContract(
                 workplace=wp,
                 name=c_data.get("name", ""),
                 start_date=_date.fromisoformat(c_data["start_date"]),
                 end_date=_date.fromisoformat(c_data["end_date"]) if c_data.get("end_date") else None,
             )
+            try:
+                # Safety net: never persist a contract that overlaps one already
+                # restored for this workplace (upstream skips such files, but a
+                # corrupt file must not slip a second active contract through).
+                contract.full_clean()
+            except ValidationError:
+                continue
+            contract.save()
             for ts_data in c_data.get("term_sets", []):
                 _create_termset_from_dict(contract, ts_data)
     else:

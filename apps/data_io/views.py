@@ -73,6 +73,14 @@ class ImportUploadView(View):
         conflicts = services.detect_workplace_conflicts(data)
         existing_workplaces = Workplace.objects.all()
 
+        # Overlapping contracts only matter for workplaces that will be created
+        # (unmatched names); mapped/matched workplaces don't import contracts.
+        contract_overlaps = {
+            name: clashes
+            for name, clashes in services.detect_contract_overlaps(data).items()
+            if name in conflicts
+        }
+
         # Summary counts
         summary = {
             "workplaces": len(data.get("workplaces", [])),
@@ -87,6 +95,7 @@ class ImportUploadView(View):
         return render(request, "data_io/import_confirm.html", {
             "conflicts": conflicts,
             "existing_workplaces": existing_workplaces,
+            "contract_overlaps": contract_overlaps,
             "summary": summary,
             "data": data,
         })
@@ -118,7 +127,28 @@ class ImportConfirmView(View):
             else:
                 workplace_mapping[name] = {"action": "skip"}
 
-        counts = services.perform_import(data, workplace_mapping)
+        # Overlapping contracts only bite workplaces actually being created.
+        overlaps = services.detect_contract_overlaps(data)
+        overlapping_created = {
+            name for name in overlaps
+            if workplace_mapping.get(name, {}).get("action") == "create"
+        }
+        skip_workplaces = set()
+        if overlapping_created:
+            if request.POST.get("overlap_action") == "discard_all":
+                del request.session["import_data"]
+                messages.error(
+                    request,
+                    "Import cancelled — the file contains workplaces with "
+                    "overlapping contracts. Nothing was imported.",
+                )
+                return redirect("data_io:main")
+            # Default: skip just the overlapping workplace(s)
+            skip_workplaces = overlapping_created
+
+        counts = services.perform_import(
+            data, workplace_mapping, skip_workplaces=skip_workplaces
+        )
 
         # Clean up session
         del request.session["import_data"]
@@ -135,4 +165,11 @@ class ImportConfirmView(View):
 
         msg = "Import complete: " + (", ".join(parts) if parts else "nothing to import.")
         messages.success(request, msg)
+        if skip_workplaces:
+            messages.warning(
+                request,
+                "Skipped {} workplace(s) with overlapping contracts: {}.".format(
+                    len(skip_workplaces), ", ".join(sorted(skip_workplaces))
+                ),
+            )
         return redirect("data_io:main")

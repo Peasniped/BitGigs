@@ -190,30 +190,31 @@ class WorkplaceContract(models.Model):
         end = self.end_date or "open"
         return f"{self.workplace.name} — {label} ({self.start_date} → {end})"
 
+    def overlapping_contracts(self):
+        """Other contracts for the same workplace whose date range overlaps this
+        one. Empty when start_date/workplace aren't set yet."""
+        if not self.start_date or not self.workplace_id:
+            return WorkplaceContract.objects.none()
+        qs = WorkplaceContract.objects.filter(workplace_id=self.workplace_id)
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        if self.end_date:
+            # This contract runs [start, end]; overlap when other.start <= end AND other.end >= start
+            return qs.filter(start_date__lte=self.end_date).filter(
+                Q(end_date__isnull=True) | Q(end_date__gte=self.start_date)
+            )
+        # Open-ended: overlaps any contract that hasn't ended before our start
+        return qs.filter(
+            Q(end_date__isnull=True) | Q(end_date__gte=self.start_date)
+        )
+
     def clean(self):
         super().clean()
         if self.end_date and self.start_date and self.end_date < self.start_date:
             raise ValidationError("End date must be on or after start date.")
 
         # Overlap check: no other contract for the same workplace may overlap
-        if not self.start_date or not self.workplace_id:
-            return
-        qs = WorkplaceContract.objects.filter(workplace=self.workplace)
-        if self.pk:
-            qs = qs.exclude(pk=self.pk)
-
-        if self.end_date:
-            # This contract runs [start, end]; overlap when other.start <= end AND other.end >= start
-            overlap = qs.filter(start_date__lte=self.end_date).filter(
-                Q(end_date__isnull=True) | Q(end_date__gte=self.start_date)
-            )
-        else:
-            # Open-ended: overlaps any contract that starts on or before today
-            # (or any contract whose end_date >= our start)
-            overlap = qs.filter(
-                Q(end_date__isnull=True) | Q(end_date__gte=self.start_date)
-            )
-
+        overlap = self.overlapping_contracts()
         if overlap.exists():
             other = overlap.first()
             raise ValidationError(

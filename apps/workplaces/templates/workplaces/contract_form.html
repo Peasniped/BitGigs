@@ -43,6 +43,17 @@
           {% if form.non_field_errors %}
             <div class="alert alert-danger py-2">
               {% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+              {% if overlap_contract %}
+              <hr class="my-2">
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <button type="submit" name="end_overlapping" value="{{ overlap_contract.pk }}"
+                        class="btn btn-sm btn-warning">
+                  <i class="bi bi-scissors me-1"></i>End
+                  “{{ overlap_contract.name|default:"the previous contract" }}” at {{ workplace.name }}
+                  on {{ overlap_end_date|date:"d/m/Y" }} &amp; create this contract.
+                </button>
+              </div>
+              {% endif %}
             </div>
           {% endif %}
 

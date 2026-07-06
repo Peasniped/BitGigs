@@ -45,6 +45,41 @@
     </p>
     <form method="post" action="{% url 'data_io:import-confirm' %}" id="importForm">
       {% csrf_token %}
+      {% if contract_overlaps %}
+      <div class="alert alert-danger border-0 mb-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <i class="bi bi-exclamation-octagon-fill fs-5"></i>
+          <strong>Overlapping contracts detected</strong>
+        </div>
+        <p class="small mb-2">
+          A workplace can only have one active contract at a time, but the file
+          below has workplaces whose contracts overlap. This only happens with a
+          hand-edited or corrupt export.
+        </p>
+        <ul class="small mb-3">
+          {% for name, clashes in contract_overlaps.items %}
+          <li>
+            <strong>{{ name }}</strong>:
+            {% for a, b in clashes %}“{{ a }}” ↔ “{{ b }}”{% if not forloop.last %}; {% endif %}{% endfor %}
+          </li>
+          {% endfor %}
+        </ul>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="overlap_action"
+                 id="overlapSkip" value="skip" checked>
+          <label class="form-check-label" for="overlapSkip">
+            Skip only the overlapping workplace(s) — import everything else
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="overlap_action"
+                 id="overlapDiscard" value="discard_all">
+          <label class="form-check-label" for="overlapDiscard">
+            Discard the entire import — import nothing
+          </label>
+        </div>
+      </div>
+      {% endif %}
       <div class="table-responsive">
         <table class="table table-sm align-middle">
           <thead>
