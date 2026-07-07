@@ -2,7 +2,7 @@
 # NU     --------------------------------------------------------
 
 Extra work before making base template
-- Kindly ask Claude Fable look the entire codebase through and check if everything is in good working order, secure, and that no dead/repeated code exists in the codebase.
+- Kindly ask Claude Fable look the entire codebase through and check if everything is in good working order, secure / best practices, and that no dead/repeated code exists in the codebase.
 - Design glow up -- more flavorful color and personality?
 - - Central color management -- one source of truth for all colors (user/admin accessible?)
 - Dark mode also?
