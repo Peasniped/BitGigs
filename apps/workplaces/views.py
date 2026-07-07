@@ -227,13 +227,13 @@ class WorkplaceDetailView(View):
             for s in pending_shifts
         ]
 
-        # All contracts for the timeline section, oldest first by their earliest
+        # All contracts for the timeline section, newest first by their earliest
         # term set (contracts have no date field of their own to order by).
         from django.db.models import Min
         contracts = (
             workplace.contracts.prefetch_related("term_sets")
             .annotate(_start=Min("term_sets__effective_from"))
-            .order_by("_start")
+            .order_by("-_start")
         )
 
         return render(
@@ -490,6 +490,38 @@ class ContractDeleteView(View):
 # ContractTermSet CRUD
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _existing_terms_json(contract, exclude_pk=None):
+    """Compact JSON of a contract's term-set date spans for the add-terms form's
+    carry-over prompt: [{"from": iso, "until": iso|null}, ...]."""
+    qs = contract.term_sets.all()
+    if exclude_pk is not None:
+        qs = qs.exclude(pk=exclude_pk)
+    return json.dumps([
+        {
+            "from": ts.effective_from.isoformat(),
+            "until": ts.effective_until.isoformat() if ts.effective_until else None,
+        }
+        for ts in qs
+    ])
+
+
+def _supersede_previous_expiry(new_ts):
+    """A new term set that starts on or before a prior term set's end date
+    supersedes it — the prior term set now only runs until the day before
+    *new_ts*, so its own (later) end date is stale. Clear it. The "contract ends
+    here" date, if any, lives on *new_ts* (chosen on the form)."""
+    prev = (
+        new_ts.contract.term_sets
+        .filter(effective_from__lt=new_ts.effective_from)
+        .exclude(pk=new_ts.pk)
+        .order_by("-effective_from")
+        .first()
+    )
+    if prev and prev.effective_until and prev.effective_until >= new_ts.effective_from:
+        prev.effective_until = None
+        prev.save(update_fields=["effective_until"])
+
+
 class ContractTermSetCreateView(View):
     """Create a new termset (new effective date + settings) under a contract."""
 
@@ -500,14 +532,18 @@ class ContractTermSetCreateView(View):
         latest = contract.term_sets.first()
         initial = {}
         if latest:
+            # Carry the pay/employment settings forward, but not the dates —
+            # effective_from is today and effective_until is decided by the
+            # carry-over prompt (see termset_form.js).
             for f in ContractTermSetForm.Meta.fields:
-                if f != "effective_from":
+                if f not in ("effective_from", "effective_until"):
                     initial[f] = getattr(latest, f)
         initial["effective_from"] = date.today()
         form = ContractTermSetForm(initial=initial, contract=contract)
         return render(request, "workplaces/termset_form.html", {
             "form": form, "workplace": workplace, "contract": contract,
             "tax_profile_json": _tax_profile_json(), "month_choices": MONTH_CHOICES,
+            "existing_terms_json": _existing_terms_json(contract),
             "setup": setup,
         })
 
@@ -520,12 +556,14 @@ class ContractTermSetCreateView(View):
             termset = form.save(commit=False)
             termset.contract = contract
             termset.save()
+            _supersede_previous_expiry(termset)
             if setup:
                 return redirect("core:dashboard")
             return redirect("workplaces:workplace-detail", slug=slug)
         return render(request, "workplaces/termset_form.html", {
             "form": form, "workplace": workplace, "contract": contract,
             "tax_profile_json": _tax_profile_json(), "month_choices": MONTH_CHOICES,
+            "existing_terms_json": _existing_terms_json(contract),
             "setup": setup,
         })
 
@@ -546,6 +584,7 @@ class ContractTermSetUpdateView(View):
             "form": form, "workplace": workplace, "contract": contract,
             "termset": termset, "shift_count": self._shift_count(termset),
             "tax_profile_json": _tax_profile_json(), "month_choices": MONTH_CHOICES,
+            "existing_terms_json": _existing_terms_json(contract, exclude_pk=termset.pk),
         })
 
     def post(self, request, slug, cpk, tpk):
@@ -562,6 +601,7 @@ class ContractTermSetUpdateView(View):
                 new_ts = form.save(commit=False)
                 new_ts.contract = contract
                 new_ts.save()
+                _supersede_previous_expiry(new_ts)
                 return redirect("workplaces:workplace-detail", slug=slug)
         else:
             # Overwrite in place
@@ -574,6 +614,7 @@ class ContractTermSetUpdateView(View):
             "form": form, "workplace": workplace, "contract": contract,
             "termset": termset, "shift_count": self._shift_count(termset),
             "tax_profile_json": _tax_profile_json(), "month_choices": MONTH_CHOICES,
+            "existing_terms_json": _existing_terms_json(contract, exclude_pk=termset.pk),
         })
 
 

@@ -300,64 +300,80 @@
           <i class="bi bi-plus-lg me-1"></i>Add contract
         </a>
       </div>
-      <div class="card-body p-0">
-        {% for contract in contracts %}
-        <div class="border-bottom p-3">
-          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-            <div>
-              <span class="fw-semibold">{% if contract.name %}{{ contract.name }}{% else %}Contract{% endif %}</span>
-              {% if contract.start_date %}
-                <span class="text-muted small ms-2">{{ contract.start_date }}{% if contract.end_date %} – {{ contract.end_date }}{% else %} – present{% endif %}</span>
-              {% else %}
-                <span class="text-muted small ms-2">no terms yet</span>
+      <div class="card-body px-0 pt-0 pb-3">
+        {% if contracts %}
+        {# One table for all contracts so the columns line up across contracts. #}
+        <table class="table table-borderless align-middle mb-0" style="font-size:0.85rem; --bs-table-cell-padding-y:.1rem;">
+          <tbody>
+          {% for contract in contracts %}
+            <tr>
+              <td colspan="3" class="ps-3 pt-3 pb-1"{% if not forloop.first %} style="border-top:1px solid var(--bs-border-color);"{% endif %}>
+                <span class="fw-semibold">{% if contract.name %}{{ contract.name }}{% else %}Contract{% endif %}</span>
+                {% if contract.start_date %}
+                  <span class="text-muted small ms-2">{{ contract.start_date }}{% if contract.end_date %} – {{ contract.end_date }}{% else %} – present{% endif %}</span>
+                {% else %}
+                  <span class="text-muted small ms-2">no terms yet</span>
+                {% endif %}
+              </td>
+              <td class="text-end text-nowrap w-100 pt-3 pb-1"{% if not forloop.first %} style="border-top:1px solid var(--bs-border-color);"{% endif %}>
+                <a href="{% url 'workplaces:contract-update' workplace.slug contract.pk %}" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edit contract">
+                  <i class="bi bi-pencil" style="font-size:0.75rem;"></i>
+                </a>
+                <a href="{% url 'workplaces:contract-delete' workplace.slug contract.pk %}" class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete contract">
+                  <i class="bi bi-trash" style="font-size:0.75rem;"></i>
+                </a>
+                <a href="{% url 'workplaces:termset-create' workplace.slug contract.pk %}" class="btn btn-sm btn-outline-primary py-0 px-2" title="Add new pay terms">
+                  <i class="bi bi-plus-lg" style="font-size:0.75rem;"></i> Terms
+                </a>
+              </td>
+            </tr>
+            {% for ts in contract.timeline %}
+              <tr>
+                <td class="text-muted ps-4 text-nowrap">From {{ ts.effective_from }}{% if ts.effective_until %} until {{ ts.effective_until }}{% endif %}</td>
+                <td class="text-nowrap">
+                  {{ ts.get_employment_type_display }}
+                  {% if ts.employment_type == 'hourly' %}
+                    <span class="text-muted">&mdash; {{ ts.hourly_rate|dk }} DKK/h</span>
+                  {% else %}
+                    <span class="text-muted">&mdash; {{ ts.monthly_salary|dk }} DKK/mo</span>
+                  {% endif %}
+                </td>
+                <td class="text-nowrap">
+                  {% if ts == active_termset %}<span class="badge bg-success" style="font-size:0.65rem;">Active</span>{% endif %}
+                </td>
+                <td class="text-end text-nowrap w-100">
+                  <a href="{% url 'workplaces:termset-update' workplace.slug contract.pk ts.pk %}" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edit terms">
+                    <i class="bi bi-pencil" style="font-size:0.7rem;"></i>
+                  </a>
+                  <a href="{% url 'workplaces:termset-delete' workplace.slug contract.pk ts.pk %}" class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete terms">
+                    <i class="bi bi-trash" style="font-size:0.7rem;"></i>
+                  </a>
+                </td>
+              </tr>
+              {% if ts.gap_after %}
+              <tr>
+                <td colspan="4" class="ps-4 text-muted fst-italic small">
+                  &mdash;&mdash;&mdash;&mdash; gap between term sets &mdash;&mdash;&mdash;&mdash;
+                </td>
+              </tr>
               {% endif %}
-            </div>
-            <div class="d-flex gap-1 flex-shrink-0">
-              <a href="{% url 'workplaces:contract-update' workplace.slug contract.pk %}" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edit contract">
-                <i class="bi bi-pencil" style="font-size:0.75rem;"></i>
-              </a>
-              <a href="{% url 'workplaces:contract-delete' workplace.slug contract.pk %}" class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete contract">
-                <i class="bi bi-trash" style="font-size:0.75rem;"></i>
-              </a>
-              <a href="{% url 'workplaces:termset-create' workplace.slug contract.pk %}" class="btn btn-sm btn-outline-primary py-0 px-2" title="Add new pay terms">
-                <i class="bi bi-plus-lg" style="font-size:0.75rem;"></i> Terms
-              </a>
-            </div>
-          </div>
-          {% for ts in contract.term_sets.all %}
-          <div class="d-flex justify-content-between align-items-center ps-3 mt-2 flex-wrap gap-1" style="font-size:0.85rem;">
-            <div>
-              <span class="text-muted">From {{ ts.effective_from }}{% if ts.effective_until %} until {{ ts.effective_until }}{% endif %}</span>
-              <span class="ms-2">{{ ts.get_employment_type_display }}</span>
-              {% if ts.employment_type == 'hourly' %}
-                <span class="ms-1 text-muted">&mdash; {{ ts.hourly_rate|dk }} DKK/h</span>
-              {% else %}
-                <span class="ms-1 text-muted">&mdash; {{ ts.monthly_salary|dk }} DKK/mo</span>
-              {% endif %}
-              {% if ts == active_termset %}<span class="badge bg-success ms-2" style="font-size:0.65rem;">Active</span>{% endif %}
-            </div>
-            <div class="d-flex gap-1">
-              <a href="{% url 'workplaces:termset-update' workplace.slug contract.pk ts.pk %}" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edit terms">
-                <i class="bi bi-pencil" style="font-size:0.7rem;"></i>
-              </a>
-              <a href="{% url 'workplaces:termset-delete' workplace.slug contract.pk ts.pk %}" class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete terms">
-                <i class="bi bi-trash" style="font-size:0.7rem;"></i>
-              </a>
-            </div>
-          </div>
-          {% empty %}
-          <div class="ps-3 mt-2 text-muted small">
-            No pay terms yet.
-            <a href="{% url 'workplaces:termset-create' workplace.slug contract.pk %}">Add initial terms</a>
-          </div>
+            {% empty %}
+              <tr>
+                <td colspan="4" class="ps-4 text-muted small">
+                  No pay terms yet.
+                  <a href="{% url 'workplaces:termset-create' workplace.slug contract.pk %}">Add initial terms</a>
+                </td>
+              </tr>
+            {% endfor %}
           {% endfor %}
-        </div>
-        {% empty %}
+          </tbody>
+        </table>
+        {% else %}
         <div class="p-3 text-muted small">
           No contracts yet.
           <a href="{% url 'workplaces:contract-create' workplace.slug %}">Add the first contract</a>
         </div>
-        {% endfor %}
+        {% endif %}
       </div>
     </div>
   </div>

@@ -40,6 +40,8 @@
       <div class="card-body">
         <form method="post" id="termsetForm" {% if tax_profile_json %}data-tax-profile="{{ tax_profile_json }}"{% endif %}
               data-field-effective-from="{{ form.effective_from.id_for_label }}"
+              data-field-effective-until="{{ form.effective_until.id_for_label }}"
+              {% if existing_terms_json %}data-existing-terms="{{ existing_terms_json }}"{% endif %}
               data-field-weekly-fixed="{{ form.weekly_hours_fixed.id_for_label }}"
               data-field-weekly-min="{{ form.weekly_hours_min.id_for_label }}"
               data-field-weekly-max="{{ form.weekly_hours_max.id_for_label }}"
@@ -63,7 +65,7 @@
                 <label for="{{ form.effective_from.id_for_label }}" class="form-label fw-medium">Terms effective from</label>
                 <div class="d-flex align-items-center gap-2">
                   <input type="date" name="{{ form.effective_from.html_name }}" id="{{ form.effective_from.id_for_label }}"
-                         value="{{ form.effective_from.value|date:'Y-m-d'|default_if_none:'' }}"
+                         value="{{ form.effective_from.value|date:'Y-m-d'|default:form.effective_from.value|default_if_none:'' }}"
                          class="form-control {% if form.effective_from.errors %}is-invalid{% endif %}"
                          required
                          data-effective-from>
@@ -80,12 +82,78 @@
                 <label for="{{ form.effective_until.id_for_label }}" class="form-label fw-medium">
                   Ends on <small class="text-muted fw-normal">(optional)</small>
                 </label>
-                <input type="date" name="{{ form.effective_until.html_name }}" id="{{ form.effective_until.id_for_label }}"
-                       value="{{ form.effective_until.value|date:'Y-m-d'|default_if_none:'' }}"
-                       class="form-control {% if form.effective_until.errors %}is-invalid{% endif %}">
-                <div class="form-text">
-                  Leave blank while ongoing. On the final terms, this is the date
-                  the contract ends.
+
+                {% comment %}Prompt shown (via JS) when the new terms start on or
+                before the previous terms' end date — carry that end date over or
+                not.{% endcomment %}
+                <div data-supersede-prompt style="display:none;"
+                     class="supersede-prompt rounded p-2 mb-2">
+                  <div class="small mb-2">
+                    The current terms end on
+                    <strong data-supersede-date></strong>. For the new terms:
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="until_choice"
+                           id="untilChoiceKeep" value="keep" data-until-choice checked>
+                    <label class="form-check-label small" for="untilChoiceKeep">
+                      Keep this end date (<span data-supersede-date></span>)
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="until_choice"
+                           id="untilChoiceOpen" value="open" data-until-choice>
+                    <label class="form-check-label small" for="untilChoiceOpen">
+                      Open-ended (no end date)
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="until_choice"
+                           id="untilChoiceCustom" value="custom" data-until-choice>
+                    <label class="form-check-label small" for="untilChoiceCustom">
+                      Set a different end date
+                    </label>
+                  </div>
+                  {# The date field is moved here (by JS) when "Set a different end date" is chosen. #}
+                  <div class="mt-2 ps-4" data-until-slot="box" style="display:none;"></div>
+                </div>
+
+                {% comment %}Prompt shown (via JS) when a later term set exists —
+                these terms are capped by it, so the end date is either "runs
+                until then" (blank) or a deliberate earlier gap.{% endcomment %}
+                <div data-next-prompt style="display:none;"
+                     class="supersede-prompt rounded p-2 mb-2">
+                  <div class="small mb-2">
+                    The next terms begin on <strong data-next-date></strong>. These terms:
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="next_choice"
+                           id="nextChoiceUntil" value="until_next" data-next-choice checked>
+                    <label class="form-check-label small" for="nextChoiceUntil">
+                      Run until then (end the day before)
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="next_choice"
+                           id="nextChoiceGap" value="gap" data-next-choice>
+                    <label class="form-check-label small" for="nextChoiceGap">
+                      End earlier (leave a gap)
+                    </label>
+                  </div>
+                  {# The date field is moved here (by JS) when "End earlier" is chosen. #}
+                  <div class="mt-2 ps-4" data-until-slot="gap" style="display:none;"></div>
+                </div>
+
+                <div data-plain-until>
+                  <div data-until-slot="plain">
+                    <input type="date" name="{{ form.effective_until.html_name }}" id="{{ form.effective_until.id_for_label }}"
+                           value="{{ form.effective_until.value|date:'Y-m-d'|default:form.effective_until.value|default_if_none:'' }}"
+                           class="form-control {% if form.effective_until.errors %}is-invalid{% endif %}"
+                           data-effective-until>
+                  </div>
+                  <div class="form-text">
+                    Leave blank while ongoing. On the final terms, this is the date
+                    the contract ends.
+                  </div>
                 </div>
                 {% for err in form.effective_until.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
               </div>

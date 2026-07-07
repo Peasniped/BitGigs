@@ -1,6 +1,6 @@
 import calendar as _cal
 import os
-from datetime import date as _date
+from datetime import date as _date, timedelta
 from decimal import Decimal
 
 from django.db import models
@@ -224,6 +224,45 @@ class WorkplaceContract(models.Model):
         if not ordered:
             return None, None
         return ordered[0].effective_from, ordered[-1].effective_until
+
+    @property
+    def timeline(self) -> list["ContractTermSet"]:
+        """Term sets in display order (newest first), each with a transient
+        ``gap_after`` attribute set to the inactive ``(first_day, last_day)``
+        range between it and the next (older) term set, or None when they are
+        contiguous. A gap exists when the older term set has an explicit
+        effective_until that ends more than a day before this one begins."""
+        ordered = sorted(
+            self.term_sets.all(), key=lambda t: t.effective_from, reverse=True
+        )
+        for i, ts in enumerate(ordered):
+            ts.gap_after = None
+            if i + 1 < len(ordered):
+                older = ordered[i + 1]
+                if (
+                    older.effective_until
+                    and ts.effective_from - older.effective_until > timedelta(days=1)
+                ):
+                    ts.gap_after = (
+                        older.effective_until + timedelta(days=1),
+                        ts.effective_from - timedelta(days=1),
+                    )
+        return ordered
+
+    def active_intervals(self) -> "list[tuple[_date, _date | None]]":
+        """The contract's actually-active date ranges as (start, end) tuples
+        (end None = open), derived from the term sets. Each term set runs from
+        its effective_from until the day before the next term set, capped by its
+        own effective_until — so gaps between term sets are excluded."""
+        ordered = self._ordered_term_sets
+        intervals = []
+        for i, ts in enumerate(ordered):
+            end = ts.effective_until
+            if i + 1 < len(ordered):
+                boundary = ordered[i + 1].effective_from - timedelta(days=1)
+                end = boundary if end is None else min(end, boundary)
+            intervals.append((ts.effective_from, end))
+        return intervals
 
     def overlapping_contracts(self, span_start=None, span_end=None):
         """Other contracts for the same workplace whose derived span overlaps
@@ -461,6 +500,26 @@ class ContractTermSet(models.Model):
             raise ValidationError({
                 "effective_until": "End date must be on or after the effective-from date."
             })
+
+        # Within a contract, a newer term set takes over on its effective_from,
+        # so an end date that reaches into (or past) the next term set is
+        # meaningless — that newer term set already ends these the day before.
+        if self.contract_id and self.effective_from and self.effective_until:
+            next_ts = (
+                self.contract.term_sets
+                .filter(effective_from__gt=self.effective_from)
+                .exclude(pk=self.pk)
+                .order_by("effective_from")
+                .first()
+            )
+            if next_ts and self.effective_until >= next_ts.effective_from:
+                raise ValidationError({
+                    "effective_until": (
+                        f"Newer terms begin on {next_ts.effective_from:%d/%m/%Y}, so "
+                        f"these terms already end the day before. Remove this end "
+                        f"date, or set it before {next_ts.effective_from:%d/%m/%Y}."
+                    )
+                })
 
         # Contracts for the same workplace must not overlap. The contract has no
         # dates of its own, so the guard runs here: compute the parent contract's

@@ -185,4 +185,22 @@ class ContractTermSetForm(forms.ModelForm):
         if goal_min is not None and goal_max is not None and goal_min >= goal_max:
             self.add_error("hour_goal_max", "Max must be greater than min.")
 
+        # If the end date reaches into a later term set (the model's clean will
+        # reject it), clear it on re-render — with a later term set present the
+        # sensible correction is "runs until then" (blank), not a redundant
+        # day-before date.
+        eff_from = cleaned.get("effective_from")
+        eff_until = cleaned.get("effective_until")
+        if self.contract and eff_from and eff_until:
+            next_ts = (
+                self.contract.term_sets
+                .filter(effective_from__gt=eff_from)
+                .exclude(pk=self.instance.pk)
+                .order_by("effective_from")
+                .first()
+            )
+            if next_ts and eff_until >= next_ts.effective_from:
+                self.data = self.data.copy()
+                self.data[self.add_prefix("effective_until")] = ""
+
         return cleaned

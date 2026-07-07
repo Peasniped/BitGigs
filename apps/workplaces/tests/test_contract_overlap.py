@@ -100,6 +100,66 @@ class TermSetActiveWindowTest(TestCase):
         self.assertEqual(self.contract.start_date, date(2024, 1, 1))
         self.assertEqual(self.contract.end_date, date(2024, 12, 31))
 
+    def test_timeline_flags_a_gap_between_term_sets(self):
+        make_terms(self.contract, date(2024, 1, 1), date(2024, 3, 31))  # older, ends Mar 31
+        make_terms(self.contract, date(2024, 6, 1))                     # newer, from Jun 1
+        tl = self.contract.timeline
+        self.assertEqual(tl[0].effective_from, date(2024, 6, 1))        # newest first
+        self.assertEqual(tl[0].gap_after, (date(2024, 4, 1), date(2024, 5, 31)))
+        self.assertIsNone(tl[1].gap_after)
+
+    def test_timeline_no_gap_when_contiguous_or_open_ended(self):
+        make_terms(self.contract, date(2024, 1, 1), date(2024, 5, 31))  # ends the day before
+        make_terms(self.contract, date(2024, 6, 1))
+        self.assertIsNone(self.contract.timeline[0].gap_after)
+
+        other = WorkplaceContract.objects.create(workplace=self.wp, name="Open")
+        make_terms(other, date(2024, 1, 1))   # open-ended older term set
+        make_terms(other, date(2024, 6, 1))   # auto-capped, no explicit gap
+        self.assertIsNone(other.timeline[0].gap_after)
+
+    def test_active_intervals_exclude_gaps(self):
+        make_terms(self.contract, date(2026, 7, 13), date(2026, 7, 15))  # ends 15th
+        make_terms(self.contract, date(2026, 7, 17))                     # open, capped by next
+        make_terms(self.contract, date(2026, 7, 24), date(2026, 8, 1))
+        self.assertEqual(self.contract.active_intervals(), [
+            (date(2026, 7, 13), date(2026, 7, 15)),   # gap on the 16th
+            (date(2026, 7, 17), date(2026, 7, 23)),   # capped the day before the next
+            (date(2026, 7, 24), date(2026, 8, 1)),
+        ])
+
+    def test_end_date_cannot_reach_into_a_later_termset(self):
+        # A newer term set (Jul 17) takes over, so an earlier term set's end date
+        # must not reach it — otherwise both claim the same days with no warning.
+        a = make_terms(self.contract, date(2024, 7, 15))
+        make_terms(self.contract, date(2024, 7, 17))
+        a.effective_until = date(2024, 8, 1)
+        with self.assertRaises(ValidationError):
+            a.full_clean()
+        a.effective_until = date(2024, 7, 17)  # same day the next begins → still invalid
+        with self.assertRaises(ValidationError):
+            a.full_clean()
+        a.effective_until = date(2024, 7, 16)  # strictly before the next → allowed
+        a.full_clean()
+
+    def test_overreaching_end_date_is_cleared_on_rerender(self):
+        from workplaces.forms import ContractTermSetForm
+        a = make_terms(self.contract, date(2024, 7, 15))
+        make_terms(self.contract, date(2024, 7, 17))
+        post = {
+            "effective_from": "2024-07-15", "effective_until": "2024-08-01",
+            "employment_type": "salaried", "monthly_salary": "8000",
+            "work_time_type": "fuldtid", "hours_type": "fixed",
+            "weekly_hours_fixed": "37", "payroll_period_start_day": "1",
+            "tax_card_type": "hovedkort", "vacation_type": "feriekonto",
+        }
+        form = ContractTermSetForm(post, instance=a, contract=self.contract)
+        self.assertFalse(form.is_valid())
+        self.assertIn("effective_until", form.errors)
+        # With a later term set present, the correction is "runs until then"
+        # (blank), not a redundant day-before date.
+        self.assertEqual(form.data.get("effective_until"), "")
+
 
 class ContractCreateViewTest(TestCase):
     def setUp(self):
@@ -113,3 +173,67 @@ class ContractCreateViewTest(TestCase):
         self.assertIn("/terms/add/", resp["Location"])
         # A brand-new contract has no span until it gets terms.
         self.assertIsNone(contract.start_date)
+
+
+class TermSetSupersedeExpiryTest(TestCase):
+    """Adding a term set that starts on or before the current terms' end date
+    moves the contract-end date to the new terms (carry over) or drops it
+    (open-ended), and clears the now-superseded end date on the old terms."""
+
+    def setUp(self):
+        self.wp = Workplace.objects.create(name="Acme", slug="acme")
+        self.contract = WorkplaceContract.objects.create(workplace=self.wp, name="C")
+        self.a = make_terms(self.contract, date(2026, 1, 1), date(2026, 12, 31))
+        self.url = reverse(
+            "workplaces:termset-create", args=[self.wp.slug, self.contract.pk]
+        )
+
+    def _post(self, effective_from, effective_until=""):
+        return self.client.post(self.url, {
+            "effective_from": effective_from,
+            "effective_until": effective_until,
+            "employment_type": "salaried",
+            "monthly_salary": "40000",
+            "work_time_type": "fuldtid",
+            "hours_type": "fixed",
+            "weekly_hours_fixed": "37",
+            "payroll_period_start_day": "1",
+            "tax_card_type": "hovedkort",
+            "vacation_type": "feriekonto",
+            "action": "overwrite",
+        })
+
+    def test_carry_over_moves_end_date_to_new_terms(self):
+        resp = self._post("2026-06-01", effective_until="2026-12-31")
+        self.assertEqual(resp.status_code, 302)
+        self.a.refresh_from_db()
+        b = self.contract.term_sets.get(effective_from=date(2026, 6, 1))
+        self.assertIsNone(self.a.effective_until)          # old terms freed
+        self.assertEqual(b.effective_until, date(2026, 12, 31))  # baton passed
+        self.assertEqual(self.contract.end_date, date(2026, 12, 31))
+
+    def test_open_ended_clears_end_date(self):
+        resp = self._post("2026-06-01", effective_until="")
+        self.assertEqual(resp.status_code, 302)
+        self.a.refresh_from_db()
+        b = self.contract.term_sets.get(effective_from=date(2026, 6, 1))
+        self.assertIsNone(self.a.effective_until)
+        self.assertIsNone(b.effective_until)
+        self.assertIsNone(self.contract.end_date)          # contract now open
+
+    def test_start_after_expiry_keeps_the_gap(self):
+        # Old terms end Mar 31; new terms start Jun 1 (a deliberate gap) — the
+        # old end date is meaningful and must be left intact.
+        self.a.effective_until = date(2026, 3, 31)
+        self.a.save()
+        resp = self._post("2026-06-01", effective_until="")
+        self.assertEqual(resp.status_code, 302)
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.effective_until, date(2026, 3, 31))
+
+    def test_add_form_omits_prefilled_end_date(self):
+        # The new-terms form no longer silently pre-fills the end date.
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(resp.context["form"].initial.get("effective_until"))
+        self.assertIn("existing_terms_json", resp.context)

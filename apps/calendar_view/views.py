@@ -151,15 +151,16 @@ class PlanningCalendarView(View):
                 Decimal("0"),
             )
 
-            # Contract date intervals (for client-side bounds checking in the
-            # grid). Derived from term sets; contracts without terms are skipped.
+            # Active date ranges (per term set) for client-side drop bounds in
+            # the grid. Uses each term set's active window so gaps between term
+            # sets are excluded — a gap day is not a valid drop target.
             contract_intervals = [
                 {
-                    "start": c.start_date.isoformat(),
-                    "end": c.end_date.isoformat() if c.end_date else "",
+                    "start": start.isoformat(),
+                    "end": end.isoformat() if end else "",
                 }
                 for c in wp.contracts.prefetch_related("term_sets")
-                if c.start_date is not None
+                for start, end in c.active_intervals()
             ]
 
             workplace_data.append({
