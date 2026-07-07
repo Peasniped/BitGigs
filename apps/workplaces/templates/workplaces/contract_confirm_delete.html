@@ -20,7 +20,7 @@
       <div class="card-body">
         <p>
           Are you sure you want to delete the contract
-          <strong>{% if contract.name %}{{ contract.name }}{% else %}({{ contract.start_date }}{% if contract.end_date %} – {{ contract.end_date }}{% endif %}){% endif %}</strong>
+          <strong>{% if contract.name %}{{ contract.name }}{% elif contract.start_date %}({{ contract.start_date }}{% if contract.end_date %} – {{ contract.end_date }}{% endif %}){% else %}(no terms yet){% endif %}</strong>
           from <strong>{{ workplace.name }}</strong>?
         </p>
 

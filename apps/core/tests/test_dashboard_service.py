@@ -22,10 +22,8 @@ class DashboardTermsetResolutionTest(TestCase):
             effective_from=date(2026, 1, 1),
         )
         self.wp = Workplace.objects.create(name="Mid Start Corp")
-        # Contract begins on the 1st of March 2026.
-        contract = WorkplaceContract.objects.create(
-            workplace=self.wp, start_date=date(2026, 3, 1),
-        )
+        # Contract begins on the 1st of March 2026 (derived from its term set).
+        contract = WorkplaceContract.objects.create(workplace=self.wp)
         # Payroll period starts on the 20th, so March's period_start is Feb 20 —
         # before the contract exists.
         ContractTermSet.objects.create(
@@ -65,11 +63,9 @@ class RepresentativeTermsetTest(TestCase):
         self.wp = Workplace.objects.create(name="Anchor Corp")
 
     def _add(self, start, end=None, eff=None, salary="30000"):
-        c = WorkplaceContract.objects.create(
-            workplace=self.wp, start_date=start, end_date=end,
-        )
+        c = WorkplaceContract.objects.create(workplace=self.wp)
         ts = ContractTermSet.objects.create(
-            contract=c, effective_from=eff or start,
+            contract=c, effective_from=eff or start, effective_until=end,
             employment_type=ContractTermSet.EmploymentType.SALARIED,
             monthly_salary=Decimal(salary), weekly_hours_fixed=Decimal("37.00"),
             payroll_period_start_day=1,
@@ -88,7 +84,7 @@ class RepresentativeTermsetTest(TestCase):
         self.assertIsNone(self.wp.active_termset_in_month(2025, 6))
 
     def test_mid_month_raise_returns_latest_rate(self):
-        c = WorkplaceContract.objects.create(workplace=self.wp, start_date=date(2025, 6, 1))
+        c = WorkplaceContract.objects.create(workplace=self.wp)
         ContractTermSet.objects.create(
             contract=c, effective_from=date(2025, 6, 1),
             employment_type=ContractTermSet.EmploymentType.SALARIED,
@@ -125,9 +121,7 @@ class SalaryProrationTest(TestCase):
         )
         self.wp = Workplace.objects.create(name="Salary Corp")
         # Salaried contract starting mid-month (July has 31 days → 17 active days).
-        self.contract = WorkplaceContract.objects.create(
-            workplace=self.wp, start_date=date(2026, 7, 15),
-        )
+        self.contract = WorkplaceContract.objects.create(workplace=self.wp)
         self.terms = ContractTermSet.objects.create(
             contract=self.contract,
             effective_from=date(2026, 7, 15),
@@ -166,9 +160,7 @@ class SalaryProrationTest(TestCase):
         # User scenario: 9000/mo, contract from June 10 (30-day month, 21 active
         # days) → 9000 × 21 / 30 = 6300.
         from payroll.services import SalaryEstimateService
-        contract = WorkplaceContract.objects.create(
-            workplace=self.wp, start_date=date(2025, 6, 10),
-        )
+        contract = WorkplaceContract.objects.create(workplace=self.wp)
         terms = ContractTermSet.objects.create(
             contract=contract,
             effective_from=date(2025, 6, 10),
@@ -185,9 +177,7 @@ class SalaryProrationTest(TestCase):
         # Contract runs the whole month, but a raise takes effect June 10. Each
         # term set is prorated by its own effective window, not the contract.
         from payroll.services import SalaryEstimateService
-        contract = WorkplaceContract.objects.create(
-            workplace=self.wp, start_date=date(2025, 6, 1),
-        )
+        contract = WorkplaceContract.objects.create(workplace=self.wp)
         old_terms = ContractTermSet.objects.create(
             contract=contract, effective_from=date(2025, 6, 1),
             employment_type=ContractTermSet.EmploymentType.SALARIED,
@@ -215,17 +205,17 @@ class SalaryProrationTest(TestCase):
         # Raise mid-month: 60000 for June 1–20, 90000 for June 21–30.
         # Monthly earning = 60000 × 20/30 + 90000 × 10/30 = 40000 + 30000 = 70000.
         wp = Workplace.objects.create(name="Raise Corp")
-        contract = WorkplaceContract.objects.create(
-            workplace=wp, start_date=date(2025, 6, 1), end_date=date(2025, 6, 30),
-        )
+        contract = WorkplaceContract.objects.create(workplace=wp)
         ts_first = ContractTermSet.objects.create(
             contract=contract, effective_from=date(2025, 6, 1),
             employment_type=ContractTermSet.EmploymentType.SALARIED,
             monthly_salary=Decimal("60000.00"), weekly_hours_fixed=Decimal("37.00"),
             payroll_period_start_day=1,
         )
+        # Last term set carries the contract's end date (June 30).
         ContractTermSet.objects.create(
             contract=contract, effective_from=date(2025, 6, 21),
+            effective_until=date(2025, 6, 30),
             employment_type=ContractTermSet.EmploymentType.SALARIED,
             monthly_salary=Decimal("90000.00"), weekly_hours_fixed=Decimal("37.00"),
             payroll_period_start_day=1,

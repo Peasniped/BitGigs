@@ -16,9 +16,7 @@ from core.models import TaxProfile
 def _make_workplace(name, **termset_kwargs):
     """Create a Workplace + one WorkplaceContract + one ContractTermSet."""
     wp = Workplace.objects.create(name=name)
-    contract = WorkplaceContract.objects.create(
-        workplace=wp, start_date=date(2000, 1, 1),
-    )
+    contract = WorkplaceContract.objects.create(workplace=wp)
     termset_kwargs.setdefault("effective_from", date(2000, 1, 1))
     ts = ContractTermSet.objects.create(contract=contract, **termset_kwargs)
     return wp, ts

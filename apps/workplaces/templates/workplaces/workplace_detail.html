@@ -306,7 +306,11 @@
           <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
             <div>
               <span class="fw-semibold">{% if contract.name %}{{ contract.name }}{% else %}Contract{% endif %}</span>
-              <span class="text-muted small ms-2">{{ contract.start_date }}{% if contract.end_date %} – {{ contract.end_date }}{% else %} – present{% endif %}</span>
+              {% if contract.start_date %}
+                <span class="text-muted small ms-2">{{ contract.start_date }}{% if contract.end_date %} – {{ contract.end_date }}{% else %} – present{% endif %}</span>
+              {% else %}
+                <span class="text-muted small ms-2">no terms yet</span>
+              {% endif %}
             </div>
             <div class="d-flex gap-1 flex-shrink-0">
               <a href="{% url 'workplaces:contract-update' workplace.slug contract.pk %}" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edit contract">
@@ -323,7 +327,7 @@
           {% for ts in contract.term_sets.all %}
           <div class="d-flex justify-content-between align-items-center ps-3 mt-2 flex-wrap gap-1" style="font-size:0.85rem;">
             <div>
-              <span class="text-muted">From {{ ts.effective_from }}</span>
+              <span class="text-muted">From {{ ts.effective_from }}{% if ts.effective_until %} until {{ ts.effective_until }}{% endif %}</span>
               <span class="ms-2">{{ ts.get_employment_type_display }}</span>
               {% if ts.employment_type == 'hourly' %}
                 <span class="ms-1 text-muted">&mdash; {{ ts.hourly_rate|dk }} DKK/h</span>

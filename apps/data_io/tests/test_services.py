@@ -19,9 +19,7 @@ def _populate():
         name="Yoyo Inc", slug="yoyo", icon="bi-briefcase",
         color="#112233", accent_color="#445566",
     )
-    contract = WorkplaceContract.objects.create(
-        workplace=wp, name="Main", start_date=date(2024, 1, 1),
-    )
+    contract = WorkplaceContract.objects.create(workplace=wp, name="Main")
     ContractTermSet.objects.create(
         contract=contract,
         effective_from=date(2024, 1, 1),

@@ -151,13 +151,15 @@ class PlanningCalendarView(View):
                 Decimal("0"),
             )
 
-            # Contract date intervals (for client-side bounds checking in the grid)
+            # Contract date intervals (for client-side bounds checking in the
+            # grid). Derived from term sets; contracts without terms are skipped.
             contract_intervals = [
                 {
                     "start": c.start_date.isoformat(),
                     "end": c.end_date.isoformat() if c.end_date else "",
                 }
-                for c in wp.contracts.all()
+                for c in wp.contracts.prefetch_related("term_sets")
+                if c.start_date is not None
             ]
 
             workplace_data.append({

@@ -1,11 +1,10 @@
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 import json
 import os
 
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
-from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.views import View
@@ -225,8 +224,14 @@ class WorkplaceDetailView(View):
             for s in pending_shifts
         ]
 
-        # All contracts for the timeline section
-        contracts = workplace.contracts.prefetch_related("term_sets").order_by("start_date")
+        # All contracts for the timeline section, oldest first by their earliest
+        # term set (contracts have no date field of their own to order by).
+        from django.db.models import Min
+        contracts = (
+            workplace.contracts.prefetch_related("term_sets")
+            .annotate(_start=Min("term_sets__effective_from"))
+            .order_by("_start")
+        )
 
         return render(
             request,
@@ -396,29 +401,6 @@ class WorkplaceCustomizeView(View):
 # WorkplaceContract CRUD
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _overlap_offer(contract):
-    """When *contract* clashes with exactly one earlier contract, return
-    ``(old_contract, proposed_end_date)`` so the form can offer to end it and
-    make room; otherwise ``(None, None)``. Only an earlier-starting contract can
-    be ended the day before this one begins."""
-    overlaps = list(contract.overlapping_contracts())
-    if len(overlaps) == 1 and overlaps[0].start_date < contract.start_date:
-        return overlaps[0], contract.start_date - timedelta(days=1)
-    return None, None
-
-
-def _end_contract_before(workplace, contract_pk, new_start):
-    """End the given contract the day before *new_start*. Raises ValidationError
-    (via full_clean) if that can't be applied cleanly, e.g. it would end before
-    the contract's own start."""
-    old = WorkplaceContract.objects.filter(pk=contract_pk, workplace=workplace).first()
-    if old is None:
-        return
-    old.end_date = new_start - timedelta(days=1)
-    old.full_clean()
-    old.save()
-
-
 class ContractCreateView(View):
     """Create a new contract for a workplace, then redirect to add the first termset."""
 
@@ -439,23 +421,7 @@ class ContractCreateView(View):
         if form.is_valid():
             contract = form.save(commit=False)
             contract.workplace = workplace
-            end_overlapping = request.POST.get("end_overlapping")
-            try:
-                with transaction.atomic():
-                    # One-click resolution: end the clashing contract first.
-                    if end_overlapping:
-                        _end_contract_before(workplace, end_overlapping, contract.start_date)
-                    contract.full_clean()
-                    contract.save()
-            except ValidationError as e:
-                for msg in e.messages:
-                    form.add_error(None, msg)
-                overlap_contract, overlap_end_date = _overlap_offer(contract)
-                return render(request, "workplaces/contract_form.html", {
-                    "form": form, "workplace": workplace, "setup": setup,
-                    "overlap_contract": overlap_contract,
-                    "overlap_end_date": overlap_end_date,
-                })
+            contract.save()
             dest = f"/workplaces/{slug}/contracts/{contract.pk}/terms/add/{'?setup=1' if setup else ''}"
             return redirect(dest)
         return render(request, "workplaces/contract_form.html", {
@@ -464,7 +430,7 @@ class ContractCreateView(View):
 
 
 class ContractUpdateView(View):
-    """Edit a contract's name and dates."""
+    """Edit a contract's label. Its active dates come from its term sets."""
 
     def get(self, request, slug, cpk):
         workplace = get_object_or_404(Workplace, slug=slug)

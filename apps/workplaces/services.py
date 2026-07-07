@@ -5,11 +5,16 @@ from django.db.models import Q
 
 
 def workplaces_active_in_period(start: date, end: date):
-    """Workplaces with at least one contract overlapping [start, end]."""
+    """Workplaces with at least one term set whose span overlaps [start, end].
+    Contracts have no dates of their own, so activity is judged from term-set
+    dates (effective_from .. effective_until, the latter open-ended if blank)."""
     from .models import Workplace
     return (
-        Workplace.objects.filter(contracts__start_date__lte=end)
-        .filter(Q(contracts__end_date__isnull=True) | Q(contracts__end_date__gte=start))
+        Workplace.objects.filter(contracts__term_sets__effective_from__lte=end)
+        .filter(
+            Q(contracts__term_sets__effective_until__isnull=True)
+            | Q(contracts__term_sets__effective_until__gte=start)
+        )
         .distinct()
     )
 

@@ -284,7 +284,8 @@ class SalaryEstimateService:
     def _termset_active_range(terms: ContractTermSet) -> tuple[date, date | None]:
         """The date range during which *terms* is the active pay rate within its
         contract: from its effective_from until the day before the next term set
-        (or the contract end, or open-ended). ``end`` is None when open-ended."""
+        starts, capped by its own effective_until. ``end`` is None when
+        open-ended (last term set with no end date)."""
         contract = terms.contract
         next_ts = (
             contract.term_sets
@@ -292,10 +293,10 @@ class SalaryEstimateService:
             .order_by("effective_from")
             .first()
         )
+        end = terms.effective_until  # may be None (open-ended)
         if next_ts:
-            end = next_ts.effective_from - timedelta(days=1)
-        else:
-            end = contract.end_date  # may be None (open-ended)
+            boundary = next_ts.effective_from - timedelta(days=1)
+            end = boundary if end is None else min(end, boundary)
         return terms.effective_from, end
 
     @classmethod

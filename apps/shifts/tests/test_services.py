@@ -11,9 +11,7 @@ from shifts.services import ShiftSummaryService
 class ShiftSummaryServiceTest(TestCase):
     def setUp(self):
         self.wp = Workplace.objects.create(name="Test Corp")
-        contract = WorkplaceContract.objects.create(
-            workplace=self.wp, start_date=date(2000, 1, 1),
-        )
+        contract = WorkplaceContract.objects.create(workplace=self.wp)
         ContractTermSet.objects.create(
             contract=contract,
             effective_from=date(2000, 1, 1),
@@ -68,9 +66,7 @@ class ShiftSummaryServiceTest(TestCase):
 class ShiftModelTest(TestCase):
     def setUp(self):
         self.wp = Workplace.objects.create(name="Model Test Corp")
-        contract = WorkplaceContract.objects.create(
-            workplace=self.wp, start_date=date(2000, 1, 1),
-        )
+        contract = WorkplaceContract.objects.create(workplace=self.wp)
         ContractTermSet.objects.create(
             contract=contract,
             effective_from=date(2000, 1, 1),

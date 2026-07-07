@@ -1,47 +1,11 @@
-/* Pay-terms form: effective-from bounds validation, Today button, fork-date
-   label, hour-goal toggle + auto-populate from contracted hours. Django form
-   field ids/names are read from #termsetForm data-* attributes. Uses
-   toDanish() from app.js. */
+/* Pay-terms form: Today button, fork-date label, hour-goal toggle +
+   auto-populate from contracted hours. Django form field ids/names are read
+   from #termsetForm data-* attributes. Uses toDanish() from app.js. */
 (function() {
   var FORM = document.getElementById('termsetForm');
   var cfg = FORM ? FORM.dataset : {};
 
-  // Live validation of effective_from against the contract's date bounds
-  (function() {
-    var input = document.querySelector('[data-effective-from]');
-    if (!input) return;
-    var errEl = document.querySelector('[data-effective-from-error]');
-    var start = input.dataset.contractStart || '';
-    var end = input.dataset.contractEnd || '';
-
-    function validate() {
-      // ISO yyyy-mm-dd strings compare correctly lexicographically
-      var v = input.value;
-      var msg = '';
-      if (v) {
-        if (start && v < start) {
-          msg = 'Date must be on or after the contract start (' + start + ').';
-        } else if (end && v > end) {
-          msg = 'Date must be on or before the contract end (' + end + ').';
-        }
-      }
-      if (msg) {
-        input.classList.add('is-invalid');
-        errEl.textContent = msg;
-        errEl.style.display = '';
-      } else {
-        input.classList.remove('is-invalid');
-        errEl.style.display = 'none';
-      }
-    }
-    input.addEventListener('input', validate);
-    input.addEventListener('change', validate);
-    validate();
-    // Expose so the Today button can re-validate after setting the value
-    input._validateBounds = validate;
-  })();
-
-  // Today button: set today's date and re-validate
+  // Today button: set today's date on the effective-from field
   (function() {
     var btn = document.querySelector('[data-today-btn]');
     var input = document.querySelector('[data-effective-from]');

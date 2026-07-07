@@ -99,12 +99,16 @@ def _data_years(today: date, *extra_years: int) -> list[int]:
     chips only show years the user has worked, ascending.
     """
     from shifts.models import Shift
-    from workplaces.models import WorkplaceContract
+    from workplaces.models import ContractTermSet
 
     years = set(
         y for y in Shift.objects.values_list("date__year", flat=True).distinct() if y
     )
-    for start, end in WorkplaceContract.objects.values_list("start_date", "end_date"):
+    # A contract spans from its earliest term set to its last term set's end
+    # (open-ended terms count through today).
+    for start, end in ContractTermSet.objects.values_list("effective_from", "effective_until"):
+        if start is None:
+            continue
         last = (end or today).year
         years.update(range(start.year, last + 1))
     years.add(today.year)

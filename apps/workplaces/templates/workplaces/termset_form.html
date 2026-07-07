@@ -35,7 +35,7 @@
       <div class="card-header">
         <i class="bi bi-file-earmark-ruled me-2"></i>
         {% if termset %}Edit Pay Terms{% else %}New Pay Terms{% endif %}
-        <span class="text-muted fw-normal small ms-2">{{ contract.name|default:contract.start_date }}</span>
+        <span class="text-muted fw-normal small ms-2">{{ contract.name|default:"contract" }}</span>
       </div>
       <div class="card-body">
         <form method="post" id="termsetForm" {% if tax_profile_json %}data-tax-profile="{{ tax_profile_json }}"{% endif %}
@@ -56,29 +56,40 @@
             </div>
           {% endif %}
 
-          {# ── Effective from ─────────────────────────── #}
+          {# ── Effective dates ────────────────────────── #}
           <div class="mb-4">
-            <label for="{{ form.effective_from.id_for_label }}" class="form-label fw-medium">Terms effective from</label>
-            <div class="d-flex align-items-center gap-2">
-              <input type="date" name="{{ form.effective_from.html_name }}" id="{{ form.effective_from.id_for_label }}"
-                     value="{{ form.effective_from.value|date:'Y-m-d'|default_if_none:'' }}"
-                     class="form-control {% if form.effective_from.errors %}is-invalid{% endif %}"
-                     style="max-width:200px;" required
-                     data-effective-from
-                     data-contract-start="{{ contract.start_date|date:'Y-m-d' }}"
-                     data-contract-end="{{ contract.end_date|date:'Y-m-d'|default:'' }}">
-              <button type="button" class="btn btn-outline-secondary btn-sm" data-today-btn>
-                Today
-              </button>
+            <div class="row g-3">
+              <div class="col-sm-6">
+                <label for="{{ form.effective_from.id_for_label }}" class="form-label fw-medium">Terms effective from</label>
+                <div class="d-flex align-items-center gap-2">
+                  <input type="date" name="{{ form.effective_from.html_name }}" id="{{ form.effective_from.id_for_label }}"
+                         value="{{ form.effective_from.value|date:'Y-m-d'|default_if_none:'' }}"
+                         class="form-control {% if form.effective_from.errors %}is-invalid{% endif %}"
+                         required
+                         data-effective-from>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" data-today-btn>
+                    Today
+                  </button>
+                </div>
+                <div class="form-text">
+                  Rates apply from this date forward until replaced by a newer entry.
+                </div>
+                {% for err in form.effective_from.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+              </div>
+              <div class="col-sm-6">
+                <label for="{{ form.effective_until.id_for_label }}" class="form-label fw-medium">
+                  Ends on <small class="text-muted fw-normal">(optional)</small>
+                </label>
+                <input type="date" name="{{ form.effective_until.html_name }}" id="{{ form.effective_until.id_for_label }}"
+                       value="{{ form.effective_until.value|date:'Y-m-d'|default_if_none:'' }}"
+                       class="form-control {% if form.effective_until.errors %}is-invalid{% endif %}">
+                <div class="form-text">
+                  Leave blank while ongoing. On the final terms, this is the date
+                  the contract ends.
+                </div>
+                {% for err in form.effective_until.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+              </div>
             </div>
-            <div class="form-text">
-              Rates apply from this date forward until replaced by a newer entry.
-              {% if contract %}Contract runs {{ contract.start_date }}{% if contract.end_date %} &ndash; {{ contract.end_date }}{% else %} &ndash; present{% endif %}.{% endif %}
-            </div>
-            {# Server-side errors (d-block so they show regardless of sibling structure) #}
-            {% for err in form.effective_from.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
-            {# Live client-side error #}
-            <div class="text-danger small mt-1" data-effective-from-error style="display:none;"></div>
           </div>
 
           <div data-form="workplace">

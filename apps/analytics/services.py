@@ -214,7 +214,7 @@ class AnalyticsService:
                 last_day = calendar.monthrange(y, m)[1]
                 month_start = date(y, m, 1)
                 month_end = date(y, m, last_day)
-                contract_active = wp.contracts_in_period(month_start, month_end).exists()
+                contract_active = bool(wp.contracts_in_period(month_start, month_end))
                 actual_hours_in_month = _shift_hours_in_month(wp, y, m)
 
                 if not contract_active:
@@ -291,7 +291,12 @@ class AnalyticsService:
     def rate_history(workplace: Workplace) -> list[dict]:
         """Return a chronological list of all ContractTermSet snapshots."""
         rows: list[dict] = []
-        for contract in workplace.contracts.order_by("start_date"):
+        from django.db.models import Min
+        ordered_contracts = (
+            workplace.contracts.annotate(_start=Min("term_sets__effective_from"))
+            .order_by("_start")
+        )
+        for contract in ordered_contracts:
             for ts in contract.term_sets.order_by("effective_from"):
                 rows.append(_rate_row(ts, ts.effective_from))
         if not rows:

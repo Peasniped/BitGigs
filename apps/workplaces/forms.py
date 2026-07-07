@@ -19,23 +19,16 @@ class WorkplaceForm(forms.ModelForm):
 
 
 class WorkplaceContractForm(forms.ModelForm):
-    """Contract metadata: name (optional), start/end dates."""
+    """Contract metadata: just an optional label. A contract's active dates are
+    derived from its term sets, so no dates are entered here."""
 
     class Meta:
         model = WorkplaceContract
-        fields = ["name", "start_date", "end_date"]
-        widgets = {
-            "start_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "end_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-        }
+        fields = ["name"]
 
     def __init__(self, *args, workplace=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.workplace = workplace
-        self.fields["start_date"].required = True
-        self.fields["end_date"].required = False
-        if not self.initial.get("start_date") and not self.data:
-            self.initial["start_date"] = date.today()
 
 
 class ContractTermSetForm(forms.ModelForm):
@@ -65,6 +58,7 @@ class ContractTermSetForm(forms.ModelForm):
         model = ContractTermSet
         fields = [
             "effective_from",
+            "effective_until",
             "employment_type",
             "hourly_rate",
             "monthly_salary",
@@ -88,15 +82,19 @@ class ContractTermSetForm(forms.ModelForm):
         ]
         widgets = {
             "effective_from": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "effective_until": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
         }
 
     def __init__(self, *args, contract=None, **kwargs):
         super().__init__(*args, **kwargs)
-        # Contract whose bounds constrain effective_from. Falls back to the
-        # instance's contract when editing an existing termset.
+        # The parent contract. Falls back to the instance's contract when editing
+        # an existing termset. Set on the instance so the model's overlap guard
+        # (ContractTermSet.clean) sees the contract during form validation.
         self.contract = contract or (
             self.instance.contract if self.instance and self.instance.contract_id else None
         )
+        if self.contract is not None and not self.instance.contract_id:
+            self.instance.contract = self.contract
 
         for f in [
             "hourly_rate", "monthly_salary", "weekly_hours_fixed",
@@ -146,20 +144,6 @@ class ContractTermSetForm(forms.ModelForm):
     def clean(self):
         cleaned = super().clean()
         emp_type = cleaned.get("employment_type")
-
-        # effective_from must fall within the parent contract's date range
-        eff = cleaned.get("effective_from")
-        if eff and self.contract:
-            if eff < self.contract.start_date:
-                self.add_error("effective_from", (
-                    f"Must be on or after the contract start "
-                    f"({self.contract.start_date})."
-                ))
-            elif self.contract.end_date and eff > self.contract.end_date:
-                self.add_error("effective_from", (
-                    f"Must be on or before the contract end "
-                    f"({self.contract.end_date})."
-                ))
 
         if emp_type == ContractTermSet.EmploymentType.SALARIED:
             cleaned["hourly_rate"] = None

@@ -4,12 +4,20 @@ from datetime import date as _date
 from decimal import Decimal
 
 from django.db import models
-from django.db.models import Q
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 from django.utils.text import slugify
 
 from core.utils import weekly_to_monthly_hours
+
+
+def _spans_overlap(a_start, a_end, b_start, b_end) -> bool:
+    """True if the date spans [a_start, a_end] and [b_start, b_end] overlap.
+    A ``None`` end means open-ended; a ``None`` start means no span (never
+    overlaps)."""
+    if a_start is None or b_start is None:
+        return False
+    return (a_end is None or a_end >= b_start) and (b_end is None or b_end >= a_start)
 
 
 def workplace_icon_upload_to(instance, filename):
@@ -100,29 +108,32 @@ class Workplace(models.Model):
     @property
     def is_active(self) -> bool:
         """True when the workplace has at least one currently active contract."""
-        today = _date.today()
-        return self.contracts.filter(start_date__lte=today).filter(
-            Q(end_date__isnull=True) | Q(end_date__gte=today)
-        ).exists()
+        return self.active_contract_on(_date.today()) is not None
 
     # ------------------------------------------------------------------
     # Contract helpers
+    #
+    # A contract has no dates of its own — its active span is derived from its
+    # term sets (see WorkplaceContract). These helpers therefore evaluate each
+    # contract's term sets rather than any contract-level date field.
     # ------------------------------------------------------------------
 
     def active_contract_on(self, d: _date) -> "WorkplaceContract | None":
-        """Return the contract active on date d, or None."""
-        return (
-            self.contracts.filter(start_date__lte=d)
-            .filter(Q(end_date__isnull=True) | Q(end_date__gte=d))
-            .order_by("-start_date")
-            .first()
-        )
+        """Return the contract active on date d, or None. Contracts for a
+        workplace are guaranteed non-overlapping, so at most one matches."""
+        for contract in self.contracts.all():
+            if contract.is_active_on(d):
+                return contract
+        return None
 
-    def contracts_in_period(self, start: _date, end: _date):
-        """Return contracts overlapping [start, end]."""
-        return self.contracts.filter(start_date__lte=end).filter(
-            Q(end_date__isnull=True) | Q(end_date__gte=start)
-        )
+    def contracts_in_period(self, start: _date, end: _date) -> list["WorkplaceContract"]:
+        """Return contracts whose derived span overlaps [start, end]."""
+        result = []
+        for contract in self.contracts.all():
+            s, e = contract.span()
+            if _spans_overlap(s, e, start, end):
+                result.append(contract)
+        return result
 
     def active_termset_on(self, d: _date) -> "ContractTermSet | None":
         """Convenience shortcut: active ContractTermSet on date d."""
@@ -136,7 +147,7 @@ class Workplace(models.Model):
         last_day = _cal.monthrange(year, month)[1]
         month_start = _date(year, month, 1)
         month_end = _date(year, month, last_day)
-        return self.contracts_in_period(month_start, month_end).exists()
+        return bool(self.contracts_in_period(month_start, month_end))
 
     def active_termset_in_month(self, year: int, month: int) -> "ContractTermSet | None":
         """The term set representing this workplace's pay terms for a calendar
@@ -149,21 +160,21 @@ class Workplace(models.Model):
         last_day = _cal.monthrange(year, month)[1]
         month_start = _date(year, month, 1)
         month_end = _date(year, month, last_day)
-        contract = (
-            self.contracts
-            .filter(start_date__lte=month_end)
-            .filter(Q(end_date__isnull=True) | Q(end_date__gte=month_start))
-            .order_by("-start_date")
-            .first()
-        )
-        if contract is None:
+        active = self.contracts_in_period(month_start, month_end)
+        if not active:
             return None
-        anchor = month_end if contract.end_date is None else min(month_end, contract.end_date)
+        # Latest-starting contract overlapping the month wins.
+        contract = max(active, key=lambda c: c.start_date)
+        span_end = contract.end_date
+        anchor = month_end if span_end is None else min(month_end, span_end)
         return contract.active_termset_on(anchor)
 
 
 class WorkplaceContract(models.Model):
-    """An employment arrangement spanning a date range."""
+    """A named employment arrangement. It carries no dates of its own — its
+    active span is derived from its term sets: it starts at the earliest term
+    set's ``effective_from`` and ends when the last term set's optional
+    ``effective_until`` passes (open-ended if that is blank)."""
 
     workplace = models.ForeignKey(
         Workplace, on_delete=models.CASCADE, related_name="contracts"
@@ -172,69 +183,87 @@ class WorkplaceContract(models.Model):
         max_length=200, blank=True,
         help_text="Optional label, e.g. 'Physics Lab' or 'Adjunkt 2024'.",
     )
-    start_date = models.DateField(
-        help_text="Date this employment arrangement starts.",
-    )
-    end_date = models.DateField(
-        null=True, blank=True,
-        help_text="Date this arrangement ends (leave blank if still active).",
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["workplace", "start_date"]
+        ordering = ["workplace", "id"]
 
     def __str__(self):
-        label = self.name or str(self.start_date)
+        label = self.name or (str(self.start_date) if self.start_date else "contract")
         end = self.end_date or "open"
-        return f"{self.workplace.name} — {label} ({self.start_date} → {end})"
+        start = self.start_date or "?"
+        return f"{self.workplace.name} — {label} ({start} → {end})"
 
-    def overlapping_contracts(self):
-        """Other contracts for the same workplace whose date range overlaps this
-        one. Empty when start_date/workplace aren't set yet."""
-        if not self.start_date or not self.workplace_id:
-            return WorkplaceContract.objects.none()
-        qs = WorkplaceContract.objects.filter(workplace_id=self.workplace_id)
-        if self.pk:
-            qs = qs.exclude(pk=self.pk)
-        if self.end_date:
-            # This contract runs [start, end]; overlap when other.start <= end AND other.end >= start
-            return qs.filter(start_date__lte=self.end_date).filter(
-                Q(end_date__isnull=True) | Q(end_date__gte=self.start_date)
-            )
-        # Open-ended: overlaps any contract that hasn't ended before our start
-        return qs.filter(
-            Q(end_date__isnull=True) | Q(end_date__gte=self.start_date)
+    # ------------------------------------------------------------------
+    # Derived date span (single source of truth = the term sets)
+    # ------------------------------------------------------------------
+
+    @property
+    def _ordered_term_sets(self) -> list["ContractTermSet"]:
+        """Term sets sorted by effective_from. Uses the Python list so a
+        prefetch on ``term_sets`` is reused instead of hitting the DB again."""
+        return sorted(self.term_sets.all(), key=lambda t: t.effective_from)
+
+    @property
+    def start_date(self) -> "_date | None":
+        """Derived: earliest term set's effective_from (None if no terms yet)."""
+        ordered = self._ordered_term_sets
+        return ordered[0].effective_from if ordered else None
+
+    @property
+    def end_date(self) -> "_date | None":
+        """Derived: the last (latest-starting) term set's effective_until, or
+        None when that term set is open-ended / there are no terms."""
+        ordered = self._ordered_term_sets
+        return ordered[-1].effective_until if ordered else None
+
+    def span(self) -> "tuple[_date | None, _date | None]":
+        """(start_date, end_date) of the contract's active window."""
+        ordered = self._ordered_term_sets
+        if not ordered:
+            return None, None
+        return ordered[0].effective_from, ordered[-1].effective_until
+
+    def overlapping_contracts(self, span_start=None, span_end=None):
+        """Other contracts for the same workplace whose derived span overlaps
+        this one's span (or the given prospective [span_start, span_end]).
+        Returns a list. Empty when this contract has no span yet."""
+        if span_start is None and span_end is None:
+            span_start, span_end = self.span()
+        if span_start is None or not self.workplace_id:
+            return []
+        clashes = []
+        siblings = (
+            WorkplaceContract.objects
+            .filter(workplace_id=self.workplace_id)
+            .exclude(pk=self.pk)
+            .prefetch_related("term_sets")
         )
-
-    def clean(self):
-        super().clean()
-        if self.end_date and self.start_date and self.end_date < self.start_date:
-            raise ValidationError("End date must be on or after start date.")
-
-        # Overlap check: no other contract for the same workplace may overlap
-        overlap = self.overlapping_contracts()
-        if overlap.exists():
-            other = overlap.first()
-            raise ValidationError(
-                f"This contract overlaps with '{other}'. "
-                "Contracts for the same workplace must not overlap."
-            )
+        for other in siblings:
+            os, oe = other.span()
+            if _spans_overlap(span_start, span_end, os, oe):
+                clashes.append(other)
+        return clashes
 
     def is_active_on(self, d: _date) -> bool:
-        if self.start_date and d < self.start_date:
-            return False
-        if self.end_date and d > self.end_date:
-            return False
-        return True
+        return self.active_termset_on(d) is not None
 
     def active_termset_on(self, d: _date) -> "ContractTermSet | None":
-        return (
+        """The term set in effect on date d. The latest term set whose
+        effective_from <= d wins ("runs until the next one starts"); if that
+        term set has an effective_until earlier than d, the contract has ended
+        and there is no active term set."""
+        ts = (
             self.term_sets.filter(effective_from__lte=d)
             .order_by("-effective_from")
             .first()
         )
+        if ts is None:
+            return None
+        if ts.effective_until is not None and ts.effective_until < d:
+            return None
+        return ts
 
     def get_rate_as_of(self, as_of: _date | None = None):
         """Return (hourly_rate, monthly_salary) for the active termset on *as_of*."""
@@ -275,6 +304,14 @@ class ContractTermSet(models.Model):
     )
     effective_from = models.DateField(
         help_text="These terms apply from this date forward within the contract.",
+    )
+    effective_until = models.DateField(
+        null=True, blank=True,
+        help_text=(
+            "Optional. The date these terms stop applying. On the last term set "
+            "this is the date the contract itself ends — leave blank while the "
+            "employment is ongoing."
+        ),
     )
 
     # Employment
@@ -417,21 +454,40 @@ class ContractTermSet(models.Model):
                 "Minimum weekly hours cannot exceed maximum weekly hours."
             )
 
-        # effective_from must fall within the parent contract's date range
+        if (
+            self.effective_until and self.effective_from
+            and self.effective_until < self.effective_from
+        ):
+            raise ValidationError({
+                "effective_until": "End date must be on or after the effective-from date."
+            })
+
+        # Contracts for the same workplace must not overlap. The contract has no
+        # dates of its own, so the guard runs here: compute the parent contract's
+        # resulting span (existing sibling term sets + this one) and check it
+        # against the other contracts at the workplace.
         if self.contract_id and self.effective_from:
-            c = self.contract
-            if self.effective_from < c.start_date:
-                raise ValidationError({
-                    "effective_from": (
-                        f"Must be on or after the contract start ({c.start_date})."
-                    )
-                })
-            if c.end_date and self.effective_from > c.end_date:
-                raise ValidationError({
-                    "effective_from": (
-                        f"Must be on or before the contract end ({c.end_date})."
-                    )
-                })
+            spans = [
+                (t.effective_from, t.effective_until)
+                for t in self.contract.term_sets.exclude(pk=self.pk)
+            ]
+            spans.append((self.effective_from, self.effective_until))
+            span_start = min(ef for ef, _ in spans)
+            span_end = max(spans, key=lambda t: t[0])[1]
+            clashes = self.contract.overlapping_contracts(span_start, span_end)
+            if clashes:
+                other = clashes[0]
+                if other.name:
+                    other_label = f"“{other.name}”"
+                elif other.start_date:
+                    other_label = f"the contract starting on {other.start_date.strftime('%d/%m/%y')}"
+                else:
+                    other_label = "another contract"
+                raise ValidationError(
+                    f"These terms would make this contract overlap with {other_label}. "
+                    f"Contracts for the same workplace must not overlap in time — "
+                    f"set an end date on the other contract's final terms first."
+                )
 
     # ------------------------------------------------------------------
     # Computed properties (moved from Workplace)

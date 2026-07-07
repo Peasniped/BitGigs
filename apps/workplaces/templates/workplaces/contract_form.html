@@ -31,7 +31,8 @@
           <i class="bi bi-info-circle-fill mt-1 flex-shrink-0"></i>
           <div>
             A contract represents one employment arrangement.
-            After saving you'll set the pay terms.
+            After saving you'll set the pay terms — their dates decide when the
+            contract is active.
           </div>
         </div>
         {% endif %}
@@ -43,17 +44,6 @@
           {% if form.non_field_errors %}
             <div class="alert alert-danger py-2">
               {% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
-              {% if overlap_contract %}
-              <hr class="my-2">
-              <div class="d-flex flex-wrap align-items-center gap-2">
-                <button type="submit" name="end_overlapping" value="{{ overlap_contract.pk }}"
-                        class="btn btn-sm btn-warning">
-                  <i class="bi bi-scissors me-1"></i>End
-                  “{{ overlap_contract.name|default:"the previous contract" }}” at {{ workplace.name }}
-                  on {{ overlap_end_date|date:"d/m/Y" }} &amp; create this contract.
-                </button>
-              </div>
-              {% endif %}
             </div>
           {% endif %}
 
@@ -67,32 +57,6 @@
                    placeholder="e.g. Physics Lab, Part-time shift">
             <div class="form-text">A short label if you have several contracts at the same workplace.</div>
             {% for err in form.name.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
-          </div>
-
-          <div class="row g-3 mb-3">
-            <div class="col-6">
-              <label for="{{ form.start_date.id_for_label }}" class="form-label fw-medium">Start date</label>
-              <div class="d-flex align-items-center gap-2">
-                <input type="date" name="{{ form.start_date.html_name }}" id="{{ form.start_date.id_for_label }}"
-                       value="{{ form.start_date.value|date:'Y-m-d'|default_if_none:'' }}"
-                       class="form-control {% if form.start_date.errors %}is-invalid{% endif %}" required
-                       data-start-date>
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-today-btn>
-                  Today
-                </button>
-              </div>
-              {% for err in form.start_date.errors %}<div class="invalid-feedback d-block">{{ err }}</div>{% endfor %}
-            </div>
-            <div class="col-6">
-              <label for="{{ form.end_date.id_for_label }}" class="form-label fw-medium">
-                End date <small class="text-muted fw-normal">(optional)</small>
-              </label>
-              <input type="date" name="{{ form.end_date.html_name }}" id="{{ form.end_date.id_for_label }}"
-                     value="{{ form.end_date.value|date:'Y-m-d'|default_if_none:'' }}"
-                     class="form-control {% if form.end_date.errors %}is-invalid{% endif %}">
-              <div class="form-text">Leave blank if still active.</div>
-              {% for err in form.end_date.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
-            </div>
           </div>
 
           <div class="d-flex gap-2 mt-4">
@@ -113,21 +77,4 @@
 
   </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-  // Today button: fill the start date with today's date.
-  (function() {
-    var btn = document.querySelector('[data-today-btn]');
-    var input = document.querySelector('[data-start-date]');
-    if (!btn || !input) return;
-    btn.addEventListener('click', function() {
-      var iso = new Date().toLocaleDateString('sv');  // yyyy-mm-dd
-      if (window.setDateValue) window.setDateValue(input, iso);
-      else input.value = iso;
-      input.dispatchEvent(new Event('input'));
-    });
-  })();
-</script>
 {% endblock %}

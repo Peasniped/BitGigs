@@ -64,12 +64,20 @@ class ImportSkipOverlapTest(TestCase):
         services.perform_import(data, mapping)
         self.assertTrue(Workplace.objects.filter(name="Acme").exists())
 
-    def test_safety_net_drops_overlapping_contract(self):
-        """Even if a corrupt file reaches _create_workplace_from_dict, a second
-        overlapping contract is not persisted."""
+    def test_restores_contract_and_term_set_dates(self):
+        """A restored contract has no date fields of its own; its span comes from
+        the term sets, including the optional effective_until."""
         d = _wp_dict("Acme", [
-            {"name": "A", "start_date": "2024-01-01", "end_date": None, "term_sets": []},
-            {"name": "B", "start_date": "2024-06-01", "end_date": None, "term_sets": []},
+            {"name": "A", "start_date": "2024-01-01", "end_date": "2024-06-30",
+             "term_sets": [{
+                 "effective_from": "2024-01-01",
+                 "effective_until": "2024-06-30",
+                 "employment_type": "salaried",
+                 "monthly_salary": "30000",
+                 "weekly_hours_fixed": "37",
+             }]},
         ])
         wp = services._create_workplace_from_dict(d)
-        self.assertEqual(WorkplaceContract.objects.filter(workplace=wp).count(), 1)
+        contract = WorkplaceContract.objects.get(workplace=wp)
+        self.assertEqual(contract.start_date, date(2024, 1, 1))
+        self.assertEqual(contract.end_date, date(2024, 6, 30))

@@ -210,7 +210,6 @@ def perform_import(data, workplace_mapping, skip_workplaces=None):
                 minimal_wp = Workplace.objects.create(name=name)
                 minimal_contract = WorkplaceContract.objects.create(
                     workplace=minimal_wp,
-                    start_date=_date(2000, 1, 1),
                 )
                 ContractTermSet.objects.create(
                     contract=minimal_contract,
@@ -303,6 +302,7 @@ def perform_import(data, workplace_mapping, skip_workplaces=None):
 def _termset_to_dict(ts):
     return {
         "effective_from": ts.effective_from.isoformat(),
+        "effective_until": ts.effective_until.isoformat() if ts.effective_until else None,
         "employment_type": ts.employment_type,
         "hourly_rate": str(ts.hourly_rate) if ts.hourly_rate else None,
         "monthly_salary": str(ts.monthly_salary) if ts.monthly_salary else None,
@@ -342,10 +342,18 @@ def _wp_to_dict(wp):
             pass
 
     contracts = []
-    for c in wp.contracts.prefetch_related("term_sets").order_by("start_date"):
+    from django.db.models import Min
+    ordered = (
+        wp.contracts.prefetch_related("term_sets")
+        .annotate(_start=Min("term_sets__effective_from"))
+        .order_by("_start")
+    )
+    for c in ordered:
+        # start_date/end_date are derived from the term sets (kept in the export
+        # for the overlap detector and human readability).
         contracts.append({
             "name": c.name,
-            "start_date": c.start_date.isoformat(),
+            "start_date": c.start_date.isoformat() if c.start_date else None,
             "end_date": c.end_date.isoformat() if c.end_date else None,
             "term_sets": [_termset_to_dict(ts) for ts in c.term_sets.order_by("effective_from")],
         })
@@ -428,32 +436,20 @@ def _create_workplace_from_dict(d):
         wp.custom_icon.save(filename, ContentFile(file_bytes), save=True)
 
     if d.get("contracts"):
-        # New-format export: restore full contract/termset structure
-        from django.core.exceptions import ValidationError
+        # New-format export: restore full contract/termset structure. A contract
+        # has no dates of its own — its span is derived from the term sets.
+        # Overlapping workplaces are already filtered upstream by
+        # detect_contract_overlaps before import.
         for c_data in d["contracts"]:
-            contract = WorkplaceContract(
+            contract = WorkplaceContract.objects.create(
                 workplace=wp,
                 name=c_data.get("name", ""),
-                start_date=_date.fromisoformat(c_data["start_date"]),
-                end_date=_date.fromisoformat(c_data["end_date"]) if c_data.get("end_date") else None,
             )
-            try:
-                # Safety net: never persist a contract that overlaps one already
-                # restored for this workplace (upstream skips such files, but a
-                # corrupt file must not slip a second active contract through).
-                contract.full_clean()
-            except ValidationError:
-                continue
-            contract.save()
             for ts_data in c_data.get("term_sets", []):
                 _create_termset_from_dict(contract, ts_data)
     else:
         # Legacy flat format: create one contract + one termset
-        contract = WorkplaceContract.objects.create(
-            workplace=wp,
-            name="",
-            start_date=_date(2000, 1, 1),
-        )
+        contract = WorkplaceContract.objects.create(workplace=wp, name="")
         _create_termset_from_dict(contract, dict(d, effective_from="2000-01-01"))
 
     return wp
@@ -466,6 +462,7 @@ def _create_termset_from_dict(contract, d):
     kwargs = {
         "contract": contract,
         "effective_from": _date.fromisoformat(d.get("effective_from", "2000-01-01")),
+        "effective_until": _date.fromisoformat(d["effective_until"]) if d.get("effective_until") else None,
         "employment_type": d.get("employment_type", "hourly"),
         "payroll_period_start_day": d.get("payroll_period_start_day", 1),
         "tax_card_type": d.get("tax_card_type", "hoofdkort"),
