@@ -130,15 +130,18 @@ class WorkplaceDetailView(View):
         fritvalgskonto = Decimal("0")
 
         if viewed_termset:
-            # Salaried pay is prorated to the contract-active days in the month
-            # (a mid-month start earns only part of the salary).
-            salary_override = None
+            # Month-aware estimate. Salaried: sum every term set active in the
+            # month, each prorated to its active days (a mid-month start/end or
+            # raise earns only part of each salary) — matches the dashboard and
+            # analytics. Hourly: the month's actual hours.
             if viewed_termset.employment_type == ContractTermSet.EmploymentType.SALARIED:
-                salary_override = SalaryEstimateService.covered_salary(viewed_termset, year, month)
-            estimate = SalaryEstimateService.estimate(
-                viewed_termset, actual_hours, as_of=tax_pull_date,
-                monthly_salary_override=salary_override,
-            )
+                estimate = SalaryEstimateService.salaried_month_estimate(
+                    viewed_termset.contract, year, month, as_of=tax_pull_date,
+                )
+            else:
+                estimate = SalaryEstimateService.estimate_for_month(
+                    viewed_termset, year, month, hours=actual_hours, as_of=tax_pull_date,
+                )
 
             if viewed_termset.vacation_type == ContractTermSet.VacationType.FERIEKONTO:
                 feriepenge_rate = Decimal("12.50")

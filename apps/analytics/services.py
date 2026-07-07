@@ -251,19 +251,25 @@ class AnalyticsService:
                     else:
                         hours = trailing_avg
                         is_projected = True
-                    estimate = SalaryEstimateService.estimate(termset, hours, as_of=as_of)
+                    estimate = SalaryEstimateService.estimate_for_month(
+                        termset, y, m, hours=hours, as_of=as_of,
+                    )
+                    gross = estimate.taxable_gross
+                    net = (
+                        estimate.tax_breakdown.net_pay
+                        if estimate.tax_breakdown
+                        else estimate.taxable_gross
+                    )
                 else:  # SALARIED
                     weekly = termset.expected_weekly_hours or Decimal("37")
                     hours = weekly_to_monthly_hours(weekly).quantize(TWO_PLACES, ROUND_HALF_UP)
                     is_projected = not is_past
-                    estimate = SalaryEstimateService.estimate(termset, hours, as_of=as_of)
-
-                gross = estimate.taxable_gross
-                net = (
-                    estimate.tax_breakdown.net_pay
-                    if estimate.tax_breakdown
-                    else estimate.taxable_gross
-                )
+                    # Sum every salaried term set active in the month, each
+                    # prorated to its own active days (handles a mid-month raise
+                    # and a mid-month start/end earning only part of the salary).
+                    gross, net = SalaryEstimateService.salaried_month_totals(
+                        termset.contract, y, m, as_of=as_of,
+                    )
 
                 wp_proj.months.append(MonthRow(
                     year=y, month=m, label=label,

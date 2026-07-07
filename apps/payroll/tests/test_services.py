@@ -22,6 +22,48 @@ def _make_workplace(name, **termset_kwargs):
     return wp, ts
 
 
+class SalariedMonthTotalsTest(TestCase):
+    """A salaried month is summed over every term set active in it, each
+    prorated to its own active days — a mid-month split covering the whole month
+    earns the full salary, not just one half."""
+
+    def setUp(self):
+        TaxProfile.objects.create(
+            monthly_deduction=Decimal("4000.00"), tax_percent=Decimal("37.00"),
+            church_tax_percent=Decimal("0.00"), am_bidrag_percent=Decimal("8.00"),
+            effective_from=date(2026, 1, 1),
+        )
+        self.wp = Workplace.objects.create(name="Split Corp")
+        self.contract = WorkplaceContract.objects.create(workplace=self.wp)
+
+    def _add(self, eff_from, eff_until, salary):
+        return ContractTermSet.objects.create(
+            contract=self.contract, effective_from=eff_from, effective_until=eff_until,
+            employment_type=ContractTermSet.EmploymentType.SALARIED,
+            monthly_salary=Decimal(salary), weekly_hours_fixed=Decimal("37.00"),
+            payroll_period_start_day=1,
+        )
+
+    def test_two_halves_sum_to_full_month(self):
+        self._add(date(2026, 6, 1), date(2026, 6, 15), "50000")
+        self._add(date(2026, 6, 16), date(2026, 6, 30), "50000")
+        gross, _ = SalaryEstimateService.salaried_month_totals(self.contract, 2026, 6)
+        self.assertEqual(gross, Decimal("50000.00"))
+
+    def test_partial_month_is_prorated(self):
+        # Only June 16–30 active (15 of 30 days) at 50000 → 25000.
+        self._add(date(2026, 6, 16), date(2026, 6, 30), "50000")
+        gross, _ = SalaryEstimateService.salaried_month_totals(self.contract, 2026, 6)
+        self.assertEqual(gross, Decimal("25000.00"))
+
+    def test_no_active_terms_returns_zero(self):
+        self._add(date(2026, 6, 1), date(2026, 6, 30), "50000")
+        self.assertEqual(
+            SalaryEstimateService.salaried_month_totals(self.contract, 2026, 8),
+            (Decimal("0"), Decimal("0")),
+        )
+
+
 class PayrollPeriodServiceTest(TestCase):
     def setUp(self):
         self.wp, self.ts = _make_workplace(

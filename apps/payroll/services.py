@@ -193,6 +193,18 @@ class SalaryEstimate:
     tax_breakdown: TaxBreakdown | None
 
 
+@dataclass
+class SalariedMonthLine:
+    """One salaried term set's contribution to a calendar month: how many of the
+    month's days it is the active rate (split earned/planned by a reference date)
+    and its salary prorated to those days."""
+    termset: "ContractTermSet"
+    earned_days: int
+    planned_days: int
+    covered_days: int
+    covered_salary: Decimal
+
+
 class SalaryEstimateService:
     """Calculate gross pay for a payroll period."""
 
@@ -332,6 +344,143 @@ class SalaryEstimateService:
         covered = earned + planned
         salary = terms.monthly_salary or Decimal("0")
         return (salary * covered / days_in_month).quantize(TWO_PLACES, ROUND_HALF_UP)
+
+    @classmethod
+    def estimate_for_month(
+        cls,
+        terms: ContractTermSet,
+        year: int,
+        month: int,
+        *,
+        hours: Decimal = Decimal("0"),
+        as_of: date | None = None,
+    ) -> SalaryEstimate:
+        """The single entry point for a term set's estimate over a calendar
+        month. Salaried pay is prorated to the days the term set is the active
+        rate in the month (a mid-month start or end earns only part of the
+        salary) via ``covered_salary``; hourly pay uses the supplied *hours*.
+
+        For a month that may hold several salaried term sets (a mid-month raise),
+        use ``salaried_month_estimate`` instead. Use this instead of calling
+        ``estimate`` directly from month views so proration stays consistent
+        across the dashboard, workplace page and analytics."""
+        if terms.employment_type == ContractTermSet.EmploymentType.SALARIED:
+            covered = cls.covered_salary(terms, year, month)
+            return cls.estimate(
+                terms, hours, as_of=as_of, monthly_salary_override=covered,
+            )
+        return cls.estimate(terms, hours, as_of=as_of)
+
+    @classmethod
+    def salaried_month_lines(
+        cls, contract, year: int, month: int, today: date,
+    ) -> list["SalariedMonthLine"]:
+        """For every salaried term set of *contract* that is the active rate on
+        at least one day of the month, its day split by *today* and its salary
+        prorated to those active days. This is the shared basis for salaried
+        month pay — a month may hold several term sets (e.g. a mid-month raise),
+        each prorated by the days it is the active rate."""
+        month_end = date(year, month, calendar.monthrange(year, month)[1])
+        lines: list[SalariedMonthLine] = []
+        term_sets = contract.term_sets.filter(
+            effective_from__lte=month_end,
+            employment_type=ContractTermSet.EmploymentType.SALARIED,
+        )
+        for ts in term_sets:
+            earned, planned, days_in_month = cls.active_day_split(ts, year, month, today)
+            covered_days = earned + planned
+            if covered_days == 0:
+                continue
+            covered_salary = (
+                (ts.monthly_salary or Decimal("0")) * covered_days / days_in_month
+            ).quantize(TWO_PLACES, ROUND_HALF_UP)
+            lines.append(SalariedMonthLine(
+                termset=ts, earned_days=earned, planned_days=planned,
+                covered_days=covered_days, covered_salary=covered_salary,
+            ))
+        return lines
+
+    @staticmethod
+    def _combine_estimates(ests: list[SalaryEstimate]) -> SalaryEstimate:
+        """Sum several per-term-set estimates into one month estimate. Additive
+        money fields are summed; rate/config fields come from the last (latest)
+        term set, which is the representative rate for the month."""
+        if len(ests) == 1:
+            return ests[0]
+        rep = ests[-1]
+
+        def s(attr: str) -> Decimal:
+            return sum((getattr(e, attr) for e in ests), Decimal("0"))
+
+        tax_breakdown = None
+        if all(e.tax_breakdown for e in ests):
+            first = ests[0].tax_breakdown
+
+            def stb(attr: str) -> Decimal:
+                return sum((getattr(e.tax_breakdown, attr) for e in ests), Decimal("0"))
+
+            tax_breakdown = TaxBreakdown(
+                gross=stb("gross"), employee_atp=stb("employee_atp"),
+                employee_pension=stb("employee_pension"), am_basis=stb("am_basis"),
+                am_bidrag=stb("am_bidrag"), income_after_am=stb("income_after_am"),
+                monthly_deduction=stb("monthly_deduction"), taxable_income=stb("taxable_income"),
+                tax_percent=first.tax_percent, church_tax_percent=first.church_tax_percent,
+                a_skat=stb("a_skat"), net_pay=stb("net_pay"),
+            )
+
+        return SalaryEstimate(
+            workplace_name=rep.workplace_name,
+            employment_type=rep.employment_type,
+            total_hours=s("total_hours"),
+            hourly_rate=rep.hourly_rate,
+            effective_hourly_rate=rep.effective_hourly_rate,
+            total_hourly_rate=rep.total_hourly_rate,
+            monthly_salary=rep.monthly_salary,
+            gross_pay=s("gross_pay"),
+            fritvalgskonto=s("fritvalgskonto"),
+            taxable_gross=s("taxable_gross"),
+            pension_basis=s("pension_basis"),
+            employee_pension=s("employee_pension"),
+            employer_pension=s("employer_pension"),
+            total_pension=s("total_pension"),
+            employee_atp=s("employee_atp"),
+            employer_atp=s("employer_atp"),
+            tax_breakdown=tax_breakdown,
+        )
+
+    @classmethod
+    def salaried_month_estimate(
+        cls, contract, year: int, month: int, as_of: date | None = None,
+    ) -> SalaryEstimate | None:
+        """Combined estimate for a salaried calendar month: every salaried term
+        set active in the month, each prorated to its active days, summed field
+        by field. Handles a mid-month raise and a partial-month start/end. Month
+        end is the reference, so all active days count. Returns None when no
+        salaried term set is active in the month."""
+        month_end = date(year, month, calendar.monthrange(year, month)[1])
+        lines = cls.salaried_month_lines(contract, year, month, month_end)
+        if not lines:
+            return None
+        ests = [
+            cls.estimate(
+                line.termset, Decimal("0"), as_of=as_of,
+                monthly_salary_override=line.covered_salary,
+            )
+            for line in lines
+        ]
+        return cls._combine_estimates(ests)
+
+    @classmethod
+    def salaried_month_totals(
+        cls, contract, year: int, month: int, as_of: date | None = None,
+    ) -> tuple[Decimal, Decimal]:
+        """(taxable_gross, net) for a salaried calendar month — see
+        salaried_month_estimate. Returns (0, 0) if no term set is active."""
+        est = cls.salaried_month_estimate(contract, year, month, as_of=as_of)
+        if est is None:
+            return Decimal("0"), Decimal("0")
+        net = est.tax_breakdown.net_pay if est.tax_breakdown else est.taxable_gross
+        return est.taxable_gross, net
 
 
 # ---------------------------------------------------------------------------

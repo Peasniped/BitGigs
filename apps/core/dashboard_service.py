@@ -215,33 +215,20 @@ class DashboardDataService:
             return pay
 
         # Salaried — a month may span several term sets (e.g. a mid-month
-        # raise), so sum each one's prorated pay by the days it is the active
-        # rate. Days on or before today are Earned, later ones Planned.
-        month_end = date(year, month, cal_mod.monthrange(year, month)[1])
-        term_sets = terms.contract.term_sets.filter(
-            effective_from__lte=month_end,
-            employment_type=ContractTermSet.EmploymentType.SALARIED,
-        )
-        for ts in term_sets:
-            earned_days, planned_days, days_in_month = SalaryEstimateService.active_day_split(
-                ts, year, month, today
-            )
-            covered_days = earned_days + planned_days
-            if covered_days == 0:
-                continue
-            covered_salary = (
-                (ts.monthly_salary or Decimal("0")) * covered_days / days_in_month
-            ).quantize(TWO_PLACES)
+        # raise). salaried_month_lines gives each one's prorated salary and its
+        # earned/planned day split (relative to today); we estimate tax per line
+        # and split earned vs planned linearly by day.
+        for line in SalaryEstimateService.salaried_month_lines(
+            terms.contract, year, month, today
+        ):
             est = SalaryEstimateService.estimate(
-                ts, Decimal("0"), as_of=tax_pull_date,
-                monthly_salary_override=covered_salary,
+                line.termset, Decimal("0"), as_of=tax_pull_date,
+                monthly_salary_override=line.covered_salary,
             )
             total_gross = est.taxable_gross
             total_net = est.tax_breakdown.net_pay if est.tax_breakdown else est.taxable_gross
 
-            # Tax is computed once per term set on its covered salary; the
-            # earned/planned split is then linear by day.
-            earned_ratio = Decimal(earned_days) / Decimal(covered_days)
+            earned_ratio = Decimal(line.earned_days) / Decimal(line.covered_days)
             earned_gross = (total_gross * earned_ratio).quantize(TWO_PLACES)
             earned_net = (total_net * earned_ratio).quantize(TWO_PLACES)
             pay.earned_gross += earned_gross
