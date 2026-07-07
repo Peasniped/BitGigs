@@ -11,7 +11,7 @@
 
 <!-- Back button -->
 <div class="mb-3">
-  <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary btn-sm" onclick="if(history.length>1){history.back();return false;}">
+  <a href="{% url 'workplaces:workplace-list' %}" class="btn btn-outline-secondary btn-sm">
     <i class="bi bi-arrow-left me-1"></i>Back
   </a>
 </div>
@@ -829,6 +829,10 @@
               <option value="vacation">Vacation</option>
             </select>
           </div>
+        </div>
+        <div class="mb-2 p-2 rounded d-flex justify-content-between align-items-center" style="background:var(--bg-light);">
+          <span class="text-muted small">Total working time</span>
+          <span id="editApproveTotal" class="fw-semibold small">&ndash;</span>
         </div>
         <div class="mb-2">
           <label class="form-label small">Notes</label>

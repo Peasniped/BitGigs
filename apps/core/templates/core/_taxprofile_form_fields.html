@@ -5,10 +5,14 @@
   {# Effective from #}
   <div class="mb-3">
     <label for="{{ form.effective_from.id_for_label }}" class="form-label fw-medium">Effective from</label>
-    <input type="date" name="{{ form.effective_from.html_name }}" id="{{ form.effective_from.id_for_label }}"
-           value="{{ form.effective_from.value|date:'Y-m-d'|default:form.effective_from.value|default_if_none:'' }}"
-           class="form-control {% if form.effective_from.errors %}is-invalid{% endif %}" required>
-    {% for err in form.effective_from.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+    <div class="d-flex align-items-center gap-2">
+      <input type="date" name="{{ form.effective_from.html_name }}" id="{{ form.effective_from.id_for_label }}"
+             value="{{ form.effective_from.value|date:'Y-m-d'|default:form.effective_from.value|default_if_none:'' }}"
+             class="form-control {% if form.effective_from.errors %}is-invalid{% endif %}" required
+             data-effective-from>
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-today-btn>Today</button>
+    </div>
+    {% for err in form.effective_from.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
   </div>
 
   {# Monthly deduction (personfradrag) #}

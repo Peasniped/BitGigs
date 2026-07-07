@@ -237,3 +237,43 @@ class TermSetSupersedeExpiryTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIsNone(resp.context["form"].initial.get("effective_until"))
         self.assertIn("existing_terms_json", resp.context)
+
+
+class HourGoalPersistenceTest(TestCase):
+    """A term set saved without an hour goal must not persist a stray period
+    type — the hidden weekly radio posts hour_goal_type=weekly even when the
+    goal toggle was never enabled, so clean() nulls it when no min/max exists."""
+
+    def setUp(self):
+        self.wp = Workplace.objects.create(name="Acme", slug="acme")
+        self.contract = WorkplaceContract.objects.create(workplace=self.wp, name="C")
+
+    def _post(self, **extra):
+        post = {
+            "effective_from": "2026-01-01", "effective_until": "",
+            "employment_type": "salaried", "monthly_salary": "40000",
+            "work_time_type": "fuldtid", "hours_type": "fixed",
+            "weekly_hours_fixed": "37", "payroll_period_start_day": "1",
+            "tax_card_type": "hovedkort", "vacation_type": "feriekonto",
+        }
+        post.update(extra)
+        return post
+
+    def test_no_goal_clears_stray_period_type(self):
+        from workplaces.forms import ContractTermSetForm
+        form = ContractTermSetForm(self._post(hour_goal_type="weekly"), contract=self.contract)
+        self.assertTrue(form.is_valid(), form.errors)
+        ts = form.save()
+        self.assertEqual(ts.hour_goal_type, "")
+        self.assertIsNone(ts.hour_goal_min)
+
+    def test_real_goal_is_kept(self):
+        from workplaces.forms import ContractTermSetForm
+        form = ContractTermSetForm(
+            self._post(hour_goal_type="weekly", hour_goal_min="15", goalMode="target"),
+            contract=self.contract,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        ts = form.save()
+        self.assertEqual(ts.hour_goal_type, "weekly")
+        self.assertEqual(ts.hour_goal_min, Decimal("15"))

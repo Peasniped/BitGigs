@@ -342,11 +342,11 @@
                 <div class="form-check form-switch">
                   <input type="checkbox" class="form-check-input" role="switch"
                          id="hourGoalToggle"
-                         {% if form.hour_goal_type.value %}checked{% endif %}>
+                         {% if form.hour_goal_min.value %}checked{% endif %}>
                   <label class="form-check-label small" for="hourGoalToggle">Configure</label>
                 </div>
               </div>
-              <div id="hourGoalFields" style="{% if not form.hour_goal_type.value %}display:none{% endif %}">
+              <div id="hourGoalFields" style="{% if not form.hour_goal_min.value %}display:none{% endif %}">
                 <p class="form-text mt-0 mb-2">Set a personal hour target shown in the planning calendar.</p>
                 <p class="form-text mt-0 mb-2 text-info-emphasis" data-goal-salaried-hint style="display:none;">
                   <i class="bi bi-info-circle me-1"></i>For salaried positions, the default is your contracted monthly hours.
@@ -378,7 +378,7 @@
                   <span class="text-muted small">per</span>
                   <div class="btn-group btn-group-sm accent-btn-group" role="group">
                     <input type="radio" class="btn-check" name="{{ form.hour_goal_type.html_name }}" id="goalPeriodWeekly" value="weekly"
-                           {% if form.hour_goal_type.value != 'monthly' %}checked{% endif %}>
+                           {% if form.hour_goal_type.value == 'weekly' %}checked{% endif %}>
                     <label class="btn btn-outline-secondary" for="goalPeriodWeekly">Week</label>
                     <input type="radio" class="btn-check" name="{{ form.hour_goal_type.html_name }}" id="goalPeriodMonthly" value="monthly"
                            {% if form.hour_goal_type.value == 'monthly' %}checked{% endif %}>

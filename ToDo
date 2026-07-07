@@ -1,26 +1,25 @@
 
 # NU     --------------------------------------------------------
 
-- Move this banner "No workplaces have an active contract in this period. 4 workplaces hidden — add or adjust a contract to see them here." down where the workplace cards would have been.
-
-To explore:
-- What happens if a workplace has two or more active term sets at the same time?
-
 Extra work before making base template
-- Kindly ask Claude Fable look the entire codebase through and accept that everything is in good working order, secure, and that no dead/repeated code exists in the codebase.
-- Design glow up?
+- Kindly ask Claude Fable look the entire codebase through and check if everything is in good working order, secure, and that no dead/repeated code exists in the codebase.
+- Design glow up -- more flavorful color and personality?
 - - Central color management -- one source of truth for all colors (user/admin accessible?)
 - Dark mode also?
 
 --> Efter refactor, lav en base hjemmeside, så andre Bit-apps kan laves med et lignende visuelt udtryk. Gem denne til D:\Github\BitBase\
+----> Er det muligt at have den som en slags main som de andre er forks af, så ved opdatering af main template, så opdateres undersiderne også?
 
 # SENERE --------------------------------------------------------
 
-- Hour calculator/display in approval flow does not update when you adjust the start/stop times of shifts for apprival.
+- Remove the limit on one active contract per workplace. -- for some workplaces it makes sense that you might have two active jobs that are more or less unrelated and has wildly different terms.
+- - Each contract should have their own chip in the planning mode (contracts may have different hour goals etc.)
+- - Maybe add some way to easily know the contracts apart in the workplace avatar.
+- - maybe the user could specify per contract: a color and/or an icon or a short (max 2 char) identifier -- the user would be prompted when there are overlapping contracts. Can be changed in the customize menu.
 
 - A page I can use to transfer shift info to whatever kind of system the workplace uses for me to report my hours
 - - Should be customizable. Example at JKF i report hours in an excel sheet with cols Date, week, month, hours, break(30 min, yes/no), name. This transfer would be easiest with an excel-compatible copy-paste.
-- at JKF if there are multiple shifts in one day, I add them toghether to one per date. This should also be configurable.
+- at JKF if there are multiple shifts in one day, I add them toghether to one per date. This should also be user configurable. Maybe implement some kind of simple templating/scripting thing?
 
 - Workplace detail page — multi-rate months. The detail still renders a single term set's payslip (the mid-month rate). For a mid-month raise it shows one rate's slice (~30000), not the full 70000 the main dashboard shows. Making it sum multiple rates means reworking the payslip breakdown UI (feriepenge/pension/tax lines are built for one rate). Biggest remaining item.
 

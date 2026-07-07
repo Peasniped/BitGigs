@@ -249,6 +249,29 @@
   var UPDATE_URL = cfg.updateUrl;
   var APPROVE_URL = cfg.approveUrl;
 
+  // Recompute a row's Hours cell from its inline start/end inputs (break is
+  // fixed per shift and stored on the cell).
+  function recalcRow(tr) {
+    var startEl = tr.querySelector('[data-field="start_time"]');
+    var endEl = tr.querySelector('[data-field="end_time"]');
+    var cell = tr.querySelector('[data-field="hours"]');
+    if (!startEl || !endEl || !cell) return;
+    var start = startEl.value, end = endEl.value;
+    if (!start || !end) { cell.textContent = '–'; return; }
+    var sh = start.split(':').map(Number), eh = end.split(':').map(Number);
+    var totalMin = (eh[0] * 60 + eh[1]) - (sh[0] * 60 + sh[1]);
+    totalMin -= parseInt(cell.dataset.break, 10) || 0;
+    if (totalMin <= 0) { cell.textContent = '–'; return; }
+    var str = (totalMin / 60).toFixed(2).replace(/\.?0+$/, '');
+    cell.textContent = toDanish(str) + 'h';
+  }
+  function onTimeEdit(e) {
+    if (e.target.matches('[data-field="start_time"],[data-field="end_time"]')) {
+      var tr = e.target.closest('tr');
+      if (tr) recalcRow(tr);
+    }
+  }
+
   // Group shifts by workplace
   function groupByWorkplace(shifts) {
     var groups = {};
@@ -312,7 +335,7 @@
             '<option value="paid_absence"' + (s.shift_type==='paid_absence'?' selected':'') + '>Paid absence</option>' +
             '<option value="vacation"' + (s.shift_type==='vacation'?' selected':'') + '>Vacation</option>' +
           '</select></td>' +
-          '<td class="small text-end">' + toDanish(s.net_hours) + 'h</td>' +
+          '<td class="small text-end" data-field="hours" data-break="' + (s.break_minutes || 0) + '">' + toDanish(s.net_hours) + 'h</td>' +
           '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 dash-edit-btn" data-shift-id="' + s.id + '" title="Edit shift"><i class="bi bi-pencil" style="font-size:0.65rem;"></i></button></td>';
         tbody.appendChild(tr);
       });
@@ -324,6 +347,14 @@
 
     // Apply the 12/24h time-picker enhancement to the freshly-built rows.
     if (window.initTimePickers) window.initTimePickers(body);
+
+    // Keep the Hours cell in sync as the inline start/end times are edited.
+    // Bound once on the persistent body (rows are rebuilt each renderBody).
+    if (!body.dataset.hoursBound) {
+      body.dataset.hoursBound = '1';
+      body.addEventListener('input', onTimeEdit);
+      body.addEventListener('change', onTimeEdit);
+    }
 
     // Attach per-workplace select all
     body.querySelectorAll('.wp-select-all').forEach(function(cb) {

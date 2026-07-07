@@ -763,6 +763,27 @@ document.addEventListener('DOMContentLoaded', function() {
   var editApproveModal = new bootstrap.Modal(document.getElementById('editApproveShiftModal'));
   var UPDATE_URL = cfg.updateUrl;
 
+  // Live "Total working time" display, recomputed as start/end/break change.
+  var editApproveTotalEl = document.getElementById('editApproveTotal');
+  function calcApproveTotal() {
+    if (!editApproveTotalEl) return;
+    var start = document.getElementById('editApproveStart').value;
+    var end = document.getElementById('editApproveEnd').value;
+    if (!start || !end) { editApproveTotalEl.textContent = '–'; return; }
+    var sh = start.split(':').map(Number);
+    var eh = end.split(':').map(Number);
+    var totalMin = (eh[0] * 60 + eh[1]) - (sh[0] * 60 + sh[1]);
+    totalMin -= parseInt(document.getElementById('editApproveBreak').value, 10) || 0;
+    if (totalMin <= 0) { editApproveTotalEl.textContent = '–'; return; }
+    var hours = Math.floor(totalMin / 60);
+    var mins = totalMin % 60;
+    editApproveTotalEl.textContent = hours + 'h ' + mins + 'm (' + toDanish((totalMin / 60).toFixed(2)) + 'h)';
+  }
+  ['editApproveStart', 'editApproveEnd', 'editApproveBreak'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) { el.addEventListener('input', calcApproveTotal); el.addEventListener('change', calcApproveTotal); }
+  });
+
   function openEditApproveModal(shiftId) {
     var url = UPDATE_URL.replace('/0/', '/' + shiftId + '/');
     fetch(url, {
@@ -780,6 +801,7 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('editApproveType').value = s.shift_type;
       document.getElementById('editApproveNotes').value = s.notes;
       document.getElementById('editApproveErrors').classList.add('d-none');
+      calcApproveTotal();
       editApproveModal.show();
     });
   }

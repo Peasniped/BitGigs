@@ -15,6 +15,27 @@
   var editModal = new bootstrap.Modal(modalEl);
   var UPDATE_URL_TEMPLATE = modalEl.dataset.updateUrlTemplate;
 
+  // Live "Total working time" display, recomputed as start/end/break change.
+  var totalEl = document.getElementById('editTotal');
+  function calcTotal() {
+    if (!totalEl) return;
+    var start = document.getElementById('editStart').value;
+    var end = document.getElementById('editEnd').value;
+    if (!start || !end) { totalEl.textContent = '–'; return; }
+    var sh = start.split(':').map(Number);
+    var eh = end.split(':').map(Number);
+    var totalMin = (eh[0] * 60 + eh[1]) - (sh[0] * 60 + sh[1]);
+    totalMin -= parseInt(document.getElementById('editBreak').value, 10) || 0;
+    if (totalMin <= 0) { totalEl.textContent = '–'; return; }
+    var hours = Math.floor(totalMin / 60);
+    var mins = totalMin % 60;
+    totalEl.textContent = hours + 'h ' + mins + 'm (' + toDanish((totalMin / 60).toFixed(2)) + 'h)';
+  }
+  ['editStart', 'editEnd', 'editBreak'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) { el.addEventListener('input', calcTotal); el.addEventListener('change', calcTotal); }
+  });
+
   // Pencil edit buttons
   document.querySelectorAll('.edit-shift-btn').forEach(function(btn) {
     btn.addEventListener('click', function(e) {
@@ -38,6 +59,7 @@
         document.getElementById('editType').value = s.shift_type;
         document.getElementById('editNotes').value = s.notes;
         document.getElementById('editErrors').classList.add('d-none');
+        calcTotal();
         editModal.show();
       });
     });

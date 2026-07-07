@@ -5,18 +5,7 @@
   var FORM = document.getElementById('termsetForm');
   var cfg = FORM ? FORM.dataset : {};
 
-  // Today button: set today's date on the effective-from field
-  (function() {
-    var btn = document.querySelector('[data-today-btn]');
-    var input = document.querySelector('[data-effective-from]');
-    if (!btn || !input) return;
-    btn.addEventListener('click', function() {
-      var iso = new Date().toLocaleDateString('sv');  // yyyy-mm-dd
-      if (window.setDateValue) window.setDateValue(input, iso);
-      else input.value = iso;
-      input.dispatchEvent(new Event('input'));
-    });
-  })();
+  // (The "Today" button is wired globally by initTodayButtons() in app.js.)
 
   // "Ends on" prompts. Depending on the surrounding term sets, the end date
   // means different things, so instead of a bare field we show one of:
@@ -238,16 +227,14 @@
     if (empChecked.value === 'salaried') {
       var wttChecked = document.querySelector('[data-wtt]:checked');
       var isFuldtid = !wttChecked || wttChecked.value === 'fuldtid';
-      var weeklyHours;
       if (isFuldtid) {
-        weeklyHours = 37;
-      } else {
-        weeklyHours = _parseDk(
-          document.getElementById(cfg.fieldWeeklyFixed).value
-        );
+        // Fuldtid shows no weekly-hours field — default to contracted monthly hours.
+        return { hours: Math.round(37 * 52 / 12 * 100) / 100, period: 'monthly' };
       }
+      // Deltid: the "Hours per week" field is visible — default to that weekly value.
+      var weeklyHours = _parseDk(document.getElementById(cfg.fieldWeeklyFixed).value);
       if (isNaN(weeklyHours) || weeklyHours <= 0) return null;
-      return { hours: Math.round(weeklyHours * 52 / 12 * 100) / 100, period: 'monthly' };
+      return { hours: weeklyHours, period: 'weekly' };
 
     } else {
       // hourly

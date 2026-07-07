@@ -180,6 +180,10 @@ class ContractTermSetForm(forms.ModelForm):
         goal_min = cleaned.get("hour_goal_min")
         goal_max = cleaned.get("hour_goal_max")
         goal_mode = self.data.get("goalMode", "target")
+        if goal_min is None and goal_max is None:
+            # No goal entered — don't persist a stray period type (the hidden
+            # weekly radio can submit one even when the toggle is off).
+            cleaned["hour_goal_type"] = ""
         if goal_mode == "range" and goal_min is not None and goal_max is None:
             self.add_error("hour_goal_max", "Max is required when using range mode.")
         if goal_min is not None and goal_max is not None and goal_min >= goal_max:

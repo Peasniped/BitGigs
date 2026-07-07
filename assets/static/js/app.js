@@ -37,6 +37,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ----- Date pickers (dd/mm/yyyy display, ISO submit) -----
   initDatePickers(document);
+
+  // ----- "Today" quick-fill buttons on effective-from date fields -----
+  initTodayButtons(document);
 });
 
 
@@ -385,6 +388,31 @@ function setDateValue(el, iso) {
   el.dispatchEvent(new Event('change', { bubbles: true }));
 }
 window.setDateValue = setDateValue;
+
+/**
+ * Wire every [data-today-btn] to set its paired [data-effective-from] date input
+ * to today's date. The input is located by walking up from the button, so the
+ * two just need to share a wrapper (see _taxprofile_form_fields / termset_form).
+ */
+function initTodayButtons(root) {
+  (root || document).querySelectorAll('[data-today-btn]').forEach(function (btn) {
+    if (btn.dataset.todayBound) return;
+    btn.dataset.todayBound = '1';
+    btn.addEventListener('click', function () {
+      var input = null, node = btn;
+      while (node && !input) {
+        input = node.querySelector('[data-effective-from]');
+        node = node.parentElement;
+      }
+      if (!input) return;
+      var iso = new Date().toLocaleDateString('sv');  // yyyy-mm-dd
+      if (window.setDateValue) window.setDateValue(input, iso);
+      else input.value = iso;
+      input.dispatchEvent(new Event('input'));
+    });
+  });
+}
+window.initTodayButtons = initTodayButtons;
 
 
 /* ===========================================================================
