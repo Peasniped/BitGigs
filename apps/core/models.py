@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 
@@ -161,3 +162,24 @@ class UserSettings(models.Model):
     def load(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class OnboardingDraft(models.Model):
+    """In-progress onboarding input, held per user until the final Finish writes
+    the real rows. Stored in the DB (not just the session) so the data survives
+    logging out mid-onboarding or switching browser. Deleted on completion.
+
+    ``data`` is a dict of ``{step_key: raw_post_payload}`` for the tax /
+    workplace / contract / terms steps (each payload already passed the step
+    form's ``is_valid()``)."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="onboarding_draft",
+    )
+    data = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Onboarding draft for {self.user} ({', '.join(self.data) or 'empty'})"

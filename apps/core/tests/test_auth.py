@@ -2,10 +2,17 @@
 from django.contrib.auth.models import User
 from django.test import TestCase
 
+from django.core.exceptions import ValidationError
+
 from core.utils import dk_slugify
-from core.models import TaxProfile
+from core.models import TaxProfile, OnboardingDraft
+from core.validators import SymbolPasswordValidator, NoSequencesPasswordValidator
 from workplaces.models import Workplace, WorkplaceContract, ContractTermSet
 
+
+# A password that satisfies every validator (length, symbol, no repeated/
+# sequential run, not numeric, unlike the email).
+VALID_PW = "Vqz#8mtLp4"
 
 # Valid per-step payloads for the wizard (see the respective ModelForms).
 TAX_POST = {
@@ -74,8 +81,8 @@ class OnboardingAccountTest(TestCase):
 
         resp = self.client.post("/onboarding/account/", {
             "username": "me@example.com",
-            "password1": "correct-horse-battery",
-            "password2": "correct-horse-battery",
+            "password1": VALID_PW,
+            "password2": VALID_PW,
         })
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(resp["Location"], "/onboarding/")
@@ -87,8 +94,8 @@ class OnboardingAccountTest(TestCase):
     def test_account_step_rejects_non_email_username(self):
         resp = self.client.post("/onboarding/account/", {
             "username": "notanemail",
-            "password1": "correct-horse-battery",
-            "password2": "correct-horse-battery",
+            "password1": VALID_PW,
+            "password2": VALID_PW,
         })
         self.assertEqual(resp.status_code, 200)  # re-rendered with errors
         self.assertFalse(User.objects.exists())
@@ -164,6 +171,43 @@ class OnboardingWizardTest(TestCase):
         self.client.post("/onboarding/terms/", TERMS_POST)
         resp = self.client.get("/")
         self.assertEqual(resp.status_code, 200)
+
+    def test_draft_survives_logout(self):
+        # Data is held in a durable per-user DB draft, not the session.
+        self.client.post("/onboarding/tax/", TAX_POST)
+        self.assertTrue(OnboardingDraft.objects.filter(user=self.user).exists())
+        self.client.logout()  # flushes the session
+        self.client.force_login(self.user)
+        resp = self.client.get("/onboarding/tax/")
+        self.assertContains(resp, "4000")  # re-shown from the draft
+
+    def test_draft_deleted_after_finish(self):
+        self.client.post("/onboarding/tax/", TAX_POST)
+        self.client.post("/onboarding/workplace/", WORKPLACE_POST)
+        self.client.post("/onboarding/contract/", CONTRACT_POST)
+        self.client.post("/onboarding/terms/", TERMS_POST)
+        self.assertFalse(OnboardingDraft.objects.filter(user=self.user).exists())
+
+    def test_earlier_navigation_marks_ahead_step_started(self):
+        self.client.post("/onboarding/tax/", TAX_POST)
+        self.client.post("/onboarding/workplace/", WORKPLACE_POST)
+        # Back on the tax page, the already-filled Workplace step is "started".
+        resp = self.client.get("/onboarding/tax/")
+        self.assertContains(resp, "setup-step--started")
+
+
+class PasswordValidatorTest(TestCase):
+    def test_symbol_required(self):
+        with self.assertRaises(ValidationError):
+            SymbolPasswordValidator().validate("Vqzmtlxp")  # no symbol
+        SymbolPasswordValidator().validate("Vqzmtl#p")  # has one → ok
+
+    def test_no_repeated_or_sequential_runs(self):
+        v = NoSequencesPasswordValidator()
+        for bad in ("Xaaa#9mt", "Xabc#9mt", "Xqz#123p"):
+            with self.assertRaises(ValidationError):
+                v.validate(bad)
+        v.validate(VALID_PW)  # clean → no raise
 
 
 class DkSlugifyTest(TestCase):

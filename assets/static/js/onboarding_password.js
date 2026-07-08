@@ -57,6 +57,25 @@
     }
   }
 
+  // Mirror of core.validators.SymbolPasswordValidator: at least one char that
+  // is neither alphanumeric nor whitespace.
+  function hasSymbol(pw) {
+    return /[^A-Za-z0-9\s]/.test(pw);
+  }
+
+  // Mirror of core.validators.NoSequencesPasswordValidator: reject 3+ identical
+  // chars in a row, or a 3+ ascending/descending alphanumeric run.
+  function hasBadRun(pw) {
+    var s = pw.toLowerCase();
+    for (var i = 0; i + 2 < s.length; i++) {
+      var a = s.charCodeAt(i), b = s.charCodeAt(i + 1), c = s.charCodeAt(i + 2);
+      if (a === b && b === c) return true;
+      var alnum = /[a-z0-9]/.test(s[i]) && /[a-z0-9]/.test(s[i + 1]) && /[a-z0-9]/.test(s[i + 2]);
+      if (alnum && (b - a) === (c - b) && Math.abs(b - a) === 1) return true;
+    }
+    return false;
+  }
+
   // Rough mirror of Django's UserAttributeSimilarityValidator: fail when the
   // password contains (or is contained by) the email or its local-part.
   function tooSimilar(pw, mail) {
@@ -76,6 +95,8 @@
     var typed = p1.length > 0;
 
     setState(items.length, p1.length >= 8, typed);
+    setState(items.symbol, hasSymbol(p1), typed);
+    setState(items.nosequence, !hasBadRun(p1), typed);
     setState(items.notnumeric, !/^\d+$/.test(p1), typed);
     setState(items.notsimilar, !tooSimilar(p1, mail), typed && !!mail);
 

@@ -187,11 +187,13 @@ class UserSettingsView(View):
 #
 # The account is created immediately (step 1) — the whole site is behind a login,
 # so there must be a logged-in user for the remaining steps. Tax → Workplace →
-# Contract → Terms are then held in request.session["onboarding"] and written to
-# the database together, atomically, only on the final "Finish" (the Terms step's
-# submit). Each step's stored payload is the raw POST of a form that already
-# passed is_valid(), so re-binding it on a later visit re-shows the input with no
-# validation errors — that's what makes back-navigation keep its place.
+# Contract → Terms are then held in a durable per-user OnboardingDraft (a DB row,
+# not the session, so logging out mid-onboarding doesn't lose the data) and
+# written to the real tables together, atomically, only on the final "Finish"
+# (the Terms step's submit), after which the draft is deleted. Each step's stored
+# payload is the raw POST of a form that already passed is_valid(), so re-binding
+# it on a later visit re-shows the input with no validation errors — that's what
+# makes back-navigation keep its place.
 # ─────────────────────────────────────────────────────────────────────────────
 
 _ONBOARDING_ORDER = ["tax", "workplace", "contract", "terms"]
@@ -206,21 +208,87 @@ _ONBOARDING_MONTH_CHOICES = [(str(i), _calendar.month_abbr[i]) for i in range(1,
 
 
 def _onboarding_data(request):
-    return request.session.get("onboarding", {})
+    """The current user's saved onboarding step payloads (empty dict if none)."""
+    from .models import OnboardingDraft
+    draft = OnboardingDraft.objects.filter(user=request.user).first()
+    return draft.data if draft else {}
 
 
 def _store_onboarding(request, key, post):
-    data = {k: v for k, v in post.items() if k != "csrfmiddlewaretoken"}
-    ob = request.session.get("onboarding", {})
-    ob[key] = data
-    request.session["onboarding"] = ob  # reassign so the session is marked dirty
+    from .models import OnboardingDraft
+    payload = {k: v for k, v in post.items() if k != "csrfmiddlewaretoken"}
+    draft, _ = OnboardingDraft.objects.get_or_create(user=request.user)
+    draft.data[key] = payload
+    draft.save(update_fields=["data", "updated_at"])
 
 
-def _onboarding_steps(current):
-    """Step-indicator model for the given wizard page. Only genuinely completed
-    steps (before the current one) are 'done' and clickable back-links — this is
-    what stops the Tax Profile being shown as done before it's reached."""
+def _clear_onboarding(request):
+    from .models import OnboardingDraft
+    OnboardingDraft.objects.filter(user=request.user).delete()
+    request.session.pop("onboarding", None)  # clear any legacy session copy
+
+
+_STEP_LABELS = {
+    "tax": "Tax details",
+    "workplace": "Workplace",
+    "contract": "Contract",
+    "terms": "Pay terms",
+}
+
+
+def _build_step_form(key, payload):
+    """The bound form for a stored step payload — used to check completeness and
+    to commit. Terms is built without a contract (guards no-op until Finish)."""
+    from workplaces.forms import WorkplaceForm, WorkplaceContractForm, ContractTermSetForm
+    if key == "tax":
+        return TaxProfileForm(data=payload)
+    if key == "workplace":
+        return WorkplaceForm(data=payload)
+    if key == "contract":
+        return WorkplaceContractForm(data=payload)
+    return ContractTermSetForm(data=payload, contract=None)
+
+
+def _resolve_goto(request, current):
+    """Destination after saving `current`: the ``onboarding_goto`` field is
+    ``next`` (the following step) or a step key (jump there). Guards against
+    arbitrary values."""
+    goto = request.POST.get("onboarding_goto", "next")
+    if goto in _ONBOARDING_ORDER:
+        target = goto
+    else:  # "next" (or anything unexpected)
+        idx = _ONBOARDING_ORDER.index(current)
+        target = _ONBOARDING_ORDER[min(idx + 1, len(_ONBOARDING_ORDER) - 1)]
+    return reverse(_ONBOARDING_URLS[target])
+
+
+def _onboarding_progress(data):
+    """Per indicator-step status: 'valid' (complete), 'started' (has data but not
+    yet valid), or 'empty'. Step 1 (Account) is always valid here. Step 4 folds
+    the contract + terms sub-steps: valid only when the pay terms validate."""
+    def status(key):
+        if key not in data:
+            return "empty"
+        return "valid" if _build_step_form(key, data[key]).is_valid() else "started"
+
+    terms = status("terms")
+    if terms == "valid":
+        contract_terms = "valid"
+    elif terms != "empty" or "contract" in data:
+        contract_terms = "started"
+    else:
+        contract_terms = "empty"
+    return {1: "valid", 2: status("tax"), 3: status("workplace"), 4: contract_terms}
+
+
+def _onboarding_steps(current, data):
+    """Step-indicator model for the given wizard page. A step is 'active' (the
+    current page), 'done' (green check — saved and complete/valid), 'started'
+    (yellow number — saved but not yet complete, e.g. reached then left partly
+    filled), or 'upcoming' (grey — not started). 'done' and 'started' are both
+    clickable so the user can jump back and forth."""
     active_num = {"account": 1, "tax": 2, "workplace": 3, "contract": 4, "terms": 4}[current]
+    progress = _onboarding_progress(data)
     definitions = [
         (1, "Account", None),
         (2, "Tax Profile", reverse("core:onboarding-tax")),
@@ -229,13 +297,23 @@ def _onboarding_steps(current):
     ]
     steps = []
     for num, label, url in definitions:
-        if num < active_num:
-            steps.append({"num": num, "label": label, "state": "done", "url": url})
-        elif num == active_num:
-            steps.append({"num": num, "label": label, "state": "active", "url": None})
+        if num == active_num:
+            state, step_url = "active", None
+        elif progress[num] == "valid":
+            state, step_url = "done", url
+        elif progress[num] == "started":
+            state, step_url = "started", url
         else:
-            steps.append({"num": num, "label": label, "state": "upcoming", "url": None})
+            state, step_url = "upcoming", None
+        steps.append({"num": num, "label": label, "state": state, "url": step_url})
     return steps
+
+
+def _steps_for(request, current):
+    """`_onboarding_steps` for a request — the account step runs before login, so
+    it has no draft to read."""
+    data = _onboarding_data(request) if request.user.is_authenticated else {}
+    return _onboarding_steps(current, data)
 
 
 def _transient_workplace(request):
@@ -267,39 +345,36 @@ def _onboarding_tax_profile_json(request):
 
 
 def _commit_onboarding(request):
-    """Write the whole wizard to the database atomically. Returns True on success,
-    or (step_key, message) identifying a step to send the user back to."""
+    """Validate every saved step and, if all complete, write the wizard to the
+    database atomically. Returns True on success, or (step_key, message) naming
+    the first incomplete step to send the user back to (with its fields flagged)."""
     from django.core.exceptions import ValidationError
-    from workplaces.forms import WorkplaceForm, WorkplaceContractForm, ContractTermSetForm
+    from workplaces.forms import ContractTermSetForm
 
     ob = _onboarding_data(request)
+    forms = {}
     for key in _ONBOARDING_ORDER:
         if key not in ob:
-            return (key, "Please complete this step before finishing.")
-
-    tax_form = TaxProfileForm(data=ob["tax"])
-    wp_form = WorkplaceForm(data=ob["workplace"])
-    contract_form = WorkplaceContractForm(data=ob["contract"])
-    if not tax_form.is_valid():
-        return ("tax", "Something changed with your tax details — please review them.")
-    if not wp_form.is_valid():
-        return ("workplace", "Something changed with your workplace — please review it.")
-    if not contract_form.is_valid():
-        return ("contract", "Something changed with your contract — please review it.")
+            return (key, f"Please fill in the {_STEP_LABELS[key]} step before you can submit.")
+        form = _build_step_form(key, ob[key])
+        if not form.is_valid():
+            return (key, f"Please finish the {_STEP_LABELS[key]} step before you can submit.")
+        forms[key] = form
 
     try:
         with transaction.atomic():
-            tax_form.save()
-            workplace = wp_form.save()
-            contract = contract_form.save(commit=False)
+            forms["tax"].save()
+            workplace = forms["workplace"].save()
+            contract = forms["contract"].save(commit=False)
             contract.workplace = workplace
             contract.save()
+            # Re-bind the terms to the real contract so it's linked + fully validated.
             terms_form = ContractTermSetForm(data=ob["terms"], contract=contract)
             if not terms_form.is_valid():
                 raise ValidationError("terms")
             terms_form.save()
     except ValidationError:
-        return ("terms", "Something changed with your pay terms — please review them.")
+        return ("terms", f"Please finish the {_STEP_LABELS['terms']} step before you can submit.")
     return True
 
 
@@ -314,17 +389,17 @@ class OnboardingAccountView(View):
             return redirect("core:onboarding" if request.user.is_authenticated else "/accounts/login/")
         return super().dispatch(request, *args, **kwargs)
 
-    def _context(self, form):
+    def _context(self, request, form):
         return {
             "form": form,
             "onboarding": True,
             "onboarding_first_step": True,
-            "steps": _onboarding_steps("account"),
+            "steps": _steps_for(request, "account"),
         }
 
     def get(self, request):
         from .forms import OnboardingUserCreationForm
-        return render(request, "core/onboarding_account.html", self._context(OnboardingUserCreationForm()))
+        return render(request, "core/onboarding_account.html", self._context(request, OnboardingUserCreationForm()))
 
     def post(self, request):
         from django.contrib.auth import login
@@ -332,13 +407,13 @@ class OnboardingAccountView(View):
         form = OnboardingUserCreationForm(request.POST)
         if form.is_valid():
             user = form.save(commit=False)
-            # Single-user app: the first (only) account is the admin.
+            # Single-user app: the first (only) account is the admin/owner.
             user.is_staff = True
             user.is_superuser = True
             user.save()
             login(request, user)
             return redirect("core:onboarding")
-        return render(request, "core/onboarding_account.html", self._context(form))
+        return render(request, "core/onboarding_account.html", self._context(request, form))
 
 
 class OnboardingRootView(View):
@@ -353,39 +428,34 @@ class OnboardingRootView(View):
 
 
 class OnboardingTaxView(View):
-    def _context(self, form):
-        return {"tax_form": form, "onboarding": True, "steps": _onboarding_steps("tax")}
+    def _context(self, request, form):
+        return {"tax_form": form, "onboarding": True, "steps": _steps_for(request, "tax")}
 
     def get(self, request):
         stored = _onboarding_data(request).get("tax")
         form = TaxProfileForm(data=stored) if stored else TaxProfileForm()
-        return render(request, "core/onboarding_tax.html", self._context(form))
+        return render(request, "core/onboarding_tax.html", self._context(request, form))
 
     def post(self, request):
-        form = TaxProfileForm(request.POST)
-        if form.is_valid():
-            _store_onboarding(request, "tax", request.POST)
-            return redirect("core:onboarding-workplace")
-        return render(request, "core/onboarding_tax.html", self._context(form))
+        # Save whatever's entered (even partial) and navigate — validation is
+        # deferred to Finish, so the user can fill steps in any order.
+        _store_onboarding(request, "tax", request.POST)
+        return redirect(_resolve_goto(request, "tax"))
 
 
 class OnboardingWorkplaceView(View):
-    def _context(self, form):
-        return {"form": form, "onboarding": True, "steps": _onboarding_steps("workplace")}
+    def _context(self, request, form):
+        return {"form": form, "onboarding": True, "steps": _steps_for(request, "workplace")}
 
     def get(self, request):
         from workplaces.forms import WorkplaceForm
         stored = _onboarding_data(request).get("workplace")
         form = WorkplaceForm(data=stored) if stored else WorkplaceForm()
-        return render(request, "workplaces/workplace_form.html", self._context(form))
+        return render(request, "workplaces/workplace_form.html", self._context(request, form))
 
     def post(self, request):
-        from workplaces.forms import WorkplaceForm
-        form = WorkplaceForm(request.POST)
-        if form.is_valid():
-            _store_onboarding(request, "workplace", request.POST)
-            return redirect("core:onboarding-contract")
-        return render(request, "workplaces/workplace_form.html", self._context(form))
+        _store_onboarding(request, "workplace", request.POST)
+        return redirect(_resolve_goto(request, "workplace"))
 
 
 class OnboardingContractView(View):
@@ -395,7 +465,7 @@ class OnboardingContractView(View):
             "workplace": _transient_workplace(request),
             "is_first": True,
             "onboarding": True,
-            "steps": _onboarding_steps("contract"),
+            "steps": _steps_for(request, "contract"),
         }
 
     def get(self, request):
@@ -405,12 +475,8 @@ class OnboardingContractView(View):
         return render(request, "workplaces/contract_form.html", self._context(request, form))
 
     def post(self, request):
-        from workplaces.forms import WorkplaceContractForm
-        form = WorkplaceContractForm(request.POST)
-        if form.is_valid():
-            _store_onboarding(request, "contract", request.POST)
-            return redirect("core:onboarding-terms")
-        return render(request, "workplaces/contract_form.html", self._context(request, form))
+        _store_onboarding(request, "contract", request.POST)
+        return redirect(_resolve_goto(request, "contract"))
 
 
 class OnboardingTermsView(View):
@@ -420,7 +486,7 @@ class OnboardingTermsView(View):
             "workplace": _transient_workplace(request),
             "contract": _transient_contract(request),
             "onboarding": True,
-            "steps": _onboarding_steps("terms"),
+            "steps": _steps_for(request, "terms"),
             "tax_profile_json": _onboarding_tax_profile_json(request),
             "month_choices": _ONBOARDING_MONTH_CHOICES,
             "existing_terms_json": "[]",
@@ -434,16 +500,17 @@ class OnboardingTermsView(View):
 
     def post(self, request):
         from django.contrib import messages
-        from workplaces.forms import ContractTermSetForm
-        form = ContractTermSetForm(request.POST, contract=None)
-        if not form.is_valid():
-            return render(request, "workplaces/termset_form.html", self._context(request, form))
-
         _store_onboarding(request, "terms", request.POST)
+
+        goto = request.POST.get("onboarding_goto", "next")
+        if goto not in ("next", "finish"):
+            # Back / step-jump: just save and navigate, don't try to finish.
+            return redirect(_resolve_goto(request, "terms"))
+
         result = _commit_onboarding(request)
         if result is True:
             request.session["onboarding_complete"] = True
-            request.session.pop("onboarding", None)
+            _clear_onboarding(request)
             messages.success(request, "You're all set up — welcome to BitGigs!")
             return redirect("core:dashboard")
         step_key, msg = result

@@ -1,24 +1,25 @@
 
 # NU     --------------------------------------------------------
 
-- Polish onboarding flow
-- Password requirements and repeat pw update in real time (on update) with condition pass/fail 
-- - rephrase "Your password can’t be too similar to your other personal information.", we only know the username
-- make sure the username is a valid email-address. Then copy username to email address in the user table.
-- Update workplace slug to be compatible with æøå as ae, oe, aa ("Jåd Kå Æf" currently uses slug jd-k-f)
-- I am unable to go back in the onboarding flow by pressing the step-buttons.
-- - If I use the back button on the bottom of the form, it no longer shows me where I am in the steps, it just shows how long i initiall got.
-- Onboarding items should be submitted when the whole flow is done, so I can easily (and without causing problems), go back and make changes to a page, before finishing the whole onboarding flow.
-- The nav buttons should not be shown until the onboarding flow is done
-- The whole navbar should be removed on the first page, the logo should be centered on the navbar in subsequent onboarding pages.
-- It seems in the step navigation bar that Tax profile is already checked off even when starting with a brand new database.
+- "You're all set up — welcome to BitGigs!" should auto-dismiss after a few seconds.
+- Require symbol in password
+- Require no repeated sequences (numbers, letters etc.)
+- Change the wording a bit to indicate that the first user is the app admin/owner or what makes the most sense.
+- Add a "Logged in as xx \cdot logout" text to the top left when the user has been created
+- Add "Please log in to finish app onboarding" to the login screen if onboarding was not completed, and the user is now logged out.
+- Data should be saved (but not submitted), so that they user can disconnect from the onboarding flow without losing data
+- If going back to a previous page, the step number should be yellow to indicate that the user has started filling the step.
 
 
-Login Page:
-- Center and enlarge logo 
-- Create user creation flow
-- Enable and force 2FA for all users (TOTP, Passkey, and backup codes)
-- Explore user mgmt and admin page/status
+- Enable and force 2FA for all users (TOTP, Passkey, and backup codes).
+- - Make this a second step after user creation.
+- - User can choose either TOTP, Passkey or both.
+- - 10 Backup codes are always generated. When they are displayed, there is a copy button that copies the codes to the clipboard, tell the user to store them in a safe place and so on.
+- User lockout?
+
+- Explore how to implement user mgmt and admin page/status in a nicer way than the built in
+- - The app will use Authentik for my use, for user auth/creation and other IAM, so don't put too much work into it i guess lol.
+- Create user creation flow (not the initial user, but subsequent users)
 
 - IMPORTANT: When the approve shift modal is open, if there are pending changes, a warning should be shown if the modal is about to be closed. ex. if I have to approve A LOT of shifts and have made a lot of changes, and accidentally click outside of the modal, all those changes are discarded. :( ask me how i know
 - - it does seem that if the page is not refreshed, the pending data/changes persists in the table. Still, make the warning.
@@ -45,9 +46,12 @@ Analytics page (hourly terms):
 - Both averages include prior months with 0 hours leading to a very small projection the first 6 months
 
 Extra work before making base template
+- add hover over effect to the main logo
+- rename the logos to something like assets/static/graphics/App_Main_Logo_64.png or such
 - Design glow up -- more flavorful color and personality?
 - - Central color management -- one source of truth for all colors (user/admin accessible?)
 - Dark mode also?
+- Implement notices where it makes sense (use the circle countdown dismissable notice)
 
 - SMTP-integration, så den ligger klar, så andre apps kan sende mails
 - Integration med Authentik

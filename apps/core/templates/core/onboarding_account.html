@@ -16,12 +16,13 @@
 
     <div class="card">
       <div class="card-header fw-semibold">
-        <i class="bi bi-person-plus me-2"></i>Create your account
+        <i class="bi bi-shield-lock me-2"></i>Create your owner account
       </div>
       <div class="card-body">
         <p class="text-muted small mb-3">
-          This account protects your pay data — you'll use your email and password
-          to log in to BitGigs.
+          This is the <strong>owner &amp; administrator</strong> account for your
+          BitGigs — it protects your pay data, and you'll use its email and
+          password to log in.
         </p>
         <form method="post" id="accountForm"
               data-email-id="{{ form.username.id_for_label }}"
@@ -62,6 +63,8 @@
 
           <ul class="password-checklist list-unstyled small mb-3" id="pwChecklist">
             <li data-check="length"><i class="bi bi-circle me-1"></i>At least 8 characters</li>
+            <li data-check="symbol"><i class="bi bi-circle me-1"></i>Includes at least one symbol (e.g. ! ? # @)</li>
+            <li data-check="nosequence"><i class="bi bi-circle me-1"></i>No repeated (aaa) or sequential (abc, 123) runs</li>
             <li data-check="notnumeric"><i class="bi bi-circle me-1"></i>Not entirely numbers</li>
             <li data-check="notsimilar"><i class="bi bi-circle me-1"></i>Not too similar to your email</li>
             <li data-check="match"><i class="bi bi-circle me-1"></i>Both passwords match</li>

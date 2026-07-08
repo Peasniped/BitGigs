@@ -476,6 +476,71 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
 }
 .setup-step--done .setup-step__label { color: #16a34a; }
 a.setup-step--done:hover .setup-step__circle { background: #16a34a; border-color: #16a34a; }
+/* Started step: filled but ahead of the current page (user went back) */
+.setup-step--started .setup-step__circle {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #b45309;
+}
+.setup-step--started .setup-step__label { color: #b45309; font-weight: 600; }
+a.setup-step--started:hover .setup-step__circle { background: #f59e0b; border-color: #f59e0b; color: #fff; }
+
+/* Onboarding: logged-in-as / log-out control (top-right, logo stays centered) */
+.onboarding-userbar {
+  position: absolute;
+  right: var(--bs-gutter-x, 0.75rem);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Dismissible notice countdown ring (see initDismissibleNotices in app.js).
+   Sits where Bootstrap's .btn-close would; drains over --dismiss-duration and
+   reveals a click-to-dismiss X on hover (which also pauses the countdown). */
+.notice-timer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2.75rem;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+}
+.notice-timer__ring {
+  width: 1.35rem;
+  height: 1.35rem;
+  transform: rotate(-90deg); /* start the drain from the top */
+}
+.notice-timer__track { fill: none; stroke: currentColor; stroke-width: 2; opacity: 0.25; }
+.notice-timer__progress {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.85;
+  animation: notice-countdown var(--dismiss-duration, 6000ms) linear forwards;
+}
+@keyframes notice-countdown {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: var(--notice-circ, 56.55); }
+}
+.notice-timer__x {
+  position: absolute;
+  font-size: 0.85rem;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.notice-timer:hover .notice-timer__progress,
+.notice-timer:focus-visible .notice-timer__progress { animation-play-state: paused; }
+.notice-timer:hover .notice-timer__ring,
+.notice-timer:focus-visible .notice-timer__ring { opacity: 0.15; }
+.notice-timer:hover .notice-timer__x,
+.notice-timer:focus-visible .notice-timer__x { opacity: 1; }
 
 /* Onboarding password requirement checklist */
 .password-checklist { color: var(--text-muted, #6c757d); }

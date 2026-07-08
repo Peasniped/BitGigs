@@ -40,7 +40,69 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ----- "Today" quick-fill buttons on effective-from date fields -----
   initTodayButtons(document);
+
+  // ----- Auto-dismissing notices (countdown ring) -----
+  initDismissibleNotices(document);
 });
+
+/* Reusable dismissible notice with a countdown ring.
+   Opt in by adding data-dismiss-after="<ms>" to any Bootstrap .alert:
+   a draining ring replaces the default close button and dismisses the alert
+   when it empties. Hovering the ring pauses the countdown and reveals an X you
+   can click to dismiss immediately. */
+function initDismissibleNotices(root) {
+  var RADIUS = 9;
+  var CIRC = 2 * Math.PI * RADIUS;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  root.querySelectorAll('.alert[data-dismiss-after]').forEach(function (alert) {
+    var ms = parseInt(alert.dataset.dismissAfter, 10);
+    if (!ms || ms < 0) return;
+
+    // Replace the default Bootstrap close button with the ring control.
+    var oldClose = alert.querySelector('.btn-close');
+    if (oldClose) oldClose.remove();
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'notice-timer';
+    btn.setAttribute('aria-label', 'Dismiss');
+    btn.style.setProperty('--dismiss-duration', ms + 'ms');
+    btn.innerHTML =
+      '<svg class="notice-timer__ring" viewBox="0 0 24 24" aria-hidden="true">' +
+        '<circle class="notice-timer__track" cx="12" cy="12" r="' + RADIUS + '"></circle>' +
+        '<circle class="notice-timer__progress" cx="12" cy="12" r="' + RADIUS + '"' +
+          ' stroke-dasharray="' + CIRC.toFixed(2) + '" stroke-dashoffset="0"></circle>' +
+      '</svg>' +
+      '<i class="bi bi-x-lg notice-timer__x" aria-hidden="true"></i>';
+    alert.appendChild(btn);
+
+    function dismiss() {
+      if (window.bootstrap && bootstrap.Alert) {
+        bootstrap.Alert.getOrCreateInstance(alert).close();
+      } else {
+        alert.remove();
+      }
+    }
+    btn.addEventListener('click', dismiss);
+
+    if (reduce) {
+      // No animation: fall back to a hover-pausable timeout.
+      var remaining = ms, startedAt = Date.now(), timer = setTimeout(dismiss, ms);
+      btn.addEventListener('mouseenter', function () {
+        clearTimeout(timer);
+        remaining -= Date.now() - startedAt;
+      });
+      btn.addEventListener('mouseleave', function () {
+        startedAt = Date.now();
+        timer = setTimeout(dismiss, Math.max(0, remaining));
+      });
+    } else {
+      var progress = btn.querySelector('.notice-timer__progress');
+      progress.addEventListener('animationend', dismiss);
+    }
+  });
+}
 
 
 /* ===========================================================================

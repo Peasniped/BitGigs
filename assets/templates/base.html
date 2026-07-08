@@ -25,7 +25,17 @@
   {% endcomment %}
   {% if not onboarding_first_step %}
   <nav class="navbar navbar-expand-lg sticky-top">
-    <div class="container {% if onboarding %}justify-content-center{% endif %}">
+    <div class="container {% if onboarding %}justify-content-center position-relative{% endif %}">
+      {% if onboarding and user.is_authenticated %}
+      <div class="onboarding-userbar small text-muted d-none d-sm-flex align-items-center gap-2">
+        <span><i class="bi bi-person-circle me-1"></i>Logged in as {{ user.username }}</span>
+        <span>&middot;</span>
+        <form method="post" action="{% url 'logout' %}" class="m-0">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-link btn-sm p-0 align-baseline text-decoration-none">Log out</button>
+        </form>
+      </div>
+      {% endif %}
       <a class="navbar-brand d-flex align-items-center gap-2" href="{% if onboarding %}#{% else %}{% url 'core:dashboard' %}{% endif %}">
         <img src="{% static 'graphics/BitGigs_Logo_96.png' %}" alt="BitGigs" class="brand-logo">
         <span>BitGigs</span>
@@ -83,7 +93,9 @@
   <main class="container py-4">
     {% if messages %}
       {% for message in messages %}
-        <div class="alert alert-{{ message.tags }} alert-dismissible fade show border-0 shadow-sm">
+        {# Success notices auto-dismiss via the countdown-ring control (app.js,
+           opt-in through data-dismiss-after); others stay until closed. #}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show border-0 shadow-sm"{% if 'success' in message.tags %} data-dismiss-after="6000"{% endif %}>
           {{ message }}
           <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
