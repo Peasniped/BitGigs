@@ -6,8 +6,9 @@ from django.db import models
 from django.http import JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.views import View
+from django.utils import timezone
 
-from core.utils import parse_danish_decimal
+from core.utils import parse_danish_decimal, parse_int_param
 from workplaces.models import Workplace
 from workplaces.services import workplaces_active_today
 from .models import PayrollPeriod, PayslipLine, CommutingRecord, VacationBalance
@@ -38,8 +39,8 @@ class PayrollPeriodGenerateView(View):
 
     def post(self, request):
         workplace_id = request.POST.get("workplace")
-        year = int(request.POST.get("year", date.today().year))
-        month = int(request.POST.get("month", date.today().month))
+        year = parse_int_param(request.POST.get("year"), timezone.localdate().year)
+        month = parse_int_param(request.POST.get("month"), timezone.localdate().month)
         workplace = get_object_or_404(Workplace, pk=workplace_id)
         period, _ = PayrollPeriodService.get_or_create_period(workplace, year, month)
         # Always recalculate standard lines from current data
@@ -235,8 +236,8 @@ class CommutingAutoUpdateView(View):
 
     def post(self, request):
         workplace_id = request.POST.get("workplace")
-        year = int(request.POST.get("year", date.today().year))
-        month = int(request.POST.get("month", date.today().month))
+        year = parse_int_param(request.POST.get("year"), timezone.localdate().year)
+        month = parse_int_param(request.POST.get("month"), timezone.localdate().month)
         workplace = get_object_or_404(Workplace, pk=workplace_id)
         CommutingService.update_commuting(workplace, year, month)
         return redirect("payroll:commuting-list")
@@ -255,8 +256,8 @@ class VacationUpdateView(View):
 
     def post(self, request):
         workplace_id = request.POST.get("workplace")
-        year = int(request.POST.get("year", date.today().year))
-        month = int(request.POST.get("month", date.today().month))
+        year = parse_int_param(request.POST.get("year"), timezone.localdate().year)
+        month = parse_int_param(request.POST.get("month"), timezone.localdate().month)
         workplace = get_object_or_404(Workplace, pk=workplace_id)
         VacationService.update_balance(workplace, year, month)
         return redirect("payroll:vacation-overview")

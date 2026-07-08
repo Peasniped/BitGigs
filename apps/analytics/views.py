@@ -4,9 +4,10 @@ import json
 
 from django.shortcuts import render
 from django.views import View
+from django.utils import timezone
 
 from core.models import UserSettings
-from core.utils import avatar_for_name
+from core.utils import avatar_for_name, parse_int_param
 from workplaces.models import Workplace
 from workplaces.services import workplaces_active_today, hidden_workplace_count
 from .services import AnalyticsService
@@ -18,13 +19,6 @@ _DIST_COLORS = [
     "#14b8a6", "#eab308", "#8b5cf6", "#ef4444",
     "#06b6d4", "#3b82f6", "#84cc16", "#f43f5e",
 ]
-
-
-def _parse_int(raw, default):
-    try:
-        return int(raw)
-    except (TypeError, ValueError):
-        return default
 
 
 def _parse_iso_date(raw):
@@ -87,7 +81,7 @@ def _resolve_period(request, today: date):
         if mode == "range":
             return start, end, "range", start.year
 
-    year = _parse_int(request.GET.get("year"), today.year)
+    year = parse_int_param(request.GET.get("year"), today.year)
     return date(year, 1, 1), date(year, 12, 31), "year", year
 
 
@@ -122,7 +116,7 @@ class AnalyticsView(View):
     template_name = "analytics/analytics.html"
 
     def get(self, request):
-        today = date.today()
+        today = timezone.localdate()
         settings = UserSettings.load()
 
         start, end, period_mode, year = _resolve_period(request, today)
@@ -221,7 +215,7 @@ class RateHistoryView(View):
     template_name = "analytics/rate_history.html"
 
     def get(self, request):
-        today = date.today()
+        today = timezone.localdate()
 
         # Period resolved first so we can filter by it
         raw_mode = request.GET.get("period_mode")

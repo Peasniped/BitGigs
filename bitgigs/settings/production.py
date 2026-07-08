@@ -3,9 +3,21 @@ Production settings — PostgreSQL, no debug.
 """
 import os
 
+from django.core.exceptions import ImproperlyConfigured
+
 from .base import *  # noqa: F401, F403
 
 DEBUG = False
+
+# Fail fast on missing secrets instead of silently running with the insecure
+# fallback key from base.py or a blank database password.
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
+if not SECRET_KEY or SECRET_KEY.startswith("django-insecure-"):
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set to a real secret in production.")
+
+_postgres_password = os.environ.get("POSTGRES_PASSWORD", "")
+if not _postgres_password:
+    raise ImproperlyConfigured("POSTGRES_PASSWORD must be set in production.")
 
 # Security hardening.
 # HTTPS enforcement is gated behind DJANGO_ENABLE_HTTPS (default: on) so the
@@ -30,7 +42,7 @@ DATABASES = {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ.get("POSTGRES_DB", "bitgigs"),
         "USER": os.environ.get("POSTGRES_USER", "bitgigs"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
+        "PASSWORD": _postgres_password,
         "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
         "PORT": os.environ.get("POSTGRES_PORT", "5432"),
     }

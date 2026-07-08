@@ -13,6 +13,7 @@ from datetime import date, time, timedelta
 from decimal import Decimal
 
 from django.db import transaction
+from django.utils import timezone
 
 from core.models import UserSettings
 from core.services import TaxCalculationService
@@ -164,7 +165,7 @@ class CalendarService:
             for p in pqs:
                 planned_by_date[p.date].append(p)
 
-        today = date.today()
+        today = timezone.localdate()
         weeks = []
         current = grid_start
         while current <= grid_end:

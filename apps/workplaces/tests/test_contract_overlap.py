@@ -4,11 +4,20 @@ saved (that is when dates enter the model)."""
 from datetime import date
 from decimal import Decimal
 
+from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
 from workplaces.models import Workplace, WorkplaceContract, ContractTermSet
+
+
+class LoggedInTestCase(TestCase):
+    """View tests need an authenticated client (site-wide login gate)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("tester", password="pw")
+        self.client.force_login(self.user)
 
 
 def make_terms(contract, effective_from, effective_until=None, **overrides):
@@ -161,8 +170,9 @@ class TermSetActiveWindowTest(TestCase):
         self.assertEqual(form.data.get("effective_until"), "")
 
 
-class ContractCreateViewTest(TestCase):
+class ContractCreateViewTest(LoggedInTestCase):
     def setUp(self):
+        super().setUp()
         self.wp = Workplace.objects.create(name="Acme", slug="acme")
         self.url = reverse("workplaces:contract-create", args=[self.wp.slug])
 
@@ -175,12 +185,13 @@ class ContractCreateViewTest(TestCase):
         self.assertIsNone(contract.start_date)
 
 
-class TermSetSupersedeExpiryTest(TestCase):
+class TermSetSupersedeExpiryTest(LoggedInTestCase):
     """Adding a term set that starts on or before the current terms' end date
     moves the contract-end date to the new terms (carry over) or drops it
     (open-ended), and clears the now-superseded end date on the old terms."""
 
     def setUp(self):
+        super().setUp()
         self.wp = Workplace.objects.create(name="Acme", slug="acme")
         self.contract = WorkplaceContract.objects.create(workplace=self.wp, name="C")
         self.a = make_terms(self.contract, date(2026, 1, 1), date(2026, 12, 31))

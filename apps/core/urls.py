@@ -6,6 +6,7 @@ app_name = "core"
 urlpatterns = [
     path("", views.DashboardView.as_view(), name="dashboard"),
     path("setup/", views.SetupWizardView.as_view(), name="setup"),
+    path("setup/user/", views.FirstUserSetupView.as_view(), name="setup-user"),
     path("tax-profiles/", views.TaxProfileListView.as_view(), name="taxprofile-list"),
     path(
         "tax-profiles/new/",

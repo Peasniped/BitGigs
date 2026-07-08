@@ -1,11 +1,29 @@
 
 # NU     --------------------------------------------------------
 
+- Polish onboarding flow
+- Password requirements and repeat update in real time (on update) with condition pass/fail 
+- - rephrase "Your password can’t be too similar to your other personal information.", we only know the username
+- make sure the username is a valid email-address. Then copy username to email address in the user table.
+- Update workplace slug to be compatible with æøå as ae, oe, aa ("Jåd Kå Æf" currently uses slug jd-k-f change )
+- I am unable to go back in the onboarding flow by pressing the step-buttons.
+- - If I use the back button on the bottom of the form, it no longer shows me where I am in the steps, it just shows how long i initiall got.
+- Onboarding items should be submitted when the whole flow is done, so I can easily (and without causing problems), go back and make changes to a page, before finishing the whole onboarding flow.
+- The nav buttons should not be shown until the onboarding flow is done
+- The whole navbar should be removed on the first page, the logo should be centered on the navbar in subsequent onboarding pages.
+
+Login Page:
+- Center and enlarge logo 
+- Create user creation flow
+- Enable and force 2FA for all users (TOTP, Passkey, and backup codes)
+- Explore user mgmt and admin page/status
+
 Extra work before making base template
-- Kindly ask Claude Fable look the entire codebase through and check if everything is in good working order, secure / best practices, and that no dead/repeated code exists in the codebase.
 - Design glow up -- more flavorful color and personality?
 - - Central color management -- one source of truth for all colors (user/admin accessible?)
 - Dark mode also?
+- Reset migrations
+- One last pass: Kindly ask Claude Fable 5 tp look the entire codebase through and check if everything is in good working order, secure / best practices, and that no dead/repeated code exists in the codebase.
 
 --> Efter refactor, lav en base hjemmeside, så andre Bit-apps kan laves med et lignende visuelt udtryk. Gem denne til D:\Github\BitBase\
 ----> Er det muligt at have den som en slags main som de andre er forks af, så ved opdatering af main template, så opdateres undersiderne også?

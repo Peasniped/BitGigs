@@ -15,6 +15,19 @@ sys.path.insert(0, str(BASE_DIR / "apps"))
 # Editable reference-data files (e.g. ATP rates) live here.
 DATA_DIR = BASE_DIR / "data"
 
+# Load BASE_DIR/.env into the environment (KEY=VALUE lines; # comments and
+# blanks skipped). Real environment variables always win over .env values.
+_env_file = BASE_DIR / ".env"
+if _env_file.is_file():
+    for _line in _env_file.read_text(encoding="utf-8").splitlines():
+        _line = _line.strip()
+        if not _line or _line.startswith("#") or "=" not in _line:
+            continue
+        _key, _, _value = _line.partition("=")
+        _value = _value.strip().strip("'\"")
+        if _value:  # an empty value would mask defaults (e.g. dev SECRET_KEY)
+            os.environ.setdefault(_key.strip(), _value)
+
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
     "django-insecure-CHANGE-ME-in-production-bitgigs",
@@ -52,6 +65,9 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Site-wide login gate: every view requires auth unless marked with
+    # @login_not_required (the contrib auth views already are).
+    "django.contrib.auth.middleware.LoginRequiredMiddleware",
     "core.middleware.SetupRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -114,3 +130,4 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/accounts/login/"

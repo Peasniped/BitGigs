@@ -14,6 +14,7 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.db.models import Q
+from django.utils import timezone
 
 from core.utils import WEEKS_PER_MONTH, weekly_to_monthly_hours
 from payroll.services import SalaryEstimateService
@@ -34,13 +35,13 @@ def _month_iter(year: int):
 
 
 def _is_past_month(year: int, month: int, today: date | None = None) -> bool:
-    today = today or date.today()
+    today = today or timezone.localdate()
     last_day = calendar.monthrange(year, month)[1]
     return date(year, month, last_day) < today
 
 
 def _is_current_month(year: int, month: int, today: date | None = None) -> bool:
-    today = today or date.today()
+    today = today or timezone.localdate()
     return today.year == year and today.month == month
 
 
@@ -114,7 +115,7 @@ class AnalyticsService:
     def trailing_monthly_hours(
         workplace: Workplace, n_months: int, ref: date | None = None,
     ) -> list[Decimal]:
-        ref = ref or date.today()
+        ref = ref or timezone.localdate()
         if ref.month == 1:
             y, m = ref.year - 1, 12
         else:
@@ -174,7 +175,7 @@ class AnalyticsService:
         trailing_months: int = 6, method: str = "ema",
         today: date | None = None,
     ) -> YearProjection:
-        today = today or date.today()
+        today = today or timezone.localdate()
         if end < start:
             start, end = end, start
 

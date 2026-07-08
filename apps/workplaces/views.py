@@ -8,10 +8,12 @@ from django.core.files.base import ContentFile
 from django.http import JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.views import View
+from django.utils import timezone
 
 from .models import Workplace, WorkplaceContract, ContractTermSet
 from .forms import WorkplaceForm, WorkplaceContractForm, ContractTermSetForm
-from core.utils import avatar_for_name, prev_next_month, WEEKS_PER_MONTH, sanitize_svg
+from .services import ALLOWED_ICON_CONTENT_TYPES, ALLOWED_ICON_EXTS, MAX_ICON_SIZE
+from core.utils import avatar_for_name, parse_int_param, prev_next_month, WEEKS_PER_MONTH, sanitize_svg
 
 # Curated icon choices for the workplace icon picker
 ICON_CHOICES = [
@@ -53,8 +55,10 @@ def _tax_profile_json():
 
 class WorkplaceListView(View):
     def get(self, request):
-        today = date.today()
-        workplaces = Workplace.objects.all()
+        today = timezone.localdate()
+        # active_termset_on walks contracts/term sets in Python — prefetch both
+        # so the list issues 3 queries total instead of 2 per workplace.
+        workplaces = Workplace.objects.prefetch_related("contracts__term_sets")
         wp_data = [
             {"workplace": wp, "termset": wp.active_termset_on(today)}
             for wp in workplaces
@@ -74,7 +78,7 @@ class WorkplaceDetailView(View):
         from shifts.models import Shift, PlannedShift
 
         workplace = get_object_or_404(Workplace, slug=slug)
-        today = date.today()
+        today = timezone.localdate()
 
         # Resolve active termset for today (may be None if no contract active)
         active_termset = workplace.active_termset_on(today)
@@ -87,8 +91,8 @@ class WorkplaceDetailView(View):
         else:
             today_payroll_year, today_payroll_month = today.year, today.month
 
-        year = int(request.GET.get("year", today_payroll_year))
-        month = int(request.GET.get("month", today_payroll_month))
+        year = parse_int_param(request.GET.get("year"), today_payroll_year)
+        month = parse_int_param(request.GET.get("month"), today_payroll_month)
 
         # Resolve the representative termset for the viewed month (may differ from today)
         viewed_termset = workplace.active_termset_in_month(year, month) or active_termset
@@ -337,11 +341,6 @@ class WorkplaceDeleteView(View):
 # Appearance customisation (icon / colour — AJAX)
 # ─────────────────────────────────────────────────────────────────────────────
 
-_ALLOWED_ICON_TYPES = {"image/png", "image/svg+xml"}
-_ALLOWED_ICON_EXTS = {".png", ".svg"}
-_MAX_ICON_SIZE = 512 * 1024  # 512 KB
-
-
 class WorkplaceCustomizeView(View):
     def post(self, request, slug):
         workplace = get_object_or_404(Workplace, slug=slug)
@@ -363,11 +362,11 @@ class WorkplaceCustomizeView(View):
         custom_icon_file = request.FILES.get("custom_icon")
         if custom_icon_file:
             ext = os.path.splitext(custom_icon_file.name or "")[1].lower()
-            if custom_icon_file.content_type not in _ALLOWED_ICON_TYPES or ext not in _ALLOWED_ICON_EXTS:
+            if custom_icon_file.content_type not in ALLOWED_ICON_CONTENT_TYPES or ext not in ALLOWED_ICON_EXTS:
                 return JsonResponse(
                     {"ok": False, "error": "Only PNG and SVG files are allowed."}, status=400
                 )
-            if custom_icon_file.size > _MAX_ICON_SIZE:
+            if custom_icon_file.size > MAX_ICON_SIZE:
                 return JsonResponse(
                     {"ok": False, "error": "Icon must be under 512 KB."}, status=400
                 )
@@ -376,6 +375,10 @@ class WorkplaceCustomizeView(View):
             is_svg = custom_icon_file.content_type == "image/svg+xml" or ext == ".svg"
             if is_svg:
                 cleaned = sanitize_svg(custom_icon_file.read())
+                if cleaned is None:
+                    return JsonResponse(
+                        {"ok": False, "error": "The SVG file could not be parsed."}, status=400
+                    )
                 workplace.custom_icon.save(
                     custom_icon_file.name, ContentFile(cleaned), save=False
                 )
@@ -538,7 +541,7 @@ class ContractTermSetCreateView(View):
             for f in ContractTermSetForm.Meta.fields:
                 if f not in ("effective_from", "effective_until"):
                     initial[f] = getattr(latest, f)
-        initial["effective_from"] = date.today()
+        initial["effective_from"] = timezone.localdate()
         form = ContractTermSetForm(initial=initial, contract=contract)
         return render(request, "workplaces/termset_form.html", {
             "form": form, "workplace": workplace, "contract": contract,

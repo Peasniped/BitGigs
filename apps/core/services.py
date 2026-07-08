@@ -21,6 +21,7 @@ Important:
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
+from django.utils import timezone
 
 from .models import TaxProfile, ATPConfiguration
 from .utils import active_dated_row
@@ -51,7 +52,7 @@ class ATPService:
     @staticmethod
     def get_active_config(as_of: date | None = None) -> ATPConfiguration | None:
         if as_of is None:
-            as_of = date.today()
+            as_of = timezone.localdate()
         return active_dated_row(ATPConfiguration.objects.all(), as_of)
 
     @classmethod
@@ -92,7 +93,7 @@ class TaxCalculationService:
         on the requested date (e.g. profile created after the period start).
         """
         if as_of is None:
-            as_of = date.today()
+            as_of = timezone.localdate()
         return active_dated_row(TaxProfile.objects.all(), as_of)
 
     @staticmethod

@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 from django import forms
+from django.utils import timezone
 from .models import Workplace, WorkplaceContract, ContractTermSet
 
 
@@ -121,7 +122,7 @@ class ContractTermSetForm(forms.ModelForm):
                     self.initial[field] = default
 
         if not self.initial.get("effective_from") and not self.data:
-            self.initial["effective_from"] = date.today()
+            self.initial["effective_from"] = timezone.localdate()
         if not self.initial.get("employment_type") and not self.data:
             self.initial["employment_type"] = ContractTermSet.EmploymentType.SALARIED
         if not self.initial.get("work_time_type") and not self.data:

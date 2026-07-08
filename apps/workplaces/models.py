@@ -7,6 +7,7 @@ from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 from django.utils.text import slugify
+from django.utils import timezone
 
 from core.utils import weekly_to_monthly_hours
 
@@ -108,7 +109,7 @@ class Workplace(models.Model):
     @property
     def is_active(self) -> bool:
         """True when the workplace has at least one currently active contract."""
-        return self.active_contract_on(_date.today()) is not None
+        return self.active_contract_on(timezone.localdate()) is not None
 
     # ------------------------------------------------------------------
     # Contract helpers
@@ -293,11 +294,11 @@ class WorkplaceContract(models.Model):
         effective_from <= d wins ("runs until the next one starts"); if that
         term set has an effective_until earlier than d, the contract has ended
         and there is no active term set."""
-        ts = (
-            self.term_sets.filter(effective_from__lte=d)
-            .order_by("-effective_from")
-            .first()
-        )
+        ts = None
+        for candidate in self._ordered_term_sets:  # ascending effective_from
+            if candidate.effective_from > d:
+                break
+            ts = candidate
         if ts is None:
             return None
         if ts.effective_until is not None and ts.effective_until < d:
@@ -306,7 +307,7 @@ class WorkplaceContract(models.Model):
 
     def get_rate_as_of(self, as_of: _date | None = None):
         """Return (hourly_rate, monthly_salary) for the active termset on *as_of*."""
-        ts = self.active_termset_on(as_of or _date.today())
+        ts = self.active_termset_on(as_of or timezone.localdate())
         if ts:
             return ts.hourly_rate, ts.monthly_salary
         return None, None

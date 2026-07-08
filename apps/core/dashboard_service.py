@@ -8,6 +8,7 @@ import calendar as cal_mod
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from django.utils import timezone
 
 from core.utils import WEEKS_PER_MONTH, avatar_for_name
 from payroll.services import PayrollPeriodService, SalaryEstimateService
@@ -82,7 +83,7 @@ class DashboardDataService:
     def get_stats(cls, year: int, month: int) -> DashboardStats:
         """Compute stat-card values only (used by the JSON API)."""
         stats = DashboardStats()
-        today = date.today()
+        today = timezone.localdate()
         import calendar as _cal_
         _m_start = date(year, month, 1)
         _m_end = date(year, month, _cal_.monthrange(year, month)[1])
@@ -123,7 +124,7 @@ class DashboardDataService:
     def get_full(cls, year: int, month: int) -> DashboardData:
         """Compute full dashboard data (stats + workplace cards + cross-period info)."""
         data = DashboardData()
-        today = date.today()
+        today = timezone.localdate()
         import calendar as _cal_
         _m_start = date(year, month, 1)
         _m_end = date(year, month, _cal_.monthrange(year, month)[1])
@@ -329,7 +330,7 @@ class DashboardDataService:
 
 def get_pending_shifts(today: date) -> tuple[list, int]:
     """Return (list, count) of shifts pending approval (for json_script)."""
-    now_time = datetime.now().time()
+    now_time = timezone.localtime().time()
     all_pending = PlannedShift.objects.filter(
         workplace__in=workplaces_active_today(),
         status=PlannedShift.Status.PLANNED,

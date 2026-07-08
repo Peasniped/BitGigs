@@ -22,6 +22,31 @@ def _make_workplace(name, **termset_kwargs):
     return wp, ts
 
 
+class PayslipFallbackTaxCardTest(TestCase):
+    """build_payslip's no-termset fallback must use a valid 'hovedkort' card
+    type so the monthly deduction is applied (regression: 'hoofdkort' typo)."""
+
+    def test_fallback_applies_monthly_deduction(self):
+        from payroll.models import PayrollPeriod, PayslipLine
+        from payroll.services import PayslipService
+
+        TaxProfile.objects.create(
+            monthly_deduction=Decimal("4000.00"), tax_percent=Decimal("37.00"),
+            church_tax_percent=Decimal("0.00"), am_bidrag_percent=Decimal("8.00"),
+            effective_from=date(2026, 1, 1),
+        )
+        wp = Workplace.objects.create(name="No Terms Co")  # no contract/term sets
+        period = PayrollPeriod.objects.create(
+            workplace=wp, start_date=date(2026, 6, 1), end_date=date(2026, 6, 30)
+        )
+        PayslipLine.objects.create(
+            payroll_period=period, name="Salary", amount=Decimal("30000.00"),
+            line_type=PayslipLine.LineType.PRE_TAX_ADD, sort_order=0,
+        )
+        result = PayslipService.build_payslip(period)
+        self.assertEqual(result.tax_breakdown.monthly_deduction, Decimal("4000.00"))
+
+
 class SalariedMonthTotalsTest(TestCase):
     """A salaried month is summed over every term set active in it, each
     prorated to its own active days — a mid-month split covering the whole month

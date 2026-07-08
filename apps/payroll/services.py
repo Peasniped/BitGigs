@@ -882,10 +882,8 @@ class PayslipService:
             )
             tax_card_type = terms.tax_card_type
         else:
-            import calendar as _cal
-            last_day = _cal.monthrange(period.end_date.year, period.end_date.month)[1]
             tax_pull_date = date(period.end_date.year, period.end_date.month, 18)
-            tax_card_type = "hoofdkort"
+            tax_card_type = "hovedkort"
 
         result.tax_breakdown = TaxCalculationService.calculate(
             max(running, Decimal("0")),

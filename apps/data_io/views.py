@@ -4,6 +4,7 @@ from datetime import date
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.views import View
+from django.utils import timezone
 
 from workplaces.models import Workplace
 from . import services
@@ -49,7 +50,7 @@ class ExportView(View):
 
         content = json.dumps(data, cls=services._Encoder, indent=2, ensure_ascii=False)
         response = HttpResponse(content, content_type="application/json")
-        filename = f"bitgigs_export_{date.today().isoformat()}.json"
+        filename = f"bitgigs_export_{timezone.localdate().isoformat()}.json"
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
 
@@ -112,7 +113,12 @@ class ImportConfirmView(View):
             messages.error(request, "No import data found. Please upload again.")
             return redirect("data_io:main")
 
-        data = services.parse_import_file(content)
+        try:
+            data = services.parse_import_file(content)
+        except ValueError as e:
+            del request.session["import_data"]
+            messages.error(request, f"Import failed: {e}")
+            return redirect("data_io:main")
         conflicts = services.detect_workplace_conflicts(data)
 
         # Build workplace_mapping from form
@@ -146,9 +152,16 @@ class ImportConfirmView(View):
             # Default: skip just the overlapping workplace(s)
             skip_workplaces = overlapping_created
 
-        counts = services.perform_import(
-            data, workplace_mapping, skip_workplaces=skip_workplaces
-        )
+        from django.core.exceptions import ValidationError
+        try:
+            counts = services.perform_import(
+                data, workplace_mapping, skip_workplaces=skip_workplaces
+            )
+        except (ValueError, ValidationError) as e:
+            # perform_import is atomic — nothing was written.
+            del request.session["import_data"]
+            messages.error(request, f"Import failed, nothing was imported: {e}")
+            return redirect("data_io:main")
 
         # Clean up session
         del request.session["import_data"]

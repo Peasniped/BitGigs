@@ -1,13 +1,16 @@
 from datetime import date
 from decimal import Decimal
 
+from django.contrib.auth.decorators import login_not_required
 from django.http import JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
+from django.utils.decorators import method_decorator
 from django.views import View
+from django.utils import timezone
 
 from .models import TaxProfile, UserSettings
 from .forms import TaxProfileForm, UserSettingsForm
-from .utils import avatar_for_name, prev_next_month
+from .utils import avatar_for_name, parse_int_param, prev_next_month
 from .dashboard_service import DashboardDataService, get_pending_shifts, get_todays_banner
 
 
@@ -17,9 +20,9 @@ class DashboardView(View):
     def get(self, request):
         from calendar_view.services import CalendarService
 
-        today = date.today()
-        year = int(request.GET.get("year", today.year))
-        month = int(request.GET.get("month", today.month))
+        today = timezone.localdate()
+        year = parse_int_param(request.GET.get("year"), today.year)
+        month = parse_int_param(request.GET.get("month"), today.month)
 
         grid = CalendarService.month_calendar(year, month)
         grid.annotate_overlaps()
@@ -79,9 +82,9 @@ class DashboardStatsAPIView(View):
     """Return dashboard stat card values as JSON for live updates."""
 
     def get(self, request):
-        today = date.today()
-        year = int(request.GET.get("year", today.year))
-        month = int(request.GET.get("month", today.month))
+        today = timezone.localdate()
+        year = parse_int_param(request.GET.get("year"), today.year)
+        month = parse_int_param(request.GET.get("month"), today.month)
 
         stats = DashboardDataService.get_stats(year, month)
 
@@ -173,6 +176,39 @@ class UserSettingsView(View):
         return render(request, "core/settings.html", {
             "form": form, "next_url": next_url,
         })
+
+
+@method_decorator(login_not_required, name="dispatch")
+class FirstUserSetupView(View):
+    """First-time setup — step 0: create the (single) user account.
+
+    Only reachable while no account exists; once one does, the page is gone
+    for good and everything runs through the normal login gate.
+    """
+
+    def dispatch(self, request, *args, **kwargs):
+        from django.contrib.auth.models import User
+        if User.objects.exists():
+            return redirect("core:dashboard" if request.user.is_authenticated else "/accounts/login/")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request):
+        from django.contrib.auth.forms import UserCreationForm
+        return render(request, "core/setup_user.html", {"form": UserCreationForm()})
+
+    def post(self, request):
+        from django.contrib.auth import login
+        from django.contrib.auth.forms import UserCreationForm
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save(commit=False)
+            # Single-user app: the first (only) account is the admin.
+            user.is_staff = True
+            user.is_superuser = True
+            user.save()
+            login(request, user)
+            return redirect("core:setup")
+        return render(request, "core/setup_user.html", {"form": form})
 
 
 class SetupWizardView(View):

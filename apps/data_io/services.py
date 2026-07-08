@@ -11,6 +11,10 @@ import json
 from datetime import date, datetime
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.utils import timezone
+
 from shifts.models import Shift, PlannedShift
 from workplaces.models import Workplace
 from core.models import TaxProfile
@@ -33,7 +37,7 @@ def export_data(*, date_from=None, date_to=None, include_workplaces=True,
     date_from / date_to filter shifts and planned_shifts by date.
     workplace_ids (list of int or None) filters which workplaces to include.
     """
-    data = {"version": 1, "exported_at": datetime.now().isoformat()}
+    data = {"version": 1, "exported_at": timezone.localtime().isoformat()}
 
     # Workplaces
     if include_workplaces:
@@ -169,9 +173,11 @@ def detect_contract_overlaps(data):
     return problems
 
 
+@transaction.atomic
 def perform_import(data, workplace_mapping, skip_workplaces=None):
     """
-    Import data into the database.
+    Import data into the database. Runs in a single transaction — a failure
+    midway (bad dates, invalid rows) rolls the whole import back.
 
     workplace_mapping: dict mapping imported workplace_name -> action dict:
       {"action": "create"} . create new workplace from export data
@@ -193,7 +199,12 @@ def perform_import(data, workplace_mapping, skip_workplaces=None):
         if name in skip_workplaces or action["action"] == "skip":
             resolved[name] = None
         elif action["action"] == "map":
-            resolved[name] = Workplace.objects.get(pk=action["target_id"])
+            try:
+                resolved[name] = Workplace.objects.get(pk=action["target_id"])
+            except Workplace.DoesNotExist:
+                raise ValueError(
+                    f"The workplace selected for '{name}' no longer exists."
+                )
         elif action["action"] == "create":
             # Find workplace data from the export
             wp_data = None
@@ -258,7 +269,7 @@ def perform_import(data, workplace_mapping, skip_workplaces=None):
         if not Shift.objects.filter(
             workplace=wp, date=shift_date, start_time=start, end_time=end
         ).exists():
-            Shift.objects.create(
+            shift = Shift(
                 workplace=wp,
                 date=shift_date,
                 start_time=start,
@@ -267,6 +278,13 @@ def perform_import(data, workplace_mapping, skip_workplaces=None):
                 shift_type=s.get("shift_type", "on_site"),
                 notes=s.get("notes", ""),
             )
+            try:
+                shift.full_clean()
+            except ValidationError:
+                # e.g. a date no contract covers — skip the row, keep the import
+                counts["skipped"] += 1
+                continue
+            shift.save()
             counts["shifts_created"] += 1
 
     # Import planned shifts
@@ -282,7 +300,7 @@ def perform_import(data, workplace_mapping, skip_workplaces=None):
         if not PlannedShift.objects.filter(
             workplace=wp, date=shift_date, start_time=start, end_time=end
         ).exists():
-            PlannedShift.objects.create(
+            planned = PlannedShift(
                 workplace=wp,
                 date=shift_date,
                 start_time=start,
@@ -292,6 +310,12 @@ def perform_import(data, workplace_mapping, skip_workplaces=None):
                 notes=s.get("notes", ""),
                 status=s.get("status", "planned"),
             )
+            try:
+                planned.full_clean()
+            except ValidationError:
+                counts["skipped"] += 1
+                continue
+            planned.save()
             counts["planned_created"] += 1
 
     return counts
@@ -408,36 +432,59 @@ def _tax_to_dict(t):
     }
 
 
+def _restore_custom_icon(wp, icon_data):
+    """Restore a base64 icon with the same guards as the upload view: extension
+    allowlist, size cap, and SVG sanitisation. Invalid icons are skipped (the
+    icon is cosmetic; the import itself proceeds)."""
+    import base64
+    import binascii
+    import os
+
+    from django.core.files.base import ContentFile
+
+    from core.utils import sanitize_svg
+    from workplaces.services import ALLOWED_ICON_EXTS, MAX_ICON_SIZE
+
+    try:
+        file_bytes = base64.b64decode(icon_data["data"])
+    except (KeyError, TypeError, binascii.Error):
+        return
+    filename = icon_data.get("filename", "icon.png")
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in ALLOWED_ICON_EXTS or len(file_bytes) > MAX_ICON_SIZE:
+        return
+    if ext == ".svg":
+        file_bytes = sanitize_svg(file_bytes)
+        if file_bytes is None:
+            return
+    wp.custom_icon.save(filename, ContentFile(file_bytes), save=True)
+
+
 def _create_workplace_from_dict(d):
     """Create a Workplace (and its contracts/termsets) from an exported dict."""
-    from datetime import time as _time, date as _date
-    from workplaces.models import WorkplaceContract, ContractTermSet
+    from datetime import time as _time
+    from workplaces.models import WorkplaceContract
 
-    from datetime import time as _time2
     wp = Workplace.objects.create(
         name=d["name"],
         slug=d.get("slug", ""),
         icon=d.get("icon", ""),
         color=d.get("color", ""),
         accent_color=d.get("accent_color", ""),
-        default_shift_start_time=_time2.fromisoformat(d["default_shift_start_time"]) if d.get("default_shift_start_time") else None,
-        default_shift_end_time=_time2.fromisoformat(d["default_shift_end_time"]) if d.get("default_shift_end_time") else None,
+        default_shift_start_time=_time.fromisoformat(d["default_shift_start_time"]) if d.get("default_shift_start_time") else None,
+        default_shift_end_time=_time.fromisoformat(d["default_shift_end_time"]) if d.get("default_shift_end_time") else None,
         default_shift_break_minutes=d.get("default_shift_break_minutes", 0) or 0,
         default_shift_type=d.get("default_shift_type", "on_site") or "on_site",
     )
 
-    # Restore custom icon from base64 data
     custom_icon_data = d.get("custom_icon")
     if custom_icon_data and isinstance(custom_icon_data, dict):
-        import base64
-        from django.core.files.base import ContentFile
-        file_bytes = base64.b64decode(custom_icon_data["data"])
-        filename = custom_icon_data.get("filename", "icon.png")
-        wp.custom_icon.save(filename, ContentFile(file_bytes), save=True)
+        _restore_custom_icon(wp, custom_icon_data)
 
-    if d.get("contracts"):
-        # New-format export: restore full contract/termset structure. A contract
-        # has no dates of its own — its span is derived from the term sets.
+    if "contracts" in d:
+        # New-format export: restore full contract/termset structure (an empty
+        # list is valid — a workplace with no contracts yet). A contract has no
+        # dates of its own — its span is derived from the term sets.
         # Overlapping workplaces are already filtered upstream by
         # detect_contract_overlaps before import.
         for c_data in d["contracts"]:
@@ -465,7 +512,7 @@ def _create_termset_from_dict(contract, d):
         "effective_until": _date.fromisoformat(d["effective_until"]) if d.get("effective_until") else None,
         "employment_type": d.get("employment_type", "hourly"),
         "payroll_period_start_day": d.get("payroll_period_start_day", 1),
-        "tax_card_type": d.get("tax_card_type", "hoofdkort"),
+        "tax_card_type": d.get("tax_card_type", "hovedkort"),
         "tax_pull_day": d.get("tax_pull_day", 18),
         "vacation_type": d.get("vacation_type", "feriekonto"),
         "pension_employee_percent": Decimal(d.get("pension_employee_percent", "0")),
@@ -495,5 +542,10 @@ def _create_termset_from_dict(contract, d):
     if d.get("hour_goal_max"):
         kwargs["hour_goal_max"] = Decimal(d["hour_goal_max"])
 
-    return ContractTermSet.objects.create(**kwargs)
+    ts = ContractTermSet(**kwargs)
+    # Enforce the model invariants (incl. the contract-overlap guard) on
+    # imported data too; a ValidationError aborts and rolls back the import.
+    ts.full_clean()
+    ts.save()
+    return ts
 

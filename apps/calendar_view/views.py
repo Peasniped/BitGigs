@@ -6,12 +6,16 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.views import View
+from django.utils import timezone
 
 from core.services import TaxCalculationService
 from workplaces.models import Workplace
 from workplaces.services import workplaces_active_today, workplaces_active_in_period, hidden_workplace_count
 from shifts.models import PlannedShift, Shift
-from core.utils import avatar_for_name, prev_next_month
+from core.utils import (
+    avatar_for_name, parse_int_param, parse_iso_date_param, parse_iso_time_param,
+    prev_next_month,
+)
 from .services import CalendarService, approve_planned_shifts
 
 
@@ -19,10 +23,9 @@ class MonthCalendarView(View):
     """Standard month calendar view, optionally filtered by workplace."""
 
     def get(self, request):
-        year = int(request.GET.get("year", date.today().year))
-        month = int(request.GET.get("month", date.today().month))
-        workplace_id = request.GET.get("workplace")
-        workplace_id = int(workplace_id) if workplace_id else None
+        year = parse_int_param(request.GET.get("year"), timezone.localdate().year)
+        month = parse_int_param(request.GET.get("month"), timezone.localdate().month)
+        workplace_id = parse_int_param(request.GET.get("workplace"))
 
         grid = CalendarService.month_calendar(year, month, workplace_id)
         grid.annotate_overlaps()
@@ -57,9 +60,9 @@ class PayrollPeriodCalendarView(View):
     """Calendar view aligned to a payroll period for a specific workplace."""
 
     def get(self, request):
-        year = int(request.GET.get("year", date.today().year))
-        month = int(request.GET.get("month", date.today().month))
-        workplace_id = int(request.GET.get("workplace", 0))
+        year = parse_int_param(request.GET.get("year"), timezone.localdate().year)
+        month = parse_int_param(request.GET.get("month"), timezone.localdate().month)
+        workplace_id = parse_int_param(request.GET.get("workplace"), 0)
 
         if not workplace_id:
             # If no workplace selected, show workplace picker
@@ -102,9 +105,9 @@ class PlanningCalendarView(View):
         from payroll.services import PayrollPeriodService
         from decimal import Decimal
 
-        today = date.today()
-        year = int(request.GET.get("year", today.year))
-        month = int(request.GET.get("month", today.month))
+        today = timezone.localdate()
+        year = parse_int_param(request.GET.get("year"), today.year)
+        month = parse_int_param(request.GET.get("month"), today.month)
 
         grid = CalendarService.planning_calendar(year, month)
         has_overlaps = grid.annotate_overlaps()
@@ -226,7 +229,7 @@ class PlannedShiftAPIView(View):
         shift_date = data.get("date")
         start_time_str = data.get("start_time")
         end_time_str = data.get("end_time")
-        break_minutes = int(data.get("break_minutes", 0))
+        break_minutes = parse_int_param(data.get("break_minutes"), 0)
         shift_type = data.get("shift_type", "on_site")
         notes = data.get("notes", "")
 
@@ -234,9 +237,11 @@ class PlannedShiftAPIView(View):
             return JsonResponse({"ok": False, "error": "Missing required fields."}, status=400)
 
         workplace = get_object_or_404(Workplace, pk=workplace_id)
-        parsed_date = date.fromisoformat(shift_date)
-        start_time = time.fromisoformat(start_time_str)
-        end_time = time.fromisoformat(end_time_str)
+        parsed_date = parse_iso_date_param(shift_date)
+        start_time = parse_iso_time_param(start_time_str)
+        end_time = parse_iso_time_param(end_time_str)
+        if parsed_date is None or start_time is None or end_time is None:
+            return JsonResponse({"ok": False, "error": "Invalid date or time."}, status=400)
 
         if start_time >= end_time:
             return JsonResponse({"ok": False, "error": "End time must be after start time."}, status=400)
@@ -285,19 +290,22 @@ class PlannedShiftUpdateAPIView(View):
             return JsonResponse({"ok": False, "error": "Invalid JSON."}, status=400)
 
         if "date" in data:
-            shift.date = date.fromisoformat(data["date"])
+            shift.date = parse_iso_date_param(data["date"])
         if "start_time" in data:
-            shift.start_time = time.fromisoformat(data["start_time"])
+            shift.start_time = parse_iso_time_param(data["start_time"])
         if "end_time" in data:
-            shift.end_time = time.fromisoformat(data["end_time"])
+            shift.end_time = parse_iso_time_param(data["end_time"])
         if "break_minutes" in data:
-            shift.break_minutes = int(data["break_minutes"])
+            shift.break_minutes = parse_int_param(data["break_minutes"], 0)
         if "shift_type" in data:
             shift.shift_type = data["shift_type"]
         if "notes" in data:
             shift.notes = data["notes"]
         if "arrival_confirmed" in data:
             shift.arrival_confirmed = bool(data["arrival_confirmed"])
+
+        if shift.date is None or shift.start_time is None or shift.end_time is None:
+            return JsonResponse({"ok": False, "error": "Invalid date or time."}, status=400)
 
         if shift.start_time >= shift.end_time:
             return JsonResponse({"ok": False, "error": "End time must be after start time."}, status=400)
@@ -388,9 +396,11 @@ class DefaultShiftAPIView(View):
 
         start = data.get("start_time", "")
         end = data.get("end_time", "")
-        wp.default_shift_start_time = time.fromisoformat(start) if start else None
-        wp.default_shift_end_time = time.fromisoformat(end) if end else None
-        wp.default_shift_break_minutes = int(data.get("break_minutes", 0) or 0)
+        if (start and parse_iso_time_param(start) is None) or (end and parse_iso_time_param(end) is None):
+            return JsonResponse({"ok": False, "error": "Invalid time."}, status=400)
+        wp.default_shift_start_time = parse_iso_time_param(start) if start else None
+        wp.default_shift_end_time = parse_iso_time_param(end) if end else None
+        wp.default_shift_break_minutes = parse_int_param(data.get("break_minutes"), 0) or 0
         wp.default_shift_type = data.get("shift_type", "on_site") or "on_site"
         wp.save(update_fields=["default_shift_start_time", "default_shift_end_time", "default_shift_break_minutes", "default_shift_type"])
         return JsonResponse({"ok": True})
@@ -415,9 +425,9 @@ class CheckOverlapsAPIView(View):
         except ValueError:
             return JsonResponse({"overlaps": []})
 
-        exclude = int(exclude_pk) if exclude_pk else None
+        exclude = parse_int_param(exclude_pk)
         exclude_session_pk = request.GET.get("exclude_session")
-        exclude_session = int(exclude_session_pk) if exclude_session_pk else None
+        exclude_session = parse_int_param(exclude_session_pk)
         overlaps = _check_overlaps(d, s, e, exclude_shift_pk=exclude, exclude_session_pk=exclude_session)
         return JsonResponse({"overlaps": overlaps})
 
@@ -427,7 +437,7 @@ class ApproveShiftsView(View):
 
     def get(self, request, workplace_id):
         workplace = get_object_or_404(Workplace, pk=workplace_id)
-        today = date.today()
+        today = timezone.localdate()
 
         # Show planned shifts up to and including today (past + today)
         shifts = PlannedShift.objects.filter(
@@ -598,17 +608,20 @@ class ApprovedShiftUpdateAPIView(View):
             return JsonResponse({"ok": False, "error": "Invalid JSON."}, status=400)
 
         if "date" in data:
-            session.date = date.fromisoformat(data["date"])
+            session.date = parse_iso_date_param(data["date"])
         if "start_time" in data:
-            session.start_time = time.fromisoformat(data["start_time"])
+            session.start_time = parse_iso_time_param(data["start_time"])
         if "end_time" in data:
-            session.end_time = time.fromisoformat(data["end_time"])
+            session.end_time = parse_iso_time_param(data["end_time"])
         if "break_minutes" in data:
-            session.break_minutes = int(data["break_minutes"])
+            session.break_minutes = parse_int_param(data["break_minutes"], 0)
         if "shift_type" in data:
             session.shift_type = data["shift_type"]
         if "notes" in data:
             session.notes = data["notes"]
+
+        if session.date is None or session.start_time is None or session.end_time is None:
+            return JsonResponse({"ok": False, "error": "Invalid date or time."}, status=400)
 
         if session.start_time >= session.end_time:
             return JsonResponse({"ok": False, "error": "End time must be after start time."}, status=400)

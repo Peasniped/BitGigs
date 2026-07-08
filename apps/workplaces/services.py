@@ -2,6 +2,13 @@
 from datetime import date
 
 from django.db.models import Q
+from django.utils import timezone
+
+# Custom-icon upload constraints, shared by the customize view and data_io
+# import so no path can write an unchecked file to media.
+ALLOWED_ICON_CONTENT_TYPES = {"image/png", "image/svg+xml"}
+ALLOWED_ICON_EXTS = {".png", ".svg"}
+MAX_ICON_SIZE = 512 * 1024  # 512 KB
 
 
 def workplaces_active_in_period(start: date, end: date):
@@ -21,7 +28,7 @@ def workplaces_active_in_period(start: date, end: date):
 
 def workplaces_active_today():
     """Workplaces with at least one currently active contract (today)."""
-    today = date.today()
+    today = timezone.localdate()
     return workplaces_active_in_period(today, today)
 
 

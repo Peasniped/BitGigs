@@ -174,11 +174,30 @@ class ImportMappingTest(TestCase):
         data = services.export_data()
         _wipe()
         target = Workplace.objects.create(name="Target Co")
+        # Imported shifts are validated like any other shift: the target needs
+        # a contract covering their dates, otherwise they are skipped.
+        contract = WorkplaceContract.objects.create(workplace=target, name="Main")
+        ContractTermSet.objects.create(
+            contract=contract, effective_from=date(2024, 1, 1),
+            employment_type=ContractTermSet.EmploymentType.HOURLY,
+            hourly_rate=Decimal("100.00"), weekly_hours_fixed=Decimal("37.00"),
+        )
         counts = services.perform_import(
             data, {"Yoyo Inc": {"action": "map", "target_id": target.id}}
         )
         self.assertEqual(counts["shifts_created"], 1)
         self.assertEqual(Shift.objects.filter(workplace=target).count(), 1)
+
+    def test_map_to_missing_workplace_fails_cleanly(self):
+        _populate()
+        data = services.export_data()
+        _wipe()
+        with self.assertRaises(ValueError):
+            services.perform_import(
+                data, {"Yoyo Inc": {"action": "map", "target_id": 99999}}
+            )
+        # atomic: nothing half-imported
+        self.assertEqual(Shift.objects.count(), 0)
 
     def test_skip_workplace(self):
         _populate()
@@ -190,6 +209,19 @@ class ImportMappingTest(TestCase):
         self.assertEqual(Shift.objects.count(), 0)
 
 
+class TermSetDefaultsTest(TestCase):
+    def test_missing_tax_card_type_defaults_to_valid_hovedkort(self):
+        """Regression: the default was the invalid 'hoofdkort', silently taxing
+        imported term sets as bikort."""
+        wp = Workplace.objects.create(name="Defaults Co")
+        contract = WorkplaceContract.objects.create(workplace=wp, name="Main")
+        ts = services._create_termset_from_dict(
+            contract, {"effective_from": "2024-01-01", "hourly_rate": "150.00"}
+        )
+        self.assertEqual(ts.tax_card_type, "hovedkort")
+        ts.full_clean()  # must be a valid model choice
+
+
 class IconRoundTripTest(TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -199,6 +231,46 @@ class IconRoundTripTest(TestCase):
     def tearDown(self):
         self._override.disable()
         shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_imported_svg_icon_is_sanitized(self):
+        import base64
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script><rect width="1" height="1"/></svg>'
+        data = {
+            "version": 1,
+            "workplaces": [{
+                "name": "Evil Co",
+                "contracts": [{"name": "Main", "term_sets": [{"effective_from": "2024-01-01", "hourly_rate": "100"}]}],
+                "custom_icon": {"filename": "evil.svg",
+                                "data": base64.b64encode(svg).decode()},
+            }],
+        }
+        services.perform_import(data, {"Evil Co": {"action": "create"}})
+        wp = Workplace.objects.get(name="Evil Co")
+        self.assertTrue(wp.custom_icon)
+        wp.custom_icon.open("rb")
+        stored = wp.custom_icon.read()
+        wp.custom_icon.close()
+        self.assertNotIn(b"script", stored)
+        self.assertNotIn(b"alert", stored)
+
+    def test_imported_icon_with_bad_extension_or_size_is_skipped(self):
+        import base64
+        big = base64.b64encode(b"x" * (600 * 1024)).decode()
+        data = {
+            "version": 1,
+            "workplaces": [
+                {"name": "ExeCo", "contracts": [{"name": "Main", "term_sets": [{"effective_from": "2024-01-01", "hourly_rate": "100"}]}],
+                 "custom_icon": {"filename": "a.exe",
+                                 "data": base64.b64encode(b"MZ").decode()}},
+                {"name": "BigCo", "contracts": [{"name": "Main", "term_sets": [{"effective_from": "2024-01-01", "hourly_rate": "100"}]}],
+                 "custom_icon": {"filename": "b.png", "data": big}},
+            ],
+        }
+        services.perform_import(
+            data, {"ExeCo": {"action": "create"}, "BigCo": {"action": "create"}}
+        )
+        self.assertFalse(Workplace.objects.get(name="ExeCo").custom_icon)
+        self.assertFalse(Workplace.objects.get(name="BigCo").custom_icon)
 
     def test_custom_icon_round_trip(self):
         wp = Workplace.objects.create(name="Iconic", slug="iconic")
