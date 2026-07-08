@@ -1,7 +1,42 @@
 from decimal import Decimal
 
 from django import forms
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import User
+from django.core.validators import validate_email
+
 from .models import TaxProfile, UserSettings
+
+
+class OnboardingUserCreationForm(UserCreationForm):
+    """Account creation for onboarding step 1. The username IS the email: it must
+    be a valid email address and is copied into the User.email field on save."""
+
+    class Meta(UserCreationForm.Meta):
+        model = User
+        fields = ("username",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Drop the "set/disable password" toggle Django adds by default — this is
+        # a normal single-user account.
+        self.fields.pop("usable_password", None)
+        email = self.fields["username"]
+        email.label = "Email"
+        email.help_text = ""
+        email.widget.attrs.update({"autocomplete": "email", "autofocus": True})
+
+    def clean_username(self):
+        username = self.cleaned_data["username"]
+        validate_email(username)  # raises ValidationError on a non-email
+        return username
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.email = self.cleaned_data["username"]
+        if commit:
+            user.save()
+        return user
 
 
 class TaxProfileForm(forms.ModelForm):

@@ -5,8 +5,12 @@ app_name = "core"
 
 urlpatterns = [
     path("", views.DashboardView.as_view(), name="dashboard"),
-    path("setup/", views.SetupWizardView.as_view(), name="setup"),
-    path("setup/user/", views.FirstUserSetupView.as_view(), name="setup-user"),
+    path("onboarding/", views.OnboardingRootView.as_view(), name="onboarding"),
+    path("onboarding/account/", views.OnboardingAccountView.as_view(), name="onboarding-account"),
+    path("onboarding/tax/", views.OnboardingTaxView.as_view(), name="onboarding-tax"),
+    path("onboarding/workplace/", views.OnboardingWorkplaceView.as_view(), name="onboarding-workplace"),
+    path("onboarding/contract/", views.OnboardingContractView.as_view(), name="onboarding-contract"),
+    path("onboarding/terms/", views.OnboardingTermsView.as_view(), name="onboarding-terms"),
     path("tax-profiles/", views.TaxProfileListView.as_view(), name="taxprofile-list"),
     path(
         "tax-profiles/new/",

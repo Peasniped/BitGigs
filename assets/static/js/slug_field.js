@@ -14,8 +14,21 @@
   var changeLink = document.getElementById('slugChangeLink');
   if (!nameInput || !slugInput) return;
 
+  // Danish/Nordic transliteration mirrors core.utils.dk_slugify so the live
+  // preview matches the slug the server generates (æ→ae, ø→oe, å→aa, …).
+  var TRANSLIT = {
+    'æ': 'ae', 'ø': 'oe', 'å': 'aa',
+    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+    'á': 'a', 'à': 'a', 'â': 'a', 'ä': 'a',
+    'ó': 'o', 'ò': 'o', 'ô': 'o', 'ö': 'o',
+    'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u',
+    'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
+    'ç': 'c', 'ñ': 'n', 'ß': 'ss'
+  };
+
   function toSlug(s) {
     return s.toLowerCase()
+      .replace(/[æøåéèêëáàâäóòôöúùûüíìîïçñß]/g, function (c) { return TRANSLIT[c] || ''; })
       .replace(/[^\w\s-]/g, '')
       .trim()
       .replace(/[\s_]+/g, '-')

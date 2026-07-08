@@ -6,6 +6,28 @@ from datetime import date, time
 from decimal import Decimal, InvalidOperation
 
 from django.utils.formats import get_format
+from django.utils.text import slugify as _slugify
+
+
+_DK_TRANSLIT = str.maketrans({
+    "æ": "ae", "ø": "oe", "å": "aa",
+    "Æ": "ae", "Ø": "oe", "Å": "aa",
+    "é": "e", "è": "e", "ê": "e", "ë": "e",
+    "á": "a", "à": "a", "â": "a", "ä": "a",
+    "ó": "o", "ò": "o", "ô": "o", "ö": "o",
+    "ú": "u", "ù": "u", "û": "u", "ü": "u",
+    "í": "i", "ì": "i", "î": "i", "ï": "i",
+    "ç": "c", "ñ": "n", "ß": "ss",
+})
+
+
+def dk_slugify(value: str) -> str:
+    """Slugify with Danish/Nordic transliteration applied before Django's ASCII
+    slugify, so æ→ae, ø→oe, å→aa (and common accents) survive instead of being
+    dropped. 'Jåd Kå Æf' → 'jaad-kaa-aef' (bare slugify would give 'jd-k-f')."""
+    if not value:
+        return ""
+    return _slugify(value.translate(_DK_TRANSLIT))
 
 
 def parse_int_param(value, default=None):

@@ -68,7 +68,7 @@ MIDDLEWARE = [
     # Site-wide login gate: every view requires auth unless marked with
     # @login_not_required (the contrib auth views already are).
     "django.contrib.auth.middleware.LoginRequiredMiddleware",
-    "core.middleware.SetupRequiredMiddleware",
+    "core.middleware.OnboardingRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -86,6 +86,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "core.context_processors.onboarding_status",
             ],
         },
     },
@@ -94,7 +95,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "bitgigs.wsgi.application"
 
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "core.validators.EmailSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},

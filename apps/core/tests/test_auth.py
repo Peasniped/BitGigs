@@ -1,13 +1,44 @@
-"""Site-wide login gate (LoginRequiredMiddleware)."""
+"""Login gate + onboarding wizard (deferred submission)."""
 from django.contrib.auth.models import User
 from django.test import TestCase
+
+from core.utils import dk_slugify
+from core.models import TaxProfile
+from workplaces.models import Workplace, WorkplaceContract, ContractTermSet
+
+
+# Valid per-step payloads for the wizard (see the respective ModelForms).
+TAX_POST = {
+    "effective_from": "2026-01-01",
+    "monthly_deduction": "4000",
+    "tax_percent": "37",
+    "am_bidrag_percent": "8",
+}
+WORKPLACE_POST = {"name": "Jåd Kå Æf"}
+CONTRACT_POST = {"name": ""}
+TERMS_POST = {
+    "effective_from": "2026-01-01",
+    "employment_type": "salaried",
+    "work_time_type": "fuldtid",
+    "monthly_salary": "40000",
+    "payroll_period_start_day": "1",
+    "tax_card_type": "hovedkort",
+    "vacation_type": "feriekonto",
+    "pension_employee_percent": "0",
+    "pension_employer_percent": "0",
+    "fritvalgskonto_percent": "0",
+    "fritvalgskonto_payout_type": "accrues",
+    "ferietillaeg_percent": "1.00",
+    "ferietillaeg_payout_months": "5,8",
+    "hour_goal_type": "",
+}
 
 
 class LoginGateTest(TestCase):
     """With an account in place, everything anonymous funnels to login."""
 
     def setUp(self):
-        self.user = User.objects.create_user("tester", password="pw")
+        self.user = User.objects.create_user("tester@example.com", password="pw")
 
     def test_anonymous_is_redirected_to_login(self):
         resp = self.client.get("/")
@@ -21,41 +52,122 @@ class LoginGateTest(TestCase):
     def test_authenticated_user_passes_the_gate(self):
         self.client.force_login(self.user)
         resp = self.client.get("/")
-        # Setup middleware may redirect to onboarding, but not to login.
+        # Onboarding middleware may redirect to the wizard, but never to login.
         if resp.status_code == 302:
             self.assertFalse(resp["Location"].startswith("/accounts/login/"))
         else:
             self.assertEqual(resp.status_code, 200)
 
 
-class FirstUserSetupTest(TestCase):
+class OnboardingAccountTest(TestCase):
     """Fresh install: onboarding starts with account creation."""
 
     def test_everything_redirects_to_account_step_when_no_users(self):
         for path in ("/", "/accounts/login/", "/workplaces/"):
             resp = self.client.get(path)
             self.assertEqual(resp.status_code, 302, path)
-            self.assertEqual(resp["Location"], "/setup/user/", path)
+            self.assertEqual(resp["Location"], "/onboarding/account/", path)
 
     def test_account_step_renders_and_creates_admin_user(self):
-        resp = self.client.get("/setup/user/")
+        resp = self.client.get("/onboarding/account/")
         self.assertEqual(resp.status_code, 200)
 
-        resp = self.client.post("/setup/user/", {
-            "username": "me",
+        resp = self.client.post("/onboarding/account/", {
+            "username": "me@example.com",
             "password1": "correct-horse-battery",
             "password2": "correct-horse-battery",
         })
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp["Location"], "/setup/")
-        user = User.objects.get(username="me")
+        self.assertEqual(resp["Location"], "/onboarding/")
+        user = User.objects.get(username="me@example.com")
         self.assertTrue(user.is_superuser)
-        # The new user is logged in and continues to the tax step.
-        resp = self.client.get("/setup/")
-        self.assertEqual(resp.status_code, 200)
+        # Username is a valid email and is copied to the email field.
+        self.assertEqual(user.email, "me@example.com")
+
+    def test_account_step_rejects_non_email_username(self):
+        resp = self.client.post("/onboarding/account/", {
+            "username": "notanemail",
+            "password1": "correct-horse-battery",
+            "password2": "correct-horse-battery",
+        })
+        self.assertEqual(resp.status_code, 200)  # re-rendered with errors
+        self.assertFalse(User.objects.exists())
 
     def test_account_step_is_gone_once_a_user_exists(self):
-        User.objects.create_user("existing", password="pw")
-        resp = self.client.get("/setup/user/")
+        User.objects.create_user("existing@example.com", password="pw")
+        resp = self.client.get("/onboarding/account/")
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(resp["Location"], "/accounts/login/")
+
+
+class OnboardingWizardTest(TestCase):
+    """The wizard holds every step in the session and writes to the DB only on
+    the final Finish."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser("me@example.com", password="pw")
+        self.client.force_login(self.user)
+
+    def test_incomplete_onboarding_funnels_into_the_wizard(self):
+        resp = self.client.get("/")
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp["Location"], "/onboarding/")
+
+    def test_nothing_is_saved_until_finish(self):
+        self.assertEqual(self.client.post("/onboarding/tax/", TAX_POST).status_code, 302)
+        self.assertEqual(self.client.post("/onboarding/workplace/", WORKPLACE_POST).status_code, 302)
+        self.assertEqual(self.client.post("/onboarding/contract/", CONTRACT_POST).status_code, 302)
+
+        # Three steps completed, still nothing written.
+        self.assertFalse(TaxProfile.objects.exists())
+        self.assertFalse(Workplace.objects.exists())
+        self.assertFalse(WorkplaceContract.objects.exists())
+        self.assertFalse(ContractTermSet.objects.exists())
+
+        # Finish (the terms step) writes all four atomically.
+        resp = self.client.post("/onboarding/terms/", TERMS_POST)
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp["Location"], "/")
+        self.assertEqual(TaxProfile.objects.count(), 1)
+        self.assertEqual(Workplace.objects.count(), 1)
+        self.assertEqual(WorkplaceContract.objects.count(), 1)
+        self.assertEqual(ContractTermSet.objects.count(), 1)
+        # Danish-aware slug.
+        self.assertEqual(Workplace.objects.get().slug, "jaad-kaa-aef")
+
+    def test_back_navigation_keeps_entered_values(self):
+        self.client.post("/onboarding/tax/", TAX_POST)
+        self.client.post("/onboarding/workplace/", WORKPLACE_POST)
+        # Re-visiting an earlier step re-renders the stored input without errors.
+        resp = self.client.get("/onboarding/tax/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "4000")
+
+    def test_each_wizard_page_renders(self):
+        # Store data for every step, then GET each page (reused CRUD templates
+        # rendered with transient, unsaved workplace/contract objects).
+        self.client.post("/onboarding/tax/", TAX_POST)
+        self.client.post("/onboarding/workplace/", WORKPLACE_POST)
+        self.client.post("/onboarding/contract/", CONTRACT_POST)
+        for path in ("/onboarding/account/", "/onboarding/tax/",
+                     "/onboarding/workplace/", "/onboarding/contract/",
+                     "/onboarding/terms/"):
+            resp = self.client.get(path)
+            # account step is gone once a user exists → 302; the rest render.
+            expected = 302 if path.endswith("/account/") else 200
+            self.assertEqual(resp.status_code, expected, path)
+
+    def test_dashboard_reachable_after_finish(self):
+        self.client.post("/onboarding/tax/", TAX_POST)
+        self.client.post("/onboarding/workplace/", WORKPLACE_POST)
+        self.client.post("/onboarding/contract/", CONTRACT_POST)
+        self.client.post("/onboarding/terms/", TERMS_POST)
+        resp = self.client.get("/")
+        self.assertEqual(resp.status_code, 200)
+
+
+class DkSlugifyTest(TestCase):
+    def test_danish_letters_transliterated(self):
+        self.assertEqual(dk_slugify("Jåd Kå Æf"), "jaad-kaa-aef")
+        self.assertEqual(dk_slugify("Rødgrød med fløde"), "roedgroed-med-floede")
+        self.assertEqual(dk_slugify(""), "")

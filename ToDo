@@ -5,12 +5,14 @@
 - Password requirements and repeat pw update in real time (on update) with condition pass/fail 
 - - rephrase "Your password can’t be too similar to your other personal information.", we only know the username
 - make sure the username is a valid email-address. Then copy username to email address in the user table.
-- Update workplace slug to be compatible with æøå as ae, oe, aa ("Jåd Kå Æf" currently uses slug jd-k-f change )
+- Update workplace slug to be compatible with æøå as ae, oe, aa ("Jåd Kå Æf" currently uses slug jd-k-f)
 - I am unable to go back in the onboarding flow by pressing the step-buttons.
 - - If I use the back button on the bottom of the form, it no longer shows me where I am in the steps, it just shows how long i initiall got.
 - Onboarding items should be submitted when the whole flow is done, so I can easily (and without causing problems), go back and make changes to a page, before finishing the whole onboarding flow.
 - The nav buttons should not be shown until the onboarding flow is done
 - The whole navbar should be removed on the first page, the logo should be centered on the navbar in subsequent onboarding pages.
+- It seems in the step navigation bar that Tax profile is already checked off even when starting with a brand new database.
+
 
 Login Page:
 - Center and enlarge logo 

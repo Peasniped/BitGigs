@@ -2,77 +2,51 @@ from django.shortcuts import redirect
 from django.urls import reverse
 
 
-def _is_setup_flow_url(path):
-    """True for URLs that are part of the onboarding flow or infrastructure."""
-    if path.startswith((
-        "/setup/",
-        "/workplaces/new/",
+def _is_onboarding_flow_url(path):
+    """True for URLs that must stay reachable during onboarding / infrastructure."""
+    return path.startswith((
+        "/onboarding/",
         "/admin/",
         "/static/",
         "/media/",
         "/favicon",
         "/accounts/",
-    )):
-        return True
-    # /workplaces/<slug>/contracts/add/
-    parts = path.strip("/").split("/")
-    if (len(parts) == 4
-            and parts[0] == "workplaces"
-            and parts[2] == "contracts"
-            and parts[3] == "add"):
-        return True
-    # /workplaces/<slug>/contracts/<cpk>/terms/add/
-    if (len(parts) == 6
-            and parts[0] == "workplaces"
-            and parts[2] == "contracts"
-            and parts[4] == "terms"
-            and parts[5] == "add"):
-        return True
-    return False
+    ))
 
 
-class SetupRequiredMiddleware:
-    """Redirect any page to the appropriate setup step if onboarding is incomplete."""
+class OnboardingRequiredMiddleware:
+    """Funnel every page into the onboarding wizard until first-time setup is
+    finished. The wizard itself (``/onboarding/``) holds each step's input in the
+    session and only writes to the database on the final "Finish" step, so a tax
+    profile + at least one term set existing is the completion signal."""
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        # Fresh install (no account yet): everything, including the login
-        # page, leads to the create-account step — you can't log in anyway.
+        # Fresh install (no account yet): everything, including the login page,
+        # leads to the create-account step — you can't log in anyway.
         if not request.user.is_authenticated:
             from django.contrib.auth.models import User
-            if (not request.path.startswith(("/setup/user/", "/static/", "/media/", "/favicon"))
+            if (not request.path.startswith(("/onboarding/account/", "/static/", "/media/", "/favicon"))
                     and not User.objects.exists()):
-                return redirect(reverse("core:setup-user"))
+                return redirect(reverse("core:onboarding-account"))
             # Otherwise anonymous requests are LoginRequiredMiddleware's job;
             # onboarding checks only make sense once someone is logged in.
             return self.get_response(request)
 
-        if _is_setup_flow_url(request.path):
+        if _is_onboarding_flow_url(request.path):
             return self.get_response(request)
 
-        if request.session.get("setup_complete"):
+        if request.session.get("onboarding_complete"):
             return self.get_response(request)
 
         from core.models import TaxProfile
-        from workplaces.models import Workplace, WorkplaceContract, ContractTermSet
+        from workplaces.models import ContractTermSet
 
-        if not TaxProfile.objects.exists():
-            return redirect(reverse("core:setup"))
+        if TaxProfile.objects.exists() and ContractTermSet.objects.exists():
+            request.session["onboarding_complete"] = True
+            return self.get_response(request)
 
-        if not Workplace.objects.exists():
-            return redirect("/workplaces/new/?setup=1")
-
-        if not WorkplaceContract.objects.exists():
-            wp = Workplace.objects.first()
-            return redirect(f"/workplaces/{wp.slug}/contracts/add/?setup=1")
-
-        if not ContractTermSet.objects.exists():
-            wp = Workplace.objects.first()
-            contract = WorkplaceContract.objects.filter(workplace=wp).first()
-            if contract:
-                return redirect(f"/workplaces/{wp.slug}/contracts/{contract.pk}/terms/add/?setup=1")
-
-        request.session["setup_complete"] = True
-        return self.get_response(request)
+        # Onboarding still in progress → into the wizard.
+        return redirect(reverse("core:onboarding"))

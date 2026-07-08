@@ -477,6 +477,12 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
 .setup-step--done .setup-step__label { color: #16a34a; }
 a.setup-step--done:hover .setup-step__circle { background: #16a34a; border-color: #16a34a; }
 
+/* Onboarding password requirement checklist */
+.password-checklist { color: var(--text-muted, #6c757d); }
+.password-checklist li { display: flex; align-items: center; }
+.password-checklist li.is-pass { color: #16a34a; }
+.password-checklist li.is-fail { color: #dc2626; }
+
 /* ---- Utility ---- */
 .section-title {
   font-size: 0.8rem;

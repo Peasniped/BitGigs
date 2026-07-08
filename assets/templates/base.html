@@ -18,18 +18,25 @@
   {% block extra_css %}{% endblock %}
 </head>
 <body>
+  {% comment %}
+    First onboarding step (account creation): no navbar at all.
+    Later onboarding steps: navbar with a centered logo only, no links.
+    After onboarding: the full navigation (links gated by onboarding_complete).
+  {% endcomment %}
+  {% if not onboarding_first_step %}
   <nav class="navbar navbar-expand-lg sticky-top">
-    <div class="container">
-      <a class="navbar-brand d-flex align-items-center gap-2" href="{% url 'core:dashboard' %}">
+    <div class="container {% if onboarding %}justify-content-center{% endif %}">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="{% if onboarding %}#{% else %}{% url 'core:dashboard' %}{% endif %}">
         <img src="{% static 'graphics/BitGigs_Logo_96.png' %}" alt="BitGigs" class="brand-logo">
         <span>BitGigs</span>
       </a>
+      {% if not onboarding %}
       <button class="navbar-toggler border-0" type="button"
               data-bs-toggle="collapse" data-bs-target="#navbarNav">
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarNav">
-        {% if user.is_authenticated %}
+        {% if user.is_authenticated and onboarding_complete %}
         <ul class="navbar-nav ms-auto gap-1">
           <li class="nav-item">
             <a class="nav-link" href="{% url 'core:dashboard' %}"><i class="bi bi-grid-1x2 me-1"></i>Dashboard</a>
@@ -68,8 +75,10 @@
         </ul>
         {% endif %}
       </div>
+      {% endif %}
     </div>
   </nav>
+  {% endif %}
 
   <main class="container py-4">
     {% if messages %}

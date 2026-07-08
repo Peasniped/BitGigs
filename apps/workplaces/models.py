@@ -6,10 +6,9 @@ from decimal import Decimal
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
-from django.utils.text import slugify
 from django.utils import timezone
 
-from core.utils import date_spans_overlap, weekly_to_monthly_hours
+from core.utils import date_spans_overlap, dk_slugify, weekly_to_monthly_hours
 
 
 def workplace_icon_upload_to(instance, filename):
@@ -76,7 +75,7 @@ class Workplace(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            base_slug = slugify(self.name) or "workplace"
+            base_slug = dk_slugify(self.name) or "workplace"
             slug = base_slug
             n = 1
             while Workplace.objects.filter(slug=slug).exclude(pk=self.pk).exists():

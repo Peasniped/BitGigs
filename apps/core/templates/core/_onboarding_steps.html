@@ -1,0 +1,24 @@
+{% comment %}
+  Onboarding step indicator. The wizard passes `steps` — a list of
+  {num, label, state: done|active|upcoming, url}. `done` steps render as
+  clickable back-links; only steps actually completed are marked done, so no
+  step shows a checkmark before it has been reached.
+{% endcomment %}
+<div class="setup-steps-bar mb-4">
+  <div class="setup-steps-track">
+    {% for step in steps %}
+      {% if not forloop.first %}<span class="setup-step__connector"></span>{% endif %}
+      {% if step.state == "done" and step.url %}
+        <a href="{{ step.url }}" class="setup-step setup-step--done" title="Back to {{ step.label }}">
+          <span class="setup-step__circle"><i class="bi bi-check-lg"></i></span>
+          <span class="setup-step__label">{{ step.label }}</span>
+        </a>
+      {% else %}
+        <span class="setup-step setup-step--{{ step.state }}">
+          <span class="setup-step__circle">{% if step.state == "done" %}<i class="bi bi-check-lg"></i>{% else %}{{ step.num }}{% endif %}</span>
+          <span class="setup-step__label">{{ step.label }}</span>
+        </span>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>

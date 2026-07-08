@@ -6,10 +6,8 @@
 <div class="row justify-content-center accent-form" style="--wp-accent: {{ workplace.accent_color|default:'#6366f1' }};">
   <div class="col-12 col-md-10 col-lg-8">
 
-    {% if setup %}
-      {% with step2_url="/workplaces/"|add:workplace.slug|add:"/edit/?setup=1" %}
-        {% include "core/_setup_steps.html" with step=3 step1_url="/setup/" step2_url=step2_url %}
-      {% endwith %}
+    {% if onboarding %}
+      {% include "core/_onboarding_steps.html" %}
     {% else %}
       <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
@@ -50,7 +48,6 @@
               data-name-goal-max="{{ form.hour_goal_max.html_name }}">
           {% csrf_token %}
           <input type="hidden" name="action" id="formAction" value="overwrite">
-          {% if setup %}<input type="hidden" name="setup" value="1">{% endif %}
 
           {% if form.non_field_errors %}
             <div class="alert alert-danger py-2">
@@ -546,12 +543,12 @@
             <div class="mt-2">
               <a href="{% url 'workplaces:workplace-detail' workplace.slug %}" class="btn btn-outline-secondary w-100">Cancel</a>
             </div>
-          {% elif setup %}
+          {% elif onboarding %}
             <div class="d-flex gap-2 mt-4">
               <button type="submit" class="btn btn-primary flex-fill">
                 Finish setup <i class="bi bi-check-lg ms-1"></i>
               </button>
-              <a href="/workplaces/{{ workplace.slug }}/contracts/add/?setup=1" class="btn btn-outline-secondary">
+              <a href="{% url 'core:onboarding-contract' %}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left me-1"></i>Back
               </a>
             </div>
