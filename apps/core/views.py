@@ -234,28 +234,3 @@ class SetupWizardView(View):
             tax_form.save()
             return redirect("/workplaces/new/?setup=1")
         return render(request, "core/setup.html", {"tax_form": tax_form})
-
-
-class LogoView(View):
-    """Serve the BitGigs logo file for other apps/services to consume."""
-
-    LOGO_NAME = "graphics/BitGigs_Logo.png"
-
-    def get(self, request):
-        import os
-        from django.conf import settings as dj_settings
-        from django.contrib.staticfiles import finders
-        from django.http import FileResponse, Http404
-
-        # Works in dev (finders) and prod (collected STATIC_ROOT)
-        path = finders.find(self.LOGO_NAME)
-        if not path:
-            candidate = os.path.join(dj_settings.STATIC_ROOT, self.LOGO_NAME)
-            if os.path.exists(candidate):
-                path = candidate
-        if not path:
-            raise Http404("Logo not found.")
-
-        response = FileResponse(open(path, "rb"), content_type="image/png")
-        response["Cache-Control"] = "public, max-age=86400"
-        return response

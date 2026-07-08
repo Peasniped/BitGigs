@@ -72,7 +72,6 @@ class DashboardData:
     """Full dashboard context (stats + per-workplace details + banners)."""
     stats: DashboardStats = field(default_factory=DashboardStats)
     workplace_data: list = field(default_factory=list)
-    period_boundaries: list = field(default_factory=list)
     cross_period_info: list = field(default_factory=list)
 
 
@@ -84,20 +83,16 @@ class DashboardDataService:
         """Compute stat-card values only (used by the JSON API)."""
         stats = DashboardStats()
         today = timezone.localdate()
-        import calendar as _cal_
         _m_start = date(year, month, 1)
-        _m_end = date(year, month, _cal_.monthrange(year, month)[1])
+        _m_end = date(year, month, cal_mod.monthrange(year, month)[1])
         workplaces = workplaces_active_in_period(_m_start, _m_end)
 
         for wp in workplaces:
             # Bootstrap period using the month's representative termset
             # (payroll_period_start_day needed).
-            _terms_mid = wp.active_termset_in_month(year, month)
-            if _terms_mid:
-                period_start, period_end = PayrollPeriodService.get_period_dates(_terms_mid, year, month)
-            else:
-                period_start = date(year, month, 1)
-                period_end = date(year, month, _cal_.monthrange(year, month)[1])
+            _terms_mid, period_start, period_end = PayrollPeriodService.resolve_period_bounds(
+                wp, year, month
+            )
 
             actual_hours = cls._sum_shift_hours(wp, period_start, period_end)
             planned_hours = cls._sum_planned_hours(wp, period_start, period_end)
@@ -125,26 +120,15 @@ class DashboardDataService:
         """Compute full dashboard data (stats + workplace cards + cross-period info)."""
         data = DashboardData()
         today = timezone.localdate()
-        import calendar as _cal_
         _m_start = date(year, month, 1)
-        _m_end = date(year, month, _cal_.monthrange(year, month)[1])
+        _m_end = date(year, month, cal_mod.monthrange(year, month)[1])
         workplaces = workplaces_active_in_period(_m_start, _m_end)
 
         for wp in workplaces:
             # Bootstrap period using the month's representative termset.
-            _terms_mid = wp.active_termset_in_month(year, month)
-            if _terms_mid:
-                period_start, period_end = PayrollPeriodService.get_period_dates(_terms_mid, year, month)
-            else:
-                period_start = date(year, month, 1)
-                period_end = date(year, month, _cal_.monthrange(year, month)[1])
-
-            data.period_boundaries.append({
-                "workplace_name": wp.name,
-                "color": wp.accent_color or wp.color or "#6366f1",
-                "start": period_start.isoformat(),
-                "end": period_end.isoformat(),
-            })
+            _terms_mid, period_start, period_end = PayrollPeriodService.resolve_period_bounds(
+                wp, year, month
+            )
 
             # Cross-period detection
             cls._detect_cross_period(data, wp, year, month, period_start, period_end)

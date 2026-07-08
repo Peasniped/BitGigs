@@ -110,11 +110,6 @@ class Shift(ShiftTimeMixin):
             f"{self.start_time:%H:%M}–{self.end_time:%H:%M}"
         )
 
-    @property
-    def is_commuting_day(self) -> bool:
-        """On-site shifts count as commuting days for tax purposes."""
-        return self.shift_type == self.ShiftType.ON_SITE
-
 
 class PlannedShift(ShiftTimeMixin):
     """A planned/draft shift that can be approved and converted to a Shift."""

@@ -18,6 +18,7 @@ from django.utils import timezone
 from shifts.models import Shift, PlannedShift
 from workplaces.models import Workplace
 from core.models import TaxProfile
+from core.utils import date_spans_overlap
 
 
 class _Encoder(json.JSONEncoder):
@@ -101,7 +102,7 @@ def parse_import_file(file_content):
     if not isinstance(data, dict):
         raise ValueError("Expected a JSON object at the top level.")
     if "version" not in data:
-        raise ValueError("Missing 'version' key . not a valid BitGigs export file.")
+        raise ValueError("Missing 'version' key -- not a valid BitGigs export file.")
     return data
 
 
@@ -125,17 +126,6 @@ def detect_workplace_conflicts(data):
         if name not in existing:
             conflicts[name] = None  # No match
     return conflicts
-
-
-def _intervals_overlap(a_start, a_end, b_start, b_end):
-    """True if closed date intervals [a_start, a_end] and [b_start, b_end] overlap.
-
-    An end of ``None`` means open-ended (still active), i.e. +infinity — matching
-    ``WorkplaceContract.clean()``'s overlap rule.
-    """
-    cond1 = b_end is None or a_start <= b_end
-    cond2 = a_end is None or b_start <= a_end
-    return cond1 and cond2
 
 
 def detect_contract_overlaps(data):
@@ -166,7 +156,7 @@ def detect_contract_overlaps(data):
         clashes = []
         for i in range(len(parsed)):
             for j in range(i + 1, len(parsed)):
-                if _intervals_overlap(parsed[i][1], parsed[i][2], parsed[j][1], parsed[j][2]):
+                if date_spans_overlap(parsed[i][1], parsed[i][2], parsed[j][1], parsed[j][2]):
                     clashes.append((parsed[i][0], parsed[j][0]))
         if clashes:
             problems[wp["name"]] = clashes
@@ -321,7 +311,7 @@ def perform_import(data, workplace_mapping, skip_workplaces=None):
     return counts
 
 
-# â•â•â• Serialization helpers â•â•â•
+# --- Serialization helpers ---
 
 def _termset_to_dict(ts):
     return {

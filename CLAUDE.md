@@ -6,8 +6,9 @@ Django 6.0 app for tracking shifts and estimating Danish net pay across multiple
 
 - Activate venv: `.venv\Scripts\Activate.ps1` (Windows PowerShell). Always use `--settings=bitgigs.settings.local` for dev.
 - Smoke check after edits: `python manage.py check --settings=bitgigs.settings.local`
-- Quick page render check: `python manage.py shell --settings=bitgigs.settings.local -c "from django.test import Client; print(Client().get('/PATH/').status_code)"`
-- Tests: `python manage.py test apps --settings=bitgigs.settings.local` (the `apps` label is required — see layout note below)
+- Quick page render check (**must log in** — the whole site requires auth): `python manage.py shell --settings=bitgigs.settings.local -c "from django.contrib.auth.models import User; from django.test import Client; c = Client(); c.force_login(User.objects.first()); print(c.get('/PATH/').status_code)"`
+- Tests: `python manage.py test apps --settings=bitgigs.settings.local` (the `apps` label is required — see layout note below). View tests need `self.client.force_login(...)` (see `LoggedInTestCase` in `apps/workplaces/tests/test_contract_overlap.py`).
+- Optional `.env` at the repo root is loaded by `bitgigs/settings/base.py` (real env vars win; empty values ignored); `.env.example` documents the variables. `wsgi.py`/`asgi.py` default to **production** settings, and production refuses to boot without `DJANGO_SECRET_KEY`/`POSTGRES_PASSWORD`.
 
 ## Project layout
 
@@ -33,6 +34,7 @@ Django 6.0 app for tracking shifts and estimating Danish net pay across multiple
 
 ## Conventions
 
+- **Auth**: the whole site sits behind Django's `LoginRequiredMiddleware` (added in `base.py`); mark genuinely public views with `@login_not_required`. Onboarding step 0 (`/setup/user/`, `core:setup-user`) creates the first (admin) account and is only reachable while no user exists — `SetupRequiredMiddleware` funnels every anonymous request there on a fresh install.
 - Money: `Decimal` everywhere; never float.
 - Number formatting is "en-DK": English UI, Danish numbers. Decimal comma is **automatic** via Django L10N (`FORMAT_MODULE_PATH = "bitgigs.formats"`, en override) — bare `{{ value }}` already renders `1234,56`. Use `|dk:N` (or `|floatformat:"Ng"`) only when you also want **thousands grouping** (`1.234,56`); `dk` now delegates to Django's `floatformat` + Unicode minus. Parse locale input with `core.utils.parse_danish_decimal` (uses `get_format` separators). **Never enable `USE_THOUSAND_SEPARATOR`** — grouping is magnitude-based and would corrupt years/IDs (`2026 → "2.026"`, breaking JS `parseInt`).
 - Time pickers: native `<input type="time">` can't be forced to 24-hour (it follows the browser locale), so `app.js` `initTimePickers()` converts each one into a custom **always-24h** segmented text input (type the hour pair → auto-advance to minutes; Up/Down/Left/Right adjust/move) with a clock glyph. Templates keep `type="time"`; the JS does the conversion, so dynamically-created inputs must be initialised via `window.initTimePickers(container)`. The value stays `HH:MM`, so server parsing and JS reads are unchanged — but **write** a time input via `window.setTimeValue(el, "HH:MM")` (not `el.value = …`) so the buffer/formatting reset correctly.
@@ -56,8 +58,12 @@ How new code / changes should be written:
 - Date-versioned data (tax profiles, pay rates): pick the effective row with `core.utils.active_dated_row`; never mutate historical rows.
 - Ship new logic with a test under `apps/<app>/tests/` (run with the `apps` label).
 - No new dependencies without a real need.
-- Parse user input via helpers, don't hand-roll — e.g. `core.utils.parse_danish_decimal` for locale numbers.
-- Sanitize uploads: SVGs go through `core.utils.sanitize_svg`; raster icons are re-encoded to PNG by Cropper.js.
+- Parse user input via helpers, don't hand-roll — `core.utils.parse_danish_decimal` for locale numbers; `parse_int_param` / `parse_iso_date_param` / `parse_iso_time_param` for request params (return `None`/default instead of raising → views answer 400, not 500).
+- Dates: use `timezone.localdate()` / `timezone.localtime()`, never `date.today()` / `datetime.now()` (`USE_TZ=True`; the server may not run in Danish time).
+- Payroll month bounds: use `PayrollPeriodService.resolve_period_bounds(workplace, year, month)` → `(termset, start, end)`; don't re-derive the term-set/full-month fallback inline. Date-span overlap checks: `core.utils.date_spans_overlap`.
+- Sanitize uploads: SVGs go through `core.utils.sanitize_svg` — an XML **allowlist** parser that returns `None` for unparseable input (reject the upload). Both the customize view and data_io import enforce the shared icon constraints in `workplaces/services.py` (`ALLOWED_ICON_EXTS`, `MAX_ICON_SIZE`).
+- CDN `<script>`/`<link>` tags are version-pinned **with SRI** (`integrity` + `crossorigin`) — keep the hash in sync when bumping a version (Google Fonts CSS is per-browser and can't have SRI).
+- `data_io.perform_import` is `@transaction.atomic` and `full_clean`s imported rows (invalid shifts are skipped and counted; invalid term sets abort the import).
 - Redirect only to same-origin URLs — follow the `_safe_next` pattern in `apps/core/views.py`.
 - Use the ORM / Django forms (no raw SQL); rely on template auto-escaping — never `|safe` untrusted data.
 - Keep secrets/config in env vars (see `bitgigs/settings/production.py`); never commit secrets. Don't weaken the production hardening there (HTTPS/HSTS/secure cookies, gated by `DJANGO_ENABLE_HTTPS`).

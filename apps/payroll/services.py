@@ -18,6 +18,8 @@ from core.services import TaxCalculationService, TaxBreakdown, ATPService
 from core.utils import weekly_to_monthly_hours
 
 TWO_PLACES = Decimal("0.01")
+# Danish standard vacation accrual: 25 days/year over 12 months.
+VACATION_DAYS_PER_MONTH = Decimal("2.08")
 FERIEPENGE_PERCENT = Decimal("12.50")
 
 
@@ -89,18 +91,25 @@ class PayrollPeriodService:
         return date(year, month, min(pull_day, last_day))
 
     @classmethod
-    def get_or_create_period(cls, workplace: Workplace, year: int, month: int):
-        """Get or create the PayrollPeriod object for a workplace and month."""
-        from .models import PayrollPeriod
-
+    def resolve_period_bounds(cls, workplace: Workplace, year: int, month: int):
+        """Return (termset, period_start, period_end) for a workplace's payroll
+        month: the month's representative term set decides the period; without
+        one the period is the plain calendar month."""
         terms = workplace.active_termset_in_month(year, month)
-
         if terms is not None:
             start_date, end_date = cls.get_period_dates(terms, year, month)
         else:
             last_day = calendar.monthrange(year, month)[1]
             start_date = date(year, month, 1)
             end_date = date(year, month, last_day)
+        return terms, start_date, end_date
+
+    @classmethod
+    def get_or_create_period(cls, workplace: Workplace, year: int, month: int):
+        """Get or create the PayrollPeriod object for a workplace and month."""
+        from .models import PayrollPeriod
+
+        _terms, start_date, end_date = cls.resolve_period_bounds(workplace, year, month)
 
         period, created = PayrollPeriod.objects.get_or_create(
             workplace=workplace,
@@ -918,7 +927,7 @@ class VacationService:
             return None
 
         daily_hours = terms.expected_weekly_hours / Decimal("5") if terms.expected_weekly_hours else Decimal("7.4")
-        monthly_accrual_hours = (Decimal("2.08") * daily_hours).quantize(TWO_PLACES)
+        monthly_accrual_hours = (VACATION_DAYS_PER_MONTH * daily_hours).quantize(TWO_PLACES)
 
         vacation_sessions = Shift.objects.filter(
             workplace=workplace,

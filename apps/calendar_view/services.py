@@ -222,18 +222,13 @@ class CalendarService:
         Calendar for a payroll period (which may span two months).
         Always renders full weeks.
         """
-        from datetime import date as _date
         from workplaces.models import Workplace
         from payroll.services import PayrollPeriodService
 
         workplace = Workplace.objects.get(pk=workplace_id)
-        terms = workplace.active_termset_in_month(year, month)
-        if terms is not None:
-            start_date, end_date = PayrollPeriodService.get_period_dates(terms, year, month)
-        else:
-            last_day = calendar.monthrange(year, month)[1]
-            start_date = _date(year, month, 1)
-            end_date = _date(year, month, last_day)
+        _terms, start_date, end_date = PayrollPeriodService.resolve_period_bounds(
+            workplace, year, month
+        )
         month_name = calendar.month_name[month]
         title = f"{month_name} ({start_date} to {end_date})"
 

@@ -13,7 +13,6 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 
-from django.db.models import Q
 from django.utils import timezone
 
 from core.utils import WEEKS_PER_MONTH, weekly_to_monthly_hours

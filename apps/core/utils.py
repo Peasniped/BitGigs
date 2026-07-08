@@ -47,6 +47,15 @@ def weekly_to_monthly_hours(weekly_hours: Decimal) -> Decimal:
     return weekly_hours * WEEKS_PER_YEAR / MONTHS_PER_YEAR
 
 
+def date_spans_overlap(a_start, a_end, b_start, b_end) -> bool:
+    """True if the closed date spans [a_start, a_end] and [b_start, b_end]
+    overlap. A ``None`` end means open-ended (still active); a ``None`` start
+    means no span at all (never overlaps)."""
+    if a_start is None or b_start is None:
+        return False
+    return (a_end is None or a_end >= b_start) and (b_end is None or b_end >= a_start)
+
+
 def active_dated_row(qs, as_of, field="effective_from"):
     """Return the row whose ``field`` is the latest value <= ``as_of``.
 

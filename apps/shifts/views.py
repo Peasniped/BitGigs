@@ -9,6 +9,7 @@ from .models import Shift
 from .forms import ShiftForm
 from .services import ShiftSummaryService
 from core.services import TaxCalculationService
+from core.utils import prev_next_month
 
 
 class ShiftCreateView(View):
@@ -134,15 +135,7 @@ class MonthlyOverviewView(View):
 
     def get(self, request, year, month):
         summaries = ShiftSummaryService.monthly_summary(year, month)
-
-        if month == 1:
-            prev_year, prev_month = year - 1, 12
-        else:
-            prev_year, prev_month = year, month - 1
-        if month == 12:
-            next_year, next_month = year + 1, 1
-        else:
-            next_year, next_month = year, month + 1
+        prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
 
         return render(
             request,

@@ -9,16 +9,7 @@ from django.core.exceptions import ValidationError
 from django.utils.text import slugify
 from django.utils import timezone
 
-from core.utils import weekly_to_monthly_hours
-
-
-def _spans_overlap(a_start, a_end, b_start, b_end) -> bool:
-    """True if the date spans [a_start, a_end] and [b_start, b_end] overlap.
-    A ``None`` end means open-ended; a ``None`` start means no span (never
-    overlaps)."""
-    if a_start is None or b_start is None:
-        return False
-    return (a_end is None or a_end >= b_start) and (b_end is None or b_end >= a_start)
+from core.utils import date_spans_overlap, weekly_to_monthly_hours
 
 
 def workplace_icon_upload_to(instance, filename):
@@ -132,7 +123,7 @@ class Workplace(models.Model):
         result = []
         for contract in self.contracts.all():
             s, e = contract.span()
-            if _spans_overlap(s, e, start, end):
+            if date_spans_overlap(s, e, start, end):
                 result.append(contract)
         return result
 
@@ -142,13 +133,6 @@ class Workplace(models.Model):
         if contract is None:
             return None
         return contract.active_termset_on(d)
-
-    def has_active_contract_in_month(self, year: int, month: int) -> bool:
-        """True if any contract overlaps the given calendar month."""
-        last_day = _cal.monthrange(year, month)[1]
-        month_start = _date(year, month, 1)
-        month_end = _date(year, month, last_day)
-        return bool(self.contracts_in_period(month_start, month_end))
 
     def active_termset_in_month(self, year: int, month: int) -> "ContractTermSet | None":
         """The term set representing this workplace's pay terms for a calendar
@@ -282,7 +266,7 @@ class WorkplaceContract(models.Model):
         )
         for other in siblings:
             os, oe = other.span()
-            if _spans_overlap(span_start, span_end, os, oe):
+            if date_spans_overlap(span_start, span_end, os, oe):
                 clashes.append(other)
         return clashes
 
@@ -304,14 +288,6 @@ class WorkplaceContract(models.Model):
         if ts.effective_until is not None and ts.effective_until < d:
             return None
         return ts
-
-    def get_rate_as_of(self, as_of: _date | None = None):
-        """Return (hourly_rate, monthly_salary) for the active termset on *as_of*."""
-        ts = self.active_termset_on(as_of or timezone.localdate())
-        if ts:
-            return ts.hourly_rate, ts.monthly_salary
-        return None, None
-
 
 class ContractTermSet(models.Model):
     """
@@ -601,12 +577,6 @@ class ContractTermSet(models.Model):
         return (base * factor).quantize(Decimal("0.01"))
 
     @property
-    def beskæftigelsesprocent(self):
-        if self.weekly_hours_fixed is None:
-            return None
-        return (self.weekly_hours_fixed / Decimal("37") * Decimal("100")).quantize(Decimal("0.1"))
-
-    @property
     def ferietillaeg_payout_month_list(self):
         if not self.ferietillaeg_payout_months:
             return []
@@ -615,14 +585,6 @@ class ContractTermSet(models.Model):
             for m in self.ferietillaeg_payout_months.split(",")
             if m.strip().isdigit() and 1 <= int(m.strip()) <= 12
         ]
-
-    @property
-    def ferietillaeg_payout_month_names(self):
-        return [_cal.month_name[m] for m in self.ferietillaeg_payout_month_list]
-
-    @property
-    def vacation_days_per_month(self):
-        return Decimal("2.08")
 
     def get_rate_as_of(self, as_of=None):
         """Duck-type compatibility: this record IS the point-in-time rate snapshot."""

@@ -126,14 +126,9 @@ class PlanningCalendarView(View):
         workplace_data = []
         for wp in workplaces:
             initials, color = avatar_for_name(wp.name)
-            terms = wp.active_termset_in_month(year, month)
-
-            if terms is not None:
-                period_start, period_end = PayrollPeriodService.get_period_dates(terms, year, month)
-            else:
-                last_day = _cal_mod.monthrange(year, month)[1]
-                period_start = date(year, month, 1)
-                period_end = date(year, month, last_day)
+            terms, period_start, period_end = PayrollPeriodService.resolve_period_bounds(
+                wp, year, month
+            )
 
             # Calculate planned hours this month
             planned_hours = sum(
@@ -556,7 +551,8 @@ def _check_overlaps(shift_date, start_time, end_time, exclude_shift_pk=None, exc
 
 
 def _shift_to_dict(shift):
-    """Serialize a PlannedShift to a JSON-safe dict."""
+    """Serialize a PlannedShift or Shift to a JSON-safe dict (both share
+    ShiftTimeMixin, so the fields are identical)."""
     return {
         "id": shift.pk,
         "workplace_id": shift.workplace_id,
@@ -574,31 +570,12 @@ def _shift_to_dict(shift):
     }
 
 
-def _approved_shift_to_dict(session):
-    """Serialize a Shift to a JSON-safe dict."""
-    return {
-        "id": session.pk,
-        "workplace_id": session.workplace_id,
-        "workplace_name": session.workplace.name,
-        "date": session.date.isoformat(),
-        "start_time": session.start_time.strftime("%H:%M"),
-        "end_time": session.end_time.strftime("%H:%M"),
-        "break_minutes": session.break_minutes,
-        "shift_type": session.shift_type,
-        "shift_type_display": session.get_shift_type_display(),
-        "notes": session.notes,
-        "net_hours": str(session.net_hours.quantize(Decimal("0.01"))),
-        "gross_minutes": session.gross_minutes,
-        "net_minutes": session.net_minutes,
-    }
-
-
 class ApprovedShiftUpdateAPIView(View):
     """GET/POST/DELETE API for editing work sessions from the planning view."""
 
     def get(self, request, pk):
         session = get_object_or_404(Shift, pk=pk)
-        return JsonResponse({"ok": True, "shift": _approved_shift_to_dict(session)})
+        return JsonResponse({"ok": True, "shift": _shift_to_dict(session)})
 
     def post(self, request, pk):
         session = get_object_or_404(Shift, pk=pk)
@@ -641,7 +618,7 @@ class ApprovedShiftUpdateAPIView(View):
 
         return JsonResponse({
             "ok": True,
-            "shift": _approved_shift_to_dict(session),
+            "shift": _shift_to_dict(session),
             "overlaps": overlaps,
         })
 

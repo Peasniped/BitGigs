@@ -48,22 +48,6 @@ class WorkplaceService:
     """Utilities for workplace queries."""
 
     @staticmethod
-    def get_active_workplaces():
-        return workplaces_active_today()
-
-    @staticmethod
-    def get_hourly_workplaces():
-        return workplaces_active_today().filter(
-            contracts__term_sets__employment_type="hourly"
-        ).distinct()
-
-    @staticmethod
-    def get_salaried_workplaces():
-        return workplaces_active_today().filter(
-            contracts__term_sets__employment_type="salaried"
-        ).distinct()
-
-    @staticmethod
     def workplaces_active_in_period(start: date, end: date):
         """Workplaces with at least one contract overlapping [start, end]."""
         return workplaces_active_in_period(start, end)

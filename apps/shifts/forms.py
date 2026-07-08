@@ -21,10 +21,3 @@ class ShiftForm(forms.ModelForm):
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
 
-
-class ShiftFilterForm(forms.Form):
-    """Filter shifts by date range and/or workplace."""
-
-    date_from = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
-    date_to = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
-    workplace = forms.IntegerField(required=False, widget=forms.HiddenInput())
