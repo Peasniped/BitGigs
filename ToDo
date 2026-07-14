@@ -1,16 +1,9 @@
 
 # NU     --------------------------------------------------------
 
-- "You're all set up — welcome to BitGigs!" should auto-dismiss after a few seconds.
-- Require symbol in password
-- Require no repeated sequences (numbers, letters etc.)
-- Change the wording a bit to indicate that the first user is the app admin/owner or what makes the most sense.
-- Add a "Logged in as xx \cdot logout" text to the top left when the user has been created
-- Add "Please log in to finish app onboarding" to the login screen if onboarding was not completed, and the user is now logged out.
-- Data should be saved (but not submitted), so that they user can disconnect from the onboarding flow without losing data
-- If going back to a previous page, the step number should be yellow to indicate that the user has started filling the step.
-
-
+Onboarding:
+- move create contract under workplace as sort of a "appears when workplace is filled" field.
+- Nitpick: the checkmark in the green circle is not entirely centered. It is a bit to the top and right from the center.
 - Enable and force 2FA for all users (TOTP, Passkey, and backup codes).
 - - Make this a second step after user creation.
 - - User can choose either TOTP, Passkey or both.
@@ -22,7 +15,7 @@
 - Create user creation flow (not the initial user, but subsequent users)
 
 - IMPORTANT: When the approve shift modal is open, if there are pending changes, a warning should be shown if the modal is about to be closed. ex. if I have to approve A LOT of shifts and have made a lot of changes, and accidentally click outside of the modal, all those changes are discarded. :( ask me how i know
-- - it does seem that if the page is not refreshed, the pending data/changes persists in the table. Still, make the warning.
+- - it does seem that if the page is not refreshed, the pending data/changes persist in the table, when opening again. Still, make the warning.
 - BUG: When editing a planned shift, if the end time is earlier than the start time, the clocks move to the left of the input field
 - BUG: When approving a large amount of shifts, clicking the edit button on a shift opens the edit shift modal behind the modal-backdrop
 - BUG: If the approve shift modal is open and a handful of shifts have been selected (the shift checkbox), editing a shift and saving clears the selection and just selects all shifts.
@@ -146,7 +139,7 @@ Allow the system to send out calender invites to my work emails and add to my Go
 - - There should be a test button that checks: is the connection ok and without errors
 - The system should not care about replies to the events or anything.
 
-## Planning Calendar
+*** Planning Calendar ***
 
 - UX Improve: Power Edit-mode nudging
 - - Helps the user with what to click
@@ -206,3 +199,7 @@ A page that lets me configure studieaktivitet for each month in the year, and th
 -- 3 (Ikke er indskrevet, ikke flere SU klip).
 - The amounts for each level are changed every year and should thus be easily configurable like with ATP. The current rates are 1: 20.749 kr. per måned, 2: 23.598 kr. per måned, 3: 45.420 kr. per måned. If you have kids under 18, the yearly limit is increased by 34.129 kr. per child in 2026. -- so amount of children should also be configurable on the SU page. 
 
+*** UX Fixes ***
+- Onboarding Flow
+- - Data should be saved (but not submitted), so that they user can disconnect from the onboarding flow without losing data
+- - If going back to a previous page, the step number should be yellow to indicate that the user has started filling the step.
