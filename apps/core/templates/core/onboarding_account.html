@@ -16,13 +16,12 @@
 
     <div class="card">
       <div class="card-header fw-semibold">
-        <i class="bi bi-shield-lock me-2"></i>Create your owner account
+        <i class="bi bi-shield-lock me-2"></i>Create app owner account
       </div>
       <div class="card-body">
         <p class="text-muted small mb-3">
-          This is the <strong>owner &amp; administrator</strong> account for your
-          BitGigs — it protects your pay data, and you'll use its email and
-          password to log in.
+          The first step is to create the <strong>owner &amp; administrator</strong> account for your
+          BitGigs-instance — log in with this email and password to use and manage the app.
         </p>
         <form method="post" id="accountForm"
               data-email-id="{{ form.username.id_for_label }}"
@@ -45,30 +44,41 @@
             <div class="form-text text-danger d-none" id="emailHint">Enter a valid email address.</div>
           </div>
 
-          <div class="mb-3">
-            <label for="{{ form.password1.id_for_label }}" class="form-label fw-medium">Password</label>
-            <input type="password" name="{{ form.password1.html_name }}" id="{{ form.password1.id_for_label }}"
-                   class="form-control {% if form.password1.errors %}is-invalid{% endif %}"
-                   autocomplete="new-password" required>
-            {% for err in form.password1.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
-          </div>
+          <div class="password-box">
+          <div class="row g-3 g-md-4">
+            <div class="col-12 col-md-6 password-box__fields">
+              <div class="mb-3">
+                <label for="{{ form.password1.id_for_label }}" class="form-label fw-medium">Password</label>
+                <input type="password" name="{{ form.password1.html_name }}" id="{{ form.password1.id_for_label }}"
+                       class="form-control {% if form.password1.errors %}is-invalid{% endif %}"
+                       autocomplete="new-password" required>
+                {% for err in form.password1.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+              </div>
 
-          <div class="mb-2">
-            <label for="{{ form.password2.id_for_label }}" class="form-label fw-medium">Repeat password</label>
-            <input type="password" name="{{ form.password2.html_name }}" id="{{ form.password2.id_for_label }}"
-                   class="form-control {% if form.password2.errors %}is-invalid{% endif %}"
-                   autocomplete="new-password" required>
-            {% for err in form.password2.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
-          </div>
+              <div>
+                <label for="{{ form.password2.id_for_label }}" class="form-label fw-medium">Repeat password</label>
+                <input type="password" name="{{ form.password2.html_name }}" id="{{ form.password2.id_for_label }}"
+                       class="form-control {% if form.password2.errors %}is-invalid{% endif %}"
+                       autocomplete="new-password" required>
+                {% for err in form.password2.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+              </div>
+            </div>
 
-          <ul class="password-checklist list-unstyled small mb-3" id="pwChecklist">
-            <li data-check="length"><i class="bi bi-circle me-1"></i>At least 8 characters</li>
-            <li data-check="symbol"><i class="bi bi-circle me-1"></i>Includes at least one symbol (e.g. ! ? # @)</li>
-            <li data-check="nosequence"><i class="bi bi-circle me-1"></i>No repeated (aaa) or sequential (abc, 123) runs</li>
-            <li data-check="notnumeric"><i class="bi bi-circle me-1"></i>Not entirely numbers</li>
-            <li data-check="notsimilar"><i class="bi bi-circle me-1"></i>Not too similar to your email</li>
-            <li data-check="match"><i class="bi bi-circle me-1"></i>Both passwords match</li>
-          </ul>
+            <div class="col-12 col-md-6 password-box__reqs">
+              <span class="form-label fw-medium">Password requirements</span>
+              <ul class="password-checklist list-unstyled small mb-0" id="pwChecklist">
+                <li data-check="length"><i class="bi bi-circle me-1"></i>At least 8 characters</li>
+                <li data-check="lowercase"><i class="bi bi-circle me-1"></i>Includes at least one lowercase letter (a-z)</li>
+                <li data-check="uppercase"><i class="bi bi-circle me-1"></i>Includes at least one uppercase letter (A-Z)</li>
+                <li data-check="number"><i class="bi bi-circle me-1"></i>Includes at least one number (0-9)</li>
+                <li data-check="symbol"><i class="bi bi-circle me-1"></i>Includes at least one symbol (! ? # @)</li>
+                <li data-check="nosequence"><i class="bi bi-circle me-1"></i>No repeated (aaa) or sequential (abc, 123) runs</li>
+                <li data-check="notsimilar"><i class="bi bi-circle me-1"></i>Not too similar to your email</li>
+                <li data-check="match"><i class="bi bi-circle me-1"></i>Both passwords match</li>
+              </ul>
+            </div>
+          </div>
+          </div><!-- /.password-box -->
 
           <div class="d-flex justify-content-end mt-4">
             <button type="submit" class="btn btn-primary px-5">

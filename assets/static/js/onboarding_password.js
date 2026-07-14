@@ -57,8 +57,8 @@
     }
   }
 
-  // Mirror of core.validators.SymbolPasswordValidator: at least one char that
-  // is neither alphanumeric nor whitespace.
+  // Mirror of core.validators.CharacterClassesPasswordValidator: a symbol is any
+  // char that is neither alphanumeric nor whitespace.
   function hasSymbol(pw) {
     return /[^A-Za-z0-9\s]/.test(pw);
   }
@@ -95,9 +95,11 @@
     var typed = p1.length > 0;
 
     setState(items.length, p1.length >= 8, typed);
+    setState(items.lowercase, /[a-z]/.test(p1), typed);
+    setState(items.uppercase, /[A-Z]/.test(p1), typed);
+    setState(items.number, /[0-9]/.test(p1), typed);
     setState(items.symbol, hasSymbol(p1), typed);
     setState(items.nosequence, !hasBadRun(p1), typed);
-    setState(items.notnumeric, !/^\d+$/.test(p1), typed);
     setState(items.notsimilar, !tooSimilar(p1, mail), typed && !!mail);
 
     // Both password fields turn green (matching the email field) once they're

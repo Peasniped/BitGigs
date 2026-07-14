@@ -3,6 +3,13 @@ from django.contrib.auth.password_validation import UserAttributeSimilarityValid
 from django.core.exceptions import ValidationError
 
 
+def _join(parts):
+    """"a", "a and b", "a, b and c"."""
+    if len(parts) == 1:
+        return parts[0]
+    return "%s and %s" % (", ".join(parts[:-1]), parts[-1])
+
+
 class EmailSimilarityValidator(UserAttributeSimilarityValidator):
     """UserAttributeSimilarityValidator reworded for our single email-as-username
     account: the only personal attribute we hold is the email address, so the
@@ -21,18 +28,33 @@ class EmailSimilarityValidator(UserAttributeSimilarityValidator):
         return "Your password can’t be too similar to your email address."
 
 
-class SymbolPasswordValidator:
-    """Require at least one symbol (any non-alphanumeric, non-whitespace char)."""
+class CharacterClassesPasswordValidator:
+    """Require one lowercase letter, one uppercase letter, one number and one
+    symbol (any non-alphanumeric, non-whitespace char). Mirrored client-side by
+    the onboarding checklist (`onboarding_password.js`)."""
 
     def validate(self, password, user=None):
+        missing = []
+        if not any(c.islower() for c in password):
+            missing.append("one lowercase letter")
+        if not any(c.isupper() for c in password):
+            missing.append("one uppercase letter")
+        if not any(c.isdigit() for c in password):
+            missing.append("one number")
         if not any((not c.isalnum()) and (not c.isspace()) for c in password):
+            missing.append("one symbol")
+        if missing:
             raise ValidationError(
-                "Your password must contain at least one symbol.",
-                code="password_no_symbol",
+                "Your password must contain at least %(missing)s.",
+                code="password_missing_character_classes",
+                params={"missing": _join(missing)},
             )
 
     def get_help_text(self):
-        return "Your password must contain at least one symbol."
+        return (
+            "Your password must contain at least one lowercase letter, one "
+            "uppercase letter, one number and one symbol."
+        )
 
 
 class NoSequencesPasswordValidator:

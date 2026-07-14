@@ -542,7 +542,25 @@ a.setup-step--started:hover .setup-step__circle { background: #f59e0b; border-co
 .notice-timer:hover .notice-timer__x,
 .notice-timer:focus-visible .notice-timer__x { opacity: 1; }
 
-/* Onboarding password requirement checklist */
+/* Onboarding password fields + requirement checklist: an accented box holding the
+   two inputs (left) and the checklist (right), split by a divider — vertical
+   from md up, horizontal once the columns stack. */
+.password-box {
+  background: var(--primary-tint);
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  padding: 1rem 1.25rem;
+}
+.password-box__reqs { border-top: 1px solid var(--border); padding-top: 1rem; }
+@media (min-width: 768px) {
+  .password-box .password-box__fields { padding-right: 1.75rem; }
+  .password-box .password-box__reqs {
+    border-top: 0;
+    padding-top: 0;
+    border-left: 1px solid var(--border);
+    padding-left: 1.75rem;
+  }
+}
 .password-checklist { color: var(--text-muted, #6c757d); }
 .password-checklist li { display: flex; align-items: center; }
 .password-checklist li.is-pass { color: #16a34a; }

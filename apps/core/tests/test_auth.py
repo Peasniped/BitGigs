@@ -6,12 +6,15 @@ from django.core.exceptions import ValidationError
 
 from core.utils import dk_slugify
 from core.models import TaxProfile, OnboardingDraft
-from core.validators import SymbolPasswordValidator, NoSequencesPasswordValidator
+from core.validators import (
+    CharacterClassesPasswordValidator,
+    NoSequencesPasswordValidator,
+)
 from workplaces.models import Workplace, WorkplaceContract, ContractTermSet
 
 
-# A password that satisfies every validator (length, symbol, no repeated/
-# sequential run, not numeric, unlike the email).
+# A password that satisfies every validator (length, all four character classes,
+# no repeated/sequential run, unlike the email).
 VALID_PW = "Vqz#8mtLp4"
 
 # Valid per-step payloads for the wizard (see the respective ModelForms).
@@ -197,10 +200,17 @@ class OnboardingWizardTest(TestCase):
 
 
 class PasswordValidatorTest(TestCase):
-    def test_symbol_required(self):
-        with self.assertRaises(ValidationError):
-            SymbolPasswordValidator().validate("Vqzmtlxp")  # no symbol
-        SymbolPasswordValidator().validate("Vqzmtl#p")  # has one → ok
+    def test_character_classes_required(self):
+        v = CharacterClassesPasswordValidator()
+        for bad in (
+            "VQZ#8MTLP4",  # no lowercase
+            "vqz#8mtlp4",  # no uppercase
+            "Vqz#mtLpx",   # no number
+            "Vqz8mtLp4",   # no symbol
+        ):
+            with self.assertRaises(ValidationError):
+                v.validate(bad)
+        v.validate(VALID_PW)  # has all four → ok
 
     def test_no_repeated_or_sequential_runs(self):
         v = NoSequencesPasswordValidator()

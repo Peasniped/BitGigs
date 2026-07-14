@@ -283,10 +283,11 @@ def _onboarding_progress(data):
 
 def _onboarding_steps(current, data):
     """Step-indicator model for the given wizard page. A step is 'active' (the
-    current page), 'done' (green check — saved and complete/valid), 'started'
-    (yellow number — saved but not yet complete, e.g. reached then left partly
-    filled), or 'upcoming' (grey — not started). 'done' and 'started' are both
-    clickable so the user can jump back and forth."""
+    current page), 'done' (green check — an earlier step, filled and valid),
+    'started' (yellow number — filled but ahead of the current page because the
+    user navigated back, or filled yet incomplete), or 'upcoming' (grey — not
+    started). 'done' and 'started' are both clickable so the user can jump back
+    and forth."""
     active_num = {"account": 1, "tax": 2, "workplace": 3, "contract": 4, "terms": 4}[current]
     progress = _onboarding_progress(data)
     definitions = [
@@ -299,12 +300,14 @@ def _onboarding_steps(current, data):
     for num, label, url in definitions:
         if num == active_num:
             state, step_url = "active", None
-        elif progress[num] == "valid":
-            state, step_url = "done", url
-        elif progress[num] == "started":
-            state, step_url = "started", url
-        else:
+        elif progress[num] == "empty":
             state, step_url = "upcoming", None
+        elif progress[num] == "valid" and num < active_num:
+            state, step_url = "done", url
+        else:
+            # Filled but ahead of the current page (the user navigated back), or
+            # filled yet incomplete → yellow.
+            state, step_url = "started", url
         steps.append({"num": num, "label": label, "state": state, "url": step_url})
     return steps
 
