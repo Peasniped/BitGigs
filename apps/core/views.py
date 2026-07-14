@@ -187,21 +187,24 @@ class UserSettingsView(View):
 #
 # The account is created immediately (step 1) — the whole site is behind a login,
 # so there must be a logged-in user for the remaining steps. Tax → Workplace →
-# Contract → Terms are then held in a durable per-user OnboardingDraft (a DB row,
-# not the session, so logging out mid-onboarding doesn't lose the data) and
-# written to the real tables together, atomically, only on the final "Finish"
-# (the Terms step's submit), after which the draft is deleted. Each step's stored
-# payload is the raw POST of a form that already passed is_valid(), so re-binding
-# it on a later visit re-shows the input with no validation errors — that's what
-# makes back-navigation keep its place.
+# Terms are then held in a durable per-user OnboardingDraft (a DB row, not the
+# session, so logging out mid-onboarding doesn't lose the data) and written to
+# the real tables together, atomically, only on the final "Finish" (the Terms
+# step's submit), after which the draft is deleted. Each step's stored payload is
+# the raw POST of a form that already passed is_valid(), so re-binding it on a
+# later visit re-shows the input with no validation errors — that's what makes
+# back-navigation keep its place.
+#
+# The contract has no step of its own: its only editable field is an optional
+# label, so the Workplace step carries it as a prefixed "contract-name" field and
+# a single payload holds both forms.
 # ─────────────────────────────────────────────────────────────────────────────
 
-_ONBOARDING_ORDER = ["tax", "workplace", "contract", "terms"]
+_ONBOARDING_ORDER = ["tax", "workplace", "terms"]
 _ONBOARDING_URLS = {
     "account": "core:onboarding-account",
     "tax": "core:onboarding-tax",
     "workplace": "core:onboarding-workplace",
-    "contract": "core:onboarding-contract",
     "terms": "core:onboarding-terms",
 }
 _ONBOARDING_MONTH_CHOICES = [(str(i), _calendar.month_abbr[i]) for i in range(1, 13)]
@@ -231,7 +234,6 @@ def _clear_onboarding(request):
 _STEP_LABELS = {
     "tax": "Tax details",
     "workplace": "Workplace",
-    "contract": "Contract",
     "terms": "Pay terms",
 }
 
@@ -239,14 +241,21 @@ _STEP_LABELS = {
 def _build_step_form(key, payload):
     """The bound form for a stored step payload — used to check completeness and
     to commit. Terms is built without a contract (guards no-op until Finish)."""
-    from workplaces.forms import WorkplaceForm, WorkplaceContractForm, ContractTermSetForm
+    from workplaces.forms import WorkplaceForm, ContractTermSetForm
     if key == "tax":
         return TaxProfileForm(data=payload)
     if key == "workplace":
         return WorkplaceForm(data=payload)
-    if key == "contract":
-        return WorkplaceContractForm(data=payload)
     return ContractTermSetForm(data=payload, contract=None)
+
+
+def _build_contract_form(payload=None):
+    """The contract's optional label rides along on the Workplace step, prefixed
+    so it can't collide with the workplace's own `name`."""
+    from workplaces.forms import WorkplaceContractForm
+    if payload is None:
+        return WorkplaceContractForm(prefix="contract")
+    return WorkplaceContractForm(data=payload, prefix="contract")
 
 
 def _resolve_goto(request, current):
@@ -264,21 +273,13 @@ def _resolve_goto(request, current):
 
 def _onboarding_progress(data):
     """Per indicator-step status: 'valid' (complete), 'started' (has data but not
-    yet valid), or 'empty'. Step 1 (Account) is always valid here. Step 4 folds
-    the contract + terms sub-steps: valid only when the pay terms validate."""
+    yet valid), or 'empty'. Step 1 (Account) is always valid here."""
     def status(key):
         if key not in data:
             return "empty"
         return "valid" if _build_step_form(key, data[key]).is_valid() else "started"
 
-    terms = status("terms")
-    if terms == "valid":
-        contract_terms = "valid"
-    elif terms != "empty" or "contract" in data:
-        contract_terms = "started"
-    else:
-        contract_terms = "empty"
-    return {1: "valid", 2: status("tax"), 3: status("workplace"), 4: contract_terms}
+    return {1: "valid", 2: status("tax"), 3: status("workplace"), 4: status("terms")}
 
 
 def _onboarding_steps(current, data):
@@ -288,13 +289,13 @@ def _onboarding_steps(current, data):
     user navigated back, or filled yet incomplete), or 'upcoming' (grey — not
     started). 'done' and 'started' are both clickable so the user can jump back
     and forth."""
-    active_num = {"account": 1, "tax": 2, "workplace": 3, "contract": 4, "terms": 4}[current]
+    active_num = {"account": 1, "tax": 2, "workplace": 3, "terms": 4}[current]
     progress = _onboarding_progress(data)
     definitions = [
         (1, "Account", None),
         (2, "Tax Profile", reverse("core:onboarding-tax")),
         (3, "Workplace", reverse("core:onboarding-workplace")),
-        (4, "Contract & Terms", reverse("core:onboarding-contract")),
+        (4, "Pay Terms", reverse("core:onboarding-terms")),
     ]
     steps = []
     for num, label, url in definitions:
@@ -329,8 +330,8 @@ def _transient_workplace(request):
 
 def _transient_contract(request):
     from workplaces.models import WorkplaceContract
-    data = _onboarding_data(request).get("contract", {})
-    return WorkplaceContract(name=data.get("name", ""))
+    data = _onboarding_data(request).get("workplace", {})
+    return WorkplaceContract(name=data.get("contract-name", ""))
 
 
 def _onboarding_tax_profile_json(request):
@@ -364,11 +365,14 @@ def _commit_onboarding(request):
             return (key, f"Please finish the {_STEP_LABELS[key]} step before you can submit.")
         forms[key] = form
 
+    contract_form = _build_contract_form(ob["workplace"])
+    contract_form.is_valid()  # only an optional label — never fails
+
     try:
         with transaction.atomic():
             forms["tax"].save()
             workplace = forms["workplace"].save()
-            contract = forms["contract"].save(commit=False)
+            contract = contract_form.save(commit=False)
             contract.workplace = workplace
             contract.save()
             # Re-bind the terms to the real contract so it's linked + fully validated.
@@ -447,39 +451,27 @@ class OnboardingTaxView(View):
 
 
 class OnboardingWorkplaceView(View):
-    def _context(self, request, form):
-        return {"form": form, "onboarding": True, "steps": _steps_for(request, "workplace")}
+    """Onboarding step 3 — the workplace, plus the contract's optional label as a
+    field that the page reveals once the workplace is named."""
+
+    def _context(self, request, form, contract_form):
+        return {
+            "form": form,
+            "contract_form": contract_form,
+            "onboarding": True,
+            "steps": _steps_for(request, "workplace"),
+        }
 
     def get(self, request):
         from workplaces.forms import WorkplaceForm
         stored = _onboarding_data(request).get("workplace")
         form = WorkplaceForm(data=stored) if stored else WorkplaceForm()
-        return render(request, "workplaces/workplace_form.html", self._context(request, form))
+        contract_form = _build_contract_form(stored)
+        return render(request, "workplaces/workplace_form.html", self._context(request, form, contract_form))
 
     def post(self, request):
         _store_onboarding(request, "workplace", request.POST)
         return redirect(_resolve_goto(request, "workplace"))
-
-
-class OnboardingContractView(View):
-    def _context(self, request, form):
-        return {
-            "form": form,
-            "workplace": _transient_workplace(request),
-            "is_first": True,
-            "onboarding": True,
-            "steps": _steps_for(request, "contract"),
-        }
-
-    def get(self, request):
-        from workplaces.forms import WorkplaceContractForm
-        stored = _onboarding_data(request).get("contract")
-        form = WorkplaceContractForm(data=stored) if stored else WorkplaceContractForm()
-        return render(request, "workplaces/contract_form.html", self._context(request, form))
-
-    def post(self, request):
-        _store_onboarding(request, "contract", request.POST)
-        return redirect(_resolve_goto(request, "contract"))
 
 
 class OnboardingTermsView(View):

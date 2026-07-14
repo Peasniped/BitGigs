@@ -9,7 +9,6 @@ urlpatterns = [
     path("onboarding/account/", views.OnboardingAccountView.as_view(), name="onboarding-account"),
     path("onboarding/tax/", views.OnboardingTaxView.as_view(), name="onboarding-tax"),
     path("onboarding/workplace/", views.OnboardingWorkplaceView.as_view(), name="onboarding-workplace"),
-    path("onboarding/contract/", views.OnboardingContractView.as_view(), name="onboarding-contract"),
     path("onboarding/terms/", views.OnboardingTermsView.as_view(), name="onboarding-terms"),
     path("tax-profiles/", views.TaxProfileListView.as_view(), name="taxprofile-list"),
     path(

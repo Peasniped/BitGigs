@@ -19,10 +19,6 @@
         <i class="bi bi-shield-lock me-2"></i>Create app owner account
       </div>
       <div class="card-body">
-        <p class="text-muted small mb-3">
-          The first step is to create the <strong>owner &amp; administrator</strong> account for your
-          BitGigs-instance — log in with this email and password to use and manage the app.
-        </p>
         <form method="post" id="accountForm"
               data-email-id="{{ form.username.id_for_label }}"
               data-pw1-id="{{ form.password1.id_for_label }}"
@@ -34,7 +30,11 @@
             </div>
           {% endif %}
 
-          <div class="mb-3">
+          <div class="password-box password-box--plain mb-3">
+            <p class="text-muted small mb-3">
+              The first step is to create the <strong>owner &amp; administrator</strong> account for your
+              BitGigs-instance — log in with this email and password to use and manage the app.
+            </p>
             <label for="{{ form.username.id_for_label }}" class="form-label fw-medium">Email</label>
             <input type="email" name="{{ form.username.html_name }}" id="{{ form.username.id_for_label }}"
                    value="{{ form.username.value|default_if_none:'' }}"

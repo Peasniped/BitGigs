@@ -447,6 +447,16 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
   color: var(--text-subtle);
   transition: background .2s, border-color .2s, color .2s;
 }
+/* Bootstrap Icons ships .bi::before with vertical-align:-.125em inside an inherited
+   1.5 line-height, which knocks the check off the circle's centre. */
+.setup-step__circle .bi {
+  line-height: 1;
+  font-size: 1rem;
+}
+.setup-step__circle .bi::before {
+  display: block;
+  vertical-align: 0;
+}
 .setup-step__label {
   font-size: .7rem;
   font-weight: 500;
@@ -550,6 +560,12 @@ a.setup-step--started:hover .setup-step__circle { background: #f59e0b; border-co
   border: 1px solid var(--border);
   border-radius: var(--card-radius);
   padding: 1rem 1.25rem;
+}
+/* Same box metrics, no chrome — lines the email input up with the password
+   inputs, which are inset by the .password-box padding + border. */
+.password-box--plain {
+  background: transparent;
+  border-color: transparent;
 }
 .password-box__reqs { border-top: 1px solid var(--border); padding-top: 1rem; }
 @media (min-width: 768px) {

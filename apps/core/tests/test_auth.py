@@ -24,8 +24,8 @@ TAX_POST = {
     "tax_percent": "37",
     "am_bidrag_percent": "8",
 }
-WORKPLACE_POST = {"name": "Jåd Kå Æf"}
-CONTRACT_POST = {"name": ""}
+# The contract's optional label rides along on the workplace step, prefixed.
+WORKPLACE_POST = {"name": "Jåd Kå Æf", "contract-name": ""}
 TERMS_POST = {
     "effective_from": "2026-01-01",
     "employment_type": "salaried",
@@ -126,9 +126,8 @@ class OnboardingWizardTest(TestCase):
     def test_nothing_is_saved_until_finish(self):
         self.assertEqual(self.client.post("/onboarding/tax/", TAX_POST).status_code, 302)
         self.assertEqual(self.client.post("/onboarding/workplace/", WORKPLACE_POST).status_code, 302)
-        self.assertEqual(self.client.post("/onboarding/contract/", CONTRACT_POST).status_code, 302)
 
-        # Three steps completed, still nothing written.
+        # Two steps completed, still nothing written.
         self.assertFalse(TaxProfile.objects.exists())
         self.assertFalse(Workplace.objects.exists())
         self.assertFalse(WorkplaceContract.objects.exists())
@@ -158,19 +157,42 @@ class OnboardingWizardTest(TestCase):
         # rendered with transient, unsaved workplace/contract objects).
         self.client.post("/onboarding/tax/", TAX_POST)
         self.client.post("/onboarding/workplace/", WORKPLACE_POST)
-        self.client.post("/onboarding/contract/", CONTRACT_POST)
         for path in ("/onboarding/account/", "/onboarding/tax/",
-                     "/onboarding/workplace/", "/onboarding/contract/",
-                     "/onboarding/terms/"):
+                     "/onboarding/workplace/", "/onboarding/terms/"):
             resp = self.client.get(path)
             # account step is gone once a user exists → 302; the rest render.
             expected = 302 if path.endswith("/account/") else 200
             self.assertEqual(resp.status_code, expected, path)
 
+    def test_contract_step_is_gone(self):
+        self.assertEqual(self.client.get("/onboarding/contract/").status_code, 404)
+
+    def test_contract_label_is_carried_by_the_workplace_step(self):
+        self.client.post("/onboarding/tax/", TAX_POST)
+        self.client.post("/onboarding/workplace/", dict(WORKPLACE_POST, **{"contract-name": "Physics Lab"}))
+        self.client.post("/onboarding/terms/", TERMS_POST)
+
+        contract = WorkplaceContract.objects.get()
+        self.assertEqual(contract.name, "Physics Lab")
+        self.assertEqual(contract.workplace, Workplace.objects.get())
+
+    def test_contract_is_created_even_without_a_label(self):
+        self.client.post("/onboarding/tax/", TAX_POST)
+        self.client.post("/onboarding/workplace/", WORKPLACE_POST)  # contract-name blank
+        self.client.post("/onboarding/terms/", TERMS_POST)
+
+        contract = WorkplaceContract.objects.get()
+        self.assertEqual(contract.name, "")
+        self.assertEqual(contract.workplace, Workplace.objects.get())
+
+    def test_workplace_step_re_shows_the_stored_contract_label(self):
+        self.client.post("/onboarding/workplace/", dict(WORKPLACE_POST, **{"contract-name": "Physics Lab"}))
+        resp = self.client.get("/onboarding/workplace/")
+        self.assertContains(resp, "Physics Lab")
+
     def test_dashboard_reachable_after_finish(self):
         self.client.post("/onboarding/tax/", TAX_POST)
         self.client.post("/onboarding/workplace/", WORKPLACE_POST)
-        self.client.post("/onboarding/contract/", CONTRACT_POST)
         self.client.post("/onboarding/terms/", TERMS_POST)
         resp = self.client.get("/")
         self.assertEqual(resp.status_code, 200)
@@ -187,7 +209,6 @@ class OnboardingWizardTest(TestCase):
     def test_draft_deleted_after_finish(self):
         self.client.post("/onboarding/tax/", TAX_POST)
         self.client.post("/onboarding/workplace/", WORKPLACE_POST)
-        self.client.post("/onboarding/contract/", CONTRACT_POST)
         self.client.post("/onboarding/terms/", TERMS_POST)
         self.assertFalse(OnboardingDraft.objects.filter(user=self.user).exists())
 

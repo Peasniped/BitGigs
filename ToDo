@@ -2,17 +2,17 @@
 # NU     --------------------------------------------------------
 
 Onboarding:
-- move create contract under workplace as sort of a "appears when workplace is filled" field.
-- Nitpick: the checkmark in the green circle is not entirely centered. It is a bit to the top and right from the center.
 - Enable and force 2FA for all users (TOTP, Passkey, and backup codes).
 - - Make this a second step after user creation.
 - - User can choose either TOTP, Passkey or both.
 - - 10 Backup codes are always generated. When they are displayed, there is a copy button that copies the codes to the clipboard, tell the user to store them in a safe place and so on.
-- User lockout?
+- User lockout on xx wrong password attempts -- how to unlock again?
 
 - Explore how to implement user mgmt and admin page/status in a nicer way than the built in
-- - The app will use Authentik for my use, for user auth/creation and other IAM, so don't put too much work into it i guess lol.
 - Create user creation flow (not the initial user, but subsequent users)
+
+The app must support Authentik, as that is what I am going to use for my deployment to control user auth/creation and other IAM, so don't put too much work into it i guess lol.
+How will it integrate/work when Authentik owns the IAM?
 
 - IMPORTANT: When the approve shift modal is open, if there are pending changes, a warning should be shown if the modal is about to be closed. ex. if I have to approve A LOT of shifts and have made a lot of changes, and accidentally click outside of the modal, all those changes are discarded. :( ask me how i know
 - - it does seem that if the page is not refreshed, the pending data/changes persist in the table, when opening again. Still, make the warning.
