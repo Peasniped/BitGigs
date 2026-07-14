@@ -1,4 +1,15 @@
 """Template context processors."""
+from django.conf import settings
+
+
+def sso_status(request):
+    """Expose ``sso_enabled`` (the AUTHENTIK_* env vars are configured) so the
+    login page can offer the SSO button and the settings page its sign-in card.
+    Without the env vars this is False everywhere and BitGigs is password-only."""
+    return {
+        "sso_enabled": settings.SSO_ENABLED,
+        "sso_provider_id": settings.SSO_PROVIDER_ID,
+    }
 
 
 def onboarding_status(request):

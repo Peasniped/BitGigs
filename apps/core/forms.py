@@ -10,7 +10,11 @@ from .models import TaxProfile, UserSettings
 
 class OnboardingUserCreationForm(UserCreationForm):
     """Account creation for onboarding step 1. The username IS the email: it must
-    be a valid email address and is copied into the User.email field on save."""
+    be a valid email address and is copied into the User.email field on save.
+
+    The setup key is *not* a field here — it is verified on the preceding page and
+    recorded in the session (core.setup_key.SESSION_FLAG), which is what the views
+    check before letting anyone reach this form."""
 
     class Meta(UserCreationForm.Meta):
         model = User

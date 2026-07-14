@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% comment %}
+  Authentik's application tile points here. The IdP already knows who you are, so go
+  straight into the flow rather than showing a login page:
+    - not signed in  → process=login   (sign in, linking on the way through)
+    - signed in, not linked → process=connect (offer to link — the IdP just vouched
+      for you, so this is the natural moment)
+  allauth wants the provider login as a POST (a GET is open to login-CSRF), and you
+  can't POST from a redirect, so this submits itself. The button is the no-JS path.
+{% endcomment %}
+{% block title %}
+  {% if process == "connect" %}Link Authentik{% else %}Signing in{% endif %} &middot; BitGigs
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-sm-8 col-md-6 col-lg-4">
+    <div class="card border-0 shadow-sm mt-5">
+      <div class="card-body p-4 text-center">
+        <p class="mb-3">
+          {% if process == "connect" %}
+            Linking your Authentik account…
+          {% else %}
+            Signing you in with Authentik…
+          {% endif %}
+        </p>
+        <form method="post" id="ssoLaunchForm"
+              action="{% url 'openid_connect_login' provider_id=sso_provider_id %}">
+          {% csrf_token %}
+          <input type="hidden" name="process" value="{{ process }}">
+          <button type="submit" class="btn btn-primary">Continue</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>document.getElementById("ssoLaunchForm").submit();</script>
+{% endblock %}

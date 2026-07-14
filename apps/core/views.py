@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_not_required
+from django.contrib.auth.views import LoginView
 from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
@@ -167,7 +168,7 @@ class UserSettingsView(View):
         form = UserSettingsForm(instance=settings)
         next_url = self._safe_next(request, request.GET.get("next"))
         return render(request, "core/settings.html", {
-            "form": form, "next_url": next_url,
+            "form": form, "next_url": next_url, **sign_in_context(request.user),
         })
 
     def post(self, request):
@@ -178,8 +179,219 @@ class UserSettingsView(View):
             form.save()
             return redirect(next_url or "core:settings")
         return render(request, "core/settings.html", {
-            "form": form, "next_url": next_url,
+            "form": form, "next_url": next_url, **sign_in_context(request.user),
         })
+
+
+class BitGigsLoginView(LoginView):
+    """Django's LoginView, plus one fact the template needs: whether the owner can
+    sign in with a password at all. If they turned it off, showing the password
+    box would just be a dead end — so the page offers the IdP and a way back in
+    from the server console instead.
+
+    (Not decorated: LoginView is already exempt from LoginRequiredMiddleware, and
+    this doesn't override dispatch, so the exemption is inherited.)"""
+
+    template_name = "registration/login.html"
+
+    def get_context_data(self, **kwargs):
+        from django.conf import settings as django_settings
+        from django.contrib.auth.models import User
+        context = super().get_context_data(**kwargs)
+        owner = User.objects.order_by("pk").first()
+        usable = owner.has_usable_password() if owner else True
+        # Without an IdP the password form is the only door, so never hide it —
+        # that would lock the owner out of their own app.
+        context["show_password_form"] = usable or not django_settings.SSO_ENABLED
+        context["password_login_disabled"] = not usable
+        context["owner_username"] = owner.get_username() if owner else ""
+        return context
+
+
+def sign_in_context(user):
+    """Sign-in card state for the settings page: is an IdP identity linked, and is
+    password sign-in still available."""
+    from allauth.socialaccount.models import SocialAccount
+    from django.contrib.auth.forms import SetPasswordForm
+    linked = SocialAccount.objects.filter(user=user).first()
+    return {
+        "sso_account": linked,
+        "sso_linked": linked is not None,
+        "has_usable_password": user.has_usable_password(),
+        "set_password_form": SetPasswordForm(user),  # drives the set/change modal
+    }
+
+
+@method_decorator(login_not_required, name="dispatch")
+class SSOLaunchView(View):
+    """Landing spot for Authentik's application tile (set it as the provider's
+    Launch URL). Opening BitGigs from the IdP dashboard should *sign you in*, not
+    dump you on a login page — the IdP already knows who you are.
+
+    Starts allauth's login for you. allauth wants that as a POST (a GET provider
+    login is open to login-CSRF), so this page submits itself."""
+
+    def get(self, request):
+        from allauth.socialaccount.models import SocialAccount
+        from django.conf import settings as django_settings
+
+        if not django_settings.SSO_ENABLED:
+            return redirect("/accounts/login/")
+
+        if request.user.is_authenticated:
+            if SocialAccount.objects.filter(user=request.user).exists():
+                return redirect("core:dashboard")  # already linked — just open the app
+            # Signed in locally but never linked: this is the natural moment to
+            # offer it, since the IdP just vouched for who you are.
+            return render(request, "core/sso_launch.html",
+                          {"process": "connect", "minimal_chrome": True})
+
+        return render(request, "core/sso_launch.html",
+                      {"process": "login", "minimal_chrome": True})
+
+
+@method_decorator(login_not_required, name="dispatch")
+class SSOEndIdPSessionView(View):
+    """"Not you?" — end the session at the IdP.
+
+    RP-initiated logout with no post_logout_redirect_uri, so nothing needs
+    registering in Authentik. It lands on Authentik's own signed-out page, which
+    already offers everything needed from there: switch user, or launch BitGigs
+    again (which re-opens the link prompt via SSOLaunchView).
+
+    Asking the IdP to re-authenticate instead (prompt=login) is the tidier OIDC
+    move, but authentik ignores it on repeat attempts — so just log out."""
+
+    def post(self, request):
+        from django.conf import settings as django_settings
+        from django.contrib import messages
+        from allauth.socialaccount.adapter import get_adapter
+        from core.adapters import PENDING_SSO_SESSION_KEY
+
+        request.session.pop(PENDING_SSO_SESSION_KEY, None)
+
+        end_session_url = ""
+        if django_settings.SSO_ENABLED:
+            try:
+                provider = get_adapter().get_provider(request, django_settings.SSO_PROVIDER_ID)
+                end_session_url = provider.get_oauth2_adapter(request).openid_config.get(
+                    "end_session_endpoint") or ""
+            except Exception:  # discovery is a network call — never 500 over it
+                end_session_url = ""
+
+        if not end_session_url:
+            messages.error(request, "Could not reach Authentik to sign you out. Sign out there "
+                                    "directly, then try again.")
+            return redirect("core:settings" if request.user.is_authenticated else "/accounts/login/")
+        return redirect(end_session_url)
+
+
+def _pending_sso_identity(request):
+    """The identity parked by the adapter, ready to display. Reads the claims the
+    IdP actually sent rather than sociallogin.user — see core.adapters.claim."""
+    from allauth.socialaccount.models import SocialLogin
+    from core.adapters import PENDING_SSO_SESSION_KEY, claim
+
+    data = request.session.get(PENDING_SSO_SESSION_KEY)
+    if not data:
+        return None, {}
+    sociallogin = SocialLogin.deserialize(data)
+    return sociallogin, {
+        "sso_email": sociallogin.user.email,
+        "sso_uid": sociallogin.account.uid,
+        "sso_name": (claim(sociallogin, "name") or "").strip(),
+    }
+
+
+class SSOLinkConfirmView(View):
+    """Confirm which IdP identity is about to be linked to this account.
+
+    Without this, an already-signed-in Authentik session makes the round-trip
+    instant: you click Link and it binds whatever account the IdP had, with no
+    chance to see which one."""
+
+    def get(self, request):
+        sociallogin, identity = _pending_sso_identity(request)
+        if sociallogin is None:
+            return redirect("core:settings")
+        # Mid-flow: no navigation, so the round-trip can't be abandoned by accident.
+        return render(request, "core/sso_link_confirm.html",
+                      dict(identity, minimal_chrome=True))
+
+    def post(self, request):
+        from allauth.socialaccount.helpers import complete_social_login
+        from core.adapters import LINK_CONFIRMED_SESSION_KEY, PENDING_SSO_SESSION_KEY
+
+        sociallogin, _ = _pending_sso_identity(request)
+        if sociallogin is None:
+            return redirect("core:settings")
+
+        request.session[LINK_CONFIRMED_SESSION_KEY] = True
+        request.session.pop(PENDING_SSO_SESSION_KEY, None)
+        return complete_social_login(request, sociallogin)
+
+
+class PasswordSignInView(View):
+    """The settings page's sign-in actions: set/change the password, turn password
+    sign-in off, or unlink the IdP.
+
+    One invariant runs through all of them — **at least one way in must survive**.
+    So the password can only be turned off while an IdP identity is linked, and the
+    IdP can only be unlinked while a usable password exists. Turning the password
+    off sets an unusable password, which is what makes ModelBackend refuse it; the
+    account itself stays fully active."""
+
+    def post(self, request):
+        from django.contrib import messages
+        from django.contrib.auth import update_session_auth_hash
+        from django.contrib.auth.forms import SetPasswordForm
+
+        ctx = sign_in_context(request.user)
+        action = request.POST.get("action")
+
+        if action == "unlink_sso":
+            if not ctx["sso_linked"]:
+                return redirect("core:settings")
+            if not ctx["has_usable_password"]:
+                messages.error(request, "Set a password before unlinking Authentik — "
+                                        "otherwise you would have no way back in.")
+                return redirect("core:settings")
+            ctx["sso_account"].delete()
+            messages.success(request, "Authentik is no longer linked. Sign in with your password.")
+            return redirect("core:settings")
+
+        if action == "disable":
+            if not ctx["sso_linked"]:
+                messages.error(request, "Link your Authentik account before turning off password sign-in — "
+                                        "otherwise you would have no way back in.")
+                return redirect("core:settings")
+            request.user.set_unusable_password()
+            request.user.save(update_fields=["password"])
+            # Any change to the password rotates the session hash, which would log
+            # the owner straight out of the session they're doing this from.
+            update_session_auth_hash(request, request.user)
+            messages.success(request, "Password sign-in is off. Use Authentik from now on.")
+            return redirect("core:settings")
+
+        if action == "set_password":
+            form = SetPasswordForm(request.user, request.POST)
+            if form.is_valid():
+                had_one = ctx["has_usable_password"]
+                form.save()
+                update_session_auth_hash(request, request.user)
+                messages.success(request, "Password changed." if had_one
+                                 else "Password sign-in is on.")
+                return redirect("core:settings")
+            # Re-render with the modal open, so the errors are where the user is.
+            return render(request, "core/settings.html", {
+                "form": UserSettingsForm(instance=UserSettings.load()),
+                "next_url": None,
+                **ctx,
+                "set_password_form": form,
+                "open_password_modal": True,
+            })
+
+        return redirect("core:settings")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -385,31 +597,103 @@ def _commit_onboarding(request):
     return True
 
 
+# ── Onboarding step 1: claim the instance, then create the owner ─────────────
+# Three pages, because the setup key gates everything that follows:
+#   /onboarding/account/         the key, and nothing else
+#   /onboarding/account/method/  Authentik or email+password (only when SSO is on)
+#   /onboarding/account/email/   the email+password form
+# The key is verified once and recorded in the session (setup_key.SESSION_FLAG);
+# the later pages — and the SSO bootstrap in core.adapters — refuse to act
+# without that flag, so nobody can skip straight to creating the owner.
+
 @method_decorator(login_not_required, name="dispatch")
-class OnboardingAccountView(View):
-    """Onboarding step 1 — create the single admin account (immediately, so the
-    remaining logged-in steps can run). Gone for good once an account exists."""
+class _AccountStepView(View):
+    """Shared guards: this whole step is gone once an owner exists.
+
+    Only this class may define dispatch(). `login_not_required` is attached to the
+    dispatch *method*, so a subclass that overrides it silently drops the marker —
+    and LoginRequiredMiddleware would then bounce anonymous visitors out of the very
+    pages that exist to be used while logged out. Vary behaviour with the two class
+    attributes below instead.
+    """
+
+    requires_key = True   # must have cleared the setup-key gate
+    requires_sso = False  # meaningless unless an IdP is configured
 
     def dispatch(self, request, *args, **kwargs):
+        from django.conf import settings as django_settings
         from django.contrib.auth.models import User
+        from core import setup_key
         if User.objects.exists():
             return redirect("core:onboarding" if request.user.is_authenticated else "/accounts/login/")
+        if self.requires_sso and not django_settings.SSO_ENABLED:
+            return redirect("core:onboarding-account-email")
+        if self.requires_key and not request.session.get(setup_key.SESSION_FLAG):
+            return redirect("core:onboarding-account")
         return super().dispatch(request, *args, **kwargs)
 
-    def _context(self, request, form):
+    def _context(self, request, **extra):
         return {
-            "form": form,
             "onboarding": True,
             "onboarding_first_step": True,
             "steps": _steps_for(request, "account"),
+            **extra,
         }
+
+    def _after_key(self, request):
+        """Where to go once the key is accepted."""
+        from django.conf import settings as django_settings
+        return redirect("core:onboarding-account-method" if django_settings.SSO_ENABLED
+                        else "core:onboarding-account-email")
+
+
+class OnboardingAccountView(_AccountStepView):
+    """The setup key — proof that whoever claims this install runs the server."""
+
+    requires_key = False
+
+    def get(self, request):
+        from core import setup_key
+        if request.session.get(setup_key.SESSION_FLAG):
+            return self._after_key(request)
+        setup_key.get_or_create_key()  # generates + prints it on the first visit
+        return render(request, "core/onboarding_key.html", self._context(request))
+
+    def post(self, request):
+        from core import setup_key
+        if not setup_key.check_key(request.POST.get("setup_key", "")):
+            # Flagged on the field itself, like every other form in the app —
+            # not as a page-level banner.
+            return render(request, "core/onboarding_key.html", self._context(
+                request,
+                key_error="That setup key is not correct.",
+                key_value=request.POST.get("setup_key", ""),
+            ))
+        request.session[setup_key.SESSION_FLAG] = True
+        return self._after_key(request)
+
+
+class OnboardingAccountMethodView(_AccountStepView):
+    """Authentik, or a plain email + password account."""
+
+    requires_sso = True
+
+    def get(self, request):
+        return render(request, "core/onboarding_method.html", self._context(request))
+
+
+class OnboardingAccountEmailView(_AccountStepView):
+    """Create the single admin account immediately, so the remaining logged-in
+    steps can run."""
 
     def get(self, request):
         from .forms import OnboardingUserCreationForm
-        return render(request, "core/onboarding_account.html", self._context(request, OnboardingUserCreationForm()))
+        return render(request, "core/onboarding_account.html",
+                      self._context(request, form=OnboardingUserCreationForm()))
 
     def post(self, request):
         from django.contrib.auth import login
+        from core import setup_key
         from .forms import OnboardingUserCreationForm
         form = OnboardingUserCreationForm(request.POST)
         if form.is_valid():
@@ -418,9 +702,41 @@ class OnboardingAccountView(View):
             user.is_staff = True
             user.is_superuser = True
             user.save()
-            login(request, user)
+            setup_key.clear_key()  # claimed — the key has done its job
+            request.session.pop(setup_key.SESSION_FLAG, None)
+            # Two backends are configured (password + allauth's), so the one to
+            # log in with has to be named explicitly.
+            login(request, user, backend="django.contrib.auth.backends.ModelBackend")
             return redirect("core:onboarding")
-        return render(request, "core/onboarding_account.html", self._context(request, form))
+        return render(request, "core/onboarding_account.html", self._context(request, form=form))
+
+
+class OnboardingAccountConfirmView(_AccountStepView):
+    """Second leg of the SSO bootstrap: the IdP has told us who you are, but no
+    account exists yet. Show the identity and let the operator approve it before
+    it becomes the owner — claiming an instance shouldn't happen by accident."""
+
+    requires_sso = True
+
+    def get(self, request):
+        sociallogin, identity = _pending_sso_identity(request)
+        if sociallogin is None:
+            return redirect("core:onboarding-account-method")
+        return render(request, "core/onboarding_sso_confirm.html",
+                      self._context(request, **identity))
+
+    def post(self, request):
+        from allauth.socialaccount.helpers import complete_social_login
+        from core.adapters import BOOTSTRAP_CONFIRMED_SESSION_KEY
+
+        sociallogin, _ = _pending_sso_identity(request)
+        if sociallogin is None:
+            return redirect("core:onboarding-account-method")
+
+        # Re-enter allauth's login flow. The adapter runs again, sees the flag,
+        # and this time creates the owner instead of bouncing back here.
+        request.session[BOOTSTRAP_CONFIRMED_SESSION_KEY] = True
+        return complete_social_login(request, sociallogin)
 
 
 class OnboardingRootView(View):

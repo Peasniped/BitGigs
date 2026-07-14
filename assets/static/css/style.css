@@ -454,6 +454,87 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
   width: 1rem;
   height: 1rem;
 }
+
+/* Authentik brand button. #fd4b2d is authentik's own colour, taken from the icon
+   they ship (assets/static/graphics/authentik_icon.svg). */
+.btn-authentik {
+  --ak: #fd4b2d;
+  background: var(--ak);
+  border: 1px solid var(--ak);
+  color: #fff;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+}
+.btn-authentik:hover,
+.btn-authentik:focus {
+  background: #e33d21;
+  border-color: #e33d21;
+  color: #fff;
+}
+.btn-authentik:focus-visible {
+  box-shadow: 0 0 0 .25rem rgba(253, 75, 45, .35);
+}
+.btn-authentik__logo {
+  width: 1.1rem;
+  height: 1.1rem;
+  /* The shipped icon is brand-coloured; on the filled button it must read white. */
+  filter: brightness(0) invert(1);
+}
+.card-header__logo {
+  width: 1.1rem;
+  height: 1.1rem;
+  vertical-align: -.15em;
+}
+
+/* Sized around the 43-character setup key: the monospace input plus the input's
+   and the card's padding, and no wider. */
+.setup-key-card {
+  max-width: 32rem;
+}
+
+/* Sign-in method chooser on the account step */
+.method-card {
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  padding: 1.25rem;
+}
+.method-card form,
+.method-card .btn {
+  width: 100%;
+  margin-top: auto;
+}
+.method-card__logo {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+.method-card__glyph {
+  font-size: 2.5rem;
+  line-height: 1;
+  color: var(--text-subtle);
+}
+
+/* "or" rule between the password form and the SSO button on the login page */
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  color: var(--text-subtle);
+  font-size: .8rem;
+}
+.login-divider::before,
+.login-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
 .setup-step__label {
   font-size: .7rem;
   font-weight: 500;

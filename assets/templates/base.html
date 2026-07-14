@@ -21,12 +21,14 @@
   {% comment %}
     First onboarding step (account creation): no navbar at all.
     Later onboarding steps: navbar with a centered logo only, no links.
+    minimal_chrome (the SSO hand-off pages): centered logo, nothing clickable at
+      all — these pages are mid-flow, and a stray click strands the round-trip.
     After onboarding: the full navigation (links gated by onboarding_complete).
   {% endcomment %}
   {% if not onboarding_first_step %}
   <nav class="navbar navbar-expand-lg sticky-top">
-    <div class="container {% if onboarding %}justify-content-center position-relative{% endif %}">
-      {% if onboarding and user.is_authenticated %}
+    <div class="container {% if onboarding or minimal_chrome %}justify-content-center position-relative{% endif %}">
+      {% if onboarding and not minimal_chrome and user.is_authenticated %}
       <div class="onboarding-userbar small text-muted d-none d-sm-flex align-items-center gap-2">
         <span><i class="bi bi-person-circle me-1"></i>Logged in as {{ user.username }}</span>
         <span>&middot;</span>
@@ -36,11 +38,18 @@
         </form>
       </div>
       {% endif %}
+      {% if minimal_chrome %}
+      <span class="navbar-brand d-flex align-items-center gap-2 m-0">
+        <img src="{% static 'graphics/BitGigs_Logo_96.png' %}" alt="BitGigs" class="brand-logo">
+        <span>BitGigs</span>
+      </span>
+      {% else %}
       <a class="navbar-brand d-flex align-items-center gap-2" href="{% if onboarding %}#{% else %}{% url 'core:dashboard' %}{% endif %}">
         <img src="{% static 'graphics/BitGigs_Logo_96.png' %}" alt="BitGigs" class="brand-logo">
         <span>BitGigs</span>
       </a>
-      {% if not onboarding %}
+      {% endif %}
+      {% if not onboarding and not minimal_chrome %}
       <button class="navbar-toggler border-0" type="button"
               data-bs-toggle="collapse" data-bs-target="#navbarNav">
         <span class="navbar-toggler-icon"></span>

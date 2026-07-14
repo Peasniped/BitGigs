@@ -35,13 +35,14 @@
               The first step is to create the <strong>owner &amp; administrator</strong> account for your
               BitGigs-instance — log in with this email and password to use and manage the app.
             </p>
+
             <label for="{{ form.username.id_for_label }}" class="form-label fw-medium">Email</label>
             <input type="email" name="{{ form.username.html_name }}" id="{{ form.username.id_for_label }}"
                    value="{{ form.username.value|default_if_none:'' }}"
                    class="form-control {% if form.username.errors %}is-invalid{% endif %}"
                    autocomplete="email" autofocus required>
             {% for err in form.username.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
-            <div class="form-text text-danger d-none" id="emailHint">Enter a valid email address.</div>
+            <div class="form-text text-danger d-none" data-email-hint>Enter a valid email address.</div>
           </div>
 
           <div class="password-box">
@@ -66,7 +67,7 @@
 
             <div class="col-12 col-md-6 password-box__reqs">
               <span class="form-label fw-medium">Password requirements</span>
-              <ul class="password-checklist list-unstyled small mb-0" id="pwChecklist">
+              <ul class="password-checklist list-unstyled small mb-0" data-pw-checklist>
                 <li data-check="length"><i class="bi bi-circle me-1"></i>At least 8 characters</li>
                 <li data-check="lowercase"><i class="bi bi-circle me-1"></i>Includes at least one lowercase letter (a-z)</li>
                 <li data-check="uppercase"><i class="bi bi-circle me-1"></i>Includes at least one uppercase letter (A-Z)</li>
@@ -80,7 +81,12 @@
           </div>
           </div><!-- /.password-box -->
 
-          <div class="d-flex justify-content-end mt-4">
+          <div class="d-flex gap-2 justify-content-end mt-4">
+            {% if sso_enabled %}
+              <a href="{% url 'core:onboarding-account-method' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back
+              </a>
+            {% endif %}
             <button type="submit" class="btn btn-primary px-5">
               Continue <i class="bi bi-arrow-right ms-1"></i>
             </button>
@@ -94,5 +100,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/onboarding_password.js' %}"></script>
+<script src="{% static 'js/password_checklist.js' %}"></script>
 {% endblock %}

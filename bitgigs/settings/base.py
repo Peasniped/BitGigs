@@ -46,9 +46,17 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",  # required by allauth
     # Third-party
     "crispy_forms",
     "crispy_bootstrap5",
+    # allauth is always installed (one migration state for every deployment); the
+    # OIDC provider below is only registered when the AUTHENTIK_* env vars are set,
+    # so a stock install has no SSO and needs no identity provider.
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.openid_connect",
     # Local apps
     "core.apps.CoreConfig",
     "workplaces.apps.WorkplacesConfig",
@@ -71,6 +79,7 @@ MIDDLEWARE = [
     "core.middleware.OnboardingRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
 ]
 
 ROOT_URLCONF = "bitgigs.urls"
@@ -87,6 +96,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "core.context_processors.onboarding_status",
+                "core.context_processors.sso_status",
             ],
         },
     },
@@ -133,3 +143,48 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
+
+# Setup key: proves whoever claims a fresh install can read the server console,
+# so a stranger can't win the race to the account step. Deleted once an owner
+# exists. See core/setup_key.py and `manage.py setup_key`.
+SETUP_KEY_PATH = BASE_DIR / "instance" / "setup_key.txt"
+
+# ─── Optional SSO (Authentik / any OIDC provider) ────────────────────────────
+# BitGigs must stay feature-complete standalone: with no AUTHENTIK_* env vars it
+# behaves exactly as before (native password login, no SSO button, no IdP needed).
+# Set all three to light up "Sign in with Authentik" alongside the password form.
+#
+# Because the app is single-tenant (Workplace/TaxProfile/UserSettings have no user
+# FK), SSO must never create a second User — it may only attach to the existing
+# owner. core.adapters enforces that; see the adapters for the rules.
+SITE_ID = 1
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
+
+ACCOUNT_ADAPTER = "core.adapters.NoSignupAccountAdapter"
+SOCIALACCOUNT_ADAPTER = "core.adapters.OwnerOnlySocialAccountAdapter"
+SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
+SOCIALACCOUNT_STORE_TOKENS = False
+
+AUTHENTIK_SERVER_URL = os.environ.get("AUTHENTIK_SERVER_URL", "")
+AUTHENTIK_CLIENT_ID = os.environ.get("AUTHENTIK_CLIENT_ID", "")
+AUTHENTIK_CLIENT_SECRET = os.environ.get("AUTHENTIK_CLIENT_SECRET", "")
+SSO_ENABLED = bool(AUTHENTIK_SERVER_URL and AUTHENTIK_CLIENT_ID and AUTHENTIK_CLIENT_SECRET)
+SSO_PROVIDER_ID = "authentik"
+
+SOCIALACCOUNT_PROVIDERS = {}
+if SSO_ENABLED:
+    SOCIALACCOUNT_PROVIDERS["openid_connect"] = {
+        "APPS": [
+            {
+                "provider_id": SSO_PROVIDER_ID,
+                "name": "Authentik",
+                "client_id": AUTHENTIK_CLIENT_ID,
+                "secret": AUTHENTIK_CLIENT_SECRET,
+                "settings": {"server_url": AUTHENTIK_SERVER_URL},
+            },
+        ],
+    }

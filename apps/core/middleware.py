@@ -11,6 +11,7 @@ def _is_onboarding_flow_url(path):
         "/media/",
         "/favicon",
         "/accounts/",
+        "/sso/",
     ))
 
 
@@ -25,10 +26,14 @@ class OnboardingRequiredMiddleware:
 
     def __call__(self, request):
         # Fresh install (no account yet): everything, including the login page,
-        # leads to the create-account step — you can't log in anyway.
+        # leads to the create-account step — there is nobody to log in as. The
+        # exceptions are /accounts/oidc/ and /sso/, because the account step offers
+        # "create the account with Authentik", and that round-trip (including the
+        # "not you?" re-authentication) runs while still anonymous.
         if not request.user.is_authenticated:
             from django.contrib.auth.models import User
-            if (not request.path.startswith(("/onboarding/account/", "/static/", "/media/", "/favicon"))
+            if (not request.path.startswith(("/onboarding/account/", "/accounts/oidc/", "/sso/",
+                                             "/static/", "/media/", "/favicon"))
                     and not User.objects.exists()):
                 return redirect(reverse("core:onboarding-account"))
             # Otherwise anonymous requests are LoginRequiredMiddleware's job;

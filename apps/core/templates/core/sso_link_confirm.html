@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Link Authentik &middot; BitGigs{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-10 col-lg-8">
+
+    <div class="card">
+      <div class="card-header fw-semibold">
+        <img src="{% static 'graphics/authentik_icon.svg' %}" alt="" class="card-header__logo me-2">Link this Authentik account?
+      </div>
+      <div class="card-body">
+
+        {% include "core/_sso_identity.html" %}
+
+        <div class="alert alert-info d-flex align-items-start gap-2 py-2 mt-3 mb-0">
+          <i class="bi bi-info-circle-fill mt-1 flex-shrink-0"></i>
+          <div>
+            Linking lets this identity sign in to BitGigs. You can unlink it again from the
+            settings page at any time.
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 justify-content-between align-items-center mt-4">
+          <form method="post" action="{% url 'core:sso-idp-logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-link btn-sm text-muted p-0">
+              Not you? Sign out of Authentik
+            </button>
+          </form>
+
+          <div class="d-flex gap-2">
+            <a href="{% url 'core:settings' %}" class="btn btn-outline-secondary">
+              <i class="bi bi-x-lg me-1"></i>Cancel
+            </a>
+            <form method="post">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary px-4">
+                <i class="bi bi-link-45deg me-1"></i>Link this account
+              </button>
+            </form>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

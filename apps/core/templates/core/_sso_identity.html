@@ -1,0 +1,16 @@
+{% comment %}
+  The identity the IdP just handed us. Shown before anything is linked or created,
+  so the operator can see *which* account they are about to bind — an active IdP
+  session otherwise makes that invisible.
+  Expects: sso_name, sso_email, sso_uid.
+{% endcomment %}
+<dl class="row mb-0">
+  {% if sso_name %}
+    <dt class="col-sm-3">Name</dt>
+    <dd class="col-sm-9">{{ sso_name }}</dd>
+  {% endif %}
+  <dt class="col-sm-3">Email</dt>
+  <dd class="col-sm-9">{{ sso_email }}</dd>
+  <dt class="col-sm-3">User ID</dt>
+  <dd class="col-sm-9"><code class="small">{{ sso_uid }}</code></dd>
+</dl>

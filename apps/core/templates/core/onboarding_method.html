@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Choose sign-in &middot; BitGigs Setup{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-10 col-lg-8">
+
+    <div class="setup-hero mb-3">
+      <img src="{% static 'graphics/BitGigs_Logo_192.png' %}" alt="BitGigs" class="setup-hero__logo">
+      <h2 class="mt-3 mb-1">How do you want to sign in?</h2>
+      <p class="text-muted">This is how you'll log in to BitGigs from now on.</p>
+    </div>
+
+    {% include "core/_onboarding_steps.html" %}
+
+    <div class="card">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-person-plus me-2"></i>Create app owner account
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+
+          <div class="col-12 col-md-6">
+            <div class="method-card h-100">
+              <img src="{% static 'graphics/authentik_icon.svg' %}" alt="" class="method-card__logo">
+              <div class="fw-semibold mt-2">Authentik</div>
+              <p class="form-text">
+                Sign in through your identity provider. That identity becomes the owner, with
+                no password to choose — Authentik enforces its own MFA.
+              </p>
+              {% comment %}
+                Straight to allauth — the setup key was already accepted on the previous
+                page, so there is nothing left to check here. allauth wants this as a POST
+                (a GET provider-login is open to login-CSRF).
+              {% endcomment %}
+              <form method="post" action="{% url 'openid_connect_login' provider_id=sso_provider_id %}">
+                {% csrf_token %}
+                <input type="hidden" name="process" value="login">
+                <button type="submit" class="btn btn-authentik w-100">
+                  <img src="{% static 'graphics/authentik_icon.svg' %}" alt="" class="btn-authentik__logo">
+                  Continue with Authentik
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <div class="method-card h-100">
+              <i class="bi bi-envelope-at method-card__glyph"></i>
+              <div class="fw-semibold mt-2">Email &amp; password</div>
+              <p class="form-text">
+                A plain BitGigs account. Works without any identity provider — you can still
+                link Authentik afterwards from the settings page.
+              </p>
+              <a href="{% url 'core:onboarding-account-email' %}" class="btn btn-outline-secondary w-100">
+                Use email &amp; password
+              </a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

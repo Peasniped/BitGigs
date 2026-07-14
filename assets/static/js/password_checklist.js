@@ -1,14 +1,19 @@
-/* Onboarding account step: live password requirement checklist. Reads the field
-   ids from #accountForm data-* attributes and flips each <li data-check> in
-   #pwChecklist between pass/fail as the user types. These are client-side hints
-   only — Django's password validators remain authoritative on submit. */
-(function () {
-  var form = document.getElementById('accountForm');
-  var list = document.getElementById('pwChecklist');
-  if (!form || !list) return;
+/* Live password requirement checklist. Drives any form carrying data-pw1-id /
+   data-pw2-id: the onboarding account step, and the set/change password modal on
+   the settings page. Flips each <li data-check> in the form's checklist between
+   pass/fail as the user types. Client-side hints only — Django's password
+   validators remain authoritative on submit.
 
-  var email = document.getElementById(form.dataset.emailId);
-  var emailHint = document.getElementById('emailHint');
+   The similarity check needs the account's email. On onboarding that's a field on
+   the form (data-email-id); on the settings page the account already exists, so
+   the address is passed as a literal (data-email). */
+document.querySelectorAll('form[data-pw1-id]').forEach(function (form) {
+  var list = form.querySelector('[data-pw-checklist]');
+  if (!list) return;
+
+  var email = form.dataset.emailId ? document.getElementById(form.dataset.emailId) : null;
+  var knownEmail = form.dataset.email || '';
+  var emailHint = form.querySelector('[data-email-hint]');
   var pw1 = document.getElementById(form.dataset.pw1Id);
   var pw2 = document.getElementById(form.dataset.pw2Id);
   if (!pw1 || !pw2) return;
@@ -91,7 +96,7 @@
   function update() {
     var p1 = pw1.value;
     var p2 = pw2.value;
-    var mail = email ? email.value : '';
+    var mail = email ? email.value : knownEmail;
     var typed = p1.length > 0;
 
     setState(items.length, p1.length >= 8, typed);
@@ -117,4 +122,4 @@
     if (el) el.addEventListener('input', update);
   });
   update();
-})();
+});

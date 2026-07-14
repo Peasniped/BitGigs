@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Welcome &middot; BitGigs Setup{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-10 col-lg-8">
+
+    <div class="setup-hero mb-3">
+      <img src="{% static 'graphics/BitGigs_Logo_192.png' %}" alt="BitGigs" class="setup-hero__logo">
+      <h2 class="mt-3 mb-1">Welcome to BitGigs</h2>
+      <p class="text-muted">Let's get you set up in four quick steps.</p>
+    </div>
+
+    {% include "core/_onboarding_steps.html" %}
+
+    {# Narrow: just wide enough for the 43-character key. #}
+    <div class="card setup-key-card mx-auto">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-key me-2"></i>Claim this instance
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <p class="text-muted small">
+            This instance has no owner yet. The <strong>setup key</strong> proves you are the one
+            running the server, so only you can claim it.
+          </p>
+          <p class="text-muted small">
+            It is printed in the server console on first run and saved to
+            <code>instance/setup_key.txt</code>. Lost it? Run <code>python manage.py setup_key</code>.
+          </p>
+
+          <label for="setupKey" class="form-label fw-medium">Setup key</label>
+          <input type="text" name="setup_key" id="setupKey"
+                 value="{{ key_value|default_if_none:'' }}"
+                 class="form-control font-monospace {% if key_error %}is-invalid{% endif %}"
+                 autocomplete="off" spellcheck="false" autofocus required>
+          {% if key_error %}<div class="invalid-feedback">{{ key_error }}</div>{% endif %}
+
+          <div class="d-flex justify-content-end mt-4">
+            <button type="submit" class="btn btn-primary px-5">
+              Continue <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

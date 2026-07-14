@@ -7,6 +7,9 @@ urlpatterns = [
     path("", views.DashboardView.as_view(), name="dashboard"),
     path("onboarding/", views.OnboardingRootView.as_view(), name="onboarding"),
     path("onboarding/account/", views.OnboardingAccountView.as_view(), name="onboarding-account"),
+    path("onboarding/account/method/", views.OnboardingAccountMethodView.as_view(), name="onboarding-account-method"),
+    path("onboarding/account/email/", views.OnboardingAccountEmailView.as_view(), name="onboarding-account-email"),
+    path("onboarding/account/confirm/", views.OnboardingAccountConfirmView.as_view(), name="onboarding-account-confirm"),
     path("onboarding/tax/", views.OnboardingTaxView.as_view(), name="onboarding-tax"),
     path("onboarding/workplace/", views.OnboardingWorkplaceView.as_view(), name="onboarding-workplace"),
     path("onboarding/terms/", views.OnboardingTermsView.as_view(), name="onboarding-terms"),
@@ -27,5 +30,10 @@ urlpatterns = [
         name="taxprofile-delete",
     ),
     path("settings/", views.UserSettingsView.as_view(), name="settings"),
+    path("settings/sign-in/", views.PasswordSignInView.as_view(), name="password-signin"),
+    path("settings/sign-in/link/", views.SSOLinkConfirmView.as_view(), name="sso-link-confirm"),
+    # Set this as the application's Launch URL in Authentik.
+    path("sso/launch/", views.SSOLaunchView.as_view(), name="sso-launch"),
+    path("sso/idp-logout/", views.SSOEndIdPSessionView.as_view(), name="sso-idp-logout"),
     path("dashboard/stats/", views.DashboardStatsAPIView.as_view(), name="dashboard-stats"),
 ]

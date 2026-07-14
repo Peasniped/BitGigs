@@ -1,9 +1,13 @@
 """Login gate + onboarding wizard (deferred submission)."""
+import tempfile
+from pathlib import Path
+
 from django.contrib.auth.models import User
 from django.test import TestCase
 
 from django.core.exceptions import ValidationError
 
+from core import setup_key
 from core.utils import dk_slugify
 from core.models import TaxProfile, OnboardingDraft
 from core.validators import (
@@ -44,6 +48,33 @@ TERMS_POST = {
 }
 
 
+class SetupKeyMixin:
+    """Points the setup key at a temp file, so tests never read or clobber the
+    real instance/setup_key.txt."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        override = self.settings(SETUP_KEY_PATH=Path(self._tmp.name) / "setup_key.txt")
+        override.enable()
+        self.addCleanup(override.disable)
+        super().setUp()
+
+    def claim(self):
+        """Pass the setup-key gate — every later page of the account step needs it."""
+        return self.client.post("/onboarding/account/",
+                                {"setup_key": setup_key.get_or_create_key()})
+
+    def account_post(self, **overrides):
+        payload = {
+            "username": "me@example.com",
+            "password1": VALID_PW,
+            "password2": VALID_PW,
+        }
+        payload.update(overrides)
+        return payload
+
+
 class LoginGateTest(TestCase):
     """With an account in place, everything anonymous funnels to login."""
 
@@ -69,8 +100,9 @@ class LoginGateTest(TestCase):
             self.assertEqual(resp.status_code, 200)
 
 
-class OnboardingAccountTest(TestCase):
-    """Fresh install: onboarding starts with account creation."""
+class OnboardingAccountTest(SetupKeyMixin, TestCase):
+    """Fresh install: onboarding starts with account creation, gated by the setup
+    key so a stranger can't win the race to claim the instance."""
 
     def test_everything_redirects_to_account_step_when_no_users(self):
         for path in ("/", "/accounts/login/", "/workplaces/"):
@@ -78,15 +110,14 @@ class OnboardingAccountTest(TestCase):
             self.assertEqual(resp.status_code, 302, path)
             self.assertEqual(resp["Location"], "/onboarding/account/", path)
 
-    def test_account_step_renders_and_creates_admin_user(self):
-        resp = self.client.get("/onboarding/account/")
-        self.assertEqual(resp.status_code, 200)
+    def test_key_page_renders_and_the_email_page_is_gated(self):
+        self.assertEqual(self.client.get("/onboarding/account/").status_code, 200)
+        # Without the key, the pages behind it bounce back to the key page.
+        self.assertRedirects(self.client.get("/onboarding/account/email/"), "/onboarding/account/")
 
-        resp = self.client.post("/onboarding/account/", {
-            "username": "me@example.com",
-            "password1": VALID_PW,
-            "password2": VALID_PW,
-        })
+    def test_account_step_creates_admin_user_after_the_key(self):
+        self.claim()
+        resp = self.client.post("/onboarding/account/email/", self.account_post())
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(resp["Location"], "/onboarding/")
         user = User.objects.get(username="me@example.com")
@@ -94,14 +125,31 @@ class OnboardingAccountTest(TestCase):
         # Username is a valid email and is copied to the email field.
         self.assertEqual(user.email, "me@example.com")
 
+    def test_the_key_is_deleted_once_the_owner_exists(self):
+        self.claim()
+        self.client.post("/onboarding/account/email/", self.account_post())
+        self.assertFalse(setup_key.key_path().exists())
+
+    def test_a_wrong_setup_key_does_not_open_the_gate(self):
+        resp = self.client.post("/onboarding/account/", {"setup_key": "nope-nope-nope"})
+        self.assertEqual(resp.status_code, 200)  # re-rendered with an error
+        self.assertRedirects(self.client.get("/onboarding/account/email/"), "/onboarding/account/")
+        self.assertFalse(User.objects.exists())
+
+    def test_no_account_can_be_posted_without_passing_the_gate(self):
+        resp = self.client.post("/onboarding/account/email/", self.account_post())
+        self.assertRedirects(resp, "/onboarding/account/")
+        self.assertFalse(User.objects.exists())
+
     def test_account_step_rejects_non_email_username(self):
-        resp = self.client.post("/onboarding/account/", {
-            "username": "notanemail",
-            "password1": VALID_PW,
-            "password2": VALID_PW,
-        })
+        self.claim()
+        resp = self.client.post("/onboarding/account/email/", self.account_post(username="notanemail"))
         self.assertEqual(resp.status_code, 200)  # re-rendered with errors
         self.assertFalse(User.objects.exists())
+
+    def test_key_page_skips_the_method_chooser_when_sso_is_off(self):
+        with self.settings(SSO_ENABLED=False):
+            self.assertRedirects(self.claim(), "/onboarding/account/email/")
 
     def test_account_step_is_gone_once_a_user_exists(self):
         User.objects.create_user("existing@example.com", password="pw")

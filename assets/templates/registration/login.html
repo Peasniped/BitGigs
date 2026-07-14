@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Log in — BitGigs{% endblock %}
 
 {% block content %}
@@ -16,23 +17,89 @@
         {% if form.non_field_errors %}
           <div class="alert alert-danger">{{ form.non_field_errors }}</div>
         {% endif %}
-        <form method="post">
-          {% csrf_token %}
-          <div class="mb-3">
-            <label for="id_username" class="form-label">Email</label>
-            <input type="email" name="username" id="id_username" class="form-control"
-                   autofocus autocomplete="username" required>
+
+        {% if show_password_form %}
+          <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label for="id_username" class="form-label">Email</label>
+              <input type="email" name="username" id="id_username" class="form-control"
+                     autofocus autocomplete="username" required>
+            </div>
+            <div class="mb-3">
+              <label for="id_password" class="form-label">Password</label>
+              <input type="password" name="password" id="id_password" class="form-control"
+                     autocomplete="current-password" required>
+            </div>
+            <input type="hidden" name="next" value="{{ next }}">
+            <button type="submit" class="btn btn-primary w-100">Log in</button>
+          </form>
+        {% endif %}
+
+        {% if sso_enabled %}
+          {% if show_password_form %}<div class="login-divider my-3"><span>or</span></div>{% endif %}
+          <form method="post" action="{% url 'openid_connect_login' provider_id=sso_provider_id %}">
+            {% csrf_token %}
+            <input type="hidden" name="process" value="login">
+            <input type="hidden" name="next" value="{{ next }}">
+            <button type="submit" class="btn btn-authentik w-100">
+              <img src="{% static 'graphics/authentik_icon.svg' %}" alt="" class="btn-authentik__logo">
+              Sign in with Authentik
+            </button>
+          </form>
+
+          <div class="text-center mt-3">
+            <button type="button" class="btn btn-link btn-sm text-muted p-0"
+                    data-bs-toggle="modal" data-bs-target="#recoveryModal">
+              {% if password_login_disabled %}Can't access Authentik?{% else %}Forgot your password?{% endif %}
+            </button>
           </div>
-          <div class="mb-3">
-            <label for="id_password" class="form-label">Password</label>
-            <input type="password" name="password" id="id_password" class="form-control"
-                   autocomplete="current-password" required>
-          </div>
-          <input type="hidden" name="next" value="{{ next }}">
-          <button type="submit" class="btn btn-primary w-100">Log in</button>
-        </form>
+        {% endif %}
       </div>
     </div>
   </div>
 </div>
+
+{% if sso_enabled %}
+{% comment %}
+  BitGigs has no email backend, so there is no "email me a reset link". Recovery is
+  the server console — which is fine, because the only person who should be able to
+  recover this account is the person running the server.
+{% endcomment %}
+<div class="modal fade" id="recoveryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-life-preserver me-2"></i>Getting back in
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        {% if password_login_disabled %}
+          <p>
+            Password sign-in is turned off for this instance, so Authentik is the only way in.
+            If Authentik is down or its configuration broke, set a password from the server console:
+          </p>
+        {% else %}
+          <p>
+            BitGigs cannot email you a reset link — it has no mail server, and the only person who
+            should be able to reset this account is whoever runs it. Set a new password from the
+            server console:
+          </p>
+        {% endif %}
+
+        <pre class="bg-body-secondary rounded p-3 mb-2"><code>python manage.py changepassword {{ owner_username|default:"&lt;your-email&gt;" }}</code></pre>
+        <p class="form-text mb-0">
+          Run it in the BitGigs project directory, with the virtualenv active. In dev, add
+          <code>--settings=bitgigs.settings.local</code>.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
