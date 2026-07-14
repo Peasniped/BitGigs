@@ -447,15 +447,12 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
   color: var(--text-subtle);
   transition: background .2s, border-color .2s, color .2s;
 }
-/* Bootstrap Icons ships .bi::before with vertical-align:-.125em inside an inherited
-   1.5 line-height, which knocks the check off the circle's centre. */
-.setup-step__circle .bi {
-  line-height: 1;
-  font-size: 1rem;
-}
-.setup-step__circle .bi::before {
+/* Sized so the check's ink (~68% of its box) reads at the same weight as the step
+   numbers next to it, which are .85rem with much more slack in their em box. */
+.setup-step__check {
   display: block;
-  vertical-align: 0;
+  width: 1rem;
+  height: 1rem;
 }
 .setup-step__label {
   font-size: .7rem;

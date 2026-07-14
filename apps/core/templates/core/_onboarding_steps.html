@@ -11,12 +11,12 @@
       {% if not forloop.first %}<span class="setup-step__connector"></span>{% endif %}
       {% if step.url %}
         <a href="{{ step.url }}" class="setup-step setup-step--{{ step.state }}" title="Go to {{ step.label }}">
-          <span class="setup-step__circle">{% if step.state == "done" %}<i class="bi bi-check-lg"></i>{% else %}{{ step.num }}{% endif %}</span>
+          <span class="setup-step__circle">{% if step.state == "done" %}{% include "core/_check_glyph.html" %}{% else %}{{ step.num }}{% endif %}</span>
           <span class="setup-step__label">{{ step.label }}</span>
         </a>
       {% else %}
         <span class="setup-step setup-step--{{ step.state }}">
-          <span class="setup-step__circle">{% if step.state == "done" %}<i class="bi bi-check-lg"></i>{% else %}{{ step.num }}{% endif %}</span>
+          <span class="setup-step__circle">{% if step.state == "done" %}{% include "core/_check_glyph.html" %}{% else %}{{ step.num }}{% endif %}</span>
           <span class="setup-step__label">{{ step.label }}</span>
         </span>
       {% endif %}

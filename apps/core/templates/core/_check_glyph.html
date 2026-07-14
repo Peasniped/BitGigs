@@ -1,0 +1,10 @@
+{% comment %}
+  Checkmark for the step indicator's "done" circle. Hand-drawn rather than
+  Bootstrap Icons' bi-check-lg: that glyph's ink sits ~0.35/16 right of its box
+  centre, so it never centres in a round badge. This polyline plus its 1-unit
+  stroke radius spans x 2.6–13.4 and y 3.4–12.6 — dead centre on both axes.
+{% endcomment %}
+<svg class="setup-step__check" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M3.6 8.4 6.6 11.6 12.4 4.4"></path>
+</svg>
