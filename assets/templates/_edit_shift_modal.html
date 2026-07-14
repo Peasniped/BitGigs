@@ -1,0 +1,106 @@
+{% comment %}
+The one shift modal — included by the planning calendar (create/edit, incl. approved
+sessions), the dashboard's Review & Approve modal, and the Approve Shifts page.
+
+The extras (fast-create warning, approved banner, overlap notice, delete button) ship
+hidden and are revealed by whichever script drives the modal: planning.js for the
+calendar, edit_shift_modal.js (initEditShiftModal) for the approve flows, which reads
+the update-API URL from data-update-url-template.
+
+Params: title, icon, save_label.
+{% endcomment %}
+<div class="modal fade" id="shiftModal" tabindex="-1" aria-hidden="true"
+     data-update-url-template="{% url 'calendar_view:planned-shift-update-api' pk=0 %}">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi {{ icon|default:'bi-calendar-plus' }} me-2"></i>
+          <span id="shiftModalTitle">{{ title|default:"Plan Shift" }}</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Workplace banner -->
+        <div class="d-flex align-items-center gap-2 p-2 mb-3 rounded" id="shiftModalBanner"
+             style="background:#f1f5f9;">
+          <span class="wp-avatar" id="shiftModalAvatar" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:#fff;"></span>
+          <span class="fw-medium" id="shiftModalWorkplace"></span>
+        </div>
+
+        <div id="shiftModalFastCreateWarn" class="alert alert-warning small py-2 d-none">
+          <i class="bi bi-lightning-charge me-1"></i><strong>Fast Create failed</strong> . this workplace has no default shift configured. Set defaults via the <i class="bi bi-gear"></i> icon on the workplace card.
+        </div>
+        <div id="shiftModalErrors" class="alert alert-danger small py-2 d-none"></div>
+        <div id="shiftApprovedBanner" class="alert alert-info small py-2 d-none">
+          <i class="bi bi-check-circle-fill me-1"></i>This shift has been approved and converted to a work session. Changes here will update the work session.
+        </div>
+
+        <form id="shiftForm">
+          <input type="hidden" id="shiftWorkplaceId">
+          <input type="hidden" id="shiftId">
+          <input type="hidden" id="shiftIsSession" value="">
+
+          <div class="mb-2">
+            <label class="form-label small">Date</label>
+            <input type="date" id="shiftDate" class="form-control form-control-sm" required>
+          </div>
+          <div class="row g-2" id="shiftTimeRow">
+            <div class="col-6">
+              <label class="form-label small">Start time</label>
+              <input type="time" id="shiftStart" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label small">End time</label>
+              <input type="time" id="shiftEnd" class="form-control form-control-sm" required>
+            </div>
+          </div>
+          <div id="shiftModalOverlap" class="small py-1 mb-2 d-none" style="color:#b45309;">
+            <i class="bi bi-exclamation-triangle me-1"></i><span id="shiftOverlapText"></span>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label class="form-label small">Break (min)</label>
+              <input type="number" id="shiftBreak" class="form-control form-control-sm" value="0" min="0">
+            </div>
+            <div class="col-6">
+              <label class="form-label small">Type</label>
+              <select id="shiftType" class="form-select form-select-sm">
+                <option value="on_site">On-site</option>
+                <option value="remote">Remote</option>
+                <option value="sick_leave">Sick leave</option>
+                <option value="paid_absence">Paid absence</option>
+                <option value="vacation">Vacation</option>
+              </select>
+            </div>
+          </div>
+          {% comment %}Live time calculation. The gross row is only shown when a break
+          is set — without one the two numbers would be identical.{% endcomment %}
+          <div class="mb-2 p-2 rounded" style="background:var(--bg-light);">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="text-muted small">Total working time</span>
+              <span id="shiftDuration" class="fw-semibold small">&ndash;</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-1 d-none" id="shiftDurationGrossRow">
+              <span class="text-muted small" id="shiftDurationGrossLabel">Before break</span>
+              <span id="shiftDurationGross" class="small text-muted">&ndash;</span>
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">Notes</label>
+            <textarea id="shiftNotes" class="form-control form-control-sm" rows="2"></textarea>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm flex-fill">
+              <i class="bi bi-check-lg me-1"></i><span id="shiftSaveLabel">{{ save_label|default:"Save Shift" }}</span>
+            </button>
+            <button type="button" class="btn btn-outline-danger btn-sm d-none" id="shiftDeleteBtn">
+              <i class="bi bi-trash"></i>
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

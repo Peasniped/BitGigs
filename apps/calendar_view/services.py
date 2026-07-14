@@ -17,6 +17,7 @@ from django.utils import timezone
 
 from core.models import UserSettings
 from core.services import TaxCalculationService
+from core.utils import parse_int_param
 from shifts.models import Shift, PlannedShift
 
 
@@ -278,8 +279,9 @@ def approve_planned_shifts(shift_ids, edits=None, workplace=None):
     """Approve planned shifts, optionally applying inline edits.
 
     ``edits`` maps a string shift id to a dict that may contain ``start_time``,
-    ``end_time`` and/or ``shift_type``. When ``workplace`` is given, only that
-    workplace's shifts are eligible. Returns ``(approved_count, uncovered_dates)``.
+    ``end_time``, ``break_minutes`` and/or ``shift_type``. When ``workplace`` is
+    given, only that workplace's shifts are eligible. Returns
+    ``(approved_count, uncovered_dates)``.
     """
     edits = edits or {}
     lookup = {"status": PlannedShift.Status.PLANNED}
@@ -299,6 +301,8 @@ def approve_planned_shifts(shift_ids, edits=None, workplace=None):
                 shift.start_time = time.fromisoformat(edit["start_time"])
             if "end_time" in edit:
                 shift.end_time = time.fromisoformat(edit["end_time"])
+            if "break_minutes" in edit:
+                shift.break_minutes = parse_int_param(edit["break_minutes"], shift.break_minutes)
             if "shift_type" in edit:
                 shift.shift_type = edit["shift_type"]
             shift.save()

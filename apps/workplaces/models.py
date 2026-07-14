@@ -57,7 +57,7 @@ class Workplace(models.Model):
         choices=[
             ("on_site", "On-site"),
             ("remote", "Remote"),
-            ("sick_leave", "Sick leave (with pay)"),
+            ("sick_leave", "Sick leave"),
             ("paid_absence", "Paid absence"),
             ("vacation", "Vacation"),
         ],

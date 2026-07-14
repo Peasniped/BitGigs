@@ -525,11 +525,10 @@ function toDanish(value) {
   // Add thousands separator dots
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
-  if (parts.length > 1) {
-    // Trim trailing zeros
-    var dec = parts[1].replace(/0+$/, '');
-    if (dec) return parts[0] + ',' + dec;
-  }
+  // Keep the decimals we were given (no trimming): the server's `dk` filter renders
+  // a fixed 2 decimals, so trimming here made JS-rendered values like "8,00h" drop
+  // to "8h" until the page was reloaded.
+  if (parts.length > 1) return parts[0] + ',' + parts[1];
   return parts[0];
 }
 

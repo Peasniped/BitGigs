@@ -1,17 +1,18 @@
 
 # NU     --------------------------------------------------------
 
-- IMPORTANT: When the approve shift modal is open, if there are pending changes, a warning should be shown if the modal is about to be closed. ex. if I have to approve A LOT of shifts and have made a lot of changes, and accidentally click outside of the modal, all those changes are discarded. :( ask me how i know
-- - it does seem that if the page is not refreshed, the pending data/changes persist in the table, when opening again. Still, make the warning.
-- BUG: When editing a planned shift, if the end time is earlier than the start time, the clocks move to the left of the input field
-- BUG: When approving a large amount of shifts, clicking the edit button on a shift opens the edit shift modal behind the modal-backdrop
-- BUG: If the approve shift modal is open and a handful of shifts have been selected (the shift checkbox), editing a shift and saving clears the selection and just selects all shifts.
-- BUG: When clicking approve, the button color changes and corrupted sighs are before the approve text in the button
-- Add functionality to see/edit break inline in the shift approval flow
-- In the edit shift modal, show total hours inc/excl break
-- Click and drag for selecting multiple shifts in the approval flow
-- By default in the shift approval modal, no shifts should be selected, unless there is only a single shift to approve (then do not display checkboxes or select all)
+
+
 - If you click within a shift row, the color/shade persists until you click on another shift, or click on the shift again.
+- - The clicked-shade should be slightly darker than the hover over higlight, maybe slightly accent colored
+- - if you hover over another shift, it will also highlight
+
+- If some shifts have been selected, treat it as changed data and display the closing warning
+- make a custom confirm close/discard changes pop-up
+- It seems like the shift table rows could use a bit of padding to the sides, both the checkbox and edit button are really close to the edge.
+- Inline editing the start/end times of a shift in the approval flow should trigger validation of start < end just like if you click the edit button.
+- If you make an inline chang without saving, then click the edit shift button, the edits should follow over
+- BUG: In the planning calendar, hovering over a planned shift shows the edit-pencil misaligned. It is shown at the top-right, not center-right as it should be.
 
 - Planning calendar, add optional visualization(enable/disable in main settings menu) for on-site or remote work (eg. green for on site and blue for remote, yellow with biohazard triangle icon for sick)
 - Add a small coffee cup to shift/planned shift chips indicating that the shift contains any amount of break time

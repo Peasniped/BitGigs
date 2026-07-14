@@ -8,6 +8,49 @@
   var CFG = document.getElementById('dashboardConfig');
   var cfg = CFG ? CFG.dataset : {};
 
+// ═══════ Shared shift modal + backdrop ═══════
+// One instance of the shared edit-shift modal for the whole page (the approve
+// modal's pencil buttons and the arrival banner both open it, passing their own
+// callbacks to open()). It runs backdrop-less, as does the approve modal, and the
+// dashboard keeps a single backdrop up while either is open — Bootstrap would
+// otherwise tear its own down with each modal, flashing the undimmed page every
+// time the approve modal steps aside for the edit modal.
+var editShift = initEditShiftModal({ backdrop: false });
+var backdrop = null;
+var openModals = 0;
+
+function raiseBackdrop() {
+  if (backdrop) return;
+  backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop fade';
+  document.body.appendChild(backdrop);
+  backdrop.offsetHeight;                                    // reflow, so the fade runs
+  backdrop.classList.add('show');
+  backdrop.addEventListener('click', function() {           // click-outside to close
+    var top = document.querySelector('.modal.show');
+    if (top) bootstrap.Modal.getInstance(top).hide();       // may prompt — see the guard
+  });
+}
+function dropBackdrop() {
+  if (!backdrop) return;
+  var el = backdrop;
+  backdrop = null;
+  el.classList.remove('show');
+  setTimeout(function() { el.remove(); }, 150);             // matches Bootstrap's fade
+}
+// Deferred, so a modal that hides only to hand over to another (approve -> edit)
+// has re-opened by the time we count.
+function trackModal(el) {
+  if (!el) return;
+  el.addEventListener('show.bs.modal', function() { openModals++; raiseBackdrop(); });
+  el.addEventListener('hidden.bs.modal', function() {
+    openModals--;
+    setTimeout(function() { if (openModals <= 0) dropBackdrop(); }, 0);
+  });
+}
+if (editShift) trackModal(editShift.el);
+trackModal(document.getElementById('dashApproveModal'));
+
 // â•â•â•â•â•â•â• Goal Tooltip â•â•â•â•â•â•â•
 (function() {
   var tip = document.getElementById('goalTooltip');
@@ -43,6 +86,9 @@
   var input = document.getElementById('todayArrivalTime');
   var saveBtn = document.getElementById('todayArrivalSave');
   var label = document.getElementById('todayArrivalLabel');
+  var errorWrap = document.getElementById('todayArrivalError');
+  var errorText = document.getElementById('todayArrivalErrorText');
+  var editBtn = document.getElementById('todayArrivalEditBtn');
   if (!wrap || !input || !saveBtn || !label) return;
   var idx = 0;
   var UPDATE_URL = cfg.updateUrl;
@@ -109,10 +155,51 @@
     }
     saveBtn.innerHTML = '<i class="bi bi-check-lg"></i>';
     saveBtn.disabled = false;
+    clearArrivalError();
   }
 
-  input.addEventListener('change', function() {
+  function clearArrivalError() {
+    input.classList.remove('is-invalid');
+    saveBtn.disabled = false;
+    saveBtn.classList.remove('btn-outline-danger');
+    saveBtn.classList.add('btn-outline-primary');
+    if (errorWrap) errorWrap.classList.add('d-none');
+  }
+
+  /* An arrival at or after the shift's end leaves no shift at all — the server
+     rejects it. Say so, and offer to carry the time into the edit modal so the end
+     time can be moved out to meet it. */
+  function checkArrival() {
     var s = queue[idx];
+    if (!s || !input.value) return true;
+    if (input.value < s.end_time) { clearArrivalError(); return true; }
+    input.classList.add('is-invalid');
+    saveBtn.disabled = true;
+    saveBtn.classList.remove('btn-outline-primary');
+    saveBtn.classList.add('btn-outline-danger');
+    if (errorWrap && errorText) {
+      errorText.textContent = 'Your shift ends at ' + s.end_time + '.';
+      errorWrap.classList.remove('d-none');
+    }
+    return false;
+  }
+
+  if (editBtn && editShift) {
+    editBtn.addEventListener('click', function() {
+      var s = queue[idx];
+      if (!s) return;
+      editShift.open(s.id, {
+        prefill: { start_time: input.value },        // carried over; the end time needs fixing
+        saveWith: { arrival_confirmed: true },       // else the banner keeps asking
+        onSaved: function() { window.location.reload(); },
+        onDeleted: function() { window.location.reload(); },
+      });
+    });
+  }
+
+  function reflectArrival() {
+    var s = queue[idx];
+    if (!s || !checkArrival()) return;
     if (input.value < s.start_time) {
       label.textContent = multiple ? 'Arrived early for ' + s.start_time + '!' : 'Arrived early!';
     } else if (input.value > s.start_time) {
@@ -120,10 +207,23 @@
     } else {
       showCurrent();
     }
+  }
+
+  // React while typing, not just on blur — but settle first, so a half-typed hour
+  // doesn't flash an error.
+  var reflectTimer = null;
+  input.addEventListener('input', function() {
+    clearTimeout(reflectTimer);
+    reflectTimer = setTimeout(reflectArrival, 300);
+  });
+  input.addEventListener('change', function() {
+    clearTimeout(reflectTimer);
+    reflectArrival();
   });
 
   saveBtn.addEventListener('click', function() {
     if (idx >= queue.length) return;
+    if (!checkArrival()) return;
     var s = queue[idx];
     saveBtn.disabled = true;
     fetch(UPDATE_URL.replace('/0/', '/' + s.id + '/'), {
@@ -224,7 +324,14 @@
       // All shifts ended . check if we're past the last shift
       var last = shifts[shifts.length - 1];
       if (nowMin >= toMin(last.end_time)) {
-        el.innerHTML = '<i class="bi bi-check-circle me-1"></i>All shifts for today are done!';
+        var worked = 0;
+        shifts.forEach(function(s) { worked += parseFloat(s.net_hours); });
+        el.innerHTML = '<i class="bi bi-check-circle me-1"></i>That\'s a wrap — <strong>' +
+                       toDanish(worked.toFixed(2)) + 'h</strong> across ' + shifts.length +
+                       ' shift' + (shifts.length === 1 ? '' : 's') + '.';
+        // The headline is written in the present tense for the rest of the day.
+        var headline = document.getElementById('todayShiftHeadline');
+        if (headline && headline.dataset.done) headline.textContent = headline.dataset.done;
         var banner = el.closest('.today-shift-banner');
         if (banner) {
           banner.style.background = 'linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)';
@@ -246,30 +353,105 @@
   if (!body) return;
   var SHIFTS = JSON.parse(document.getElementById('pendingShiftsData').textContent);
   var countSpan = document.getElementById('dashApproveSelectedCount');
-  var UPDATE_URL = cfg.updateUrl;
   var APPROVE_URL = cfg.approveUrl;
 
-  // Recompute a row's Hours cell from its inline start/end inputs (break is
-  // fixed per shift and stored on the cell).
+  var approveModalEl = document.getElementById('dashApproveModal');
+  // backdrop-less: the page keeps one of its own up (see trackModal above).
+  var approveModal = bootstrap.Modal.getOrCreateInstance(approveModalEl, { backdrop: false });
+  var dirty = false;          // inline edits made, not yet sent to the server
+  var rendering = false;      // we are writing the fields ourselves, not the user
+  var stepAside = false;      // parent is hiding to make way for the edit modal
+  var confirmedClose = false; // the discard prompt has been answered
+
+  // Recompute a row's Hours cell from its inline start/end/break inputs.
   function recalcRow(tr) {
     var startEl = tr.querySelector('[data-field="start_time"]');
     var endEl = tr.querySelector('[data-field="end_time"]');
+    var breakEl = tr.querySelector('[data-field="break_minutes"]');
     var cell = tr.querySelector('[data-field="hours"]');
     if (!startEl || !endEl || !cell) return;
     var start = startEl.value, end = endEl.value;
-    if (!start || !end) { cell.textContent = '–'; return; }
     var sh = start.split(':').map(Number), eh = end.split(':').map(Number);
+    // An end at or before the start is rejected by the server, so flag it here
+    // and hold back the Approve button rather than failing silently on submit.
+    var bad = Boolean(start && end) && (eh[0] * 60 + eh[1]) <= (sh[0] * 60 + sh[1]);
+    startEl.classList.toggle('is-invalid', bad);
+    endEl.classList.toggle('is-invalid', bad);
+    if (!start || !end || bad) { cell.textContent = '–'; return; }
     var totalMin = (eh[0] * 60 + eh[1]) - (sh[0] * 60 + sh[1]);
-    totalMin -= parseInt(cell.dataset.break, 10) || 0;
+    totalMin -= parseInt(breakEl ? breakEl.value : 0, 10) || 0;
     if (totalMin <= 0) { cell.textContent = '–'; return; }
-    var str = (totalMin / 60).toFixed(2).replace(/\.?0+$/, '');
-    cell.textContent = toDanish(str) + 'h';
+    cell.textContent = toDanish((totalMin / 60).toFixed(2)) + 'h';
   }
   function onTimeEdit(e) {
-    if (e.target.matches('[data-field="start_time"],[data-field="end_time"]')) {
+    if (e.target.matches('[data-field="start_time"],[data-field="end_time"],[data-field="break_minutes"]')) {
       var tr = e.target.closest('tr');
       if (tr) recalcRow(tr);
+      updateApproveState();
     }
+  }
+
+  // A lone shift needs no picking: it is approved as-is, with no checkboxes shown.
+  function single() { return SHIFTS.length === 1; }
+
+  // Approve is blocked while nothing is selected, or a selected row's times are
+  // impossible (which the server would reject anyway).
+  function updateApproveState() {
+    var btn = document.getElementById('dashApproveConfirmBtn');
+    var warn = document.getElementById('dashApproveWarning');
+    var ids = selectedIds();
+    var invalid = false;
+    ids.forEach(function(id) {
+      var tr = body.querySelector('tr[data-shift-id="' + id + '"]');
+      if (tr && tr.querySelector('.is-invalid')) invalid = true;
+    });
+    if (btn) btn.disabled = invalid || ids.length === 0;
+    if (warn) warn.classList.toggle('d-none', !invalid);
+  }
+
+  // Any touched shift field counts as an unsaved edit: the values only reach the
+  // server on "Approve Selected", so closing the modal must not happen silently.
+  // Our own writes don't count — setTimeValue/initTimePickers fire change events too,
+  // which would otherwise mark the table dirty the moment it renders.
+  function onFieldEdit(e) {
+    if (rendering) return;
+    if (e.target.dataset && e.target.dataset.field) dirty = true;
+  }
+
+  // Drop a deleted shift's row, taking the workplace group with it if that was the
+  // group's last row. (Rebuilding the body instead would lose the other rows' edits.)
+  function dropRow(shiftId) {
+    var tr = body.querySelector('tr[data-shift-id="' + shiftId + '"]');
+    if (!tr) return;
+    var tbody = tr.parentNode;
+    tr.remove();
+    if (tbody.querySelector('tr')) return;
+    var wrapper = tbody.closest('.table-responsive');
+    if (!wrapper) return;
+    var header = wrapper.previousElementSibling;
+    if (header) header.remove();
+    wrapper.remove();
+  }
+
+  // Refresh one row from a server-saved shift, leaving the other rows' unsaved
+  // inline edits alone (a full renderBody() would throw them away).
+  function updateRow(s) {
+    var tr = body.querySelector('tr[data-shift-id="' + s.id + '"]');
+    if (!tr) return;
+    rendering = true;
+    try { writeRow(tr, s); } finally { rendering = false; }
+  }
+  function writeRow(tr, s) {
+    var dateCell = tr.querySelector('[data-field="date"]');
+    if (dateCell) dateCell.textContent = s.date;
+    window.setTimeValue(tr.querySelector('[data-field="start_time"]'), s.start_time);
+    window.setTimeValue(tr.querySelector('[data-field="end_time"]'), s.end_time);
+    var breakEl = tr.querySelector('[data-field="break_minutes"]');
+    if (breakEl) breakEl.value = s.break_minutes || 0;
+    var typeEl = tr.querySelector('[data-field="shift_type"]');
+    if (typeEl) typeEl.value = s.shift_type;
+    var cell = tr.querySelector('[data-field="hours"]');
+    if (cell) cell.textContent = toDanish(s.net_hours) + 'h';
   }
 
   // Group shifts by workplace
@@ -287,6 +469,11 @@
   }
 
   function renderBody() {
+    rendering = true;
+    try { buildBody(); } finally { rendering = false; }
+  }
+
+  function buildBody() {
     body.innerHTML = '';
     var data = groupByWorkplace(SHIFTS);
     data.order.forEach(function(wpId) {
@@ -297,10 +484,11 @@
       header.innerHTML =
         '<span style="width:10px;height:10px;border-radius:50%;background:' + g.color + ';flex-shrink:0;"></span>' +
         '<span class="fw-semibold" style="font-size:0.9rem;">' + g.name + '</span>' +
+        (single() ? '' :
         '<div class="form-check ms-auto mb-0">' +
-          '<input class="form-check-input wp-select-all" type="checkbox" data-wp="' + wpId + '" checked>' +
+          '<input class="form-check-input wp-select-all" type="checkbox" data-wp="' + wpId + '">' +
           '<label class="form-check-label small text-muted">Select all</label>' +
-        '</div>';
+        '</div>');
       body.appendChild(header);
 
       // Table
@@ -310,10 +498,11 @@
       table.className = 'table table-sm table-hover mb-0';
       table.innerHTML =
         '<thead class="table-light"><tr>' +
-          '<th style="width:36px;"></th>' +
+          (single() ? '' : '<th style="width:36px;"></th>') +
           '<th class="small text-muted">Date</th>' +
           '<th class="small text-muted">Start</th>' +
           '<th class="small text-muted">End</th>' +
+          '<th class="small text-muted">Break</th>' +
           '<th class="small text-muted">Type</th>' +
           '<th class="small text-muted text-end">Hours</th>' +
           '<th style="width:32px;"></th>' +
@@ -323,11 +512,17 @@
 
       g.shifts.forEach(function(s) {
         var tr = document.createElement('tr');
+        tr.dataset.shiftId = s.id;
         tr.innerHTML =
-          '<td><input type="checkbox" class="form-check-input dash-approve-cb" value="' + s.id + '" data-wp="' + wpId + '" checked></td>' +
-          '<td class="small">' + s.date + '</td>' +
+          (single() ? '' :
+          '<td class="select-cell"><input type="checkbox" class="form-check-input dash-approve-cb" value="' + s.id + '" data-wp="' + wpId + '"></td>') +
+          '<td class="small" data-field="date">' + s.date + '</td>' +
           '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.start_time + '" data-field="start_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
           '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.end_time + '" data-field="end_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
+          '<td><div class="input-group input-group-sm" style="width:5rem;">' +
+            '<input type="number" class="form-control form-control-sm py-0" min="0" step="5" value="' + (s.break_minutes || 0) + '" data-field="break_minutes" data-id="' + s.id + '" title="Break (minutes)">' +
+            '<span class="input-group-text px-1 small text-muted">m</span>' +
+          '</div></td>' +
           '<td><select class="form-select form-select-sm py-0" data-field="shift_type" data-id="' + s.id + '" style="width:7rem;">' +
             '<option value="on_site"' + (s.shift_type==='on_site'?' selected':'') + '>On-site</option>' +
             '<option value="remote"' + (s.shift_type==='remote'?' selected':'') + '>Remote</option>' +
@@ -335,7 +530,7 @@
             '<option value="paid_absence"' + (s.shift_type==='paid_absence'?' selected':'') + '>Paid absence</option>' +
             '<option value="vacation"' + (s.shift_type==='vacation'?' selected':'') + '>Vacation</option>' +
           '</select></td>' +
-          '<td class="small text-end" data-field="hours" data-break="' + (s.break_minutes || 0) + '">' + toDanish(s.net_hours) + 'h</td>' +
+          '<td class="small text-end" data-field="hours">' + toDanish(s.net_hours) + 'h</td>' +
           '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 dash-edit-btn" data-shift-id="' + s.id + '" title="Edit shift"><i class="bi bi-pencil" style="font-size:0.65rem;"></i></button></td>';
         tbody.appendChild(tr);
       });
@@ -348,57 +543,104 @@
     // Apply the 12/24h time-picker enhancement to the freshly-built rows.
     if (window.initTimePickers) window.initTimePickers(body);
 
-    // Keep the Hours cell in sync as the inline start/end times are edited.
-    // Bound once on the persistent body (rows are rebuilt each renderBody).
-    if (!body.dataset.hoursBound) {
-      body.dataset.hoursBound = '1';
+    // Bound once on the persistent body (rows are rebuilt on each render).
+    if (!body.dataset.bound) {
+      body.dataset.bound = '1';
       body.addEventListener('input', onTimeEdit);
       body.addEventListener('change', onTimeEdit);
+      body.addEventListener('input', onFieldEdit);
+      body.addEventListener('change', onFieldEdit);
+      body.addEventListener('change', onSelectionChange);
+      body.addEventListener('mousedown', onSelectMouseDown);
+      body.addEventListener('mouseover', onSelectMouseOver);
     }
-
-    // Attach per-workplace select all
-    body.querySelectorAll('.wp-select-all').forEach(function(cb) {
-      cb.addEventListener('change', function() {
-        var wpId = cb.dataset.wp;
-        body.querySelectorAll('.dash-approve-cb[data-wp="' + wpId + '"]').forEach(function(c) { c.checked = cb.checked; });
-        updateCount();
-      });
-    });
-
-    // Individual checkbox changes
-    body.addEventListener('change', function(e) {
-      if (e.target.classList.contains('dash-approve-cb')) {
-        var wpId = e.target.dataset.wp;
-        var allWp = body.querySelectorAll('.dash-approve-cb[data-wp="' + wpId + '"]');
-        var allChecked = true;
-        allWp.forEach(function(c) { if (!c.checked) allChecked = false; });
-        var wpCb = body.querySelector('.wp-select-all[data-wp="' + wpId + '"]');
-        if (wpCb) wpCb.checked = allChecked;
-        updateCount();
-      }
-    });
 
     // Pencil buttons
     body.querySelectorAll('.dash-edit-btn').forEach(function(btn) {
       btn.addEventListener('click', function(e) {
         e.preventDefault();
-        openEditModal(parseInt(btn.dataset.shiftId));
+        openEditShift(parseInt(btn.dataset.shiftId));
       });
     });
 
     updateCount();
   }
 
+  // A workplace's "select all", or a row checkbox (which may un-tick its group's).
+  function onSelectionChange(e) {
+    if (e.target.classList.contains('wp-select-all')) {
+      var wp = e.target.dataset.wp;
+      body.querySelectorAll('.dash-approve-cb[data-wp="' + wp + '"]').forEach(function(c) {
+        c.checked = e.target.checked;
+      });
+      updateCount();
+    } else if (e.target.classList.contains('dash-approve-cb')) {
+      syncGroupCheckbox(e.target.dataset.wp);
+      updateCount();
+    }
+  }
+
+  function syncGroupCheckbox(wpId) {
+    var all = body.querySelectorAll('.dash-approve-cb[data-wp="' + wpId + '"]');
+    var allChecked = all.length > 0;
+    all.forEach(function(c) { if (!c.checked) allChecked = false; });
+    var wpCb = body.querySelector('.wp-select-all[data-wp="' + wpId + '"]');
+    if (wpCb) wpCb.checked = allChecked;
+  }
+
+  /* Drag across the checkbox column to select a run of shifts. The row the drag
+     starts on is left to the checkbox's own click; every row dragged over after
+     that copies the state it is heading for. */
+  var dragging = false;
+  var dragState = false;
+
+  function onSelectMouseDown(e) {
+    var cb = e.target.closest('.dash-approve-cb');
+    if (!cb) return;
+    dragging = true;
+    dragState = !cb.checked;
+    body.classList.add('approve-selecting');
+  }
+
+  function onSelectMouseOver(e) {
+    if (!dragging) return;
+    var tr = e.target.closest('tr[data-shift-id]');
+    if (!tr) return;
+    var cb = tr.querySelector('.dash-approve-cb');
+    if (!cb || cb.checked === dragState) return;
+    cb.checked = dragState;
+    syncGroupCheckbox(cb.dataset.wp);
+    updateCount();
+  }
+
+  document.addEventListener('mouseup', function() {
+    if (!dragging) return;
+    dragging = false;
+    body.classList.remove('approve-selecting');
+    updateCount();
+  });
+
+  function selectedIds() {
+    // With a single shift there is nothing to choose between, so it has no checkbox.
+    if (single()) return [SHIFTS[0].id];
+    var ids = [];
+    body.querySelectorAll('.dash-approve-cb:checked').forEach(function(cb) { ids.push(parseInt(cb.value)); });
+    return ids;
+  }
+
   function updateCount() {
-    var checked = body.querySelectorAll('.dash-approve-cb:checked').length;
-    countSpan.textContent = checked + ' of ' + SHIFTS.length + ' selected';
+    if (single()) {
+      countSpan.textContent = '1 shift';
+    } else {
+      countSpan.textContent = selectedIds().length + ' of ' + SHIFTS.length + ' selected';
+    }
+    updateApproveState();
   }
 
   // Approve button
   document.getElementById('dashApproveConfirmBtn').addEventListener('click', function() {
     var btn = this;
-    var ids = [];
-    body.querySelectorAll('.dash-approve-cb:checked').forEach(function(cb) { ids.push(parseInt(cb.value)); });
+    var ids = selectedIds();
     if (ids.length === 0) return;
 
     var edits = [];
@@ -410,7 +652,7 @@
     });
 
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Approvingâ€¦';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Approving…';
 
     fetch(APPROVE_URL, {
       method: 'POST',
@@ -420,6 +662,7 @@
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.ok) {
+        dirty = false;   // the edits are in the DB now; don't warn on the reload
         window.location.reload();
       } else {
         btn.disabled = false;
@@ -432,68 +675,71 @@
     });
   });
 
-  // Edit modal
-  var editModal = new bootstrap.Modal(document.getElementById('dashEditApproveModal'));
+  // Closing with unsaved inline edits (backdrop click, Esc, X, Cancel) is a click
+  // away from throwing away a whole review pass — ask first. Saying yes really does
+  // discard them (the table is rebuilt from the server's copy), so nothing lingers
+  // to warn about later.
+  var DISCARD_MSG = 'You have unsaved shift edits — they are only written when you ' +
+    'click "Approve Selected".\n\nDiscard them and close?';
 
-  function openEditModal(shiftId) {
-    var url = UPDATE_URL.replace('/0/', '/' + shiftId + '/');
-    fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-      body: JSON.stringify({}),
-    }).then(function(r) { return r.json(); }).then(function(data) {
-      if (!data.ok) return;
-      var s = data.shift;
-      document.getElementById('dashEditShiftId').value = s.id;
-      window.setDateValue(document.getElementById('dashEditDate'), s.date);
-      window.setTimeValue(document.getElementById('dashEditStart'), s.start_time);
-      window.setTimeValue(document.getElementById('dashEditEnd'), s.end_time);
-      document.getElementById('dashEditBreak').value = s.break_minutes;
-      document.getElementById('dashEditType').value = s.shift_type;
-      document.getElementById('dashEditNotes').value = s.notes;
-      document.getElementById('dashEditErrors').classList.add('d-none');
-      editModal.show();
+  approveModalEl.addEventListener('hide.bs.modal', function(e) {
+    if (stepAside || confirmedClose || !dirty) return;
+    e.preventDefault();
+    if (!window.confirm(DISCARD_MSG)) return;
+    confirmedClose = true;
+    dirty = false;
+    renderBody();
+    setTimeout(function() { approveModal.hide(); confirmedClose = false; }, 0);
+  });
+
+  // Only while edits are actually pending — the discard above clears them.
+  window.addEventListener('beforeunload', function(e) {
+    if (!dirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  // Opening the shared edit modal from a pencil button. Bootstrap can't stack modals
+  // — a second one opens behind the backdrop and locks the page — so the approve
+  // modal steps aside while it is open and comes back afterwards.
+  function openEditShift(shiftId) {
+    editShift.open(shiftId, {
+      present: function(show) {
+        stepAside = true;
+        approveModalEl.addEventListener('hidden.bs.modal', function onHidden() {
+          approveModalEl.removeEventListener('hidden.bs.modal', onHidden);
+          stepAside = false;
+          show();
+        });
+        approveModal.hide();
+      },
+      onHidden: function() { approveModal.show(); },
+      onSaved: function(s) {
+        for (var i = 0; i < SHIFTS.length; i++) {
+          if (SHIFTS[i].id === s.id) {
+            SHIFTS[i].date = s.date;
+            SHIFTS[i].start_time = s.start_time;
+            SHIFTS[i].end_time = s.end_time;
+            SHIFTS[i].break_minutes = s.break_minutes;
+            SHIFTS[i].shift_type = s.shift_type;
+            SHIFTS[i].net_hours = s.net_hours;
+            break;
+          }
+        }
+        updateRow(s);
+      },
+      onDeleted: function(shiftId) {
+        SHIFTS = SHIFTS.filter(function(s) { return s.id !== shiftId; });
+        if (!SHIFTS.length) {   // nothing left to approve — the banner has to go
+          dirty = false;
+          window.location.reload();
+          return;
+        }
+        dropRow(shiftId);
+        updateCount();
+      },
     });
   }
-
-  document.getElementById('dashEditSaveBtn').addEventListener('click', function() {
-    var shiftId = document.getElementById('dashEditShiftId').value;
-    if (!shiftId) return;
-    var url = UPDATE_URL.replace('/0/', '/' + shiftId + '/');
-    var payload = {
-      date: document.getElementById('dashEditDate').value,
-      start_time: document.getElementById('dashEditStart').value,
-      end_time: document.getElementById('dashEditEnd').value,
-      break_minutes: parseInt(document.getElementById('dashEditBreak').value) || 0,
-      shift_type: document.getElementById('dashEditType').value,
-      notes: document.getElementById('dashEditNotes').value,
-    };
-    fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-      body: JSON.stringify(payload),
-    }).then(function(r) { return r.json(); }).then(function(data) {
-      if (!data.ok) {
-        document.getElementById('dashEditErrors').textContent = data.error || 'Error saving.';
-        document.getElementById('dashEditErrors').classList.remove('d-none');
-        return;
-      }
-      var s = data.shift;
-      for (var i = 0; i < SHIFTS.length; i++) {
-        if (SHIFTS[i].id === s.id) {
-          SHIFTS[i].date = s.date;
-          SHIFTS[i].start_time = s.start_time;
-          SHIFTS[i].end_time = s.end_time;
-          SHIFTS[i].break_minutes = s.break_minutes;
-          SHIFTS[i].shift_type = s.shift_type;
-          SHIFTS[i].net_hours = s.net_hours;
-          break;
-        }
-      }
-      editModal.hide();
-      renderBody();
-    });
-  });
 
   renderBody();
 })();

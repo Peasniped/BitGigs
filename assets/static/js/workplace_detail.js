@@ -618,7 +618,7 @@ document.addEventListener('DOMContentLoaded', function() {
   saveBtn.addEventListener('click', function() {
     errBox.classList.add('d-none');
     saveBtn.disabled = true;
-    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Savingâ€¦';
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
 
     var fd = new FormData();
     // If user is on 'logo' tab and has a pending file, send it; clear bootstrap icon
@@ -672,16 +672,80 @@ document.addEventListener('DOMContentLoaded', function() {
   var SHIFTS = JSON.parse(document.getElementById('pendingShiftsData').textContent);
   var selectAll = document.getElementById('approveSelectAll');
   var countSpan = document.getElementById('approveSelectedCount');
+  var confirmBtn = document.getElementById('approveConfirmBtn');
+  var warnEl = document.getElementById('approveWarning');
+
+  var approveModalEl = document.getElementById('approveModal');
+  // backdrop-less: we keep one backdrop of our own up while either modal is open,
+  // so stepping from approve to edit and back never re-dims the page.
+  var approveModal = bootstrap.Modal.getOrCreateInstance(approveModalEl, { backdrop: false });
+  var editShift = initEditShiftModal({ backdrop: false });
+  var dirty = false;          // inline edits made, not yet sent to the server
+  var rendering = false;      // we are writing the fields ourselves, not the user
+  var stepAside = false;      // approve modal is hiding to make way for the edit modal
+  var confirmedClose = false; // the discard prompt has been answered
+
+  var backdrop = null;
+  var openModals = 0;
+  function raiseBackdrop() {
+    if (backdrop) return;
+    backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop fade';
+    document.body.appendChild(backdrop);
+    backdrop.offsetHeight;                                   // reflow, so the fade runs
+    backdrop.classList.add('show');
+    backdrop.addEventListener('click', function() {          // click-outside to close
+      var top = document.querySelector('.modal.show');
+      if (top) bootstrap.Modal.getInstance(top).hide();      // may prompt - see the guard
+    });
+  }
+  function dropBackdrop() {
+    if (!backdrop) return;
+    var el = backdrop;
+    backdrop = null;
+    el.classList.remove('show');
+    setTimeout(function() { el.remove(); }, 150);            // matches Bootstrap's fade
+  }
+  // Deferred, so a modal that hides only to hand over to another (approve -> edit)
+  // has re-opened by the time we count.
+  function trackModal(el) {
+    if (!el) return;
+    el.addEventListener('show.bs.modal', function() { openModals++; raiseBackdrop(); });
+    el.addEventListener('hidden.bs.modal', function() {
+      openModals--;
+      setTimeout(function() { if (openModals <= 0) dropBackdrop(); }, 0);
+    });
+  }
+  trackModal(approveModalEl);
+  if (editShift) trackModal(editShift.el);
 
   function renderTable() {
+    rendering = true;
+    try { buildTable(); } finally { rendering = false; }
+  }
+
+  function buildTable() {
+    // A lone shift needs no picking: it is approved as-is, with no checkboxes shown.
+    var selectAllWrap = selectAll.closest('.form-check');
+    if (selectAllWrap) selectAllWrap.classList.toggle('d-none', single());
+    var firstTh = document.querySelector('#approveTable thead th');
+    if (firstTh) firstTh.classList.toggle('d-none', single());
+    selectAll.checked = false;   // nothing is selected until the user says so
+
     tbody.innerHTML = '';
     SHIFTS.forEach(function(s) {
       var tr = document.createElement('tr');
+      tr.dataset.shiftId = s.id;
       tr.innerHTML =
-        '<td><input type="checkbox" class="form-check-input approve-cb" value="' + s.id + '" checked></td>' +
-        '<td class="small">' + s.date + '</td>' +
+        (single() ? '' :
+        '<td class="select-cell"><input type="checkbox" class="form-check-input approve-cb" value="' + s.id + '"></td>') +
+        '<td class="small" data-field="date">' + s.date + '</td>' +
         '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.start_time + '" data-field="start_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
         '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.end_time + '" data-field="end_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
+        '<td><div class="input-group input-group-sm" style="width:5rem;">' +
+          '<input type="number" class="form-control form-control-sm py-0" min="0" step="5" value="' + (s.break_minutes || 0) + '" data-field="break_minutes" data-id="' + s.id + '" title="Break (minutes)">' +
+          '<span class="input-group-text px-1 small text-muted">m</span>' +
+        '</div></td>' +
         '<td><select class="form-select form-select-sm py-0" data-field="shift_type" data-id="' + s.id + '" style="width:7rem;">' +
           '<option value="on_site"' + (s.shift_type==='on_site'?' selected':'') + '>On-site</option>' +
           '<option value="remote"' + (s.shift_type==='remote'?' selected':'') + '>Remote</option>' +
@@ -689,23 +753,143 @@ document.addEventListener('DOMContentLoaded', function() {
           '<option value="paid_absence"' + (s.shift_type==='paid_absence'?' selected':'') + '>Paid absence</option>' +
           '<option value="vacation"' + (s.shift_type==='vacation'?' selected':'') + '>Vacation</option>' +
         '</select></td>' +
-        '<td class="small text-end hours-cell">' + s.net_hours.replace('.',',') + 'h</td>' +
+        '<td class="small text-end" data-field="hours">' + toDanish(s.net_hours) + 'h</td>' +
         '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 edit-approve-btn" data-shift-id="' + s.id + '" title="Edit shift"><i class="bi bi-pencil" style="font-size:0.65rem;"></i></button></td>';
       tbody.appendChild(tr);
     });
     updateCount();
+    if (window.initTimePickers) window.initTimePickers(tbody);
     // Attach pencil click handlers
     tbody.querySelectorAll('.edit-approve-btn').forEach(function(btn) {
       btn.addEventListener('click', function(e) {
         e.preventDefault();
-        openEditApproveModal(parseInt(btn.dataset.shiftId));
+        openEditShift(parseInt(btn.dataset.shiftId));
       });
     });
   }
 
+  // Recompute a row's Hours cell from its inline start/end/break inputs. An end at
+  // or before the start is rejected by the server, so flag it here and hold back the
+  // Approve button rather than failing silently on submit.
+  function recalcRow(tr) {
+    var startEl = tr.querySelector('[data-field="start_time"]');
+    var endEl = tr.querySelector('[data-field="end_time"]');
+    var breakEl = tr.querySelector('[data-field="break_minutes"]');
+    var cell = tr.querySelector('[data-field="hours"]');
+    if (!startEl || !endEl || !cell) return;
+    var start = startEl.value, end = endEl.value;
+    var sp = start.split(':').map(Number), ep = end.split(':').map(Number);
+    var bad = Boolean(start && end) && (ep[0] * 60 + ep[1]) <= (sp[0] * 60 + sp[1]);
+    startEl.classList.toggle('is-invalid', bad);
+    endEl.classList.toggle('is-invalid', bad);
+    if (!start || !end || bad) { cell.textContent = '\u2013'; return; }
+    var totalMin = (ep[0] * 60 + ep[1]) - (sp[0] * 60 + sp[1]);
+    totalMin -= parseInt(breakEl ? breakEl.value : 0, 10) || 0;
+    if (totalMin <= 0) { cell.textContent = '\u2013'; return; }
+    cell.textContent = toDanish((totalMin / 60).toFixed(2)) + 'h';
+  }
+
+  function single() { return SHIFTS.length === 1; }
+
+  function selectedIds() {
+    if (single()) return [SHIFTS[0].id];
+    var ids = [];
+    tbody.querySelectorAll('.approve-cb:checked').forEach(function(cb) { ids.push(parseInt(cb.value)); });
+    return ids;
+  }
+
+  // Approve is blocked while nothing is selected, or a selected row's times are
+  // impossible (which the server would reject anyway).
+  function updateApproveState() {
+    var ids = selectedIds();
+    var invalid = false;
+    ids.forEach(function(id) {
+      var tr = tbody.querySelector('tr[data-shift-id="' + id + '"]');
+      if (tr && tr.querySelector('.is-invalid')) invalid = true;
+    });
+    if (confirmBtn) confirmBtn.disabled = invalid || ids.length === 0;
+    if (warnEl) warnEl.classList.toggle('d-none', !invalid);
+  }
+
+  /* Drag down the checkbox column to select a run of shifts. The row the drag starts
+     on is left to the checkbox's own click; every row dragged over after that copies
+     the state it is heading for. */
+  var dragging = false;
+  var dragState = false;
+
+  tbody.addEventListener('mousedown', function(e) {
+    var cb = e.target.closest('.approve-cb');
+    if (!cb) return;
+    dragging = true;
+    dragState = !cb.checked;
+    tbody.classList.add('approve-selecting');
+  });
+  tbody.addEventListener('mouseover', function(e) {
+    if (!dragging) return;
+    var tr = e.target.closest('tr[data-shift-id]');
+    if (!tr) return;
+    var cb = tr.querySelector('.approve-cb');
+    if (!cb || cb.checked === dragState) return;
+    cb.checked = dragState;
+    syncSelectAll();
+    updateCount();
+  });
+  document.addEventListener('mouseup', function() {
+    if (!dragging) return;
+    dragging = false;
+    tbody.classList.remove('approve-selecting');
+    updateCount();
+  });
+
+  function syncSelectAll() {
+    var all = tbody.querySelectorAll('.approve-cb');
+    var allChecked = all.length > 0;
+    all.forEach(function(cb) { if (!cb.checked) allChecked = false; });
+    selectAll.checked = allChecked;
+  }
+
+  // Any touched shift field is an unsaved edit: the values only reach the server on
+  // "Approve Selected", so closing the modal must not happen silently. Our own writes
+  // don't count — setTimeValue/initTimePickers fire change events too, which would
+  // otherwise mark the table dirty the moment it renders.
+  function onFieldEdit(e) {
+    if (!e.target.dataset || !e.target.dataset.field) return;
+    if (!rendering) dirty = true;
+    var tr = e.target.closest('tr');
+    if (tr) recalcRow(tr);
+    updateApproveState();
+  }
+  tbody.addEventListener('input', onFieldEdit);
+  tbody.addEventListener('change', onFieldEdit);
+
+  // Refresh one row from a server-saved shift, leaving the other rows' unsaved inline
+  // edits alone (re-rendering the table would throw them away).
+  function updateRow(s) {
+    var tr = tbody.querySelector('tr[data-shift-id="' + s.id + '"]');
+    if (!tr) return;
+    rendering = true;
+    try { writeRow(tr, s); } finally { rendering = false; }
+  }
+  function writeRow(tr, s) {
+    var dateCell = tr.querySelector('[data-field="date"]');
+    if (dateCell) dateCell.textContent = s.date;
+    window.setTimeValue(tr.querySelector('[data-field="start_time"]'), s.start_time);
+    window.setTimeValue(tr.querySelector('[data-field="end_time"]'), s.end_time);
+    var breakEl = tr.querySelector('[data-field="break_minutes"]');
+    if (breakEl) breakEl.value = s.break_minutes || 0;
+    var typeEl = tr.querySelector('[data-field="shift_type"]');
+    if (typeEl) typeEl.value = s.shift_type;
+    var cell = tr.querySelector('[data-field="hours"]');
+    if (cell) cell.textContent = toDanish(s.net_hours) + 'h';
+  }
+
   function updateCount() {
-    var checked = tbody.querySelectorAll('.approve-cb:checked').length;
-    countSpan.textContent = checked + ' of ' + SHIFTS.length + ' selected';
+    if (single()) {
+      countSpan.textContent = '1 shift';
+    } else {
+      countSpan.textContent = selectedIds().length + ' of ' + SHIFTS.length + ' selected';
+    }
+    updateApproveState();
   }
 
   selectAll.addEventListener('change', function() {
@@ -713,13 +897,12 @@ document.addEventListener('DOMContentLoaded', function() {
     updateCount();
   });
   tbody.addEventListener('change', function(e) {
-    if (e.target.classList.contains('approve-cb')) updateCount();
+    if (e.target.classList.contains('approve-cb')) { syncSelectAll(); updateCount(); }
   });
 
-  document.getElementById('approveConfirmBtn').addEventListener('click', function() {
+  confirmBtn.addEventListener('click', function() {
     var btn = this;
-    var ids = [];
-    tbody.querySelectorAll('.approve-cb:checked').forEach(function(cb) { ids.push(parseInt(cb.value)); });
+    var ids = selectedIds();
     if (ids.length === 0) return;
 
     // Collect inline edits
@@ -732,7 +915,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Approvingâ€¦';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Approving\u2026';
 
     fetch(cfg.approveUrl, {
       method: 'POST',
@@ -745,6 +928,7 @@ document.addEventListener('DOMContentLoaded', function() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.ok) {
+        dirty = false;   // the edits are in the DB now; don't warn on the reload
         window.location.reload();
       } else {
         btn.disabled = false;
@@ -757,87 +941,64 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  renderTable();
+  // Closing with unsaved inline edits (backdrop click, Esc, X, Cancel) is a click away
+  // from throwing away a whole review pass - ask first. Saying yes really does discard
+  // them (the table is rebuilt from the server's copy), so nothing lingers to warn
+  // about later.
+  var DISCARD_MSG = 'You have unsaved shift edits - they are only written when you ' +
+    'click "Approve Selected".\n\nDiscard them and close?';
 
-  // â•â•â•â•â•â•â• Edit Shift from Approve Modal â•â•â•â•â•â•â•
-  var editApproveModal = new bootstrap.Modal(document.getElementById('editApproveShiftModal'));
-  var UPDATE_URL = cfg.updateUrl;
-
-  // Live "Total working time" display, recomputed as start/end/break change.
-  var editApproveTotalEl = document.getElementById('editApproveTotal');
-  function calcApproveTotal() {
-    if (!editApproveTotalEl) return;
-    var start = document.getElementById('editApproveStart').value;
-    var end = document.getElementById('editApproveEnd').value;
-    if (!start || !end) { editApproveTotalEl.textContent = '–'; return; }
-    var sh = start.split(':').map(Number);
-    var eh = end.split(':').map(Number);
-    var totalMin = (eh[0] * 60 + eh[1]) - (sh[0] * 60 + sh[1]);
-    totalMin -= parseInt(document.getElementById('editApproveBreak').value, 10) || 0;
-    if (totalMin <= 0) { editApproveTotalEl.textContent = '–'; return; }
-    var hours = Math.floor(totalMin / 60);
-    var mins = totalMin % 60;
-    editApproveTotalEl.textContent = hours + 'h ' + mins + 'm (' + toDanish((totalMin / 60).toFixed(2)) + 'h)';
-  }
-  ['editApproveStart', 'editApproveEnd', 'editApproveBreak'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) { el.addEventListener('input', calcApproveTotal); el.addEventListener('change', calcApproveTotal); }
+  approveModalEl.addEventListener('hide.bs.modal', function(e) {
+    if (stepAside || confirmedClose || !dirty) return;
+    e.preventDefault();
+    if (!window.confirm(DISCARD_MSG)) return;
+    confirmedClose = true;
+    dirty = false;
+    renderTable();
+    setTimeout(function() { approveModal.hide(); confirmedClose = false; }, 0);
   });
 
-  function openEditApproveModal(shiftId) {
-    var url = UPDATE_URL.replace('/0/', '/' + shiftId + '/');
-    fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-      body: JSON.stringify({}),
-    }).then(function(r) { return r.json(); }).then(function(data) {
-      if (!data.ok) return;
-      var s = data.shift;
-      document.getElementById('editApproveShiftId').value = s.id;
-      window.setDateValue(document.getElementById('editApproveDate'), s.date);
-      window.setTimeValue(document.getElementById('editApproveStart'), s.start_time);
-      window.setTimeValue(document.getElementById('editApproveEnd'), s.end_time);
-      document.getElementById('editApproveBreak').value = s.break_minutes;
-      document.getElementById('editApproveType').value = s.shift_type;
-      document.getElementById('editApproveNotes').value = s.notes;
-      document.getElementById('editApproveErrors').classList.add('d-none');
-      calcApproveTotal();
-      editApproveModal.show();
-    });
-  }
+  // Only while edits are actually pending - the discard above clears them.
+  window.addEventListener('beforeunload', function(e) {
+    if (!dirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
 
-  document.getElementById('editApproveSaveBtn').addEventListener('click', function() {
-    var shiftId = document.getElementById('editApproveShiftId').value;
-    if (!shiftId) return;
-    var url = UPDATE_URL.replace('/0/', '/' + shiftId + '/');
-    var body = {
-      date: document.getElementById('editApproveDate').value,
-      start_time: document.getElementById('editApproveStart').value,
-      end_time: document.getElementById('editApproveEnd').value,
-      break_minutes: parseInt(document.getElementById('editApproveBreak').value) || 0,
-      shift_type: document.getElementById('editApproveType').value,
-      notes: document.getElementById('editApproveNotes').value,
-    };
-    fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-      body: JSON.stringify(body),
-    }).then(function(r) { return r.json(); }).then(function(data) {
-      if (!data.ok) {
-        document.getElementById('editApproveErrors').textContent = data.error || 'Error saving.';
-        document.getElementById('editApproveErrors').classList.remove('d-none');
-        return;
-      }
-      // Update local SHIFTS array and re-render
-      var s = data.shift;
-      for (var i = 0; i < SHIFTS.length; i++) {
-        if (SHIFTS[i].id === s.id) {
-          SHIFTS[i] = s;
-          break;
+  // The shared edit modal (edit_shift_modal.js). Bootstrap can't stack modals - a
+  // second one opens behind the backdrop and locks the page - so the approve modal
+  // steps aside while it is open and comes back afterwards.
+  function openEditShift(shiftId) {
+    editShift.open(shiftId, {
+      present: function(show) {
+        stepAside = true;
+        approveModalEl.addEventListener('hidden.bs.modal', function onHidden() {
+          approveModalEl.removeEventListener('hidden.bs.modal', onHidden);
+          stepAside = false;
+          show();
+        });
+        approveModal.hide();
+      },
+      onHidden: function() { approveModal.show(); },
+      onSaved: function(s) {
+        for (var i = 0; i < SHIFTS.length; i++) {
+          if (SHIFTS[i].id === s.id) { SHIFTS[i] = s; break; }
         }
-      }
-      editApproveModal.hide();
-      renderTable();
+        updateRow(s);
+      },
+      onDeleted: function(shiftId) {
+        SHIFTS = SHIFTS.filter(function(s) { return s.id !== shiftId; });
+        if (!SHIFTS.length) {   // nothing left to approve - the button has to go
+          dirty = false;
+          window.location.reload();
+          return;
+        }
+        var tr = tbody.querySelector('tr[data-shift-id="' + shiftId + '"]');
+        if (tr) tr.remove();
+        updateCount();
+      },
     });
-  });
+  }
+
+  renderTable();
 })();

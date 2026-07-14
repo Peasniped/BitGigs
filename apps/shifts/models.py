@@ -67,7 +67,7 @@ class Shift(ShiftTimeMixin):
     class ShiftType(models.TextChoices):
         ON_SITE = "on_site", "On-site"
         REMOTE = "remote", "Remote"
-        SICK_LEAVE = "sick_leave", "Sick leave (with pay)"
+        SICK_LEAVE = "sick_leave", "Sick leave"
         PAID_ABSENCE = "paid_absence", "Paid absence"
         VACATION = "vacation", "Vacation"
 

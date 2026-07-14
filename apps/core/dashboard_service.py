@@ -402,7 +402,11 @@ def get_todays_banner(today: date) -> tuple[dict | None, list, list]:
     # Unconfirmed shifts for the arrival queue (JS)
     unconfirmed = [s for s in all_todays_shifts if not s.arrival_confirmed]
     todays_shifts_data = [
-        {"id": s.pk, "start_time": s.start_time.strftime("%H:%M")}
+        {
+            "id": s.pk,
+            "start_time": s.start_time.strftime("%H:%M"),
+            "end_time": s.end_time.strftime("%H:%M"),
+        }
         for s in unconfirmed
     ]
 

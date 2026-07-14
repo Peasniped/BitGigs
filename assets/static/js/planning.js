@@ -1193,13 +1193,20 @@
   // ----- Duration calculation + time validation -----
   var saveBtn = document.querySelector('#shiftForm button[type="submit"]');
 
+  function fmtSpan(min) {
+    return Math.floor(min/60) + 'h ' + (min%60) + 'm (' + toDanish((min/60).toFixed(2)) + 'h)';
+  }
+
   function calcShiftDuration() {
     var start = document.getElementById('shiftStart').value;
     var end = document.getElementById('shiftEnd').value;
     var brk = parseInt(document.getElementById('shiftBreak').value) || 0;
     var display = document.getElementById('shiftDuration');
+    var grossRow = document.getElementById('shiftDurationGrossRow');
     var startEl = document.getElementById('shiftStart');
     var endEl = document.getElementById('shiftEnd');
+
+    grossRow.classList.add('d-none');
 
     if (!start || !end) {
       display.textContent = '.';
@@ -1228,12 +1235,12 @@
     saveBtn.disabled = false;
 
     var netMin = Math.max(grossMin - brk, 0);
-    var grossH = toDanish((grossMin/60).toFixed(2));
-    var grossHM = Math.floor(grossMin/60) + 'h ' + (grossMin%60) + 'm';
+    display.textContent = fmtSpan(netMin);
+    // Only worth a line of its own when a break actually splits the two.
     if (brk > 0) {
-      display.textContent = grossHM + ' gross (' + grossH + 'h) Â· ' + toDanish((netMin/60).toFixed(2)) + 'h net (after ' + brk + 'min break)';
-    } else {
-      display.textContent = grossHM + ' (' + grossH + 'h)';
+      document.getElementById('shiftDurationGrossLabel').textContent = 'Before ' + brk + ' min break';
+      document.getElementById('shiftDurationGross').textContent = fmtSpan(grossMin);
+      grossRow.classList.remove('d-none');
     }
   }
   ['shiftStart', 'shiftEnd', 'shiftBreak'].forEach(function(id) {

@@ -86,66 +86,7 @@
   </div>
 </form>
 
-<!-- Edit Shift Modal (Approve page) -->
-<div class="modal fade" id="editShiftModal" tabindex="-1" aria-hidden="true"
-     data-update-url-template="{% url 'calendar_view:planned-shift-update-api' pk=0 %}">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Planned Shift</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div id="editErrors" class="alert alert-danger small py-2 d-none"></div>
-        <input type="hidden" id="editShiftId">
-        <div class="mb-2">
-          <label class="form-label small">Date</label>
-          <input type="date" id="editDate" class="form-control form-control-sm" required>
-        </div>
-        <div class="row g-2 mb-2">
-          <div class="col-6">
-            <label class="form-label small">Start time</label>
-            <input type="time" id="editStart" class="form-control form-control-sm" required>
-          </div>
-          <div class="col-6">
-            <label class="form-label small">End time</label>
-            <input type="time" id="editEnd" class="form-control form-control-sm" required>
-          </div>
-        </div>
-        <div class="row g-2 mb-2">
-          <div class="col-6">
-            <label class="form-label small">Break (min)</label>
-            <input type="number" id="editBreak" class="form-control form-control-sm" value="0" min="0">
-          </div>
-          <div class="col-6">
-            <label class="form-label small">Type</label>
-            <select id="editType" class="form-select form-select-sm">
-              <option value="on_site">On-site</option>
-              <option value="remote">Remote</option>
-              <option value="sick_leave">Sick leave</option>
-              <option value="paid_absence">Paid absence</option>
-              <option value="vacation">Vacation</option>
-            </select>
-          </div>
-        </div>
-        <div class="mb-2 p-2 rounded d-flex justify-content-between align-items-center" style="background:var(--bg-light);">
-          <span class="text-muted small">Total working time</span>
-          <span id="editTotal" class="fw-semibold small">&ndash;</span>
-        </div>
-        <div class="mb-2">
-          <label class="form-label small">Notes</label>
-          <textarea id="editNotes" class="form-control form-control-sm" rows="2"></textarea>
-        </div>
-        <div class="d-flex gap-2">
-          <button type="button" class="btn btn-primary btn-sm flex-fill" id="editSaveBtn">
-            <i class="bi bi-check-lg me-1"></i>Save Changes
-          </button>
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+{% include "_edit_shift_modal.html" with title="Edit Planned Shift" icon="bi-pencil" save_label="Save Changes" %}
 
 {% else %}
 <div class="text-center text-muted py-5">
@@ -161,6 +102,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/edit_shift_modal.js' %}"></script>
 <script src="{% static 'js/approve_shifts.js' %}"></script>
 {% endblock %}
 

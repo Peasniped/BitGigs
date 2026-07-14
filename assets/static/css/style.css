@@ -863,6 +863,20 @@ a.setup-step--started:hover .setup-step__circle { background: #f59e0b; border-co
   background-size: 0.9rem 0.9rem;
   padding-left: 1.9rem;
 }
+/* Approve tables: drag down the checkbox column to select a run of shifts. */
+.approve-selecting, .approve-selecting * { user-select: none; }
+.select-cell { cursor: pointer; }
+
+/* Bootstrap's .is-invalid/.is-valid paint their own icon into the background and
+   win on specificity, which would fling the clock glyph across the field. Keep it. */
+.form-control.time-24-input.is-invalid,
+.form-control.time-24-input.is-valid {
+  background-position: left 0.6rem center;
+  background-size: 0.9rem 0.9rem;
+  padding-right: 0.75rem;
+}
+.form-control-sm.time-24-input.is-invalid,
+.form-control-sm.time-24-input.is-valid { padding-right: 0.5rem; }
 
 /* Air Datepicker (see initDatePickers in app.js) — themed to the app palette. */
 .air-datepicker {
