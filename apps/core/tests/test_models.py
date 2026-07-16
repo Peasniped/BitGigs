@@ -48,3 +48,22 @@ class UserSettingsModelTest(TestCase):
         s2.week_start = 0
         s2.save()
         self.assertEqual(UserSettings.objects.count(), 1)
+
+    def test_show_shift_type_colors_defaults_on_and_roundtrips(self):
+        from core.forms import UserSettingsForm
+
+        settings = UserSettings.load()
+        self.assertTrue(settings.show_shift_type_colors)  # on by default
+
+        # An unchecked checkbox is absent from the POST → turns the setting off.
+        form = UserSettingsForm(
+            data={
+                "week_start": 0,
+                "projection_method": "ema",
+                "projection_trailing_months": 6,
+            },
+            instance=settings,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        self.assertFalse(UserSettings.load().show_shift_type_colors)

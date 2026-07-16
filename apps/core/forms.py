@@ -85,4 +85,9 @@ class TaxProfileForm(forms.ModelForm):
 class UserSettingsForm(forms.ModelForm):
     class Meta:
         model = UserSettings
-        fields = ["week_start", "projection_method", "projection_trailing_months"]
+        fields = [
+            "week_start",
+            "show_shift_type_colors",
+            "projection_method",
+            "projection_trailing_months",
+        ]

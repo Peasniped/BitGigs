@@ -55,6 +55,7 @@ class CalendarDay:
 @dataclass
 class CalendarWeek:
     days: list[CalendarDay] = field(default_factory=list)
+    week_number: int = 0  # ISO 8601 week number for this row
 
 
 @dataclass
@@ -187,6 +188,11 @@ class CalendarService:
                     )
                 )
                 current += timedelta(days=1)
+            # ISO 8601 week number: defined by the Thursday of the week. Every
+            # 7-day aligned row contains exactly one Thursday, so this is correct
+            # regardless of the configured week start and across year boundaries.
+            thursday = next(d for d in week.days if d.date.weekday() == 3)
+            week.week_number = thursday.date.isocalendar()[1]
             weeks.append(week)
 
         return CalendarGrid(

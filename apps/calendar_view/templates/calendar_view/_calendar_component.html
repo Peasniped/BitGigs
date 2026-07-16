@@ -3,6 +3,11 @@
 {% load dk_filters %}
 
 <div class="calendar-component">
+  {% if show_shift_type_colors %}
+  <div class="d-flex justify-content-end mb-1">
+    {% include "calendar_view/_shift_legend.html" %}
+  </div>
+  {% endif %}
   {% if grid.has_overlaps %}
   <div class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-2" role="alert">
     <i class="bi bi-exclamation-triangle-fill"></i>
@@ -12,6 +17,7 @@
   <table class="table table-bordered calendar-table mb-0">
     <thead>
       <tr class="table-light">
+        <th class="text-center small text-uppercase text-muted py-2 week-number-head"></th>
         {% for header in grid.day_headers %}
           <th class="text-center small text-uppercase text-muted py-2">{{ header }}</th>
         {% endfor %}
@@ -20,6 +26,7 @@
     <tbody>
       {% for week in grid.weeks %}
       <tr>
+        <td class="week-number">{{ week.week_number }}</td>
         {% for day in week.days %}
         <td class="calendar-day {% if not day.is_in_period %}calendar-day--outside{% endif %} {% if day.is_today %}calendar-day--today{% endif %} {% if day.is_weekend %}calendar-day--weekend{% endif %} {% if clickable and day.is_in_period %}calendar-day--clickable{% endif %}"
             {% if clickable and day.is_in_period %}

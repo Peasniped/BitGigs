@@ -131,6 +131,11 @@ class UserSettings(models.Model):
         help_text="0 = Monday, 6 = Sunday",
     )
 
+    show_shift_type_colors = models.BooleanField(
+        default=True,
+        help_text="Colour calendar shift chips by type (on-site / remote / sick / …).",
+    )
+
     # Analytics projection
     projection_method = models.CharField(
         max_length=10,

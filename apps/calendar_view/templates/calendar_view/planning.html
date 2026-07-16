@@ -89,6 +89,7 @@
           <i class="bi bi-arrow-counterclockwise me-1"></i>Today
         </a>
       {% endif %}
+      {% include "calendar_view/_shift_legend.html" %}
     </div>
     <a href="?year={{ next_year }}&month={{ next_month }}" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-chevron-right"></i>
@@ -99,6 +100,7 @@
       <table class="table table-bordered calendar-table mb-0">
         <thead>
           <tr class="table-light">
+            <th class="text-center small text-uppercase text-muted py-2 week-number-head"></th>
             {% for header in grid.day_headers %}
               <th class="text-center small text-uppercase text-muted py-2">{{ header }}</th>
             {% endfor %}
@@ -107,6 +109,7 @@
         <tbody>
           {% for week in grid.weeks %}
           <tr>
+            <td class="week-number">{{ week.week_number }}</td>
             {% for day in week.days %}
             <td class="calendar-day calendar-day--clickable {% if not day.is_in_period %}calendar-day--outside{% endif %} {% if day.is_today %}calendar-day--today{% endif %} {% if day.is_weekend %}calendar-day--weekend{% endif %}"
                 data-date="{{ day.date|date:'Y-m-d' }}">
@@ -225,7 +228,8 @@
      data-check-overlaps-url="{% url 'calendar_view:check-overlaps' %}"
      data-default-shift-url="{% url 'calendar_view:default-shift-api' pk=0 %}"
      data-current-year="{{ year }}"
-     data-current-month="{{ month }}"></div>
+     data-current-month="{{ month }}"
+     data-show-type-colors="{% if show_shift_type_colors %}1{% else %}0{% endif %}"></div>
 <script src="{% static 'js/planning.js' %}"></script>
 {% endblock %}
 

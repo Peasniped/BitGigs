@@ -12,6 +12,15 @@ def sso_status(request):
     }
 
 
+def display_settings(request):
+    """Expose global display preferences (from the ``UserSettings`` singleton) so
+    the shared shift-chip partial can react to them on every calendar. Currently
+    just ``show_shift_type_colors`` — whether chips are coloured by shift type."""
+    from .models import UserSettings
+
+    return {"show_shift_type_colors": UserSettings.load().show_shift_type_colors}
+
+
 def onboarding_status(request):
     """Expose ``onboarding_complete`` to every template so the base layout can
     hide the main navigation until first-time setup is finished.

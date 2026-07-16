@@ -186,6 +186,18 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
   font-size: 0.8rem;
   table-layout: fixed;
 }
+/* Leading ISO week-number column, shown on every calendar. */
+.calendar-table .week-number-head { width: 2.2rem; }
+.calendar-table .week-number {
+  width: 2.2rem;
+  text-align: center;
+  vertical-align: middle;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-lighter);
+  cursor: default;
+}
 .calendar-table thead th {
   font-weight: 600;
   font-size: 0.7rem;
@@ -278,9 +290,10 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
 .shift-chip__time { color: #334155; }
 .shift-chip__hours { color: var(--text-muted); }
 .shift-chip__edit {
-  position: absolute; right: 2px; top: 1px;
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
   font-size: 0.6rem; color: var(--primary);
   opacity: 0; transition: opacity 0.15s;
+  z-index: 2;
 }
 .shift-chip--planned:hover .shift-chip__edit { opacity: 1; }
 
@@ -293,8 +306,9 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
   content: '\F26A';
   font-family: 'bootstrap-icons';
   position: absolute;
-  right: 2px; top: 1px;
-  font-size: 0.55rem;
+  right: 4px; top: 50%; transform: translateY(-50%);
+  z-index: 2;
+  font-size: 0.64rem;
   color: var(--success);
   opacity: 0;
   transition: opacity 0.15s;
@@ -310,6 +324,107 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
   border-color: var(--warning) !important;
   background: rgba(var(--warning-rgb),.10) !important;
   outline: 1px solid rgba(var(--warning-rgb),.4);
+}
+
+/* Break indicator — a coffee cup on any chip whose shift has break time */
+.shift-chip__break {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Optional shift-type visualization (on by default; toggle in Settings) — a
+   solid colour band on the right edge of the chip, coloured by a per-type var. */
+.shift-chip--type-on_site      { --chip-type: #00c853; }
+.shift-chip--type-remote       { --chip-type: #00b0ff; }
+.shift-chip--type-sick_leave   { --chip-type: #eef100; }
+.shift-chip--type-paid_absence { --chip-type: #ff9100; }
+.shift-chip--type-vacation     { --chip-type: #c584ff; }
+/* A single solid colour band on the right edge of the chip, per type. Negative
+   margins cancel the chip's padding so it runs edge to edge (top/bottom/right). */
+.shift-chip__type {
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 20px;
+  margin: -2px -4px -2px 3px;
+  position: relative;
+  background: var(--chip-type, transparent);
+}
+/* Some shift types add an all-black symbol centered in the band (sick →
+   biohazard, vacation → palms). The SVGs live in graphics/ and are painted
+   solid black via a CSS mask, so the same empty span works in the chip
+   template, planning.js and the legend. */
+.shift-chip__sym {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 13px; height: 13px;
+  background-color: #000;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+  -webkit-mask-size: contain; mask-size: contain;
+}
+.shift-chip__sym--sick {
+  -webkit-mask-image: url("../graphics/icon_Biohazard.svg");
+  mask-image: url("../graphics/icon_Biohazard.svg");
+}
+.shift-chip__sym--vacation {
+  -webkit-mask-image: url("../graphics/icon_Palms.svg");
+  mask-image: url("../graphics/icon_Palms.svg");
+}
+/* Shift-type legend (info-icon popover shown on every calendar). Opens on
+   hover, centred below the icon, and closes when the cursor leaves. */
+.shift-legend { position: relative; }
+.shift-legend__btn { font-size: 1rem; color: var(--text-muted); line-height: 1; cursor: default; }
+.shift-legend__btn:hover { color: var(--primary); }
+.shift-legend__menu {
+  min-width: max-content;
+  font-size: 0.8rem;
+  top: 100%;            /* touches the icon's bottom edge → contiguous hover */
+  bottom: auto;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  margin: 0;
+}
+.shift-legend:hover > .shift-legend__menu,
+.shift-legend:focus-within > .shift-legend__menu { display: block; }
+.shift-legend__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+.shift-legend__swatch {
+  flex-shrink: 0;
+  width: 50px; height: 16px;
+  position: relative;
+  border-radius: 2px;
+  background: var(--chip-type, transparent);
+}
+/* The sick swatch's biohazard centres via the base .shift-chip__sym rule
+   (position:relative swatch + 50%/translate), so no override is needed. */
+/* Chip-style / break rows — mirror the real planned/approved chip borders. */
+.shift-legend__sample {
+  flex-shrink: 0;
+  width: 50px; height: 16px;
+  border-radius: 4px;
+}
+.shift-legend__sample--planned {
+  background: rgba(255,255,255,.7);
+  border: 1.5px dashed var(--primary);
+}
+.shift-legend__sample--approved {
+  background: rgba(var(--primary-rgb),.08);
+  border: 1px solid rgba(var(--primary-rgb),.2);
+}
+.shift-legend__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 0.75rem;
 }
 
 /* ---- Day panel (sidebar/modal for sessions on clicked day) ---- */

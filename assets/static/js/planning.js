@@ -13,6 +13,7 @@
   const MONTH_NAMES = JSON.parse(document.getElementById('monthNamesData').textContent);
   const CURRENT_YEAR = parseInt(cfg.currentYear, 10);
   const CURRENT_MONTH = parseInt(cfg.currentMonth, 10);
+  const SHOW_TYPE_COLORS = cfg.showTypeColors === '1';
 
   const wpMap = {};
   WORKPLACES.forEach(function(wp) { wpMap[wp.id] = wp; });
@@ -379,6 +380,9 @@
   function buildShiftChip(s, wp) {
     var div = document.createElement('div');
     div.className = 'shift-chip shift-chip--planned';
+    if (SHOW_TYPE_COLORS && s.shift_type) {
+      div.classList.add('shift-chip--type-' + s.shift_type);
+    }
     if (wp && (wp.accent_color || wp.color)) {
       div.style.borderColor = wp.accent_color || wp.color;
     }
@@ -395,10 +399,19 @@
     } else {
       avatarHtml = (wp ? (wp.initials ? wp.initials.charAt(0) : wp.name.charAt(0)) : '?');
     }
+    var breakHtml = s.break_minutes ? '<i class="bi bi-cup-hot shift-chip__break" title="Includes a break"></i>' : '';
+    var typeHtml = '';
+    if (SHOW_TYPE_COLORS) {
+      var symInner = '';
+      if (s.shift_type === 'sick_leave') symInner = '<span class="shift-chip__sym shift-chip__sym--sick"></span>';
+      else if (s.shift_type === 'vacation') symInner = '<span class="shift-chip__sym shift-chip__sym--vacation"></span>';
+      typeHtml = '<span class="shift-chip__type" title="' + (s.shift_type_display || '') + '">' + symInner + '</span>';
+    }
     div.innerHTML =
       '<span class="shift-chip__avatar" style="background:' + (wp && wp.color ? wp.color : '#6366f1') + ';">' + avatarHtml + '</span>' +
       '<small class="shift-chip__time">' + s.start_time + '-' + s.end_time + '</small>' +
       '<small class="shift-chip__hours">(' + toDanish(s.net_hours) + 'h)</small>' +
+      breakHtml + typeHtml +
       '<i class="bi bi-pencil shift-chip__edit"></i>';
 
     wireShiftChip(div, s.workplace_id);

@@ -6,7 +6,10 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   <a href="{% url 'calendar_view:payroll-period' %}?year={{ prev_year }}&month={{ prev_month }}&workplace={{ workplace_id }}"
      class="btn btn-outline-secondary">â† Prev</a>
-  <h2>{{ grid.title }}</h2>
+  <div class="d-flex align-items-center gap-2">
+    <h2 class="mb-0">{{ grid.title }}</h2>
+    {% include "calendar_view/_shift_legend.html" %}
+  </div>
   <a href="{% url 'calendar_view:payroll-period' %}?year={{ next_year }}&month={{ next_month }}&workplace={{ workplace_id }}"
      class="btn btn-outline-secondary">Next â†’</a>
 </div>
@@ -19,6 +22,7 @@
 <table class="table table-bordered calendar-table">
   <thead>
     <tr>
+      <th class="text-center week-number-head"></th>
       {% for header in grid.day_headers %}
         <th class="text-center">{{ header }}</th>
       {% endfor %}
@@ -27,6 +31,7 @@
   <tbody>
     {% for week in grid.weeks %}
     <tr>
+      <td class="week-number">{{ week.week_number }}</td>
       {% for day in week.days %}
       <td class="{% if not day.is_in_period %}bg-light text-muted{% endif %} {% if day.is_today %}border-primary border-2{% endif %} {% if day.is_weekend %}bg-light{% endif %}"
           style="min-width:100px; height:80px; vertical-align:top; padding:4px;">

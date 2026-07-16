@@ -97,6 +97,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "core.context_processors.onboarding_status",
                 "core.context_processors.sso_status",
+                "core.context_processors.display_settings",
             ],
         },
     },
