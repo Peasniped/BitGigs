@@ -495,7 +495,7 @@ trackModal(document.getElementById('dashApproveModal'));
       var wrapper = document.createElement('div');
       wrapper.className = 'table-responsive';
       var table = document.createElement('table');
-      table.className = 'table table-sm table-hover mb-0';
+      table.className = 'table table-sm table-hover mb-0 dash-approve-table';
       table.innerHTML =
         '<thead class="table-light"><tr>' +
           (single() ? '' : '<th style="width:36px;"></th>') +
@@ -553,6 +553,7 @@ trackModal(document.getElementById('dashApproveModal'));
       body.addEventListener('change', onSelectionChange);
       body.addEventListener('mousedown', onSelectMouseDown);
       body.addEventListener('mouseover', onSelectMouseOver);
+      body.addEventListener('click', onRowClick);
     }
 
     // Pencil buttons
@@ -564,6 +565,19 @@ trackModal(document.getElementById('dashApproveModal'));
     });
 
     updateCount();
+  }
+
+  /* Clicking a row's dead space latches a shade on it, so you can keep your place
+     while working down a long list. It is a marker, not a selection: it moves to
+     whichever row was clicked last, and a second click on the same row drops it.
+     Clicking a field or the pencil is the user editing that row, not marking it. */
+  function onRowClick(e) {
+    if (e.target.closest('.form-control, .form-select, .form-check-input, button, label, a')) return;
+    var tr = e.target.closest('tr[data-shift-id]');
+    if (!tr) return;
+    var wasFocused = tr.classList.contains('row-focused');
+    body.querySelectorAll('tr.row-focused').forEach(function(r) { r.classList.remove('row-focused'); });
+    tr.classList.toggle('row-focused', !wasFocused);
   }
 
   // A workplace's "select all", or a row checkbox (which may un-tick its group's).
@@ -663,6 +677,7 @@ trackModal(document.getElementById('dashApproveModal'));
     .then(function(data) {
       if (data.ok) {
         dirty = false;   // the edits are in the DB now; don't warn on the reload
+        leaving = true;
         window.location.reload();
       } else {
         btn.disabled = false;
@@ -675,26 +690,39 @@ trackModal(document.getElementById('dashApproveModal'));
     });
   });
 
-  // Closing with unsaved inline edits (backdrop click, Esc, X, Cancel) is a click
-  // away from throwing away a whole review pass — ask first. Saying yes really does
-  // discard them (the table is rebuilt from the server's copy), so nothing lingers
-  // to warn about later.
-  var DISCARD_MSG = 'You have unsaved shift edits — they are only written when you ' +
-    'click "Approve Selected".\n\nDiscard them and close?';
+  /* Closing with work pending (backdrop click, Esc, X, Cancel) is a click away from
+     throwing away a whole review pass — ask first. Both the inline edits and the
+     ticked checkboxes only reach the server on "Approve Selected", so both count.
+     Saying yes really does discard them (the table is rebuilt from the server's
+     copy), so nothing lingers to warn about later. */
+  function anySelected() {
+    // The lone-shift table has no checkboxes: there is nothing to pick, so nothing
+    // to lose by closing.
+    return !single() && body.querySelector('.dash-approve-cb:checked') !== null;
+  }
+  function discardMessage() {
+    var lost = [];
+    if (dirty) lost.push('unsaved shift edits');
+    if (anySelected()) lost.push('shifts selected for approval');
+    return 'You have ' + lost.join(' and ') + ' — they are only written when you ' +
+      'click "Approve Selected".\n\nDiscard them and close?';
+  }
 
   approveModalEl.addEventListener('hide.bs.modal', function(e) {
-    if (stepAside || confirmedClose || !dirty) return;
+    if (stepAside || confirmedClose || (!dirty && !anySelected())) return;
     e.preventDefault();
-    if (!window.confirm(DISCARD_MSG)) return;
+    if (!window.confirm(discardMessage())) return;
     confirmedClose = true;
     dirty = false;
-    renderBody();
+    renderBody();   // rebuilt from the server's copy: edits gone, checkboxes cleared
     setTimeout(function() { approveModal.hide(); confirmedClose = false; }, 0);
   });
 
-  // Only while edits are actually pending — the discard above clears them.
+  // Only while work is actually pending — the discard above clears it, and a reload
+  // we asked for ourselves (approve, last shift deleted) is not the user leaving.
+  var leaving = false;
   window.addEventListener('beforeunload', function(e) {
-    if (!dirty) return;
+    if (leaving || (!dirty && !anySelected())) return;
     e.preventDefault();
     e.returnValue = '';
   });
@@ -702,8 +730,22 @@ trackModal(document.getElementById('dashApproveModal'));
   // Opening the shared edit modal from a pencil button. Bootstrap can't stack modals
   // — a second one opens behind the backdrop and locks the page — so the approve
   // modal steps aside while it is open and comes back afterwards.
+  /* The row's fields as they stand right now — its inline edits are only in the DOM,
+     so the modal has to be handed them, or opening it would quietly revert the row to
+     the server's copy. Untouched fields simply hand back what the server sent. */
+  function rowValues(shiftId) {
+    var tr = body.querySelector('tr[data-shift-id="' + shiftId + '"]');
+    if (!tr) return {};
+    var vals = {};
+    tr.querySelectorAll('[data-field]').forEach(function(f) {
+      if (f.value !== undefined) vals[f.dataset.field] = f.value;   // the date/hours cells are td's
+    });
+    return vals;
+  }
+
   function openEditShift(shiftId) {
     editShift.open(shiftId, {
+      prefill: rowValues(shiftId),
       present: function(show) {
         stepAside = true;
         approveModalEl.addEventListener('hidden.bs.modal', function onHidden() {
@@ -732,6 +774,7 @@ trackModal(document.getElementById('dashApproveModal'));
         SHIFTS = SHIFTS.filter(function(s) { return s.id !== shiftId; });
         if (!SHIFTS.length) {   // nothing left to approve — the banner has to go
           dirty = false;
+          leaving = true;
           window.location.reload();
           return;
         }

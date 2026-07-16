@@ -1,17 +1,7 @@
 
 # NU     --------------------------------------------------------
 
-
-
-- If you click within a shift row, the color/shade persists until you click on another shift, or click on the shift again.
-- - The clicked-shade should be slightly darker than the hover over higlight, maybe slightly accent colored
-- - if you hover over another shift, it will also highlight
-
-- If some shifts have been selected, treat it as changed data and display the closing warning
 - make a custom confirm close/discard changes pop-up
-- It seems like the shift table rows could use a bit of padding to the sides, both the checkbox and edit button are really close to the edge.
-- Inline editing the start/end times of a shift in the approval flow should trigger validation of start < end just like if you click the edit button.
-- If you make an inline chang without saving, then click the edit shift button, the edits should follow over
 - BUG: In the planning calendar, hovering over a planned shift shows the edit-pencil misaligned. It is shown at the top-right, not center-right as it should be.
 
 - Planning calendar, add optional visualization(enable/disable in main settings menu) for on-site or remote work (eg. green for on site and blue for remote, yellow with biohazard triangle icon for sick)
@@ -25,6 +15,12 @@ Analytics page (hourly terms):
 - - Use light blue for planned income
 - - If a month has planned shifts, use those (per workplace), else use projection
 - Both averages include prior months with 0 hours leading to a very small projection the first 6 months
+
+Add a manual/help-system
+- Short help articles with/without images about usage/setup?
+- Accessed as a pop-up with F1, or by pressing more > Help as a full page
+- run a very lightweight RAG? 
+
 
 Extra work before making base template
 - add hover over effect to the main logo

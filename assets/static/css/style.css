@@ -867,6 +867,20 @@ a.setup-step--started:hover .setup-step__circle { background: #f59e0b; border-co
 .approve-selecting, .approve-selecting * { user-select: none; }
 .select-cell { cursor: pointer; }
 
+/* Clicking a row's dead space latches a focus shade until it is clicked again or
+   another row takes it (see dashboard.js). It has to be a shade darker than the
+   hover, so it goes through --bs-table-bg-state, the same var .table-hover sets —
+   5.3 paints those with an inset box-shadow, which a plain background-color would
+   end up underneath. */
+.dash-approve-table th:first-child,
+.dash-approve-table td:first-child { padding-left: 1rem; }
+.dash-approve-table th:last-child,
+.dash-approve-table td:last-child { padding-right: 1rem; }
+.dash-approve-tbody tr[data-shift-id] { cursor: pointer; }
+.dash-approve-tbody tr[data-shift-id] :is(.form-control, .form-select) { cursor: auto; }
+tbody.dash-approve-tbody tr.row-focused > * { --bs-table-bg-state: rgba(var(--primary-rgb), 0.13); }
+tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(var(--primary-rgb), 0.19); }
+
 /* Bootstrap's .is-invalid/.is-valid paint their own icon into the background and
    win on specificity, which would fling the clock glyph across the field. Keep it. */
 .form-control.time-24-input.is-invalid,
