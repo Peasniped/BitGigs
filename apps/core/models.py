@@ -147,6 +147,11 @@ class UserSettings(models.Model):
         default=6,
         help_text="Number of past months used to compute the projection.",
     )
+    use_planned_shifts = models.BooleanField(
+        default=True,
+        help_text="When a future month has planned shifts, use them for its income "
+                  "instead of the trailing-average projection.",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

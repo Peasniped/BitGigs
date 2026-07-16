@@ -6,10 +6,11 @@
 {% block extra_css %}
 {# Shared filter-bar / picker / table styles live in static/css/style.css. #}
 <style>
-  /* Actual vs. Projected visual cues */
+  /* Actual vs. Planned vs. Projected visual cues */
   .row-projected { background-color: rgba(100, 116, 139, 0.08) !important; color:#475569; }
+  .row-planned   { background-color: rgba(56, 189, 248, 0.12) !important; color:#075985; }
   .row-inactive  { color:var(--text-subtle); background-color:var(--bg-light) !important; }
-  .projected-tag {
+  .projected-tag, .planned-tag {
     display:inline-block; margin-left:0.4rem;
     font-size:0.65rem; font-weight:600;
     color:var(--text-muted); background:var(--border);
@@ -17,7 +18,15 @@
     text-transform:uppercase; letter-spacing:0.04em;
     vertical-align:middle;
   }
+  .planned-tag { color:#0369a1; background:rgba(56, 189, 248, 0.22); }
   .legend-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+
+  /* Clickable Actual/Planned/Projected filter chips (Chart.js-style toggle) */
+  .cat-toggle {
+    border:none; background:none; padding:0; font:inherit; cursor:pointer;
+    color:var(--text-muted); line-height:1;
+  }
+  .cat-toggle.off { opacity:0.45; text-decoration:line-through; }
 
   .analytics-table tbody tr td:first-child { font-weight:600; }
 
@@ -156,9 +165,14 @@
   <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
     <strong>Monthly income</strong>
     <div class="d-flex flex-wrap gap-2 align-items-center">
-      <span class="small text-muted me-1">
-        <span class="legend-dot" style="background:rgba(34,197,94,0.8);"></span>Actual
-        <span class="legend-dot ms-2" style="background:rgba(245,158,11,0.85);"></span>Projected
+      <span class="small d-inline-flex flex-wrap align-items-center gap-2 me-1" id="catToggles"
+            title="Click to show/hide a category">
+        <button type="button" class="cat-toggle" data-cat="actual">
+          <span class="legend-dot" style="background:rgba(34,197,94,0.85);"></span>Actual</button>
+        <button type="button" class="cat-toggle" data-cat="planned">
+          <span class="legend-dot" style="background:rgba(56,189,248,0.9);"></span>Planned</button>
+        <button type="button" class="cat-toggle" data-cat="projected">
+          <span class="legend-dot" style="background:rgba(245,158,11,0.9);"></span>Projected</button>
       </span>
       <div class="btn-group btn-group-sm chart-mode-group" role="group" id="chartModeGroup">
         <input type="radio" class="btn-check" name="chartMode" id="modeTotal" value="total" checked>
@@ -214,10 +228,12 @@
           </thead>
           <tbody>
             {% for row in wp.months %}
-              <tr class="{% if not row.contract_active %}row-inactive{% elif row.is_projected %}row-projected{% else %}row-actual{% endif %}">
+              <tr class="{% if not row.contract_active %}row-inactive{% elif row.is_planned %}row-planned{% elif row.is_projected %}row-projected{% else %}row-actual{% endif %}">
                 <td>
                   {{ row.label }}
-                  {% if row.contract_active and row.is_projected %}
+                  {% if row.contract_active and row.is_planned %}
+                    <span class="planned-tag">planned</span>
+                  {% elif row.contract_active and row.is_projected %}
                     <span class="projected-tag">projected</span>
                   {% endif %}
                 </td>
@@ -261,8 +277,6 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous"></script>
 <script src="{% static 'js/period_picker.js' %}"></script>
 {{ month_labels_json|json_script:"monthLabels" }}
-{{ monthly_totals_gross_json|json_script:"monthTotalsGross" }}
-{{ monthly_totals_net_json|json_script:"monthTotalsNet" }}
 {{ distribution_datasets|json_script:"distDatasets" }}
 <script>
   (function() {
@@ -336,92 +350,109 @@
 
     // ----- Chart -----
     const labels = JSON.parse(document.getElementById('monthLabels').textContent);
-    const grossTotals = JSON.parse(document.getElementById('monthTotalsGross').textContent).map(v => parseFloat(v));
-    const netTotals = JSON.parse(document.getElementById('monthTotalsNet').textContent).map(v => parseFloat(v));
     const distDatasets = JSON.parse(document.getElementById('distDatasets').textContent);
 
-    // Build a per-month "any projected" mask for total mode
-    const anyProjected = labels.map((_, m) =>
-      distDatasets.some(d => d.projected[m])
-    );
+    // Each (workplace, month) is exactly one category. Colours are kept in
+    // sync with the table row states and the legend chips.
+    const CATS = ['actual', 'planned', 'projected'];
+    const CAT_COLORS = {
+      actual:    { gross:'rgba(34,197,94,0.65)',  grossBorder:'#16a34a', net:'rgba(22,101,52,0.65)', netBorder:'#166534' },
+      planned:   { gross:'rgba(56,189,248,0.65)', grossBorder:'#0284c7', net:'rgba(2,132,199,0.65)', netBorder:'#075985' },
+      projected: { gross:'rgba(245,158,11,0.65)', grossBorder:'#d97706', net:'rgba(180,83,9,0.65)', netBorder:'#92400e' },
+    };
+
+    function monthCategory(ds, m) {
+      if (ds.planned && ds.planned[m]) return 'planned';
+      if (ds.projected && ds.projected[m]) return 'projected';
+      return 'actual';
+    }
+
+    // Per-month gross/net totals split by category, summed across workplaces.
+    function categoryTotals(metric) {
+      const out = { actual: [], planned: [], projected: [] };
+      labels.forEach((_, m) => {
+        const bucket = { actual: 0, planned: 0, projected: 0 };
+        distDatasets.forEach(ds => {
+          bucket[monthCategory(ds, m)] += parseFloat(ds[metric][m]);
+        });
+        CATS.forEach(c => out[c].push(bucket[c]));
+      });
+      return out;
+    }
+
+    function hexToRgba(hex, alpha) {
+      const h = hex.replace('#', '');
+      const r = parseInt(h.substring(0, 2), 16);
+      const g = parseInt(h.substring(2, 4), 16);
+      const b = parseInt(h.substring(4, 6), 16);
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    // Categories the user has toggled off via the legend chips.
+    const hiddenCats = new Set();
 
     function buildTotalConfig() {
-      const grossActualColor = 'rgba(34, 197, 94, 0.65)';
-      const grossProjColor   = 'rgba(245, 158, 11, 0.65)';
-      const netActualColor   = 'rgba(22, 101, 52, 0.65)';
-      const netProjColor     = 'rgba(180, 83, 9, 0.65)';
-      return {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-            {
-              label: 'Gross (DKK)',
-              data: grossTotals,
-              backgroundColor: anyProjected.map(p => p ? grossProjColor : grossActualColor),
-              borderColor: anyProjected.map(p => p ? '#d97706' : '#16a34a'),
-              borderWidth: 1,
-            },
-            {
-              label: 'Net (DKK)',
-              data: netTotals,
-              backgroundColor: anyProjected.map(p => p ? netProjColor : netActualColor),
-              borderColor: anyProjected.map(p => p ? '#92400e' : '#166534'),
-              borderWidth: 1,
-            },
-          ],
-        },
-        options: commonOpts(false),
-      };
+      const grossByCat = categoryTotals('gross');
+      const netByCat = categoryTotals('net');
+      const datasets = [];
+      CATS.forEach(cat => {
+        const c = CAT_COLORS[cat];
+        const name = cat.charAt(0).toUpperCase() + cat.slice(1);
+        datasets.push({
+          label: 'Gross · ' + name, data: grossByCat[cat],
+          backgroundColor: c.gross, borderColor: c.grossBorder, borderWidth: 1,
+          stack: 'gross', hidden: hiddenCats.has(cat),
+        });
+        datasets.push({
+          label: 'Net · ' + name, data: netByCat[cat],
+          backgroundColor: c.net, borderColor: c.netBorder, borderWidth: 1,
+          stack: 'net', hidden: hiddenCats.has(cat),
+        });
+      });
+      return { type: 'bar', data: { labels, datasets }, options: commonOpts(false) };
     }
 
     function buildDistConfig() {
-      function hexToRgba(hex, alpha) {
-        const h = hex.replace('#', '');
-        const r = parseInt(h.substring(0, 2), 16);
-        const g = parseInt(h.substring(2, 4), 16);
-        const b = parseInt(h.substring(4, 6), 16);
-        return `rgba(${r},${g},${b},${alpha})`;
-      }
+      // Per-workplace stacked bars (net). A hidden category is zeroed out per
+      // month; the workplace hue is kept, planned/projected at lower opacity.
       const datasets = distDatasets.map(ds => ({
         label: ds.label,
-        data: ds.net.map(v => parseFloat(v)),
-        // Mark projected months with reduced opacity + diagonal hatch pattern
+        data: ds.net.map((v, m) =>
+          hiddenCats.has(monthCategory(ds, m)) ? 0 : parseFloat(v)
+        ),
         backgroundColor: ds.net.map((_, m) =>
-          hexToRgba(ds.color, ds.projected[m] ? 0.45 : 0.85)
+          hexToRgba(ds.color, monthCategory(ds, m) === 'actual' ? 0.85 : 0.5)
         ),
         borderColor: ds.color,
         borderWidth: 1,
         borderSkipped: false,
         stack: 'net',
       }));
-      return {
-        type: 'bar',
-        data: { labels, datasets },
-        options: commonOpts(true),
-      };
+      return { type: 'bar', data: { labels, datasets }, options: commonOpts(true) };
     }
 
-    function commonOpts(stacked) {
+    function commonOpts(isDist) {
       return {
         responsive: true,
         scales: {
-          x: { stacked },
+          x: { stacked: true },
           y: {
             beginAtZero: true,
-            stacked,
+            stacked: true,
             ticks: { callback: v => v.toLocaleString('da-DK') },
           },
         },
         plugins: {
+          legend: { display: isDist },
           tooltip: {
             callbacks: {
               label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('da-DK') + ' DKK',
               afterLabel: ctx => {
+                if (!isDist) return '';  // total-mode labels already name the category
                 const ds = distDatasets[ctx.datasetIndex];
-                if (ds && ds.projected && ds.projected[ctx.dataIndex]) return '(projected)';
-                if (!ds && anyProjected[ctx.dataIndex]) return '(includes projected)';
-                return '';
+                if (!ds) return '';
+                const cat = monthCategory(ds, ctx.dataIndex);
+                return cat === 'actual' ? '' : '(' + cat + ')';
               }
             }
           }
@@ -429,17 +460,39 @@
       };
     }
 
-    let chart = new Chart(
-      document.getElementById('monthlyChart'),
-      buildTotalConfig()
-    );
+    function currentMode() {
+      const checked = document.querySelector('input[name="chartMode"]:checked');
+      return checked ? checked.value : 'total';
+    }
+
+    let chart = null;
+    function rebuild() {
+      if (chart) chart.destroy();
+      const cfg = currentMode() === 'distribution' ? buildDistConfig() : buildTotalConfig();
+      chart = new Chart(document.getElementById('monthlyChart'), cfg);
+    }
+
+    // ----- Category filter chips (show/hide Actual / Planned / Projected) -----
+    const catToggles = document.getElementById('catToggles');
+    function syncChipStates() {
+      catToggles.querySelectorAll('.cat-toggle').forEach(btn => {
+        btn.classList.toggle('off', hiddenCats.has(btn.dataset.cat));
+      });
+    }
+    catToggles.addEventListener('click', function(e) {
+      const btn = e.target.closest('.cat-toggle');
+      if (!btn) return;
+      const cat = btn.dataset.cat;
+      if (hiddenCats.has(cat)) hiddenCats.delete(cat); else hiddenCats.add(cat);
+      syncChipStates();
+      rebuild();
+    });
+
+    syncChipStates();
+    rebuild();
 
     document.querySelectorAll('input[name="chartMode"]').forEach(r => {
-      r.addEventListener('change', function() {
-        chart.destroy();
-        const cfg = this.value === 'distribution' ? buildDistConfig() : buildTotalConfig();
-        chart = new Chart(document.getElementById('monthlyChart'), cfg);
-      });
+      r.addEventListener('change', rebuild);
     });
   })();
 </script>

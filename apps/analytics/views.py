@@ -135,6 +135,7 @@ class AnalyticsView(View):
             trailing_months=trailing_months,
             method=method,
             today=today,
+            use_planned=settings.use_planned_shifts,
         )
 
         # Picker cards
@@ -171,6 +172,7 @@ class AnalyticsView(View):
                 "gross": [str(row.gross) for row in wp_proj.months],
                 "net": [str(row.net) for row in wp_proj.months],
                 "projected": [row.is_projected for row in wp_proj.months],
+                "planned": [row.is_planned for row in wp_proj.months],
             })
 
         # Workplace context for collapsible cards
@@ -204,8 +206,6 @@ class AnalyticsView(View):
             "next_url": request.get_full_path(),
             # JSON-safe variants for json_script tags
             "month_labels_json": list(projection.monthly_labels),
-            "monthly_totals_gross_json": [str(v) for v in projection.monthly_totals_gross],
-            "monthly_totals_net_json": [str(v) for v in projection.monthly_totals_net],
         })
 
 

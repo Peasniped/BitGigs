@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from core.utils import WEEKS_PER_MONTH, weekly_to_monthly_hours
 from payroll.services import SalaryEstimateService
-from shifts.models import Shift
+from shifts.models import Shift, PlannedShift
 from workplaces.models import Workplace, ContractTermSet
 
 
@@ -58,6 +58,39 @@ def _shift_hours_in_month(workplace: Workplace, year: int, month: int) -> Decima
     return sum((s.net_hours for s in shifts), Decimal("0"))
 
 
+def _planned_hours_in_month(
+    workplace: Workplace, year: int, month: int, after: date | None = None,
+) -> Decimal:
+    """Net hours of *still-planned* shifts in a month. ``after`` (exclusive)
+    keeps only shifts strictly later than the given date — used for the current
+    month so already-worked days come from approved shifts, not planned ones.
+    Approved planned shifts are skipped: they already became real ``Shift`` rows.
+    """
+    last_day = calendar.monthrange(year, month)[1]
+    lower = date(year, month, 1)
+    if after is not None and after > lower:
+        lower = after
+        planned = PlannedShift.objects.filter(
+            workplace=workplace,
+            status=PlannedShift.Status.PLANNED,
+            date__gt=lower,
+            date__lte=date(year, month, last_day),
+        )
+    else:
+        planned = PlannedShift.objects.filter(
+            workplace=workplace,
+            status=PlannedShift.Status.PLANNED,
+            date__gte=lower,
+            date__lte=date(year, month, last_day),
+        )
+    return sum((s.net_hours for s in planned), Decimal("0"))
+
+
+def _contract_active_in_month(workplace: Workplace, year: int, month: int) -> bool:
+    last_day = calendar.monthrange(year, month)[1]
+    return bool(workplace.contracts_in_period(date(year, month, 1), date(year, month, last_day)))
+
+
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
@@ -73,6 +106,7 @@ class MonthRow:
     net: Decimal
     is_projected: bool
     contract_active: bool
+    is_planned: bool = False
 
 
 @dataclass
@@ -111,23 +145,31 @@ class AnalyticsService:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def trailing_monthly_hours(
-        workplace: Workplace, n_months: int, ref: date | None = None,
-    ) -> list[Decimal]:
-        ref = ref or timezone.localdate()
+    def _trailing_months(n_months: int, ref: date) -> list[tuple[int, int]]:
+        """The ``n_months`` calendar months ending just before ``ref``,
+        oldest → newest."""
         if ref.month == 1:
             y, m = ref.year - 1, 12
         else:
             y, m = ref.year, ref.month - 1
-
-        result: list[Decimal] = []
+        months: list[tuple[int, int]] = []
         for _ in range(n_months):
-            result.append(_shift_hours_in_month(workplace, y, m))
+            months.append((y, m))
             if m == 1:
                 y, m = y - 1, 12
             else:
                 m -= 1
-        return list(reversed(result))
+        return list(reversed(months))
+
+    @classmethod
+    def trailing_monthly_hours(
+        cls, workplace: Workplace, n_months: int, ref: date | None = None,
+    ) -> list[Decimal]:
+        ref = ref or timezone.localdate()
+        return [
+            _shift_hours_in_month(workplace, y, m)
+            for (y, m) in cls._trailing_months(n_months, ref)
+        ]
 
     @classmethod
     def trailing_average_hours(
@@ -136,19 +178,28 @@ class AnalyticsService:
     ) -> Decimal:
         if n_months <= 0:
             return Decimal("0")
-        hours = cls.trailing_monthly_hours(workplace, n_months, ref=ref)
+        ref = ref or timezone.localdate()
+
+        # Only months where the contract was actually active count. Months
+        # before the workplace was even a job would otherwise sit at 0 hours
+        # and drag the average right down for the first few months of work.
+        hours = [
+            _shift_hours_in_month(workplace, y, m)
+            for (y, m) in cls._trailing_months(n_months, ref)
+            if _contract_active_in_month(workplace, y, m)
+        ]
         if not hours:
             return Decimal("0")
 
         if method == "ema":
-            alpha = Decimal(2) / Decimal(n_months + 1)
+            alpha = Decimal(2) / Decimal(len(hours) + 1)
             ema = hours[0]
             for h in hours[1:]:
                 ema = alpha * h + (Decimal("1") - alpha) * ema
             return ema.quantize(TWO_PLACES, ROUND_HALF_UP)
 
         total = sum(hours, Decimal("0"))
-        return (total / Decimal(n_months)).quantize(TWO_PLACES, ROUND_HALF_UP)
+        return (total / Decimal(len(hours))).quantize(TWO_PLACES, ROUND_HALF_UP)
 
     # ------------------------------------------------------------------
     # Yearly projection
@@ -158,6 +209,7 @@ class AnalyticsService:
     def project_year(
         cls, workplaces, year: int, trailing_months: int = 6,
         method: str = "ema", today: date | None = None,
+        use_planned: bool = True,
     ) -> YearProjection:
         return cls.project_period(
             workplaces,
@@ -166,13 +218,14 @@ class AnalyticsService:
             trailing_months=trailing_months,
             method=method,
             today=today,
+            use_planned=use_planned,
         )
 
     @classmethod
     def project_period(
         cls, workplaces, start: date, end: date,
         trailing_months: int = 6, method: str = "ema",
-        today: date | None = None,
+        today: date | None = None, use_planned: bool = True,
     ) -> YearProjection:
         today = today or timezone.localdate()
         if end < start:
@@ -228,6 +281,7 @@ class AnalyticsService:
                     continue
 
                 is_past = _is_past_month(y, m, today)
+                is_current = _is_current_month(y, m, today)
                 as_of = _midmonth(y, m)
 
                 # Resolve the representative termset for this month (as_of is
@@ -244,13 +298,32 @@ class AnalyticsService:
                     ))
                     continue
 
+                is_planned = False
                 if termset.employment_type == ContractTermSet.EmploymentType.HOURLY:
                     if is_past:
                         hours = actual_hours_in_month
                         is_projected = False
                     else:
-                        hours = trailing_avg
-                        is_projected = True
+                        # A future/current month prefers its planned shifts over
+                        # the trailing-average projection. The current month is a
+                        # hybrid: days already worked count their approved hours,
+                        # the rest come from what's still planned.
+                        planned_hours = (
+                            _planned_hours_in_month(
+                                wp, y, m, after=today if is_current else None,
+                            )
+                            if use_planned else Decimal("0")
+                        )
+                        if planned_hours > 0:
+                            hours = (
+                                actual_hours_in_month + planned_hours
+                                if is_current else planned_hours
+                            )
+                            is_projected = False
+                            is_planned = True
+                        else:
+                            hours = trailing_avg
+                            is_projected = True
                     estimate = SalaryEstimateService.estimate_for_month(
                         termset, y, m, hours=hours, as_of=as_of,
                     )
@@ -277,6 +350,7 @@ class AnalyticsService:
                     actual_hours=actual_hours_in_month.quantize(TWO_PLACES, ROUND_HALF_UP),
                     gross=gross, net=net,
                     is_projected=is_projected, contract_active=True,
+                    is_planned=is_planned,
                 ))
                 wp_proj.year_gross += gross
                 wp_proj.year_net += net

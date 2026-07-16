@@ -90,4 +90,5 @@ class UserSettingsForm(forms.ModelForm):
             "show_shift_type_colors",
             "projection_method",
             "projection_trailing_months",
+            "use_planned_shifts",
         ]

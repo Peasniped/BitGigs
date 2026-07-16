@@ -1,21 +1,6 @@
 
 # NU     --------------------------------------------------------
 
-- make a custom confirm close/discard changes pop-up
-- BUG: In the planning calendar, hovering over a planned shift shows the edit-pencil misaligned. It is shown at the top-right, not center-right as it should be.
-
-- Planning calendar, add optional visualization(enable/disable in main settings menu) for on-site or remote work (eg. green for on site and blue for remote, yellow with biohazard triangle icon for sick)
-- Add a small coffee cup to shift/planned shift chips indicating that the shift contains any amount of break time
-- Week numbers on all calendars
-- Setting to set how weeks are counted (similar to first day of week. Denmark counts the first week according to ISO 8601(The first week of the year is the week that contains the first thursday of the year))
-
-Analytics page (hourly terms):
-- It seems like planned shifts are not shown and are not used in the avg.
-- - Add this as a configurable parameter in the settings menu (default is to use planned shifts)
-- - Use light blue for planned income
-- - If a month has planned shifts, use those (per workplace), else use projection
-- Both averages include prior months with 0 hours leading to a very small projection the first 6 months
-
 Add a manual/help-system
 - Short help articles with/without images about usage/setup?
 - Accessed as a pop-up with F1, or by pressing more > Help as a full page
