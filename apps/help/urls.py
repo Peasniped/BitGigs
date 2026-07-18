@@ -13,8 +13,11 @@ urlpatterns = [
     path("manage/", views.HelpArticleManageView.as_view(), name="manage"),
     path("manage/new/", views.HelpArticleEditView.as_view(), name="create"),
     path("manage/preview/", views.HelpPreviewView.as_view(), name="preview"),
+    path("manage/trash/empty/", views.HelpTrashEmptyView.as_view(), name="trash-empty"),
     path("manage/<slug:slug>/edit/", views.HelpArticleEditView.as_view(), name="edit"),
     path("manage/<slug:slug>/delete/", views.HelpArticleDeleteView.as_view(), name="delete"),
+    path("manage/<slug:slug>/restore/", views.HelpArticleRestoreView.as_view(), name="restore"),
+    path("manage/<slug:slug>/purge/", views.HelpArticlePurgeView.as_view(), name="purge"),
     path("manage/<slug:slug>/revisions/", views.HelpArticleRevisionsView.as_view(), name="revisions"),
     path(
         "manage/<slug:slug>/revisions/<int:pk>/revert/",

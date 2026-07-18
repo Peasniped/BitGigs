@@ -25,9 +25,9 @@
         <td class="text-end text-nowrap">
           <a class="btn btn-sm btn-outline-secondary" href="{% url 'help:edit' a.slug %}" title="Edit"><i class="bi bi-pencil"></i></a>
           <a class="btn btn-sm btn-outline-secondary" href="{% url 'help:revisions' a.slug %}" title="History"><i class="bi bi-clock-history"></i></a>
-          <form method="post" action="{% url 'help:delete' a.slug %}" class="d-inline" onsubmit="return confirm('Delete “{{ a.title|escapejs }}”?');">
+          <form method="post" action="{% url 'help:delete' a.slug %}" class="d-inline">
             {% csrf_token %}
-            <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
+            <button class="btn btn-sm btn-outline-secondary" title="Move to Trash"><i class="bi bi-trash"></i></button>
           </form>
         </td>
       </tr>
@@ -37,4 +37,42 @@
     </tbody>
   </table>
 </div>
+
+{% if trashed %}
+<div class="card mt-4">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-trash me-2"></i>Trash <span class="badge text-bg-secondary">{{ trashed|length }}</span></span>
+    <form method="post" action="{% url 'help:trash-empty' %}"
+          onsubmit="return confirm('Permanently delete all {{ trashed|length }} trashed article{{ trashed|length|pluralize }}? This cannot be undone.');">
+      {% csrf_token %}
+      <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash3 me-1"></i>Empty Trash</button>
+    </form>
+  </div>
+  <div class="card-body p-0">
+    <table class="table align-middle mb-0">
+      <tbody>
+        {% for a in trashed %}
+        <tr>
+          <td>
+            <span class="fw-medium">{{ a.title }}</span>
+            <div class="small text-body-secondary">Deleted {{ a.archived_at }}</div>
+          </td>
+          <td class="text-end text-nowrap">
+            <form method="post" action="{% url 'help:restore' a.slug %}" class="d-inline">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise me-1"></i>Restore</button>
+            </form>
+            <form method="post" action="{% url 'help:purge' a.slug %}" class="d-inline"
+                  onsubmit="return confirm('Permanently delete “{{ a.title|escapejs }}”? This cannot be undone.');">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger" title="Delete permanently"><i class="bi bi-trash3"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

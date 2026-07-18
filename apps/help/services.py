@@ -231,7 +231,7 @@ def export_articles(directory=None):
     directory = Path(directory) if directory else ARTICLES_DIR
     directory.mkdir(parents=True, exist_ok=True)
     count = 0
-    for art in HelpArticle.objects.all().prefetch_related("keywords", "pages"):
+    for art in HelpArticle.objects.live().prefetch_related("keywords", "pages"):
         (directory / f"{art.slug}.md").write_text(
             article_to_markdown(art), encoding="utf-8"
         )
@@ -268,6 +268,8 @@ def import_articles(directory=None):
                 "audience": meta.get("audience", HelpArticle.Audience.EVERYONE),
                 "order": order,
                 "is_published": _as_bool(meta.get("published", True)),
+                # Re-importing a shipped article also restores it from the Trash.
+                "archived_at": None,
             },
         )
         results["created" if created else "updated"] += 1

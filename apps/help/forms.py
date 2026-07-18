@@ -48,7 +48,7 @@ class HelpArticleForm(forms.ModelForm):
         self.fields["slug"].help_text = "Leave blank to derive from the title."
         # Parent picker: any article except this one and its own descendants
         # (which would create a cycle).
-        parent_qs = HelpArticle.objects.all()
+        parent_qs = HelpArticle.objects.live()
         if self.instance and self.instance.pk:
             parent_qs = parent_qs.exclude(pk=self.instance.pk).exclude(
                 pk__in=self.instance.descendant_ids()

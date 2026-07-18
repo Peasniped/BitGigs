@@ -20,7 +20,9 @@ def help_status(request):
     if enabled is None:
         from .models import HelpArticle
 
-        enabled = HelpArticle.objects.filter(is_published=True).exists()
+        enabled = HelpArticle.objects.filter(
+            is_published=True, archived_at__isnull=True
+        ).exists()
         cache.set("help:enabled", enabled, 300)
     match = getattr(request, "resolver_match", None)
     view_name = match.view_name if match else ""

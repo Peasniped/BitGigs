@@ -207,6 +207,35 @@ class HelpEditorViewTests(HelpTestMixin, TestCase):
         )
         self.assertEqual(list(article.pages.values_list("key", flat=True)), ["core:dashboard"])
 
+    def test_delete_is_soft_and_restorable(self):
+        article = self.make_article(slug="temp", title="Temp")
+        # Soft delete → still in the DB, hidden from readers, listed in Trash.
+        self.client.post(reverse("help:delete", args=["temp"]))
+        article.refresh_from_db()
+        self.assertIsNotNone(article.archived_at)
+        self.assertNotIn(
+            "temp", HelpArticle.objects.visible_to(self.user).values_list("slug", flat=True)
+        )
+        # Restore → live again.
+        self.client.post(reverse("help:restore", args=["temp"]))
+        article.refresh_from_db()
+        self.assertIsNone(article.archived_at)
+        self.assertIn(
+            "temp", HelpArticle.objects.visible_to(self.user).values_list("slug", flat=True)
+        )
+
+    def test_purge_permanently_deletes(self):
+        self.make_article(slug="gone", title="Gone").archive()
+        self.client.post(reverse("help:purge", args=["gone"]))
+        self.assertFalse(HelpArticle.objects.filter(slug="gone").exists())
+
+    def test_empty_trash_purges_only_archived(self):
+        self.make_article(slug="live-one", title="Live")
+        self.make_article(slug="trash-one", title="Trash").archive()
+        self.client.post(reverse("help:trash-empty"))
+        self.assertTrue(HelpArticle.objects.filter(slug="live-one").exists())
+        self.assertFalse(HelpArticle.objects.filter(slug="trash-one").exists())
+
     def test_revert_restores_body(self):
         article = self.make_article(slug="rev", body_md="original")
         HelpArticleRevision.objects.create(

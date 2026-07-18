@@ -121,8 +121,11 @@ def _snapshot(article, editor):
 
 class HelpArticleManageView(StaffRequiredMixin, View):
     def get(self, request):
-        articles = HelpArticle.objects.all().prefetch_related("keywords", "pages")
-        return render(request, "help/manage.html", {"articles": articles})
+        articles = HelpArticle.objects.live().prefetch_related("keywords", "pages")
+        trashed = HelpArticle.objects.archived().order_by("-archived_at")
+        return render(
+            request, "help/manage.html", {"articles": articles, "trashed": trashed}
+        )
 
 
 class HelpArticleEditView(StaffRequiredMixin, View):
@@ -148,12 +151,49 @@ class HelpArticleEditView(StaffRequiredMixin, View):
 
 @method_decorator(require_POST, name="dispatch")
 class HelpArticleDeleteView(StaffRequiredMixin, View):
+    """Soft delete: move the article to the Trash (recoverable)."""
+
     def post(self, request, slug):
-        article = get_object_or_404(HelpArticle, slug=slug)
+        article = get_object_or_404(HelpArticle.objects.live(), slug=slug)
+        article.archive()
+        services.invalidate_caches()
+        messages.success(request, f"Moved “{article.title}” to Trash.")
+        return redirect("help:manage")
+
+
+@method_decorator(require_POST, name="dispatch")
+class HelpArticleRestoreView(StaffRequiredMixin, View):
+    def post(self, request, slug):
+        article = get_object_or_404(HelpArticle.objects.archived(), slug=slug)
+        article.restore()
+        services.invalidate_caches()
+        messages.success(request, f"Restored “{article.title}”.")
+        return redirect("help:manage")
+
+
+@method_decorator(require_POST, name="dispatch")
+class HelpArticlePurgeView(StaffRequiredMixin, View):
+    """Permanently delete a single trashed article (cascades its revisions)."""
+
+    def post(self, request, slug):
+        article = get_object_or_404(HelpArticle.objects.archived(), slug=slug)
         title = article.title
         article.delete()
         services.invalidate_caches()
-        messages.success(request, f"Deleted “{title}”.")
+        messages.success(request, f"Permanently deleted “{title}”.")
+        return redirect("help:manage")
+
+
+@method_decorator(require_POST, name="dispatch")
+class HelpTrashEmptyView(StaffRequiredMixin, View):
+    def post(self, request):
+        trashed = HelpArticle.objects.archived()
+        count = trashed.count()
+        trashed.delete()
+        services.invalidate_caches()
+        messages.success(
+            request, f"Emptied Trash ({count} article{'' if count == 1 else 's'})."
+        )
         return redirect("help:manage")
 
 

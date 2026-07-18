@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.text import slugify
 
 from . import services
@@ -49,13 +50,21 @@ class HelpPage(models.Model):
 
 
 class HelpArticleQuerySet(models.QuerySet):
+    def live(self):
+        """Not in the Trash."""
+        return self.filter(archived_at__isnull=True)
+
+    def archived(self):
+        """In the Trash (soft-deleted)."""
+        return self.filter(archived_at__isnull=False)
+
     def published(self):
-        return self.filter(is_published=True)
+        return self.live().filter(is_published=True)
 
     def visible_to(self, user):
-        """Published articles the user may see. BitGigs is single-owner (owner is
-        staff), so the owner sees everything; ``audience`` is the hook for future
-        multi-user first-party apps that reuse this app."""
+        """Published (and non-archived) articles the user may see. BitGigs is
+        single-owner (owner is staff), so the owner sees everything; ``audience``
+        is the hook for future multi-user first-party apps that reuse this app."""
         qs = self.published()
         if user is not None and (user.is_staff or user.is_superuser):
             return qs
@@ -93,6 +102,9 @@ class HelpArticle(models.Model):
     pages = models.ManyToManyField(HelpPage, blank=True, related_name="articles")
     is_published = models.BooleanField(default=True)
     order = models.IntegerField(default=100, help_text="Lower numbers sort first.")
+    # Soft delete: set → the article is in the Trash (hidden everywhere but
+    # restorable). Cleared on restore; a real delete only happens on purge.
+    archived_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -112,6 +124,13 @@ class HelpArticle(models.Model):
 
     def get_absolute_url(self):
         return reverse("help:manual-article", args=[self.slug])
+
+    def archive(self):
+        """Soft-delete: move to the Trash (no re-render, no cascade)."""
+        type(self).objects.filter(pk=self.pk).update(archived_at=timezone.now())
+
+    def restore(self):
+        type(self).objects.filter(pk=self.pk).update(archived_at=None)
 
     def ancestors(self):
         """Parent chain from the root down to (but excluding) this article.
