@@ -346,6 +346,71 @@
   margin: 0 0.1rem;
 }
 
+/* Manage page: let the column filter dropdowns escape the table box instead of
+   being clipped by an overflow container. */
+.help-manage-tablewrap {
+  overflow: visible;
+}
+.help-col {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.help-sort {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--bs-body-color);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+.help-sort-icon {
+  font-size: 0.75rem;
+  opacity: 0.45;
+}
+.help-sort.sorted .help-sort-icon {
+  opacity: 1;
+  color: var(--bs-primary);
+}
+.help-filter-btn {
+  border: 0;
+  background: none;
+  padding: 0.1rem 0.25rem;
+  color: var(--bs-secondary-color);
+  cursor: pointer;
+  line-height: 1;
+}
+.help-filter-btn:hover {
+  color: var(--bs-body-color);
+}
+.help-filter-btn.active {
+  color: var(--bs-primary);
+}
+.help-filter-menu {
+  min-width: 220px;
+  /* The dropdown sits inside a <th>, which .table thead th uppercases app-wide;
+     keep the filter labels in their normal case. */
+  text-transform: none;
+  letter-spacing: normal;
+}
+.help-filter-options {
+  max-height: 220px;
+  overflow-y: auto;
+}
+/* Keywords are stored lowercase — show them capitalized in the filter list
+   (display only; the checkbox value stays lowercase for matching). */
+.help-filter-menu [data-filter-options="keywords"] .form-check-label {
+  text-transform: capitalize;
+}
+.help-filter-options .form-check {
+  margin-bottom: 0.1rem;
+}
+
 /* ── Editor toolbar ──────────────────────────────────────────────────────── */
 .help-toolbar {
   display: flex;

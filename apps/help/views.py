@@ -8,7 +8,7 @@ from django.views.decorators.http import require_POST
 
 from . import services
 from .forms import HelpArticleForm
-from .models import HelpArticle, HelpArticleRevision
+from .models import HelpArticle, HelpArticleRevision, HelpKeyword, HelpPage
 
 
 # ─── Reader (any logged-in user; the whole site is behind the login gate) ─────
@@ -123,8 +123,26 @@ class HelpArticleManageView(StaffRequiredMixin, View):
     def get(self, request):
         articles = HelpArticle.objects.live().prefetch_related("keywords", "pages")
         trashed = HelpArticle.objects.archived().order_by("-archived_at")
+        # Distinct pages/keywords in use, for the column filter dropdowns.
+        used_pages = (
+            HelpPage.objects.filter(articles__archived_at__isnull=True)
+            .distinct()
+            .order_by("label")
+        )
+        used_keywords = (
+            HelpKeyword.objects.filter(articles__archived_at__isnull=True)
+            .distinct()
+            .order_by("name")
+        )
         return render(
-            request, "help/manage.html", {"articles": articles, "trashed": trashed}
+            request,
+            "help/manage.html",
+            {
+                "articles": articles,
+                "trashed": trashed,
+                "used_pages": used_pages,
+                "used_keywords": used_keywords,
+            },
         )
 
 

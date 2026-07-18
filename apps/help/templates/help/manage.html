@@ -2,77 +2,174 @@
 {% block title %}Manage help &middot; BitGigs{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3">
-  <h1 class="h4 m-0">Help articles</h1>
-  <a class="btn btn-primary btn-sm" href="{% url 'help:create' %}"><i class="bi bi-plus-lg me-1"></i>New article</a>
-</div>
-
-<div class="table-responsive">
-  <table class="table align-middle">
-    <thead>
-      <tr><th>Title</th><th>Pages</th><th>Keywords</th><th>Status</th><th class="text-end">Actions</th></tr>
-    </thead>
-    <tbody>
-      {% for a in articles %}
-      <tr>
-        <td>
-          <a href="{% url 'help:manual-article' a.slug %}">{{ a.title }}</a>
-          {% if a.summary %}<div class="small text-body-secondary">{{ a.summary }}</div>{% endif %}
-        </td>
-        <td class="small">{% for p in a.pages.all %}<span class="badge text-bg-light">{{ p.label }}</span> {% empty %}<span class="text-body-tertiary">—</span>{% endfor %}</td>
-        <td class="small">{% for k in a.keywords.all %}<span class="badge text-bg-light">{{ k.name }}</span> {% empty %}<span class="text-body-tertiary">—</span>{% endfor %}</td>
-        <td>{% if a.is_published %}<span class="badge text-bg-success">Published</span>{% else %}<span class="badge text-bg-secondary">Draft</span>{% endif %}</td>
-        <td class="text-end text-nowrap">
-          <a class="btn btn-sm btn-outline-secondary" href="{% url 'help:edit' a.slug %}" title="Edit"><i class="bi bi-pencil"></i></a>
-          <a class="btn btn-sm btn-outline-secondary" href="{% url 'help:revisions' a.slug %}" title="History"><i class="bi bi-clock-history"></i></a>
-          <form method="post" action="{% url 'help:delete' a.slug %}" class="d-inline">
-            {% csrf_token %}
-            <button class="btn btn-sm btn-outline-secondary" title="Move to Trash"><i class="bi bi-trash"></i></button>
-          </form>
-        </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="5" class="text-body-secondary">No articles yet. <a href="{% url 'help:create' %}">Create one</a>.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-{% if trashed %}
-<div class="card mt-4">
-  <div class="card-header d-flex align-items-center justify-content-between">
-    <span><i class="bi bi-trash me-2"></i>Trash <span class="badge text-bg-secondary">{{ trashed|length }}</span></span>
-    <form method="post" action="{% url 'help:trash-empty' %}"
-          onsubmit="return confirm('Permanently delete all {{ trashed|length }} trashed article{{ trashed|length|pluralize }}? This cannot be undone.');">
-      {% csrf_token %}
-      <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash3 me-1"></i>Empty Trash</button>
-    </form>
+<div data-help-manage>
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h4 m-0">Help articles</h1>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#helpTrashModal">
+        <i class="bi bi-trash me-1"></i>Trash{% if trashed %} <span class="badge text-bg-secondary">{{ trashed|length }}</span>{% endif %}
+      </button>
+      <a class="btn btn-primary btn-sm" href="{% url 'help:create' %}"><i class="bi bi-plus-lg me-1"></i>New article</a>
+    </div>
   </div>
-  <div class="card-body p-0">
-    <table class="table align-middle mb-0">
-      <tbody>
-        {% for a in trashed %}
+
+  <div class="d-flex gap-2 mb-3 align-items-stretch">
+    <div class="help-search-box flex-grow-1">
+      <i class="bi bi-search help-search-icon"></i>
+      <input type="search" class="form-control" placeholder="Search articles…" autocomplete="off"
+             data-manage-search aria-label="Search articles">
+    </div>
+    <button type="button" class="btn btn-outline-secondary d-none" data-manage-clear>
+      <i class="bi bi-x-circle me-1"></i>Clear filters
+    </button>
+  </div>
+
+  <div class="help-manage-tablewrap">
+    <table class="table align-middle">
+      <thead>
         <tr>
+          <th>
+            <div class="help-col">
+              <button type="button" class="help-sort" data-sort="title">Title <i class="bi bi-arrow-down-up help-sort-icon"></i></button>
+            </div>
+          </th>
+          <th>
+            <div class="help-col">
+              <button type="button" class="help-sort" data-sort="pages">Pages <i class="bi bi-arrow-down-up help-sort-icon"></i></button>
+              <div class="dropdown">
+                <button type="button" class="help-filter-btn" data-filter-btn="pages" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Filter pages"><i class="bi bi-funnel"></i></button>
+                <div class="dropdown-menu help-filter-menu p-2">
+                  <input type="text" class="form-control form-control-sm mb-2" data-filter-search placeholder="Search pages…" aria-label="Search pages">
+                  <div class="help-filter-options" data-filter-options="pages">
+                    {% for p in used_pages %}
+                    <div class="form-check"><input class="form-check-input" type="checkbox" value="{{ p.label|lower }}" id="flt-p-{{ forloop.counter }}"><label class="form-check-label" for="flt-p-{{ forloop.counter }}">{{ p.label }}</label></div>
+                    {% empty %}<div class="small text-body-secondary">None</div>{% endfor %}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </th>
+          <th>
+            <div class="help-col">
+              <button type="button" class="help-sort" data-sort="keywords">Keywords <i class="bi bi-arrow-down-up help-sort-icon"></i></button>
+              <div class="dropdown">
+                <button type="button" class="help-filter-btn" data-filter-btn="keywords" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Filter keywords"><i class="bi bi-funnel"></i></button>
+                <div class="dropdown-menu help-filter-menu p-2">
+                  <input type="text" class="form-control form-control-sm mb-2" data-filter-search placeholder="Search keywords…" aria-label="Search keywords">
+                  <div class="help-filter-options" data-filter-options="keywords">
+                    {% for k in used_keywords %}
+                    <div class="form-check"><input class="form-check-input" type="checkbox" value="{{ k.name|lower }}" id="flt-k-{{ forloop.counter }}"><label class="form-check-label" for="flt-k-{{ forloop.counter }}">{{ k.name }}</label></div>
+                    {% empty %}<div class="small text-body-secondary">None</div>{% endfor %}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </th>
+          <th>
+            <div class="help-col">
+              <button type="button" class="help-sort" data-sort="status">Status <i class="bi bi-arrow-down-up help-sort-icon"></i></button>
+              <div class="dropdown">
+                <button type="button" class="help-filter-btn" data-filter-btn="status" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Filter status"><i class="bi bi-funnel"></i></button>
+                <div class="dropdown-menu help-filter-menu p-2">
+                  <div class="help-filter-options" data-filter-options="status">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" value="published" id="flt-s-1"><label class="form-check-label" for="flt-s-1">Published</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" value="draft" id="flt-s-2"><label class="form-check-label" for="flt-s-2">Draft</label></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </th>
+          <th>
+            <div class="help-col">
+              <button type="button" class="help-sort" data-sort="updated">Last changed <i class="bi bi-arrow-down-up help-sort-icon"></i></button>
+            </div>
+          </th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in articles %}
+        <tr data-row
+            data-title="{{ a.title|lower }}"
+            data-updated="{{ a.updated_at|date:'c' }}"
+            data-status="{% if a.is_published %}published{% else %}draft{% endif %}"
+            data-pages="{% for p in a.pages.all %}{{ p.label|lower }}{% if not forloop.last %}|{% endif %}{% endfor %}"
+            data-keywords="{% for k in a.keywords.all %}{{ k.name|lower }}{% if not forloop.last %}|{% endif %}{% endfor %}"
+            data-search="{{ a.title|lower }} {{ a.summary|lower }} {% for p in a.pages.all %}{{ p.label|lower }} {% endfor %}{% for k in a.keywords.all %}{{ k.name|lower }} {% endfor %}">
           <td>
-            <span class="fw-medium">{{ a.title }}</span>
-            <div class="small text-body-secondary">Deleted {{ a.archived_at }}</div>
+            <a href="{% url 'help:manual-article' a.slug %}">{{ a.title }}</a>
+            {% if a.summary %}<div class="small text-body-secondary">{{ a.summary }}</div>{% endif %}
           </td>
+          <td class="small">{% for p in a.pages.all %}<span class="badge text-bg-light">{{ p.label }}</span> {% empty %}<span class="text-body-tertiary">—</span>{% endfor %}</td>
+          <td class="small">{% for k in a.keywords.all %}<span class="badge text-bg-light">{{ k.name }}</span> {% empty %}<span class="text-body-tertiary">—</span>{% endfor %}</td>
+          <td>{% if a.is_published %}<span class="badge text-bg-success">Published</span>{% else %}<span class="badge text-bg-secondary">Draft</span>{% endif %}</td>
+          <td class="small text-body-secondary text-nowrap" title="{{ a.updated_at }}">{{ a.updated_at|date:"j M Y, H:i" }}</td>
           <td class="text-end text-nowrap">
-            <form method="post" action="{% url 'help:restore' a.slug %}" class="d-inline">
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'help:edit' a.slug %}" title="Edit"><i class="bi bi-pencil"></i></a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'help:revisions' a.slug %}" title="History"><i class="bi bi-clock-history"></i></a>
+            <form method="post" action="{% url 'help:delete' a.slug %}" class="d-inline">
               {% csrf_token %}
-              <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise me-1"></i>Restore</button>
-            </form>
-            <form method="post" action="{% url 'help:purge' a.slug %}" class="d-inline"
-                  onsubmit="return confirm('Permanently delete “{{ a.title|escapejs }}”? This cannot be undone.');">
-              {% csrf_token %}
-              <button class="btn btn-sm btn-outline-danger" title="Delete permanently"><i class="bi bi-trash3"></i></button>
+              <button class="btn btn-sm btn-outline-secondary" title="Move to Trash"><i class="bi bi-trash"></i></button>
             </form>
           </td>
         </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-body-secondary">No articles yet. <a href="{% url 'help:create' %}">Create one</a>.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  <div class="text-body-secondary p-3 d-none" data-manage-empty><i class="bi bi-search me-1"></i>No articles match your filters.</div>
 </div>
-{% endif %}
+
+{% comment %}Trash — soft-deleted articles, restorable or purged.{% endcomment %}
+<div class="modal fade" id="helpTrashModal" tabindex="-1" aria-labelledby="helpTrashModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="helpTrashModalLabel"><i class="bi bi-trash me-2"></i>Trash</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0">
+        {% if trashed %}
+        <table class="table align-middle mb-0">
+          <tbody>
+            {% for a in trashed %}
+            <tr>
+              <td>
+                <span class="fw-medium">{{ a.title }}</span>
+                <div class="small text-body-secondary">Deleted {{ a.archived_at|date:"j M Y, H:i" }}</div>
+              </td>
+              <td class="text-end text-nowrap">
+                <form method="post" action="{% url 'help:restore' a.slug %}" class="d-inline">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise me-1"></i>Restore</button>
+                </form>
+                <form method="post" action="{% url 'help:purge' a.slug %}" class="d-inline"
+                      onsubmit="return confirm('Permanently delete “{{ a.title|escapejs }}”? This cannot be undone.');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger" title="Delete permanently"><i class="bi bi-trash3"></i></button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="p-4 text-center text-body-secondary"><i class="bi bi-trash3 me-2"></i>Trash is empty.</div>
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        {% if trashed %}
+        <form method="post" action="{% url 'help:trash-empty' %}" class="me-auto"
+              onsubmit="return confirm('Permanently delete all {{ trashed|length }} trashed article{{ trashed|length|pluralize }}? This cannot be undone.');">
+          {% csrf_token %}
+          <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash3 me-1"></i>Empty Trash</button>
+        </form>
+        {% endif %}
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

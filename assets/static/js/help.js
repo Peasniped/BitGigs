@@ -492,6 +492,150 @@
     });
   })();
 
+  // ── Manage page: search bar, per-column checkbox filters, single-active sort ──
+  (function initHelpManage() {
+    var root = document.querySelector("[data-help-manage]");
+    if (!root) return;
+    var search = root.querySelector("[data-manage-search]");
+    var clearBtn = root.querySelector("[data-manage-clear]");
+    var tbody = root.querySelector("tbody");
+    var rows = Array.prototype.slice.call(root.querySelectorAll("tr[data-row]"));
+    var originalOrder = rows.slice();
+    var emptyMsg = root.querySelector("[data-manage-empty]");
+    var filterCols = ["pages", "keywords", "status"];
+    var sortKey = null, sortDir = 0; // 1 asc, -1 desc, 0 off
+
+    function selectedFor(col) {
+      return Array.prototype.slice
+        .call(root.querySelectorAll('[data-filter-options="' + col + '"] input:checked'))
+        .map(function (c) { return c.value; });
+    }
+    function colMatch(row, col, selected) {
+      if (!selected.length) return true;
+      var vals = (row.getAttribute("data-" + col) || "").split("|");
+      return selected.some(function (s) { return vals.indexOf(s) !== -1; });
+    }
+
+    function apply() {
+      var q = (search && search.value || "").trim().toLowerCase();
+      var sel = {};
+      filterCols.forEach(function (col) {
+        sel[col] = selectedFor(col);
+        // Funnel icon reflects whether this column is filtered.
+        var btn = root.querySelector('[data-filter-btn="' + col + '"]');
+        if (btn) {
+          var on = sel[col].length > 0;
+          btn.classList.toggle("active", on);
+          var icon = btn.querySelector("i");
+          if (icon) icon.className = on ? "bi bi-funnel-fill" : "bi bi-funnel";
+        }
+      });
+      var shown = 0;
+      rows.forEach(function (r) {
+        var ok = !q || (r.getAttribute("data-search") || "").indexOf(q) !== -1;
+        filterCols.forEach(function (col) { ok = ok && colMatch(r, col, sel[col]); });
+        r.classList.toggle("d-none", !ok);
+        if (ok) shown++;
+      });
+      if (emptyMsg) emptyMsg.classList.toggle("d-none", shown > 0 || rows.length === 0);
+      updateClear();
+    }
+
+    function anyActive() {
+      if (search && search.value.trim()) return true;
+      if (sortDir !== 0) return true;
+      return root.querySelector("[data-filter-options] input:checked") != null;
+    }
+    function updateClear() {
+      if (clearBtn) clearBtn.classList.toggle("d-none", !anyActive());
+    }
+
+    // Search + checkbox changes re-filter.
+    if (search) search.addEventListener("input", apply);
+    root.querySelectorAll('[data-filter-options] input[type="checkbox"]').forEach(function (cb) {
+      cb.addEventListener("change", apply);
+    });
+
+    // A "Clear" button at the bottom of each funnel menu clears that column.
+    filterCols.forEach(function (col) {
+      var opts = root.querySelector('[data-filter-options="' + col + '"]');
+      var menu = opts && opts.closest(".help-filter-menu");
+      if (!menu) return;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn-sm btn-outline-secondary w-100 mt-2";
+      btn.textContent = "Clear";
+      btn.addEventListener("click", function () {
+        opts.querySelectorAll('input[type="checkbox"]').forEach(function (c) { c.checked = false; });
+        apply();
+      });
+      menu.appendChild(btn);
+    });
+
+    // Global "Clear filters": reset search, all checkboxes, menu searches, sort.
+    if (clearBtn) {
+      clearBtn.addEventListener("click", function () {
+        if (search) search.value = "";
+        root.querySelectorAll('[data-filter-options] input[type="checkbox"]').forEach(function (c) { c.checked = false; });
+        root.querySelectorAll("[data-filter-search]").forEach(function (b) { b.value = ""; });
+        root.querySelectorAll(".help-filter-options .form-check").forEach(function (o) { o.classList.remove("d-none"); });
+        sortKey = null; sortDir = 0;
+        applyOrder(originalOrder);
+        updateSortIcons();
+        apply();
+      });
+    }
+
+    // Per-menu search box narrows that column's checkbox list.
+    root.querySelectorAll("[data-filter-search]").forEach(function (box) {
+      box.addEventListener("input", function () {
+        var q = box.value.trim().toLowerCase();
+        var options = box.parentElement.querySelectorAll(".form-check");
+        options.forEach(function (opt) {
+          var label = (opt.textContent || "").trim().toLowerCase();
+          opt.classList.toggle("d-none", q && label.indexOf(q) === -1);
+        });
+      });
+    });
+
+    // ── Sorting: one active column at a time (asc → desc → off) ──
+    function applyOrder(list) { list.forEach(function (r) { tbody.appendChild(r); }); }
+    function updateSortIcons() {
+      root.querySelectorAll("[data-sort]").forEach(function (btn) {
+        var active = btn.getAttribute("data-sort") === sortKey && sortDir !== 0;
+        btn.classList.toggle("sorted", active);
+        var icon = btn.querySelector(".help-sort-icon");
+        if (icon) {
+          icon.className = "help-sort-icon bi " +
+            (active ? (sortDir === 1 ? "bi-sort-down-alt" : "bi-sort-up-alt") : "bi-arrow-down-up");
+        }
+      });
+    }
+    function doSort() {
+      if (!sortKey || sortDir === 0) { applyOrder(originalOrder); return; }
+      var attr = "data-" + sortKey;
+      var sorted = rows.slice().sort(function (a, b) {
+        var va = a.getAttribute(attr) || "", vb = b.getAttribute(attr) || "";
+        return va < vb ? -1 : va > vb ? 1 : 0;
+      });
+      if (sortDir === -1) sorted.reverse();
+      applyOrder(sorted);
+    }
+    root.querySelectorAll("[data-sort]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var key = btn.getAttribute("data-sort");
+        if (sortKey !== key) { sortKey = key; sortDir = 1; }
+        else { sortDir = sortDir === 1 ? -1 : sortDir === -1 ? 0 : 1; }
+        if (sortDir === 0) sortKey = null;
+        doSort();
+        updateSortIcons();
+        updateClear();
+      });
+    });
+
+    apply();
+  })();
+
   // Caret pixel coordinates inside a <textarea> via a mirror element.
   function caretCoords(el, position) {
     var div = document.createElement("div");
