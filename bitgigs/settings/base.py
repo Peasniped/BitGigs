@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "calendar_view.apps.CalendarViewConfig",
     "data_io.apps.DataIoConfig",
     "analytics.apps.AnalyticsConfig",
+    "help.apps.HelpConfig",
 ]
 
 MIDDLEWARE = [
@@ -98,6 +99,7 @@ TEMPLATES = [
                 "core.context_processors.onboarding_status",
                 "core.context_processors.sso_status",
                 "core.context_processors.display_settings",
+                "help.context_processors.help_status",
             ],
         },
     },

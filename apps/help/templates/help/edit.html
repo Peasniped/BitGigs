@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{% if article %}Edit{% else %}New{% endif %} help article &middot; BitGigs{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="h4 m-0">{% if article %}Edit article{% else %}New article{% endif %}</h1>
+  <a class="btn btn-sm btn-link" href="{% url 'help:manage' %}" data-help-cancel>← Back to list</a>
+</div>
+
+<form method="post" class="help-editor" data-preview-url="{% url 'help:preview' %}">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <div class="mb-3">
+        <label class="form-label" for="{{ form.title.id_for_label }}">Title</label>
+        {{ form.title }}
+        {{ form.title.errors }}
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="{{ form.summary.id_for_label }}">Summary</label>
+        {{ form.summary }}
+        <div class="form-text">{{ form.summary.help_text }}</div>
+      </div>
+      <div class="mb-2 d-flex justify-content-between align-items-end">
+        <label class="form-label m-0" for="helpBodyInput">Body (Markdown)</label>
+        <div class="btn-group btn-group-sm" role="group" data-help-tabs>
+          <button type="button" class="btn btn-outline-secondary active" data-help-tab="write">Write</button>
+          <button type="button" class="btn btn-outline-secondary" data-help-tab="preview">Preview</button>
+        </div>
+      </div>
+      <div data-help-pane="write">
+        <div class="help-toolbar" data-help-toolbar></div>
+        {{ form.body_md }}
+        {{ form.body_md.errors }}
+      </div>
+      <div data-help-pane="preview" class="help-article-body help-preview d-none"></div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card">
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.slug.id_for_label }}">Slug</label>
+            {{ form.slug }}
+            <div class="form-text">{{ form.slug.help_text }}</div>
+            {{ form.slug.errors }}
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.parent.id_for_label }}">Parent article</label>
+            {{ form.parent }}
+            <div class="form-text">{{ form.parent.help_text }}</div>
+            {{ form.parent.errors }}
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.keywords_text.id_for_label }}">{{ form.keywords_text.label }}</label>
+            {{ form.keywords_text }}
+            <div class="form-text">{{ form.keywords_text.help_text }}</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label d-block">{{ form.pages.label }}</label>
+            <div class="help-pages-check">{{ form.pages }}</div>
+            <div class="form-text">{{ form.pages.help_text }}</div>
+          </div>
+          <div class="row g-2">
+            <div class="col-6 mb-3">
+              <label class="form-label" for="{{ form.audience.id_for_label }}">Audience</label>
+              {{ form.audience }}
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label" for="{{ form.order.id_for_label }}">Order</label>
+              {{ form.order }}
+            </div>
+          </div>
+          <div class="form-check mb-1">
+            {{ form.is_published }}
+            <label class="form-check-label" for="{{ form.is_published.id_for_label }}">Published</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4 d-flex gap-2">
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save</button>
+    <a class="btn btn-outline-secondary" href="{% url 'help:manage' %}" data-help-cancel>Cancel</a>
+    {% if article %}<a class="btn btn-outline-secondary ms-auto" href="{% url 'help:revisions' article.slug %}"><i class="bi bi-clock-history me-1"></i>History</a>{% endif %}
+  </div>
+</form>
+{% endblock %}

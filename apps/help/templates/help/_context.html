@@ -1,0 +1,15 @@
+{% comment %}Popup "For this page" zone: article(s) mapped to the current page.{% endcomment %}
+{% if articles %}
+  {% for article in articles %}
+    <div class="help-context-item">
+      <button type="button" class="help-context-link" data-help-open="{{ article.slug }}">
+        <i class="bi bi-file-earmark-text me-2"></i><span>{{ article.title }}</span>
+      </button>
+      {% if article.summary %}<div class="help-context-summary">{{ article.summary }}</div>{% endif %}
+    </div>
+  {% endfor %}
+{% else %}
+  <div class="help-empty text-body-secondary">
+    <i class="bi bi-search me-1"></i>No help is attached to this page yet — try searching above.
+  </div>
+{% endif %}

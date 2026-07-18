@@ -1,0 +1,11 @@
+{% comment %}Recursive sidebar tree. Expects `nodes` (list of {article, children}) and `current`.{% endcomment %}
+<ul class="list-unstyled help-manual-list">
+  {% for node in nodes %}
+  <li{% if current and node.article.slug == current.slug %} class="active"{% endif %}>
+    <a href="{% url 'help:manual-article' node.article.slug %}">{{ node.article.title }}</a>
+    {% if node.children %}
+      {% include "help/_manual_tree.html" with nodes=node.children current=current %}
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>

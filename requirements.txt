@@ -7,3 +7,8 @@ crispy-bootstrap5>=2024.10
 # migration state.
 django-allauth[socialaccount]>=65.18,<66
 python-dateutil>=2.9
+# Renders help articles (author-controlled Markdown) to HTML. Pure-Python, no
+# C deps. All rendering happens on-server — no external calls (see CLAUDE.md).
+# pymdown-extensions adds task lists, strikethrough and smarter emphasis.
+markdown>=3.6
+pymdown-extensions>=10

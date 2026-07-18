@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css" integrity="sha384-6LFfkTKLRlzFtgx8xsWyBdKGpcMMQTkv+dB7rAbugeJAu1Ym2q1Aji1cjHBG12Xh" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/air-datepicker@3.5.3/air-datepicker.css" integrity="sha384-+SLUj9NZCsFzQ4x212CLVVLWdvqjbf2bjQnoORFq4gN/+cRaEQ6kJmLC6aWPsx94" crossorigin="anonymous">
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  <link rel="stylesheet" href="{% static 'css/help.css' %}">
   {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -83,6 +84,8 @@
               <li><a class="dropdown-item" href="{% url 'core:settings' %}"><i class="bi bi-gear me-2"></i>Settings</a></li>
               <li><a class="dropdown-item" href="{% url 'data_io:main' %}"><i class="bi bi-arrow-left-right me-2"></i>Import / Export</a></li>
               <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'help:manual' %}"><i class="bi bi-book me-2"></i>Help</a></li>
+              <li><hr class="dropdown-divider"></li>
               <li>
                 <form method="post" action="{% url 'logout' %}">
                   {% csrf_token %}
@@ -120,10 +123,19 @@
     <small class="text-body-tertiary">BitGigs — Personal work tracking</small>
   </footer>
 
+  {% if user.is_authenticated and onboarding_complete and help_enabled %}
+    <button type="button" class="help-fab" data-bs-toggle="offcanvas" data-bs-target="#helpOffcanvas"
+            title="Help (F1)" aria-label="Open help">
+      <i class="bi bi-question-lg"></i>
+    </button>
+    {% include "help/_help_offcanvas.html" %}
+  {% endif %}
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js" integrity="sha384-jrOgQzBlDeUNdmQn3rUt/PZD+pdcRBdWd/HWRqRo+n2OR2QtGyjSaJC0GiCeH+ir" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/air-datepicker@3.5.3/air-datepicker.js" integrity="sha384-K1aTGb0e2SnCOyrnr+BX23z7N8DHKN5oLkdG4v1cRFitBfc/qBzF6SYIO0yDmGwn" crossorigin="anonymous"></script>
   <script src="{% static 'js/app.js' %}"></script>
+  <script src="{% static 'js/help.js' %}"></script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>

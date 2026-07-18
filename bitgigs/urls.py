@@ -23,6 +23,7 @@ urlpatterns = [
     path("calendar/", include("calendar_view.urls")),
     path("data/", include("data_io.urls")),
     path("analytics/", include("analytics.urls")),
+    path("help/", include("help.urls")),
 ]
 
 if settings.DEBUG:

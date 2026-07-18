@@ -1,0 +1,6 @@
+{% comment %}Shared rendered-article fragment: full manual body + popup content.{% endcomment %}
+<article class="help-article">
+  <h1 class="help-article-title">{{ article.title }}</h1>
+  {% if article.summary %}<p class="help-article-summary text-body-secondary">{{ article.summary }}</p>{% endif %}
+  <div class="help-article-body">{{ article.body_html|safe }}</div>
+</article>

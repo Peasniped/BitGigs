@@ -1,0 +1,49 @@
+{% comment %}
+  Context-aware help popup. Included once in base.html (only when authenticated,
+  onboarding is complete, and at least one published article exists). Opened by
+  the navbar ? icon and by F1 (help.js). Element hooks (data-help-*) are the
+  contract with help.js.
+{% endcomment %}
+<div class="offcanvas offcanvas-end help-offcanvas" tabindex="-1" id="helpOffcanvas"
+     aria-labelledby="helpOffcanvasLabel"
+     data-help-page="{{ request.resolver_match.view_name|default:'' }}"
+     data-context-url="{% url 'help:context' %}"
+     data-index-url="{% url 'help:search-index' %}"
+     data-fragment-url="{% url 'help:fragment' 'SLUG' %}"
+     data-manual-url="{% url 'help:manual' %}">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="helpOffcanvasLabel"><i class="bi bi-life-preserver me-2"></i>Help</h5>
+    <a class="btn btn-sm btn-link ms-auto me-1" href="{% url 'help:manual' %}"><i class="bi bi-book me-1"></i>Full manual</a>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div class="help-search-box">
+      <i class="bi bi-search help-search-icon"></i>
+      <input type="search" class="form-control" placeholder="Search help…" autocomplete="off"
+             data-help-search aria-label="Search help">
+    </div>
+
+    {% comment %}Default view: articles attached to the current page.{% endcomment %}
+    <div class="help-view" data-help-view="context">
+      <div class="help-section-label">For this page</div>
+      <div data-help-context><div class="help-empty text-body-secondary">Loading…</div></div>
+    </div>
+
+    {% comment %}Search-as-you-type results.{% endcomment %}
+    <div class="help-view d-none" data-help-view="results">
+      <div class="help-section-label">Results</div>
+      <ul class="help-results list-unstyled m-0" data-help-results></ul>
+      <div class="help-empty text-body-secondary d-none" data-help-noresults>
+        <i class="bi bi-emoji-neutral me-1"></i>Nothing matched.
+      </div>
+    </div>
+
+    {% comment %}A single opened article.{% endcomment %}
+    <div class="help-view d-none" data-help-view="content">
+      <button type="button" class="btn btn-sm btn-link help-back px-0" data-help-back>
+        <i class="bi bi-arrow-left me-1"></i>Back
+      </button>
+      <div data-help-content></div>
+    </div>
+  </div>
+</div>
