@@ -245,6 +245,16 @@
   margin-bottom: 0.15rem;
 }
 
+/* Shift-type legend inside the help panel (calendar pages) */
+.help-legend .shift-legend__row {
+  font-size: 0.85rem;
+  padding: 3px 2px;
+}
+.help-legend hr {
+  border-color: var(--bs-border-color);
+  opacity: 0.5;
+}
+
 /* Task lists (checkboxes) in rendered bodies */
 .help-article-body .task-list {
   list-style: none;

@@ -13,7 +13,7 @@
      data-manual-url="{% url 'help:manual' %}">
   <div class="offcanvas-header">
     <h5 class="offcanvas-title" id="helpOffcanvasLabel"><i class="bi bi-life-preserver me-2"></i>Help</h5>
-    <a class="btn btn-sm btn-link ms-auto me-1" href="{% url 'help:manual' %}"><i class="bi bi-book me-1"></i>Full manual</a>
+    <a class="btn btn-sm btn-outline-secondary ms-auto me-1" href="{% url 'help:manual' %}"><i class="bi bi-book me-1"></i>Full manual</a>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
   <div class="offcanvas-body">
@@ -23,8 +23,14 @@
              data-help-search aria-label="Search help">
     </div>
 
-    {% comment %}Default view: articles attached to the current page.{% endcomment %}
+    {% comment %}Default view: shift-type legend (calendar pages) + articles for this page.{% endcomment %}
     <div class="help-view" data-help-view="context">
+      {% if page_has_calendar and show_shift_type_colors %}
+      <div class="help-legend mb-3">
+        <div class="help-section-label">Calendar shift types</div>
+        {% include "calendar_view/_shift_legend_rows.html" %}
+      </div>
+      {% endif %}
       <div class="help-section-label">For this page</div>
       <div data-help-context><div class="help-empty text-body-secondary">Loading…</div></div>
     </div>
@@ -40,7 +46,7 @@
 
     {% comment %}A single opened article.{% endcomment %}
     <div class="help-view d-none" data-help-view="content">
-      <button type="button" class="btn btn-sm btn-link help-back px-0" data-help-back>
+      <button type="button" class="btn btn-sm btn-outline-secondary help-back" data-help-back>
         <i class="bi bi-arrow-left me-1"></i>Back
       </button>
       <div data-help-content></div>

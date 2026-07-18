@@ -4,7 +4,7 @@
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-3">
   <h1 class="h4 m-0">History — {{ article.title }}</h1>
-  <a class="btn btn-sm btn-link" href="{% url 'help:edit' article.slug %}">← Back to editor</a>
+  <a class="btn btn-sm btn-outline-secondary" href="{% url 'help:edit' article.slug %}"><i class="bi bi-arrow-left me-1"></i>Back to editor</a>
 </div>
 
 <p class="text-body-secondary small">A snapshot is saved on every edit (most recent {{ article.revisions.model.PRUNE_KEEP }} kept). Revert restores that version as a new edit.</p>

@@ -3,11 +3,6 @@
 {% load dk_filters %}
 
 <div class="calendar-component">
-  {% if show_shift_type_colors %}
-  <div class="d-flex justify-content-end mb-1">
-    {% include "calendar_view/_shift_legend.html" %}
-  </div>
-  {% endif %}
   {% if grid.has_overlaps %}
   <div class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-2" role="alert">
     <i class="bi bi-exclamation-triangle-fill"></i>

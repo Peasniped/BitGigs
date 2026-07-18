@@ -8,7 +8,6 @@
      class="btn btn-outline-secondary">â† Prev</a>
   <div class="d-flex align-items-center gap-2">
     <h2 class="mb-0">{{ grid.title }}</h2>
-    {% include "calendar_view/_shift_legend.html" %}
   </div>
   <a href="{% url 'calendar_view:payroll-period' %}?year={{ next_year }}&month={{ next_month }}&workplace={{ workplace_id }}"
      class="btn btn-outline-secondary">Next â†’</a>
