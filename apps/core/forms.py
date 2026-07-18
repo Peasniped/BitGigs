@@ -83,6 +83,18 @@ class TaxProfileForm(forms.ModelForm):
 
 
 class UserSettingsForm(forms.ModelForm):
+    """The settings page renders one tab at a time, so the form is scoped to that
+    tab's fields. ``construct_instance`` only writes the fields still in
+    ``self.fields``, which is what keeps the other tabs' values intact when a
+    partial POST comes back."""
+
+    # Tab slug → the fields that tab owns. Order here is the render order.
+    TABS = {
+        "display": ["week_start", "show_shift_type_colors", "show_help_button"],
+        "analytics": ["projection_method", "projection_trailing_months",
+                      "use_planned_shifts"],
+    }
+
     class Meta:
         model = UserSettings
         fields = [
@@ -93,3 +105,11 @@ class UserSettingsForm(forms.ModelForm):
             "projection_trailing_months",
             "use_planned_shifts",
         ]
+
+    def __init__(self, *args, tab=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        keep = self.TABS.get(tab)
+        if keep is not None:
+            for name in list(self.fields):
+                if name not in keep:
+                    del self.fields[name]

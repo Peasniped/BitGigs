@@ -5,35 +5,60 @@
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-12 col-md-8 col-lg-6">
-    <div class="card">
-      <div class="card-header">
-        <i class="bi bi-gear me-2"></i>Settings
-      </div>
-      <div class="card-body">
-        <form method="post">
-          {% csrf_token %}
-          {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
-          {{ form|crispy }}
-          <div class="d-flex gap-2 mt-3">
-            <button type="submit" class="btn btn-primary">
-              <i class="bi bi-check-lg me-1"></i>Save
-            </button>
-            {% if next_url %}
-              <a href="{{ next_url }}" class="btn btn-outline-secondary">
-                <i class="bi bi-x-lg me-1"></i>Cancel
-              </a>
-            {% endif %}
-          </div>
-        </form>
-      </div>
-    </div>
 
-    {% if sso_enabled %}
-    <div class="card mt-4">
-      <div class="card-header">
-        <i class="bi bi-shield-check me-2"></i>Sign-in
-      </div>
+    {% comment %}
+      Server-rendered tabs: only the active pane exists in the DOM. The Sign-in
+      pane carries its own POST forms, so it can never sit inside the settings
+      form — links sidestep that, and make each tab linkable.
+    {% endcomment %}
+    <ul class="nav nav-tabs settings-tabs mb-0">
+      <li class="nav-item">
+        <a class="nav-link{% if active_tab == 'display' %} active{% endif %}"
+           href="?tab=display{% if next_url %}&next={{ next_url|urlencode }}{% endif %}">
+          <i class="bi bi-display me-1"></i>Display
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link{% if active_tab == 'analytics' %} active{% endif %}"
+           href="?tab=analytics{% if next_url %}&next={{ next_url|urlencode }}{% endif %}">
+          <i class="bi bi-graph-up me-1"></i>Analytics
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link{% if active_tab == 'signin' %} active{% endif %}"
+           href="?tab=signin{% if next_url %}&next={{ next_url|urlencode }}{% endif %}">
+          <i class="bi bi-shield-check me-1"></i>Sign-in
+        </a>
+      </li>
+    </ul>
+
+    {% if active_tab == 'signin' %}
+    <div class="card settings-pane">
       <div class="card-body">
+
+        {% if not sso_enabled %}
+        {% comment %}
+          No IdP configured. BitGigs is fully usable this way, so this is a
+          "here's what you're not using" note, not a warning — and it names the
+          env vars so enabling it doesn't need a trip to the docs.
+        {% endcomment %}
+        <div class="settings-sso-off">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-shield-slash"></i>
+            <span class="fw-semibold">Single sign-on</span>
+            <span class="badge text-bg-secondary ms-auto">Not configured</span>
+          </div>
+          <div class="form-text mt-1 mb-2">
+            Password login is handling sign-in. To use Authentik (or any OIDC provider),
+            set all three in <code>.env</code> and restart:
+          </div>
+          <pre class="settings-env small mb-0"><code>AUTHENTIK_SERVER_URL=https://auth.example.com/application/o/bitgigs/
+AUTHENTIK_CLIENT_ID=
+AUTHENTIK_CLIENT_SECRET=</code></pre>
+        </div>
+
+        <hr class="my-3">
+        {% else %}
 
         <div class="d-flex justify-content-between align-items-center gap-3">
           <div>
@@ -85,11 +110,28 @@
         </div>
 
         <hr class="my-3">
+        {% endif %}
 
         <div class="d-flex justify-content-between align-items-center">
           <div class="pe-3">
             <div class="fw-medium">Password sign-in</div>
-            {% if has_usable_password and sso_linked %}
+            {% if not sso_enabled and has_usable_password %}
+              <div class="form-text mb-0">
+                Enabled — the only way in, and all BitGigs needs. There is no email backend, so
+                if you ever lock yourself out, <code>manage.py changepassword</code> on the
+                server is the way back.
+              </div>
+            {% elif not sso_enabled %}
+              {% comment %}
+                Reachable only if the password was turned off while SSO was configured
+                and SSO was then removed — so there is no way in at all. Say so plainly.
+              {% endcomment %}
+              <div class="form-text mb-0 text-danger">
+                Off — and single sign-on is not configured either, so there is currently no way
+                to sign in. Set a password below, or run <code>manage.py changepassword</code>
+                on the server.
+              </div>
+            {% elif has_usable_password and sso_linked %}
               <div class="form-text mb-0">
                 Enabled — a way in when Authentik is unavailable. It is also a way <em>around</em> the
                 MFA Authentik enforces, so turn it off once you trust the Authentik login.
@@ -220,6 +262,32 @@
             </div>
           </form>
         </div>
+      </div>
+    </div>
+
+    {% else %}
+    <div class="card settings-pane">
+      <div class="card-body">
+        {% comment %}
+          The form is scoped to the active tab (UserSettingsForm.TABS), so this
+          Save only writes that tab's fields — the other tab keeps its values.
+        {% endcomment %}
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="tab" value="{{ active_tab }}">
+          {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+          {{ form|crispy }}
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-lg me-1"></i>Save
+            </button>
+            {% if next_url %}
+              <a href="{{ next_url }}" class="btn btn-outline-secondary">
+                <i class="bi bi-x-lg me-1"></i>Cancel
+              </a>
+            {% endif %}
+          </div>
+        </form>
       </div>
     </div>
     {% endif %}

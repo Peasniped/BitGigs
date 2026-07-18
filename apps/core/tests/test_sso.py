@@ -389,7 +389,7 @@ class PasswordSignInToggleTest(TestCase):
     @override_settings(**SSO_SETTINGS)
     def test_settings_offers_a_way_to_link_again(self):
         # Unlinking must not be a one-way door.
-        resp = self.client.get("/settings/")
+        resp = self.client.get("/settings/?tab=signin")
         self.assertContains(resp, "/accounts/oidc/authentik/login/")
         self.assertContains(resp, 'value="connect"')
 

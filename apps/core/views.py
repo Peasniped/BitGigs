@@ -157,6 +157,11 @@ class TaxProfileDeleteView(View):
 
 
 class UserSettingsView(View):
+    """Tabbed settings. The tabs are server-rendered (plain links carrying
+    ``?tab=``) rather than Bootstrap's JS tabs: the Sign-in tab holds its own
+    POST forms, which cannot legally nest inside the settings form, and links
+    give deep-linking and a working back button for free."""
+
     def _safe_next(self, request, raw):
         # Only allow same-origin relative redirects.
         if raw and raw.startswith("/") and not raw.startswith("//"):
@@ -165,22 +170,39 @@ class UserSettingsView(View):
 
     def get(self, request):
         settings = UserSettings.load()
-        form = UserSettingsForm(instance=settings)
+        tab = active_settings_tab(request.GET.get("tab"))
+        form = UserSettingsForm(instance=settings, tab=tab)
         next_url = self._safe_next(request, request.GET.get("next"))
         return render(request, "core/settings.html", {
-            "form": form, "next_url": next_url, **sign_in_context(request.user),
+            "form": form, "next_url": next_url, "active_tab": tab,
+            **sign_in_context(request.user),
         })
 
     def post(self, request):
         settings = UserSettings.load()
-        form = UserSettingsForm(request.POST, instance=settings)
+        # The tab is what scopes the form, so trust the POST's own marker — a
+        # tab's Save must only ever write that tab's fields.
+        tab = active_settings_tab(request.POST.get("tab"))
+        form = UserSettingsForm(request.POST, instance=settings, tab=tab)
         next_url = self._safe_next(request, request.POST.get("next"))
         if form.is_valid():
             form.save()
-            return redirect(next_url or "core:settings")
+            return redirect(next_url or f"{reverse('core:settings')}?tab={tab}")
         return render(request, "core/settings.html", {
-            "form": form, "next_url": next_url, **sign_in_context(request.user),
+            "form": form, "next_url": next_url, "active_tab": tab,
+            **sign_in_context(request.user),
         })
+
+
+# "signin" carries no form fields of its own, so the valid set is wider than
+# UserSettingsForm.TABS. It is offered even without an IdP configured — that is
+# where the password lives, and where we explain how to turn SSO on.
+SETTINGS_TABS = ("display", "analytics", "signin")
+
+
+def active_settings_tab(raw):
+    """Resolve a ``?tab=`` value, falling back to the first tab."""
+    return raw if raw in SETTINGS_TABS else SETTINGS_TABS[0]
 
 
 class BitGigsLoginView(LoginView):
@@ -331,6 +353,11 @@ class SSOLinkConfirmView(View):
         return complete_social_login(request, sociallogin)
 
 
+def _signin_tab_url():
+    """Sign-in actions all live on the Sign-in tab — come back to it."""
+    return f"{reverse('core:settings')}?tab=signin"
+
+
 class PasswordSignInView(View):
     """The settings page's sign-in actions: set/change the password, turn password
     sign-in off, or unlink the IdP.
@@ -351,27 +378,27 @@ class PasswordSignInView(View):
 
         if action == "unlink_sso":
             if not ctx["sso_linked"]:
-                return redirect("core:settings")
+                return redirect(_signin_tab_url())
             if not ctx["has_usable_password"]:
                 messages.error(request, "Set a password before unlinking Authentik — "
                                         "otherwise you would have no way back in.")
-                return redirect("core:settings")
+                return redirect(_signin_tab_url())
             ctx["sso_account"].delete()
             messages.success(request, "Authentik is no longer linked. Sign in with your password.")
-            return redirect("core:settings")
+            return redirect(_signin_tab_url())
 
         if action == "disable":
             if not ctx["sso_linked"]:
                 messages.error(request, "Link your Authentik account before turning off password sign-in — "
                                         "otherwise you would have no way back in.")
-                return redirect("core:settings")
+                return redirect(_signin_tab_url())
             request.user.set_unusable_password()
             request.user.save(update_fields=["password"])
             # Any change to the password rotates the session hash, which would log
             # the owner straight out of the session they're doing this from.
             update_session_auth_hash(request, request.user)
             messages.success(request, "Password sign-in is off. Use Authentik from now on.")
-            return redirect("core:settings")
+            return redirect(_signin_tab_url())
 
         if action == "set_password":
             form = SetPasswordForm(request.user, request.POST)
@@ -381,17 +408,18 @@ class PasswordSignInView(View):
                 update_session_auth_hash(request, request.user)
                 messages.success(request, "Password changed." if had_one
                                  else "Password sign-in is on.")
-                return redirect("core:settings")
+                return redirect(_signin_tab_url())
             # Re-render with the modal open, so the errors are where the user is.
             return render(request, "core/settings.html", {
-                "form": UserSettingsForm(instance=UserSettings.load()),
+                "form": UserSettingsForm(instance=UserSettings.load(), tab="display"),
                 "next_url": None,
+                "active_tab": "signin",
                 **ctx,
                 "set_password_form": form,
                 "open_password_modal": True,
             })
 
-        return redirect("core:settings")
+        return redirect(_signin_tab_url())
 
 
 # ─────────────────────────────────────────────────────────────────────────────

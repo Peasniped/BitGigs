@@ -62,6 +62,21 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
 .brand-logo {
   width: 32px; height: 32px;
   object-fit: contain;
+  transition: transform var(--transition-base), filter var(--transition-base);
+}
+/* Scoped to the anchor so the minimal-chrome variant (a plain span, nothing
+   clickable) stays inert. */
+a.navbar-brand:hover .brand-logo {
+  transform: scale(1.08) rotate(-4deg);
+  filter: drop-shadow(0 2px 6px rgba(var(--primary-rgb), .45));
+}
+a.navbar-brand:active .brand-logo { transform: scale(1.02) rotate(-2deg); }
+a.navbar-brand span { transition: color var(--transition-base); }
+a.navbar-brand:hover span { color: var(--primary); }
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo { transition: none; }
+  a.navbar-brand:hover .brand-logo,
+  a.navbar-brand:active .brand-logo { transform: none; }
 }
 .nav-link {
   color: var(--text-muted) !important;
@@ -1027,3 +1042,56 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
   --adp-btn-color-hover: #4f46e5;
   --adp-z-index: 1060;   /* above Bootstrap modals (~1055) */
 }
+
+/* ---- Settings tabs ---- */
+/* The active tab and the pane below it read as one surface, so the pane loses
+   its top corners and the active tab paints over the strip's bottom border. */
+.settings-tabs {
+  border-bottom: 1px solid var(--border);
+}
+.settings-tabs .nav-link {
+  border: 1px solid transparent;
+  border-radius: var(--card-radius) var(--card-radius) 0 0;
+  color: var(--text-muted) !important;
+  font-weight: 500;
+  transition: background var(--transition-base), color var(--transition-base);
+}
+.settings-tabs .nav-link:hover {
+  background: var(--bg-lighter);
+  border-color: transparent;
+  color: var(--text) !important;
+}
+.settings-tabs .nav-link.active {
+  background: #fff;
+  border-color: var(--border) var(--border) #fff;
+  color: var(--primary) !important;
+}
+.settings-pane {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top: 0;
+}
+/* The lift-on-hover the other cards get would break the seam with the tab. */
+.settings-pane:hover { box-shadow: var(--card-shadow); }
+/* "SSO not configured" panel — a tinted aside, so the reader can tell at a
+   glance it is a status note rather than another setting to act on. */
+.settings-sso-off {
+  background: var(--bg-light);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-subtle);
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.85rem;
+  color: var(--text-muted);
+}
+.settings-sso-off .fw-semibold { color: var(--text); }
+.settings-sso-off .form-text { margin-bottom: 0; }
+/* Env-var snippet — a quotable block, not a code editor. */
+.settings-env {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  padding: 0.55rem 0.7rem;
+  overflow-x: auto;
+  color: var(--text);
+}
+.settings-env code { color: inherit; }
