@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Confirm your Authentik account &middot; BitGigs Setup{% endblock %}
+{% block title %}Confirm your {{ sso_brand.name }} account &middot; BitGigs Setup{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -9,14 +9,14 @@
     <div class="setup-hero mb-3">
       <img src="{% static 'graphics/App_Main_Logo_192.png' %}" alt="BitGigs" class="setup-hero__logo">
       <h2 class="mt-3 mb-1">Is this you?</h2>
-      <p class="text-muted">Authentik signed you in. Confirm the identity that will own this instance.</p>
+      <p class="text-muted">{{ sso_brand.name }} signed you in. Confirm the identity that will own this instance.</p>
     </div>
 
     {% include "core/_onboarding_steps.html" %}
 
     <div class="card">
       <div class="card-header fw-semibold">
-        <img src="{% static 'graphics/authentik_icon.svg' %}" alt="" class="card-header__logo me-2">Identity from Authentik
+        {% include "core/_sso_brand_icon.html" %}Identity from {{ sso_brand.name }}
       </div>
       <div class="card-body">
 
@@ -26,8 +26,9 @@
           <i class="bi bi-info-circle-fill mt-1 flex-shrink-0"></i>
           <div>
             This becomes the <strong>owner &amp; administrator</strong> of BitGigs. No password is set,
-            so Authentik is the only way in. If you ever need a way in <em>without</em> Authentik —
-            it's down, or its config broke — you can add a password from the settings page, or run
+            so {{ sso_brand.name }} is the only way in. If you ever need a way in <em>without</em>
+            {{ sso_brand.name }} — it's down, or its config broke — you can add a password from the
+            settings page, or run
             <code>manage.py changepassword</code> on the server.
           </div>
         </div>
@@ -36,7 +37,7 @@
           <form method="post" action="{% url 'core:sso-idp-logout' %}">
             {% csrf_token %}
             <button type="submit" class="btn btn-link btn-sm text-muted p-0">
-              Not you? Sign out of Authentik
+              Not you? Sign out of {{ sso_brand.name }}
             </button>
           </form>
 

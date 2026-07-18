@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% load static %}
 {% block title %}Log in — BitGigs{% endblock %}
 
 {% block content %}
@@ -38,20 +37,12 @@
 
         {% if sso_enabled %}
           {% if show_password_form %}<div class="login-divider my-3"><span>or</span></div>{% endif %}
-          <form method="post" action="{% url 'openid_connect_login' provider_id=sso_provider_id %}">
-            {% csrf_token %}
-            <input type="hidden" name="process" value="login">
-            <input type="hidden" name="next" value="{{ next }}">
-            <button type="submit" class="btn btn-authentik w-100">
-              <img src="{% static 'graphics/authentik_icon.svg' %}" alt="" class="btn-authentik__logo">
-              Sign in with Authentik
-            </button>
-          </form>
+          {% include "core/_sso_button.html" with sso_label="Sign in with "|add:sso_brand.name sso_process="login" sso_next=next sso_btn_class="w-100" %}
 
           <div class="text-center mt-3">
             <button type="button" class="btn btn-link btn-sm text-muted p-0"
                     data-bs-toggle="modal" data-bs-target="#recoveryModal">
-              {% if password_login_disabled %}Can't access Authentik?{% else %}Forgot your password?{% endif %}
+              {% if password_login_disabled %}Can't access {{ sso_brand.name }}?{% else %}Forgot your password?{% endif %}
             </button>
           </div>
         {% endif %}
@@ -78,8 +69,8 @@
       <div class="modal-body">
         {% if password_login_disabled %}
           <p>
-            Password sign-in is turned off for this instance, so Authentik is the only way in.
-            If Authentik is down or its configuration broke, set a password from the server console:
+            Password sign-in is turned off for this instance, so {{ sso_brand.name }} is the only way in.
+            If {{ sso_brand.name }} is down or its configuration broke, set a password from the server console:
           </p>
         {% else %}
           <p>

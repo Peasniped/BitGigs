@@ -51,7 +51,7 @@ INSTALLED_APPS = [
     "crispy_forms",
     "crispy_bootstrap5",
     # allauth is always installed (one migration state for every deployment); the
-    # OIDC provider below is only registered when the AUTHENTIK_* env vars are set,
+    # OIDC provider below is only registered when the OIDC_* env vars are set,
     # so a stock install has no SSO and needs no identity provider.
     "allauth",
     "allauth.account",
@@ -152,10 +152,14 @@ LOGOUT_REDIRECT_URL = "/accounts/login/"
 # exists. See core/setup_key.py and `manage.py setup_key`.
 SETUP_KEY_PATH = BASE_DIR / "instance" / "setup_key.txt"
 
-# ─── Optional SSO (Authentik / any OIDC provider) ────────────────────────────
-# BitGigs must stay feature-complete standalone: with no AUTHENTIK_* env vars it
+# ─── Optional SSO (any OpenID Connect provider) ──────────────────────────────
+# BitGigs must stay feature-complete standalone: with no OIDC_* env vars it
 # behaves exactly as before (native password login, no SSO button, no IdP needed).
-# Set all three to light up "Sign in with Authentik" alongside the password form.
+# Set all three to light up the SSO button alongside the password form.
+#
+# The three credential vars are all that is *required*. What the button is called
+# and what it looks like is cosmetic and optional — see the OIDC_PROVIDER_* vars
+# below and core/sso.py, which turn them into the button every SSO page renders.
 #
 # Because the app is single-tenant (Workplace/TaxProfile/UserSettings have no user
 # FK), SSO must never create a second User — it may only attach to the existing
@@ -172,11 +176,25 @@ SOCIALACCOUNT_ADAPTER = "core.adapters.OwnerOnlySocialAccountAdapter"
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_STORE_TOKENS = False
 
-AUTHENTIK_SERVER_URL = os.environ.get("AUTHENTIK_SERVER_URL", "")
-AUTHENTIK_CLIENT_ID = os.environ.get("AUTHENTIK_CLIENT_ID", "")
-AUTHENTIK_CLIENT_SECRET = os.environ.get("AUTHENTIK_CLIENT_SECRET", "")
-SSO_ENABLED = bool(AUTHENTIK_SERVER_URL and AUTHENTIK_CLIENT_ID and AUTHENTIK_CLIENT_SECRET)
-SSO_PROVIDER_ID = "authentik"
+OIDC_SERVER_URL = os.environ.get("OIDC_SERVER_URL", "")
+OIDC_CLIENT_ID = os.environ.get("OIDC_CLIENT_ID", "")
+OIDC_CLIENT_SECRET = os.environ.get("OIDC_CLIENT_SECRET", "")
+SSO_ENABLED = bool(OIDC_SERVER_URL and OIDC_CLIENT_ID and OIDC_CLIENT_SECRET)
+
+# Provider-neutral: this is the allauth provider_id, and it lands in the callback
+# URL the IdP must have registered — /accounts/oidc/sso/login/callback/. Renaming
+# it means re-registering that URI at the provider, so leave it alone.
+SSO_PROVIDER_ID = "sso"
+
+# Button branding — all optional. OIDC_PROVIDER_BRAND is a one-word preset for a
+# provider whose icon BitGigs bundles ("authentik"); the other three override any
+# individual piece of it. With none of them set the button is neutral: "SSO", the
+# app's own accent colour and a shield glyph. Resolved by core/sso.py.
+OIDC_PROVIDER_BRAND = os.environ.get("OIDC_PROVIDER_BRAND", "")
+OIDC_PROVIDER_NAME = os.environ.get("OIDC_PROVIDER_NAME", "")
+OIDC_PROVIDER_COLOR = os.environ.get("OIDC_PROVIDER_COLOR", "")
+# A static path, e.g. graphics/my_idp.svg — drop the file in assets/static/graphics/.
+OIDC_PROVIDER_ICON = os.environ.get("OIDC_PROVIDER_ICON", "")
 
 SOCIALACCOUNT_PROVIDERS = {}
 if SSO_ENABLED:
@@ -184,10 +202,11 @@ if SSO_ENABLED:
         "APPS": [
             {
                 "provider_id": SSO_PROVIDER_ID,
-                "name": "Authentik",
-                "client_id": AUTHENTIK_CLIENT_ID,
-                "secret": AUTHENTIK_CLIENT_SECRET,
-                "settings": {"server_url": AUTHENTIK_SERVER_URL},
+                # Only surfaced in allauth's own admin; the UI uses core.sso.
+                "name": OIDC_PROVIDER_NAME or "SSO",
+                "client_id": OIDC_CLIENT_ID,
+                "secret": OIDC_CLIENT_SECRET,
+                "settings": {"server_url": OIDC_SERVER_URL},
             },
         ],
     }

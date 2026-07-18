@@ -32,7 +32,7 @@ urlpatterns = [
     path("settings/", views.UserSettingsView.as_view(), name="settings"),
     path("settings/sign-in/", views.PasswordSignInView.as_view(), name="password-signin"),
     path("settings/sign-in/link/", views.SSOLinkConfirmView.as_view(), name="sso-link-confirm"),
-    # Set this as the application's Launch URL in Authentik.
+    # Set this as the application's Launch URL at the identity provider.
     path("sso/launch/", views.SSOLaunchView.as_view(), name="sso-launch"),
     path("sso/idp-logout/", views.SSOEndIdPSessionView.as_view(), name="sso-idp-logout"),
     path("dashboard/stats/", views.DashboardStatsAPIView.as_view(), name="dashboard-stats"),

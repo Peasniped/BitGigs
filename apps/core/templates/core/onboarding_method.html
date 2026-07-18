@@ -23,25 +23,21 @@
 
           <div class="col-12 col-md-6">
             <div class="method-card h-100">
-              <img src="{% static 'graphics/authentik_icon.svg' %}" alt="" class="method-card__logo">
-              <div class="fw-semibold mt-2">Authentik</div>
+              {% if sso_brand.icon %}
+                <img src="{% static sso_brand.icon %}" alt="" class="method-card__logo">
+              {% else %}
+                <i class="bi {{ sso_brand.glyph }} method-card__glyph"></i>
+              {% endif %}
+              <div class="fw-semibold mt-2">{{ sso_brand.name }}</div>
               <p class="form-text">
                 Sign in through your identity provider. That identity becomes the owner, with
-                no password to choose — Authentik enforces its own MFA.
+                no password to choose — {{ sso_brand.name }} enforces its own MFA.
               </p>
               {% comment %}
                 Straight to allauth — the setup key was already accepted on the previous
-                page, so there is nothing left to check here. allauth wants this as a POST
-                (a GET provider-login is open to login-CSRF).
+                page, so there is nothing left to check here.
               {% endcomment %}
-              <form method="post" action="{% url 'openid_connect_login' provider_id=sso_provider_id %}">
-                {% csrf_token %}
-                <input type="hidden" name="process" value="login">
-                <button type="submit" class="btn btn-authentik w-100">
-                  <img src="{% static 'graphics/authentik_icon.svg' %}" alt="" class="btn-authentik__logo">
-                  Continue with Authentik
-                </button>
-              </form>
+              {% include "core/_sso_button.html" with sso_label="Continue with "|add:sso_brand.name sso_process="login" sso_btn_class="w-100" %}
             </div>
           </div>
 
@@ -51,7 +47,7 @@
               <div class="fw-semibold mt-2">Email &amp; password</div>
               <p class="form-text">
                 A plain BitGigs account. Works without any identity provider — you can still
-                link Authentik afterwards from the settings page.
+                link {{ sso_brand.name }} afterwards from the settings page.
               </p>
               <a href="{% url 'core:onboarding-account-email' %}" class="btn btn-outline-secondary w-100">
                 Use email &amp; password

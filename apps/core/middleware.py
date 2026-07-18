@@ -28,7 +28,7 @@ class OnboardingRequiredMiddleware:
         # Fresh install (no account yet): everything, including the login page,
         # leads to the create-account step — there is nobody to log in as. The
         # exceptions are /accounts/oidc/ and /sso/, because the account step offers
-        # "create the account with Authentik", and that round-trip (including the
+        # "create the account with single sign-on", and that round-trip (including the
         # "not you?" re-authentication) runs while still anonymous.
         if not request.user.is_authenticated:
             from django.contrib.auth.models import User

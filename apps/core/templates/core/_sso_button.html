@@ -1,0 +1,30 @@
+{% load static %}
+{% comment %}
+  The one SSO button, used by the login page, the onboarding method step and the
+  settings page's Link control. Its name, colour and icon come from core.sso —
+  no page may name a provider, since BitGigs works with any OIDC provider.
+
+  allauth wants the provider login as a POST (a GET is open to login-CSRF), so
+  this is a form rather than a link.
+
+  Callers pass:
+    sso_label      full button text, e.g. "Sign in with {{ sso_brand.name }}"
+    sso_process    "login" (default) or "connect" to link to the current account
+    sso_next       optional post-login redirect
+    sso_btn_class  extra classes, e.g. "w-100" or "btn-sm"
+{% endcomment %}
+<form method="post" action="{% url 'openid_connect_login' provider_id=sso_provider_id %}">
+  {% csrf_token %}
+  <input type="hidden" name="process" value="{{ sso_process|default:'login' }}">
+  {% if sso_next %}<input type="hidden" name="next" value="{{ sso_next }}">{% endif %}
+  <button type="submit" class="btn btn-sso {{ sso_btn_class }}"
+          style="--sso-bg: {{ sso_brand.color }}; --sso-fg: {{ sso_brand.text_color }}; --sso-ring: {{ sso_brand.ring }}; --sso-tint-invert: {{ sso_brand.tint_invert }};">
+    {% if sso_brand.icon %}
+      <img src="{% static sso_brand.icon %}" alt=""
+           class="btn-sso__logo{% if sso_brand.tint_icon %} btn-sso__logo--tint{% endif %}">
+    {% else %}
+      <i class="bi {{ sso_brand.glyph }}"></i>
+    {% endif %}
+    {{ sso_label }}
+  </button>
+</form>

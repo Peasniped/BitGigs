@@ -1,9 +1,11 @@
-"""Optional Authentik/OIDC SSO.
+"""Optional OIDC single sign-on.
 
-The rules that matter: with no AUTHENTIK_* env vars BitGigs is unchanged and
+The rules that matter: with no OIDC_* env vars BitGigs is unchanged and
 password-only; with them, SSO may sign in the *existing owner* and nobody else —
 it must never create a second User, because the app is single-tenant and every
 User sees the same data.
+
+Branding (the button's name/colour/icon) is covered by test_sso_branding.py.
 """
 from allauth.core.exceptions import ImmediateHttpResponse
 from allauth.socialaccount.models import SocialAccount, SocialLogin
@@ -25,12 +27,18 @@ VALID_PW = "Vqz#8mtLp4"
 
 SSO_SETTINGS = dict(
     SSO_ENABLED=True,
-    SSO_PROVIDER_ID="authentik",
+    SSO_PROVIDER_ID="sso",
+    # Pinned so the assertions below describe an unbranded install, whatever the
+    # developer happens to have in their own .env.
+    OIDC_PROVIDER_BRAND="",
+    OIDC_PROVIDER_NAME="",
+    OIDC_PROVIDER_COLOR="",
+    OIDC_PROVIDER_ICON="",
     SOCIALACCOUNT_PROVIDERS={
         "openid_connect": {
             "APPS": [{
-                "provider_id": "authentik",
-                "name": "Authentik",
+                "provider_id": "sso",
+                "name": "SSO",
                 "client_id": "cid",
                 "secret": "sec",
                 "settings": {"server_url": "http://localhost:9000/application/o/bitgigs/"},
@@ -56,10 +64,10 @@ def _sociallogin(email, request=None):
     """A not-yet-linked social login carrying the given email. It needs a real
     provider attached, or serialize() (used by the confirm hand-off) blows up."""
     from allauth.socialaccount.adapter import get_adapter
-    provider = get_adapter().get_provider(request, "authentik") if request else None
+    provider = get_adapter().get_provider(request, "sso") if request else None
     return SocialLogin(
         user=User(username=email, email=email),
-        account=SocialAccount(provider="authentik", uid=email),
+        account=SocialAccount(provider="sso", uid=email),
         provider=provider,
     )
 
@@ -110,7 +118,7 @@ class AdapterTest(TestCase):
 
 @override_settings(**SSO_SETTINGS)
 class BootstrapOwnerTest(SetupKeyMixin, TestCase):
-    """Fresh install: the account step offers "create the account with Authentik".
+    """Fresh install: the account step offers "create the account with SSO".
     That identity becomes the owner — but only behind the setup key, so a stranger
     can't claim the instance just by reaching the OIDC URL first."""
 
@@ -182,14 +190,14 @@ class BootstrapOwnerTest(SetupKeyMixin, TestCase):
         # OnboardingRequiredMiddleware redirects every anonymous request to the
         # account step while no user exists — except the OIDC round-trip.
         self.assertEqual(self.client.get("/").status_code, 302)
-        resp = self.client.get("/accounts/oidc/authentik/login/")
+        resp = self.client.get("/accounts/oidc/sso/login/")
         self.assertNotEqual(resp.get("Location", ""), "/onboarding/account/")
 
     def test_the_key_leads_to_the_method_chooser(self):
         self.assertRedirects(self.claim(), "/onboarding/account/method/")
         resp = self.client.get("/onboarding/account/method/")
-        # The Authentik button posts straight to allauth — no interstitial page.
-        self.assertContains(resp, "/accounts/oidc/authentik/login/")
+        # The SSO button posts straight to allauth — no interstitial page.
+        self.assertContains(resp, "/accounts/oidc/sso/login/")
         self.assertContains(resp, "Use email &amp; password")
 
     def test_the_method_chooser_is_gated_by_the_key(self):
@@ -202,16 +210,16 @@ class LoginPageTest(TestCase):
 
     @override_settings(SSO_ENABLED=False)
     def test_no_sso_button_when_unconfigured(self):
-        # Pinned explicitly: a developer with AUTHENTIK_* in their .env would
+        # Pinned explicitly: a developer with OIDC_* in their .env would
         # otherwise have SSO_ENABLED True here and this would pass vacuously.
         resp = self.client.get("/accounts/login/")
-        self.assertNotContains(resp, "Sign in with Authentik")
+        self.assertNotContains(resp, "Sign in with SSO")
 
     @override_settings(**SSO_SETTINGS)
     def test_sso_button_appears_when_configured(self):
         resp = self.client.get("/accounts/login/")
-        self.assertContains(resp, "Sign in with Authentik")
-        self.assertContains(resp, "/accounts/oidc/authentik/login/")
+        self.assertContains(resp, "Sign in with SSO")
+        self.assertContains(resp, "/accounts/oidc/sso/login/")
 
     @override_settings(**SSO_SETTINGS)
     def test_password_box_is_hidden_once_password_signin_is_off(self):
@@ -221,8 +229,8 @@ class LoginPageTest(TestCase):
 
         resp = self.client.get("/accounts/login/")
         self.assertNotContains(resp, 'name="password"')  # no dead-end form
-        self.assertContains(resp, "Sign in with Authentik")
-        self.assertContains(resp, "Can't access Authentik?")
+        self.assertContains(resp, "Sign in with SSO")
+        self.assertContains(resp, "Can't access SSO?")
         self.assertContains(resp, "changepassword")
 
     @override_settings(**SSO_SETTINGS)
@@ -272,7 +280,7 @@ class PasswordSignInToggleTest(TestCase):
         self.client.force_login(self.owner)
 
     def _link_sso(self):
-        SocialAccount.objects.create(user=self.owner, provider="authentik", uid="owner@example.com")
+        SocialAccount.objects.create(user=self.owner, provider="sso", uid="owner@example.com")
 
     def test_disable_is_refused_while_no_idp_is_linked(self):
         self.client.post("/settings/sign-in/", {"action": "disable"})
@@ -303,14 +311,14 @@ class PasswordSignInToggleTest(TestCase):
         ok = self.client.login(username="owner@example.com", password=VALID_PW)
         self.assertFalse(ok)
 
-    def test_unlinking_authentik_needs_a_password(self):
+    def test_unlinking_the_idp_needs_a_password(self):
         # The mirror of the rule above: never leave the owner with no way in.
         self._link_sso()
         self.client.post("/settings/sign-in/", {"action": "disable"})  # password now off
         self.client.post("/settings/sign-in/", {"action": "unlink_sso"})
         self.assertTrue(SocialAccount.objects.filter(user=self.owner).exists())
 
-    def test_unlinking_authentik_works_with_a_password(self):
+    def test_unlinking_the_idp_works_with_a_password(self):
         self._link_sso()
         self.client.post("/settings/sign-in/", {"action": "unlink_sso"})
         self.assertFalse(SocialAccount.objects.filter(user=self.owner).exists())
@@ -355,22 +363,22 @@ class PasswordSignInToggleTest(TestCase):
 
     @override_settings(**SSO_SETTINGS)
     def test_launch_url_starts_the_sso_login(self):
-        # Authentik's app tile points here: it should sign you in, not show a form.
+        # The IdP's app tile points here: it should sign you in, not show a form.
         self.client.logout()
         resp = self.client.get("/sso/launch/")
-        self.assertContains(resp, "/accounts/oidc/authentik/login/")
-        self.assertContains(resp, "Signing you in with Authentik")
+        self.assertContains(resp, "/accounts/oidc/sso/login/")
+        self.assertContains(resp, "Signing you in with SSO")
 
     @override_settings(**SSO_SETTINGS)
     def test_launch_offers_to_link_when_signed_in_but_unlinked(self):
         # The IdP just vouched for us, so this is the moment to offer the link.
         resp = self.client.get("/sso/launch/")
         self.assertContains(resp, 'value="connect"')
-        self.assertContains(resp, "Linking your Authentik account")
+        self.assertContains(resp, "Linking your SSO account")
 
     @override_settings(**SSO_SETTINGS)
     def test_launch_just_opens_the_app_when_already_linked(self):
-        SocialAccount.objects.create(user=self.owner, provider="authentik", uid="owner@example.com")
+        SocialAccount.objects.create(user=self.owner, provider="sso", uid="owner@example.com")
         self.assertRedirects(self.client.get("/sso/launch/"), "/")
 
     @override_settings(**SSO_SETTINGS)
@@ -390,7 +398,7 @@ class PasswordSignInToggleTest(TestCase):
     def test_settings_offers_a_way_to_link_again(self):
         # Unlinking must not be a one-way door.
         resp = self.client.get("/settings/?tab=signin")
-        self.assertContains(resp, "/accounts/oidc/authentik/login/")
+        self.assertContains(resp, "/accounts/oidc/sso/login/")
         self.assertContains(resp, 'value="connect"')
 
     def test_connect_redirects_back_to_settings(self):

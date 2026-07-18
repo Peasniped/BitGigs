@@ -246,7 +246,7 @@ def sign_in_context(user):
 
 @method_decorator(login_not_required, name="dispatch")
 class SSOLaunchView(View):
-    """Landing spot for Authentik's application tile (set it as the provider's
+    """Landing spot for the IdP's application tile (set it as the provider's
     Launch URL). Opening BitGigs from the IdP dashboard should *sign you in*, not
     dump you on a login page — the IdP already knows who you are.
 
@@ -277,7 +277,7 @@ class SSOEndIdPSessionView(View):
     """"Not you?" — end the session at the IdP.
 
     RP-initiated logout with no post_logout_redirect_uri, so nothing needs
-    registering in Authentik. It lands on Authentik's own signed-out page, which
+    registering at the provider. It lands on the IdP's own signed-out page, which
     already offers everything needed from there: switch user, or launch BitGigs
     again (which re-opens the link prompt via SSOLaunchView).
 
@@ -302,8 +302,9 @@ class SSOEndIdPSessionView(View):
                 end_session_url = ""
 
         if not end_session_url:
-            messages.error(request, "Could not reach Authentik to sign you out. Sign out there "
-                                    "directly, then try again.")
+            from .sso import get_brand
+            messages.error(request, f"Could not reach {get_brand().name} to sign you out. Sign out "
+                                    "there directly, then try again.")
             return redirect("core:settings" if request.user.is_authenticated else "/accounts/login/")
         return redirect(end_session_url)
 
@@ -328,7 +329,7 @@ def _pending_sso_identity(request):
 class SSOLinkConfirmView(View):
     """Confirm which IdP identity is about to be linked to this account.
 
-    Without this, an already-signed-in Authentik session makes the round-trip
+    Without this, an already-signed-in IdP session makes the round-trip
     instant: you click Link and it binds whatever account the IdP had, with no
     chance to see which one."""
 
@@ -373,31 +374,37 @@ class PasswordSignInView(View):
         from django.contrib.auth import update_session_auth_hash
         from django.contrib.auth.forms import SetPasswordForm
 
+        from .sso import get_brand
+
         ctx = sign_in_context(request.user)
         action = request.POST.get("action")
+
+        # The provider is whatever the operator configured, so every message names
+        # it from the resolved branding rather than hardcoding one.
+        provider = get_brand().name
 
         if action == "unlink_sso":
             if not ctx["sso_linked"]:
                 return redirect(_signin_tab_url())
             if not ctx["has_usable_password"]:
-                messages.error(request, "Set a password before unlinking Authentik — "
+                messages.error(request, f"Set a password before unlinking {provider} — "
                                         "otherwise you would have no way back in.")
                 return redirect(_signin_tab_url())
             ctx["sso_account"].delete()
-            messages.success(request, "Authentik is no longer linked. Sign in with your password.")
+            messages.success(request, f"{provider} is no longer linked. Sign in with your password.")
             return redirect(_signin_tab_url())
 
         if action == "disable":
             if not ctx["sso_linked"]:
-                messages.error(request, "Link your Authentik account before turning off password sign-in — "
-                                        "otherwise you would have no way back in.")
+                messages.error(request, f"Link your {provider} account before turning off password "
+                                        "sign-in — otherwise you would have no way back in.")
                 return redirect(_signin_tab_url())
             request.user.set_unusable_password()
             request.user.save(update_fields=["password"])
             # Any change to the password rotates the session hash, which would log
             # the owner straight out of the session they're doing this from.
             update_session_auth_hash(request, request.user)
-            messages.success(request, "Password sign-in is off. Use Authentik from now on.")
+            messages.success(request, f"Password sign-in is off. Use {provider} from now on.")
             return redirect(_signin_tab_url())
 
         if action == "set_password":
@@ -628,7 +635,7 @@ def _commit_onboarding(request):
 # ── Onboarding step 1: claim the instance, then create the owner ─────────────
 # Three pages, because the setup key gates everything that follows:
 #   /onboarding/account/         the key, and nothing else
-#   /onboarding/account/method/  Authentik or email+password (only when SSO is on)
+#   /onboarding/account/method/  the IdP or email+password (only when SSO is on)
 #   /onboarding/account/email/   the email+password form
 # The key is verified once and recorded in the session (setup_key.SESSION_FLAG);
 # the later pages — and the SSO bootstrap in core.adapters — refuse to act
@@ -702,7 +709,7 @@ class OnboardingAccountView(_AccountStepView):
 
 
 class OnboardingAccountMethodView(_AccountStepView):
-    """Authentik, or a plain email + password account."""
+    """The configured IdP, or a plain email + password account."""
 
     requires_sso = True
 

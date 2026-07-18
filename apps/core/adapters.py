@@ -105,7 +105,7 @@ class OwnerOnlySocialAccountAdapter(DefaultSocialAccountAdapter):
             from core import setup_key
             if not request.session.get(setup_key.SESSION_FLAG):
                 refuse("Enter the setup key on the welcome page before claiming this "
-                       "BitGigs instance with Authentik.")
+                       "BitGigs instance with single sign-on.")
 
             if not request.session.pop(BOOTSTRAP_CONFIRMED_SESSION_KEY, False):
                 # First leg: show the operator who the IdP says they are, and let

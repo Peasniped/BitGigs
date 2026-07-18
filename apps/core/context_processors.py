@@ -3,12 +3,19 @@ from django.conf import settings
 
 
 def sso_status(request):
-    """Expose ``sso_enabled`` (the AUTHENTIK_* env vars are configured) so the
-    login page can offer the SSO button and the settings page its sign-in card.
-    Without the env vars this is False everywhere and BitGigs is password-only."""
+    """Expose ``sso_enabled`` (the OIDC_* env vars are configured) so the login
+    page can offer the SSO button and the settings page its sign-in card, plus
+    ``sso_brand`` — the provider's name/colour/icon, which every SSO page prints
+    instead of naming a provider. Without the env vars this is False everywhere
+    and BitGigs is password-only.
+
+    Pure settings arithmetic, no DB, so it is cheap enough to run per request."""
+    from .sso import get_brand
+
     return {
         "sso_enabled": settings.SSO_ENABLED,
         "sso_provider_id": settings.SSO_PROVIDER_ID,
+        "sso_brand": get_brand(),
     }
 
 

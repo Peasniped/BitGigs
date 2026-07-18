@@ -2,7 +2,7 @@ Django>=6.0,<6.1
 psycopg2-binary>=2.9
 django-crispy-forms>=2.3
 crispy-bootstrap5>=2024.10
-# Optional SSO: the OIDC provider is only registered when the AUTHENTIK_* env
+# Optional SSO: the OIDC provider is only registered when the OIDC_* env
 # vars are set, but allauth is always installed so every deploy shares one
 # migration state.
 django-allauth[socialaccount]>=65.18,<66

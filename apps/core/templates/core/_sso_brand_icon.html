@@ -1,0 +1,5 @@
+{% load static %}{% comment %}
+  The provider's mark for a card header — its own colours, since the header is a
+  light surface (unlike the filled button, which tints a bundled icon). Falls back
+  to a glyph when the operator configured no icon.
+{% endcomment %}{% if sso_brand.icon %}<img src="{% static sso_brand.icon %}" alt="" class="card-header__logo me-2">{% else %}<i class="bi {{ sso_brand.glyph }} me-2"></i>{% endif %}

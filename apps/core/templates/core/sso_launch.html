@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% comment %}
-  Authentik's application tile points here. The IdP already knows who you are, so go
+  The IdP's application tile points here. It already knows who you are, so go
   straight into the flow rather than showing a login page:
     - not signed in  → process=login   (sign in, linking on the way through)
     - signed in, not linked → process=connect (offer to link — the IdP just vouched
@@ -9,7 +9,7 @@
   can't POST from a redirect, so this submits itself. The button is the no-JS path.
 {% endcomment %}
 {% block title %}
-  {% if process == "connect" %}Link Authentik{% else %}Signing in{% endif %} &middot; BitGigs
+  {% if process == "connect" %}Link {{ sso_brand.name }}{% else %}Signing in{% endif %} &middot; BitGigs
 {% endblock %}
 
 {% block content %}
@@ -19,9 +19,9 @@
       <div class="card-body p-4 text-center">
         <p class="mb-3">
           {% if process == "connect" %}
-            Linking your Authentik account…
+            Linking your {{ sso_brand.name }} account…
           {% else %}
-            Signing you in with Authentik…
+            Signing you in with {{ sso_brand.name }}…
           {% endif %}
         </p>
         <form method="post" id="ssoLaunchForm"

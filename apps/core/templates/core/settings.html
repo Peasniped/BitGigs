@@ -49,12 +49,18 @@
             <span class="badge text-bg-secondary ms-auto">Not configured</span>
           </div>
           <div class="form-text mt-1 mb-2">
-            Password login is handling sign-in. To use Authentik (or any OIDC provider),
-            set all three in <code>.env</code> and restart:
+            Password login is handling sign-in. To use any OpenID Connect provider
+            (Authentik, Keycloak, Auth0, …), set all three in <code>.env</code> and restart:
           </div>
-          <pre class="settings-env small mb-0"><code>AUTHENTIK_SERVER_URL=https://auth.example.com/application/o/bitgigs/
-AUTHENTIK_CLIENT_ID=
-AUTHENTIK_CLIENT_SECRET=</code></pre>
+          <pre class="settings-env small mb-0"><code>OIDC_SERVER_URL=https://auth.example.com/application/o/bitgigs/
+OIDC_CLIENT_ID=
+OIDC_CLIENT_SECRET=</code></pre>
+          <div class="form-text mt-2 mb-0">
+            The button is called &ldquo;SSO&rdquo; unless you name it. Set
+            <code>OIDC_PROVIDER_BRAND=authentik</code> for Authentik&rsquo;s icon and colour, or
+            give your own with <code>OIDC_PROVIDER_NAME</code>, <code>OIDC_PROVIDER_COLOR</code>
+            and <code>OIDC_PROVIDER_ICON</code> — see <code>.env.example</code>.
+          </div>
         </div>
 
         <hr class="my-3">
@@ -62,11 +68,11 @@ AUTHENTIK_CLIENT_SECRET=</code></pre>
 
         <div class="d-flex justify-content-between align-items-center gap-3">
           <div>
-            <div class="fw-medium">Authentik</div>
+            <div class="fw-medium">{{ sso_brand.name }}</div>
             {% if sso_linked %}
               <div class="form-text mb-0">Linked to {{ sso_account.extra_data.email|default:user.email }}.</div>
             {% else %}
-              <div class="form-text mb-0">Not linked. Sign in with Authentik once to link it to this account.</div>
+              <div class="form-text mb-0">Not linked. Sign in with {{ sso_brand.name }} once to link it to this account.</div>
             {% endif %}
           </div>
 
@@ -81,13 +87,13 @@ AUTHENTIK_CLIENT_SECRET=</code></pre>
                 </form>
               {% else %}
                 {% comment %}
-                  Authentik is the only way in right now, so unlinking would lock the
+                  The IdP is the only way in right now, so unlinking would lock the
                   owner out. Send them to set a password first rather than just
                   disabling the button with no way forward.
                 {% endcomment %}
                 <button type="button" class="btn btn-outline-danger btn-sm"
                         data-bs-toggle="modal" data-bs-target="#passwordModal"
-                        title="Set a password first — Authentik is currently the only way in">
+                        title="Set a password first — {{ sso_brand.name }} is currently the only way in">
                   Unlink
                 </button>
               {% endif %}
@@ -97,14 +103,7 @@ AUTHENTIK_CLIENT_SECRET=</code></pre>
                 process=connect links the incoming identity to the account you are
                 already signed in as, rather than starting a fresh login.
               {% endcomment %}
-              <form method="post" action="{% url 'openid_connect_login' provider_id=sso_provider_id %}">
-                {% csrf_token %}
-                <input type="hidden" name="process" value="connect">
-                <button type="submit" class="btn btn-authentik btn-sm">
-                  <img src="{% static 'graphics/authentik_icon.svg' %}" alt="" class="btn-authentik__logo">
-                  Link
-                </button>
-              </form>
+              {% include "core/_sso_button.html" with sso_label="Link" sso_process="connect" sso_btn_class="btn-sm" %}
             {% endif %}
           </div>
         </div>
@@ -133,18 +132,19 @@ AUTHENTIK_CLIENT_SECRET=</code></pre>
               </div>
             {% elif has_usable_password and sso_linked %}
               <div class="form-text mb-0">
-                Enabled — a way in when Authentik is unavailable. It is also a way <em>around</em> the
-                MFA Authentik enforces, so turn it off once you trust the Authentik login.
+                Enabled — a way in when {{ sso_brand.name }} is unavailable. It is also a way
+                <em>around</em> the MFA {{ sso_brand.name }} enforces, so turn it off once you
+                trust the {{ sso_brand.name }} login.
               </div>
             {% elif has_usable_password %}
               <div class="form-text mb-0">
-                Enabled — and currently the only way in. Link Authentik if you want to sign in
-                through it instead.
+                Enabled — and currently the only way in. Link {{ sso_brand.name }} if you want to
+                sign in through it instead.
               </div>
             {% else %}
               <div class="form-text mb-0">
-                Off — Authentik is the only way in. Set a password if you want a fallback for when it
-                isn't; <code>manage.py changepassword</code> on the server does the same thing.
+                Off — {{ sso_brand.name }} is the only way in. Set a password if you want a fallback
+                for when it isn't; <code>manage.py changepassword</code> on the server does the same thing.
               </div>
             {% endif %}
           </div>
@@ -162,7 +162,7 @@ AUTHENTIK_CLIENT_SECRET=</code></pre>
           </button>
 
           {% comment %}
-            Only offered when Authentik is linked: without it the password is the
+            Only offered when the IdP is linked: without it the password is the
             only way in, so there is nothing to turn off safely. (The view enforces
             this too — the button's absence is not the guard.)
           {% endcomment %}
@@ -203,8 +203,8 @@ AUTHENTIK_CLIENT_SECRET=</code></pre>
                 <div class="alert alert-info d-flex align-items-start gap-2 py-2">
                   <i class="bi bi-info-circle-fill mt-1 flex-shrink-0"></i>
                   <div>
-                    Authentik is currently the only way in. Set a password here, then you can
-                    unlink it.
+                    {{ sso_brand.name }} is currently the only way in. Set a password here, then you
+                    can unlink it.
                   </div>
                 </div>
               {% endif %}

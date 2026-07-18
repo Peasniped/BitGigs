@@ -38,7 +38,7 @@ class SettingsTabsTest(TestCase):
     def test_signin_tab_without_an_idp_explains_how_to_enable_it(self):
         resp = self.client.get("/settings/?tab=signin")
         self.assertContains(resp, "Not configured")
-        self.assertContains(resp, "AUTHENTIK_CLIENT_SECRET")
+        self.assertContains(resp, "OIDC_CLIENT_SECRET")
 
     def test_password_can_be_managed_without_an_idp(self):
         # The set/change-password modal used to be gated behind sso_enabled,

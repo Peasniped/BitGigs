@@ -587,33 +587,41 @@ a.navbar-brand:hover span { color: var(--primary); }
   height: 1rem;
 }
 
-/* Authentik brand button. #fd4b2d is authentik's own colour, taken from the icon
-   they ship (assets/static/graphics/authentik_icon.svg). */
-.btn-authentik {
-  --ak: #fd4b2d;
-  background: var(--ak);
-  border: 1px solid var(--ak);
-  color: #fff;
+/* SSO provider button. The identity provider is whatever the operator configured,
+   so the colours are not written here — _sso_button.html sets --sso-bg/--sso-fg/
+   --sso-ring inline from core.sso.get_brand(). The fallbacks are the neutral
+   default (--primary + white) for anyone rendering the class without them. */
+.btn-sso {
+  background: var(--sso-bg, var(--primary));
+  border: 1px solid var(--sso-bg, var(--primary));
+  color: var(--sso-fg, #fff);
   font-weight: 500;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: .5rem;
 }
-.btn-authentik:hover,
-.btn-authentik:focus {
-  background: #e33d21;
-  border-color: #e33d21;
-  color: #fff;
+/* The colour is arbitrary, so darken it rather than naming a second hex. */
+.btn-sso:hover,
+.btn-sso:focus {
+  background: var(--sso-bg, var(--primary));
+  border-color: var(--sso-bg, var(--primary));
+  color: var(--sso-fg, #fff);
+  filter: brightness(.92);
 }
-.btn-authentik:focus-visible {
-  box-shadow: 0 0 0 .25rem rgba(253, 75, 45, .35);
+.btn-sso:focus-visible {
+  box-shadow: 0 0 0 .25rem var(--sso-ring, rgba(var(--primary-rgb), .35));
 }
-.btn-authentik__logo {
+.btn-sso__logo {
   width: 1.1rem;
   height: 1.1rem;
-  /* The shipped icon is brand-coloured; on the filled button it must read white. */
-  filter: brightness(0) invert(1);
+}
+/* Only ever applied to an icon BitGigs bundles: those are brand-coloured and must
+   read against the filled button. An operator's own logo is never recoloured.
+   The invert follows the label colour (--sso-tint-invert: 1 white / 0 black), so
+   a dark-text button doesn't end up with a white mark floating on it. */
+.btn-sso__logo--tint {
+  filter: brightness(0) invert(var(--sso-tint-invert, 1));
 }
 .card-header__logo {
   width: 1.1rem;

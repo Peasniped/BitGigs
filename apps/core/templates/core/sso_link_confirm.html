@@ -1,6 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
-{% block title %}Link Authentik &middot; BitGigs{% endblock %}
+{% block title %}Link {{ sso_brand.name }} &middot; BitGigs{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -8,7 +7,7 @@
 
     <div class="card">
       <div class="card-header fw-semibold">
-        <img src="{% static 'graphics/authentik_icon.svg' %}" alt="" class="card-header__logo me-2">Link this Authentik account?
+        {% include "core/_sso_brand_icon.html" %}Link this {{ sso_brand.name }} account?
       </div>
       <div class="card-body">
 
@@ -26,7 +25,7 @@
           <form method="post" action="{% url 'core:sso-idp-logout' %}">
             {% csrf_token %}
             <button type="submit" class="btn btn-link btn-sm text-muted p-0">
-              Not you? Sign out of Authentik
+              Not you? Sign out of {{ sso_brand.name }}
             </button>
           </form>
 
