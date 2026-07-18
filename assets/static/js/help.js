@@ -18,7 +18,10 @@
     var contextUrl = root.getAttribute("data-context-url");
     var indexUrl = root.getAttribute("data-index-url");
     var fragmentUrlTpl = root.getAttribute("data-fragment-url"); // .../SLUG/...
+    var articleUrlTpl = root.getAttribute("data-article-url");   // full-page /help/SLUG/
+    var manualUrl = root.getAttribute("data-manual-url");
 
+    var manualLink = root.querySelector("[data-help-manual-link]");
     var searchInput = root.querySelector("[data-help-search]");
     var contextBox = root.querySelector("[data-help-context]");
     var resultsList = root.querySelector("[data-help-results]");
@@ -32,7 +35,6 @@
     var backBtn = root.querySelector("[data-help-back]");
 
     var index = null;
-    var contextLoaded = false;
     var activeIdx = -1;
     var previousView = "context";
     var suspendedTrap = null; // an open modal's focus-trap, paused while help shows
@@ -44,6 +46,14 @@
       Object.keys(views).forEach(function (key) {
         if (views[key]) views[key].classList.toggle("d-none", key !== name);
       });
+      // "Full manual" jumps to the open article's page, else the manual index.
+      if (name !== "content") setManualLink(null);
+    }
+    function setManualLink(slug) {
+      if (!manualLink) return;
+      manualLink.href = slug && articleUrlTpl
+        ? articleUrlTpl.replace("SLUG", encodeURIComponent(slug))
+        : manualUrl;
     }
     function fragmentUrl(slug) {
       return fragmentUrlTpl.replace("SLUG", encodeURIComponent(slug));
@@ -81,16 +91,28 @@
     });
 
     root.addEventListener("shown.bs.offcanvas", function () {
-      if (!contextLoaded) { loadContext(); contextLoaded = true; }
+      // Fresh context each open, so it reflects the current approve-modal state.
+      if (searchInput) searchInput.value = "";
+      showView("context");
+      loadContext();
       if (searchInput) searchInput.focus();
     });
 
     function loadContext() {
-      if (!pageKey || !contextUrl || !contextBox) {
-        if (contextBox) contextBox.innerHTML = emptyContextHtml();
+      if (!contextUrl || !contextBox) return;
+      // Signal pending approvals (and whether the approval modal is open) so the
+      // server can surface the approve-shifts article, at the top when open.
+      var approveModal = document.querySelector("[data-approve-modal]");
+      var params = "?page=" + encodeURIComponent(pageKey);
+      if (approveModal) {
+        params += "&approve=1";
+        if (approveModal.classList.contains("show")) params += "&approve_open=1";
+      }
+      if (!pageKey && !approveModal) {
+        contextBox.innerHTML = emptyContextHtml();
         return;
       }
-      fetch(contextUrl + "?page=" + encodeURIComponent(pageKey))
+      fetch(contextUrl + params)
         .then(function (r) { return r.text(); })
         .then(function (html) { contextBox.innerHTML = html; })
         .catch(function () { contextBox.innerHTML = emptyContextHtml(); });
@@ -176,6 +198,7 @@
       previousView = views.results.classList.contains("d-none") ? "context" : "results";
       contentBox.innerHTML = '<div class="help-empty text-body-secondary">Loading…</div>';
       showView("content");
+      setManualLink(slug); // Full manual now points at this article's full page
       fetch(fragmentUrl(slug))
         .then(function (r) { return r.text(); })
         .then(function (html) { contentBox.innerHTML = html; contentBox.scrollTop = 0; })
@@ -198,6 +221,12 @@
       });
     }
     root.addEventListener("click", function (e) {
+      var opener = e.target.closest("[data-help-open]");
+      if (opener) { e.preventDefault(); openArticle(opener.getAttribute("data-help-open")); }
+    });
+    // Keyboard-openable context items (role="button" tabindex="0").
+    root.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter" && e.key !== " ") return;
       var opener = e.target.closest("[data-help-open]");
       if (opener) { e.preventDefault(); openArticle(opener.getAttribute("data-help-open")); }
     });

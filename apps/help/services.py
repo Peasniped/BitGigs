@@ -116,6 +116,16 @@ def build_tree(articles):
     return roots
 
 
+def flatten_tree(nodes):
+    """Depth-first list of articles in reading order (matches the sidebar tree),
+    used to compute prev/next navigation on the manual."""
+    ordered = []
+    for node in nodes:
+        ordered.append(node["article"])
+        ordered.extend(flatten_tree(node["children"]))
+    return ordered
+
+
 def build_search_index(user):
     """Return (and cache) the list of article records the client searches."""
     from .models import HelpArticle

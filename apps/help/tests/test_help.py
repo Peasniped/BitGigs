@@ -144,6 +144,13 @@ class HelpReaderViewTests(HelpTestMixin, TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Alpha")
 
+    def test_manual_shows_prev_next(self):
+        self.make_article(slug="one", title="One", order=1)
+        self.make_article(slug="two", title="Two", order=2)
+        resp = self.client.get(reverse("help:manual-article", args=["one"]))
+        self.assertContains(resp, reverse("help:manual-article", args=["two"]))
+        self.assertContains(resp, "help-manual-pager")
+
     def test_article_fragment(self):
         self.make_article(slug="alpha", body_md="Unique fragment marker")
         resp = self.client.get(reverse("help:fragment", args=["alpha"]))
@@ -156,6 +163,16 @@ class HelpReaderViewTests(HelpTestMixin, TestCase):
         resp = self.client.get(reverse("help:context"), {"page": "core:dashboard"})
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Dashboard help")
+
+    def test_context_surfaces_approve_article_when_flagged(self):
+        # Seeded 'approving-shifts' maps to the approve page, not the dashboard,
+        # so it only appears on the dashboard when the approve flag is sent.
+        plain = self.client.get(reverse("help:context"), {"page": "core:dashboard"})
+        self.assertNotContains(plain, "Approving shifts")
+        flagged = self.client.get(
+            reverse("help:context"), {"page": "core:dashboard", "approve": "1"}
+        )
+        self.assertContains(flagged, "Approving shifts")
 
     def test_search_index_json(self):
         self.make_article(slug="alpha", title="Alpha", summary="the summary")

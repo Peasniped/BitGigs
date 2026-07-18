@@ -13,12 +13,16 @@ def sso_status(request):
 
 
 def display_settings(request):
-    """Expose global display preferences (from the ``UserSettings`` singleton) so
-    the shared shift-chip partial can react to them on every calendar. Currently
-    just ``show_shift_type_colors`` — whether chips are coloured by shift type."""
+    """Expose global display preferences (from the ``UserSettings`` singleton):
+    ``show_shift_type_colors`` (chips coloured by shift type) and
+    ``show_help_button`` (the floating help button on every page)."""
     from .models import UserSettings
 
-    return {"show_shift_type_colors": UserSettings.load().show_shift_type_colors}
+    settings = UserSettings.load()
+    return {
+        "show_shift_type_colors": settings.show_shift_type_colors,
+        "show_help_button": settings.show_help_button,
+    }
 
 
 def onboarding_status(request):

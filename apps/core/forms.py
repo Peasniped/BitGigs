@@ -88,6 +88,7 @@ class UserSettingsForm(forms.ModelForm):
         fields = [
             "week_start",
             "show_shift_type_colors",
+            "show_help_button",
             "projection_method",
             "projection_trailing_months",
             "use_planned_shifts",

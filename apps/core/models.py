@@ -136,6 +136,12 @@ class UserSettings(models.Model):
         help_text="Colour calendar shift chips by type (on-site / remote / sick / …).",
     )
 
+    show_help_button = models.BooleanField(
+        default=True,
+        help_text="Show the floating help button on every page. F1 and More → Help "
+                  "still open help when this is off.",
+    )
+
     # Analytics projection
     projection_method = models.CharField(
         max_length=10,

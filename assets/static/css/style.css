@@ -191,7 +191,9 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
 .calendar-table .week-number {
   width: 2.2rem;
   text-align: center;
-  vertical-align: middle;
+  /* Top-aligned to sit level with the top-left date numbers in each cell. */
+  vertical-align: top;
+  padding-top: 0.4rem;
   font-size: 0.7rem;
   font-weight: 600;
   color: var(--text-muted);

@@ -84,7 +84,7 @@
               <li><a class="dropdown-item" href="{% url 'core:settings' %}"><i class="bi bi-gear me-2"></i>Settings</a></li>
               <li><a class="dropdown-item" href="{% url 'data_io:main' %}"><i class="bi bi-arrow-left-right me-2"></i>Import / Export</a></li>
               <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="{% url 'help:manual' %}"><i class="bi bi-book me-2"></i>Help</a></li>
+              <li><a class="dropdown-item" href="{% url 'help:manual' %}"><i class="bi bi-life-preserver me-2"></i>Help</a></li>
               <li><hr class="dropdown-divider"></li>
               <li>
                 <form method="post" action="{% url 'logout' %}">
@@ -124,10 +124,12 @@
   </footer>
 
   {% if user.is_authenticated and onboarding_complete and help_enabled %}
+    {% if show_help_button %}
     <button type="button" class="help-fab" data-bs-toggle="offcanvas" data-bs-target="#helpOffcanvas"
             title="Help (F1)" aria-label="Open help">
       <i class="bi bi-question-lg"></i>
     </button>
+    {% endif %}
     {% include "help/_help_offcanvas.html" %}
   {% endif %}
 

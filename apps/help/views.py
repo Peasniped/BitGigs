@@ -28,14 +28,25 @@ class HelpManualView(View):
             )
         elif articles:
             current = articles[0]
+        tree = services.build_tree(articles)
+        prev_article = next_article = None
+        if current:
+            ordered = services.flatten_tree(tree)
+            slugs = [a.slug for a in ordered]
+            if current.slug in slugs:
+                i = slugs.index(current.slug)
+                prev_article = ordered[i - 1] if i > 0 else None
+                next_article = ordered[i + 1] if i < len(ordered) - 1 else None
         return render(
             request,
             "help/manual.html",
             {
                 "articles": articles,
-                "tree": services.build_tree(articles),
+                "tree": tree,
                 "current": current,
                 "breadcrumbs": current.ancestors() if current else [],
+                "prev_article": prev_article,
+                "next_article": next_article,
                 "can_edit": request.user.is_staff,
             },
         )
@@ -54,9 +65,25 @@ class HelpArticleFragmentView(View):
 class HelpContextView(View):
     """The article(s) mapped to a page (by URL view-name) as a fragment."""
 
+    APPROVE_SLUG = "approving-shifts"
+
     def get(self, request):
         page = request.GET.get("page", "").strip()
         articles = list(services.articles_for_page(page, request.user)) if page else []
+        # Surface the approve-shifts help on any page that currently has shifts to
+        # approve (dashboard, workplace detail) — pushed to the top when the
+        # approval modal is open. The client sends these flags from the DOM.
+        if request.GET.get("approve"):
+            approve = (
+                HelpArticle.objects.visible_to(request.user)
+                .filter(slug=self.APPROVE_SLUG)
+                .first()
+            )
+            if approve and approve not in articles:
+                if request.GET.get("approve_open"):
+                    articles.insert(0, approve)
+                else:
+                    articles.append(approve)
         return render(
             request, "help/_context.html", {"articles": articles, "page": page}
         )
