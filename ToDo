@@ -1,11 +1,9 @@
 
 # NU     --------------------------------------------------------
 
-Add a manual/help-system
-- Short help articles with/without images about usage/setup?
-- Accessed as a pop-up with F1, or by pressing more > Help as a full page
-- run a very lightweight RAG? 
-
+*** Help-system ***
+- Move the shift-type calendar legend to the help menu, show on all pages that has a calendar with shifts. It should just show on pages with calendars, no need to click "Shift types" or "calendar legend" or smth.
+- Make nicer buttons for all the blue-link-text q
 
 Extra work before making base template
 - add hover over effect to the main logo
@@ -16,7 +14,15 @@ Extra work before making base template
 - Implement notices where it makes sense (use the circle countdown dismissable notice)
 
 - SMTP-integration, så den ligger klar, så andre apps kan sende mails
-- Integration med Authentik
+
+*** API-system ***
+- Security: User must create an API key that can only be viewed once
+- - API key can be named with nickname and given an expiration date
+- - Granular access: Configurable which (or all) API endpoints the key has access to
+- - Present user with a sample api request in python (ie show the expected data/parameters to access a given endpoint)
+- BitGigs API:
+- - Gross/net income for a given month/range of months for all workplaces
+
 
 - Reset migrations
 - One last pass: Kindly ask Claude Fable 5 tp look the entire codebase through and check if everything is in good working order, secure / best practices, and that no dead/repeated code exists in the codebase.
@@ -26,16 +32,9 @@ Extra work before making base template
 
 # SENERE --------------------------------------------------------
 
-*** API usable by other BitApps ***
-- Security: User must create an API key that can only be viewed once
-- - API key can be named with nickname and given an expiration date
-- - Granular access: Configurable which (or all) API endpoints the key has access to
-- - Present user with a sample api request in python (ie show the expected data/parameters to access a given endpoint)
-- Data extraction to BitLedger:
-- - Gross/net income for a given month/range of months for all workplaces
-
 - Remove the limit on one active contract per workplace. -- for some workplaces it makes sense that you might have two active jobs that are more or less unrelated and has wildly different terms.
-- - Each contract should have their own chip in the planning mode (contracts may have different hour goals etc.)
+- - Each _active_ contract should have their own chip in the planning mode (contracts may have different hour goals etc.)
+- - Define somewhere if different contracts at one workplace share the same payslip (summed hours)
 - - Maybe add some way to easily know the contracts apart in the workplace avatar.
 - - maybe the user could specify per contract: a color and/or an icon or a short (max 2 char) identifier -- the user would be prompted when there are overlapping contracts. Can be changed in the customize menu.
 
