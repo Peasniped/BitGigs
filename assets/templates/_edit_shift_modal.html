@@ -12,7 +12,7 @@ Params: title, icon, save_label.
 <div class="modal fade" id="shiftModal" tabindex="-1" aria-hidden="true"
      data-update-url-template="{% url 'calendar_view:planned-shift-update-api' pk=0 %}">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
+    <div class="modal-content app-modal">
       <div class="modal-header">
         <h5 class="modal-title">
           <i class="bi {{ icon|default:'bi-calendar-plus' }} me-2"></i>
@@ -23,8 +23,8 @@ Params: title, icon, save_label.
       <div class="modal-body">
         <!-- Workplace banner -->
         <div class="d-flex align-items-center gap-2 p-2 mb-3 rounded" id="shiftModalBanner"
-             style="background:#f1f5f9;">
-          <span class="wp-avatar" id="shiftModalAvatar" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:#fff;"></span>
+             style="background:var(--bg-lighter);">
+          <span class="wp-avatar" id="shiftModalAvatar" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:var(--on-accent);"></span>
           <span class="fw-medium" id="shiftModalWorkplace"></span>
         </div>
 
@@ -55,7 +55,7 @@ Params: title, icon, save_label.
               <input type="time" id="shiftEnd" class="form-control form-control-sm" required>
             </div>
           </div>
-          <div id="shiftModalOverlap" class="small py-1 mb-2 d-none" style="color:#b45309;">
+          <div id="shiftModalOverlap" class="small py-1 mb-2 d-none" style="color:var(--warning-strong);">
             <i class="bi bi-exclamation-triangle me-1"></i><span id="shiftOverlapText"></span>
           </div>
           <div class="row g-2 mb-2">

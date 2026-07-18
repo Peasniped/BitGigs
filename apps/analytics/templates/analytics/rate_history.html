@@ -6,8 +6,8 @@
 {% block extra_css %}
 {# Shared filter-bar / picker / table styles live in static/css/style.css. #}
 <style>
-  .row-current { background-color: rgba(59, 130, 246, 0.10) !important; }
-  .row-historic { background-color: rgba(148, 163, 184, 0.06) !important; }
+  .row-current { background-color: rgba(var(--info-rgb), 0.10) !important; }
+  .row-historic { background-color: color-mix(in srgb, var(--text-subtle) 6%, transparent) !important; }
 </style>
 {% endblock %}
 

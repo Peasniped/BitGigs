@@ -45,11 +45,11 @@
       // Color: green if in range, amber if below, red if over max
       var target = goalMax > 0 ? goalMax : goalMin;
       if (h >= goalMin && (goalMax <= 0 || h <= goalMax)) {
-        el.style.color = '#16a34a';
+        el.style.color = 'var(--success)';
       } else if (h < goalMin) {
-        el.style.color = '#94a3b8';
+        el.style.color = 'var(--text-subtle)';
       } else {
-        el.style.color = '#dc2626';
+        el.style.color = 'var(--danger)';
       }
 
       // Progress bar
@@ -61,7 +61,7 @@
         var pct = Math.min((h / barMax) * 100, 100);
         fill.style.width = pct + '%';
         // Blue if under target/lower, green if at/over lower limit
-        fill.style.background = h >= goalMin ? '#22c55e' : '#3b82f6';
+        fill.style.background = h >= goalMin ? 'var(--success)' : 'var(--info)';
       }
     } else {
       el.textContent = hStr + ' this period';
@@ -408,7 +408,7 @@
       typeHtml = '<span class="shift-chip__type" title="' + (s.shift_type_display || '') + '">' + symInner + '</span>';
     }
     div.innerHTML =
-      '<span class="shift-chip__avatar" style="background:' + (wp && wp.color ? wp.color : '#6366f1') + ';">' + avatarHtml + '</span>' +
+      '<span class="shift-chip__avatar" style="background:' + (wp && wp.color ? wp.color : 'var(--primary)') + ';">' + avatarHtml + '</span>' +
       '<small class="shift-chip__time">' + s.start_time + '-' + s.end_time + '</small>' +
       '<small class="shift-chip__hours">(' + toDanish(s.net_hours) + 'h)</small>' +
       breakHtml + typeHtml +
@@ -582,14 +582,14 @@
         ? toDanish(goalMin.toFixed(0)) + '\u2013' + toDanish(goalMax.toFixed(0)) + 'h'
         : toDanish(goalMin.toFixed(0)) + 'h';
       hoursEl.textContent = hStr + ' / ' + goalStr;
-      hoursEl.style.color = (h >= goalMin && (goalMax <= 0 || h <= goalMax)) ? '#16a34a' : (h < goalMin ? '#94a3b8' : '#dc2626');
+      hoursEl.style.color = (h >= goalMin && (goalMax <= 0 || h <= goalMax)) ? 'var(--success)' : (h < goalMin ? 'var(--text-subtle)' : 'var(--danger)');
       var barEl = document.querySelector('[data-wp-progress="' + wpId + '"]');
       if (barEl) {
         barEl.style.display = '';
         var fill = barEl.querySelector('.wp-card__progress-fill');
         var barMax = goalMax > 0 ? goalMax : goalMin;
         fill.style.width = Math.min((h / barMax) * 100, 100) + '%';
-        fill.style.background = h >= goalMin ? '#22c55e' : '#3b82f6';
+        fill.style.background = h >= goalMin ? 'var(--success)' : 'var(--info)';
       }
     } else {
       hoursEl.textContent = hStr + ' this period';
@@ -754,7 +754,7 @@
       var wp = validWps[0];
       var ind = document.createElement('span');
       ind.className = 'day-wp-indicator';
-      ind.style.background = wp.color || '#6366f1';
+      ind.style.background = wp.color || 'var(--primary)';
       if (wp.custom_icon_url) {
         ind.innerHTML = '<img src="' + wp.custom_icon_url + '" alt="">';
       } else if (wp.icon) {
@@ -1004,17 +1004,17 @@
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'wp-picker__item';
-      var accent = wp.accent_color || wp.color || '#6366f1';
-      var rgb = hexToRgb(accent) || '99,102,241';
-      btn.style.background = 'rgba(' + rgb + ',0.15)';
+      var accent = wp.accent_color || wp.color;
+      var rgb = accent && hexToRgb(accent);
+      btn.style.background = rgb ? 'rgba(' + rgb + ',0.15)' : 'rgba(var(--primary-rgb),0.15)';
 
       var avatarHtml;
       if (wp.custom_icon_url) {
-        avatarHtml = '<span class="wp-picker__avatar" style="background:' + (wp.color || '#6366f1') + ';"><img src="' + wp.custom_icon_url + '" alt=""></span>';
+        avatarHtml = '<span class="wp-picker__avatar" style="background:' + (wp.color || 'var(--primary)') + ';"><img src="' + wp.custom_icon_url + '" alt=""></span>';
       } else if (wp.icon) {
-        avatarHtml = '<span class="wp-picker__avatar" style="background:' + (wp.color || '#6366f1') + ';"><i class="bi ' + wp.icon + '" style="font-size:0.55rem;"></i></span>';
+        avatarHtml = '<span class="wp-picker__avatar" style="background:' + (wp.color || 'var(--primary)') + ';"><i class="bi ' + wp.icon + '" style="font-size:0.55rem;"></i></span>';
       } else {
-        avatarHtml = '<span class="wp-picker__avatar" style="background:' + (wp.color || '#6366f1') + ';">' + wp.initials + '</span>';
+        avatarHtml = '<span class="wp-picker__avatar" style="background:' + (wp.color || 'var(--primary)') + ';">' + wp.initials + '</span>';
       }
       btn.innerHTML = avatarHtml + '<span>' + wp.name + '</span>';
       btn.addEventListener('click', function(e) {
@@ -1150,7 +1150,7 @@
 
   function updateModalBanner(wp) {
     var avatar = document.getElementById('shiftModalAvatar');
-    avatar.style.background = wp.color || '#6366f1';
+    avatar.style.background = wp.color || 'var(--primary)';
     if (wp.custom_icon_url) {
       avatar.innerHTML = '<img src="' + wp.custom_icon_url + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
     } else if (wp.icon) {
@@ -1193,7 +1193,7 @@
         });
         document.getElementById('shiftOverlapText').textContent = 'Overlaps with: ' + parts.join(', ');
         box.classList.remove('d-none');
-        timeRow.style.outline = '2px solid #f59e0b';
+        timeRow.style.outline = '2px solid var(--warning)';
         timeRow.style.outlineOffset = '2px';
         timeRow.style.borderRadius = '6px';
       } else {
@@ -1235,7 +1235,7 @@
 
     if (grossMin <= 0) {
       display.textContent = 'End time must be after start time';
-      display.style.color = '#dc3545';
+      display.style.color = 'var(--danger)';
       startEl.classList.add('is-invalid');
       endEl.classList.add('is-invalid');
       saveBtn.disabled = true;
@@ -1368,8 +1368,8 @@
     if (!wp) return;
     defWorkplaceId = wpId;
     var banner = document.getElementById('defBanner');
-    banner.innerHTML = '<span class="wp-avatar" style="background:' + (wp.color||'#6366f1') +
-      ';width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-weight:700;color:#fff;">' +
+    banner.innerHTML = '<span class="wp-avatar" style="background:' + (wp.color||'var(--primary)') +
+      ';width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-weight:700;color:var(--on-accent);">' +
       wp.initials + '</span><strong class="small">' + wp.name + '</strong>';
     var hasDefault = !!(wp.default_start && wp.default_end);
     document.getElementById('defToggle').checked = hasDefault;

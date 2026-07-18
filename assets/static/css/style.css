@@ -1,26 +1,60 @@
 /* BitGigs — Modern custom styles */
 
+/* ============================================================================
+   Design tokens — THE single source of truth for every color in the app.
+   Light values live here; dark overrides live in the [data-bs-theme="dark"]
+   block below. Tints derive via color-mix() from a base × var(--surface), so
+   they re-resolve automatically for dark mode and for a user-chosen accent.
+   Never hardcode a hex outside these blocks (per-workplace accent colors are
+   DB data and stay inline where they come from).
+   ========================================================================== */
 :root {
-  /* Brand */
+  color-scheme: light;
+  /* Brand (accent setting overrides --primary/--primary-rgb inline on <html>) */
   --primary: #6366f1;      --primary-rgb: 99,102,241;
-  --primary-tint: #f1f0ff;
   --secondary: #8b5cf6;
   --brand-gradient: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  --primary-tint:   color-mix(in srgb, var(--primary) 9%, var(--surface));
+  --primary-border: color-mix(in srgb, var(--primary) 35%, var(--surface));
+  --primary-strong: color-mix(in oklch, var(--primary) 85%, black);
+  /* Surfaces */
+  --canvas: #f5f7fa;
+  --surface: #fff;
+  --bg-light: #f8fafc;  --bg-lighter: #f1f5f9;
+  --border: #e2e8f0;  --border-strong: #cbd5e1;
   /* Text */
   --text: #1e293b;  --text-muted: #64748b;  --text-subtle: #94a3b8;
-  /* Surfaces */
-  --bg-body: #f5f7fa;  --bg-light: #f8fafc;  --bg-lighter: #f1f5f9;
-  --border: #e2e8f0;
-  /* Status */
-  --success: #22c55e;  --success-rgb: 34,197,94;
-  --info: #3b82f6;
-  --danger: #ef4444;   --danger-rgb: 239,68,68;
+  --on-accent: #fff;   /* text/icons sitting on a filled accent or data color */
+  /* Status — one canonical family each: base, -rgb, derived -tint, -strong */
+  --success: #16a34a;  --success-rgb: 22,163,74;
+  --success-tint: color-mix(in srgb, var(--success) 14%, var(--surface));
+  --success-strong: #166534;
+  --info: #3b82f6;     --info-rgb: 59,130,246;
+  --info-tint: color-mix(in srgb, var(--info) 12%, var(--surface));
+  --info-strong: #1e3a5f;
   --warning: #f59e0b;  --warning-rgb: 245,158,11;
+  --warning-tint: color-mix(in srgb, var(--warning) 12%, var(--surface));
+  --warning-strong: #b45309;
+  --danger: #dc2626;   --danger-rgb: 220,38,38;
+  --danger-tint: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  --danger-strong: #991b1b;
+  /* Calendar day washes */
+  --cal-weekend: color-mix(in srgb, var(--warning) 7%, var(--surface));
+  --cal-today: var(--primary-tint);
+  --cal-outside: var(--bg-lighter);
+  /* Chart chrome + category colors (read by JS via getComputedStyle) */
+  --chart-grid: rgba(100,116,139,.15);
+  --chart-tick: var(--text-muted);
+  --chart-actual: var(--success);     --chart-actual-strong: var(--success-strong);
+  --chart-planned: #38bdf8;           --chart-planned-strong: #075985;
+  --chart-projected: var(--warning);  --chart-projected-strong: #92400e;
   /* Type */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   /* Effects */
-  --card-shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-  --card-hover-shadow: 0 10px 15px -3px rgba(0,0,0,.08), 0 4px 6px -4px rgba(0,0,0,.05);
+  --shadow-rgb: 15,23,42;
+  --card-shadow: 0 1px 3px rgba(var(--shadow-rgb),.06), 0 1px 2px rgba(var(--shadow-rgb),.04);
+  --card-hover-shadow: 0 10px 15px -3px rgba(var(--shadow-rgb),.08), 0 4px 6px -4px rgba(var(--shadow-rgb),.05);
+  --modal-shadow: 0 25px 50px -12px rgba(var(--shadow-rgb),.25);
   --card-radius: 0.75rem;
   --transition-base: 0.2s ease;
 }
@@ -28,7 +62,7 @@
 /* ---- Typography ---- */
 body {
   font-family: var(--font-sans);
-  background: var(--bg-body);
+  background: var(--canvas);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -40,9 +74,9 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
 
 /* ---- Navbar ---- */
 .navbar {
-  background: #fff;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  box-shadow: 0 1px 2px rgba(var(--shadow-rgb),.04);
 }
 .navbar-brand {
   font-weight: 700;
@@ -51,7 +85,7 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
 }
 .brand-icon {
   background: var(--brand-gradient);
-  color: #fff;
+  color: var(--on-accent);
   width: 32px; height: 32px;
   border-radius: 8px;
   display: inline-flex;
@@ -122,7 +156,7 @@ a.navbar-brand:hover span { color: var(--primary); }
 .stat-card {
   border-radius: var(--card-radius);
   padding: 0.85rem 0.5rem;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: var(--card-shadow);
   transition: all var(--transition-base);
@@ -152,7 +186,7 @@ a.navbar-brand:hover span { color: var(--primary); }
 .workplace-card {
   border-radius: var(--card-radius);
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--surface);
   padding: 1.25rem;
   text-decoration: none;
   color: inherit;
@@ -163,15 +197,36 @@ a.navbar-brand:hover span { color: var(--primary); }
 .workplace-card:hover {
   box-shadow: var(--card-hover-shadow);
   transform: translateY(-2px);
-  border-color: #c7d2fe;
+  border-color: var(--primary-border);
   color: inherit;
   text-decoration: none;
 }
 
+.today-shift-banner {
+  background: linear-gradient(135deg, var(--info-tint) 0%, color-mix(in srgb, var(--info) 5%, var(--surface)) 100%);
+  border: 1px solid color-mix(in srgb, var(--info) 25%, var(--surface));
+  border-radius: var(--card-radius);
+  padding: 0.85rem 1rem;
+}
 .today-shift-banner:hover {
   box-shadow: var(--card-hover-shadow);
   transform: translateY(-1px);
-  border-color: #93c5fd !important;
+  border-color: var(--primary-border) !important;
+}
+/* Day over: dashboard.js flips the banner to a success wash. */
+.today-shift-banner--done {
+  background: linear-gradient(135deg, var(--success-tint) 0%, color-mix(in srgb, var(--success) 5%, var(--surface)) 100%);
+  border-color: color-mix(in srgb, var(--success) 35%, var(--surface));
+}
+/* Overlapping workplace avatars ring in the banner's own surface colour. */
+.today-shift-banner__avatar { border: 2px solid var(--info-tint); }
+.today-shift-banner__title { font-size: 0.95rem; color: var(--info-strong); }
+.today-shift-banner__sub { color: color-mix(in srgb, var(--info-strong) 50%, var(--info)); }
+
+/* "N shifts to approve" alert on the dashboard / workplace detail. */
+.approve-success-banner {
+  background: var(--success-tint);
+  color: var(--success-strong);
 }
 
 /* ---- Workplace accent banner on detail page ---- */
@@ -230,15 +285,15 @@ a.navbar-brand:hover span { color: var(--primary); }
 .calendar-day--clickable { cursor: pointer; }
 .calendar-day--clickable:hover { background: var(--primary-tint) !important; }
 .calendar-day--outside {
-  background: var(--bg-lighter) !important;
-  color: #cbd5e1;
+  background: var(--cal-outside) !important;
+  color: var(--text-subtle);
 }
 .calendar-day--today {
   border: 2px solid var(--primary) !important;
-  background: #f3eeff;
+  background: var(--cal-today);
 }
 .calendar-day--weekend:not(.calendar-day--today) {
-  background: #fdf6e3;
+  background: var(--cal-weekend);
 }
 .calendar-day__number {
   font-weight: 600;
@@ -251,7 +306,7 @@ a.navbar-brand:hover span { color: var(--primary); }
 .calendar-day__shift {
   font-size: 0.7rem;
   line-height: 1.3;
-  color: #475569;
+  color: var(--text-muted);
 }
 
 /* Planned shifts: distinct dashed style */
@@ -285,7 +340,7 @@ a.navbar-brand:hover span { color: var(--primary); }
   border: 1px solid rgba(var(--primary-rgb),.2);
 }
 .shift-chip--planned {
-  background: rgba(255,255,255,.7);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
   border: 1.5px dashed var(--primary);
   cursor: pointer;
 }
@@ -298,13 +353,13 @@ a.navbar-brand:hover span { color: var(--primary); }
   justify-content: center;
   font-size: 0.45rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--on-accent);
   flex-shrink: 0;
   overflow: hidden;
 }
 .shift-chip__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .shift-chip__avatar i { font-size: 0.5rem; }
-.shift-chip__time { color: #334155; }
+.shift-chip__time { color: var(--text); }
 .shift-chip__hours { color: var(--text-muted); }
 .shift-chip__edit {
   position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
@@ -429,7 +484,7 @@ a.navbar-brand:hover span { color: var(--primary); }
   border-radius: 4px;
 }
 .shift-legend__sample--planned {
-  background: rgba(255,255,255,.7);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
   border: 1.5px dashed var(--primary);
 }
 .shift-legend__sample--approved {
@@ -448,7 +503,7 @@ a.navbar-brand:hover span { color: var(--primary); }
 .day-panel {
   border: 1px solid var(--border);
   border-radius: var(--card-radius);
-  background: #fff;
+  background: var(--surface);
   box-shadow: var(--card-hover-shadow);
 }
 .day-panel__header {
@@ -489,7 +544,7 @@ a.navbar-brand:hover span { color: var(--primary); }
 
 /* ---- Forms ---- */
 .form-control:focus, .form-select:focus {
-  border-color: #a5b4fc;
+  border-color: var(--primary-border);
   box-shadow: 0 0 0 0.2rem rgba(var(--primary-rgb),.15);
 }
 
@@ -499,7 +554,7 @@ a.navbar-brand:hover span { color: var(--primary); }
 .accent-form .accent-btn-group .btn-check:checked + .btn {
   background: linear-gradient(135deg, var(--wp-accent), color-mix(in srgb, var(--wp-accent) 80%, transparent)) !important;
   border-color: var(--wp-accent) !important;
-  color: #fff !important;
+  color: var(--on-accent) !important;
 }
 .accent-form .accent-btn-group .btn-outline-primary,
 .accent-form .accent-btn-group .btn-outline-secondary {
@@ -574,8 +629,8 @@ a.navbar-brand:hover span { color: var(--primary); }
   justify-content: center;
   font-size: .85rem;
   font-weight: 700;
-  border: 2px solid #cbd5e1;
-  background: #fff;
+  border: 2px solid var(--border-strong);
+  background: var(--surface);
   color: var(--text-subtle);
   transition: background .2s, border-color .2s, color .2s;
 }
@@ -693,25 +748,25 @@ a.navbar-brand:hover span { color: var(--primary); }
 .setup-step--active .setup-step__circle {
   background: var(--primary);
   border-color: var(--primary);
-  color: #fff;
+  color: var(--on-accent);
 }
 .setup-step--active .setup-step__label { color: var(--primary); font-weight: 600; }
 /* Done step */
 .setup-step--done .setup-step__circle {
   background: var(--success);
   border-color: var(--success);
-  color: #fff;
+  color: var(--on-accent);
 }
-.setup-step--done .setup-step__label { color: #16a34a; }
-a.setup-step--done:hover .setup-step__circle { background: #16a34a; border-color: #16a34a; }
+.setup-step--done .setup-step__label { color: var(--success); }
+a.setup-step--done:hover .setup-step__circle { background: var(--success-strong); border-color: var(--success-strong); }
 /* Started step: filled but ahead of the current page (user went back) */
 .setup-step--started .setup-step__circle {
-  background: #fef3c7;
-  border-color: #f59e0b;
-  color: #b45309;
+  background: var(--warning-tint);
+  border-color: var(--warning);
+  color: var(--warning-strong);
 }
-.setup-step--started .setup-step__label { color: #b45309; font-weight: 600; }
-a.setup-step--started:hover .setup-step__circle { background: #f59e0b; border-color: #f59e0b; color: #fff; }
+.setup-step--started .setup-step__label { color: var(--warning-strong); font-weight: 600; }
+a.setup-step--started:hover .setup-step__circle { background: var(--warning); border-color: var(--warning); color: var(--on-accent); }
 
 /* Onboarding: logged-in-as / log-out control (top-right, logo stays centered) */
 .onboarding-userbar {
@@ -795,10 +850,10 @@ a.setup-step--started:hover .setup-step__circle { background: #f59e0b; border-co
     padding-left: 1.75rem;
   }
 }
-.password-checklist { color: var(--text-muted, #6c757d); }
+.password-checklist { color: var(--text-muted); }
 .password-checklist li { display: flex; align-items: center; }
-.password-checklist li.is-pass { color: #16a34a; }
-.password-checklist li.is-fail { color: #dc2626; }
+.password-checklist li.is-pass { color: var(--success); }
+.password-checklist li.is-fail { color: var(--danger); }
 
 /* ---- Utility ---- */
 .section-title {
@@ -825,15 +880,31 @@ a.setup-step--started:hover .setup-step__circle { background: #f59e0b; border-co
   justify-content: center;
   font-weight: 700;
   font-size: 0.85rem;
-  color: #fff;
+  color: var(--on-accent);
   flex-shrink: 0;
+}
+
+/* ---- Shared modal chrome ----
+   Put .app-modal directly on the .modal-content element (replaces the inline
+   style previously copy-pasted across the app's modals). */
+.modal-content.app-modal {
+  border-radius: var(--card-radius);
+  border: none;
+  box-shadow: var(--modal-shadow);
+}
+/* Planning's outside-period warning: same chrome but a danger-tinted surface. */
+.modal-content.period-warning-modal {
+  border-radius: var(--card-radius);
+  border: 2px solid color-mix(in srgb, var(--danger) 35%, var(--surface));
+  background: var(--danger-tint);
+  box-shadow: var(--modal-shadow);
 }
 
 /* ---- Day panel modal ---- */
 .day-panel-modal .modal-content {
   border-radius: var(--card-radius);
   border: none;
-  box-shadow: 0 25px 50px -12px rgba(0,0,0,.25);
+  box-shadow: var(--modal-shadow);
 }
 .day-panel-modal .modal-header {
   border-bottom: 1px solid var(--bg-lighter);
@@ -851,7 +922,7 @@ a.setup-step--started:hover .setup-step__circle { background: #f59e0b; border-co
 
 /* ---- Color picker selected ring ---- */
 .ring-selected {
-  box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--primary) !important;
 }
 .color-swatch {
   cursor: pointer;
@@ -881,7 +952,7 @@ a.setup-step--started:hover .setup-step__circle { background: #f59e0b; border-co
 .customize-tabs .nav-link.active {
   color: var(--primary);
   background: var(--primary-tint);
-  border-color: #c7d2fe;
+  border-color: var(--primary-border);
 }
 
 /* ---- Cropper circular mask ---- */
@@ -912,11 +983,11 @@ a.setup-step--started:hover .setup-step__circle { background: #f59e0b; border-co
 
 /* ---- White color swatch border ---- */
 .color-swatch[data-color-option="#ffffff"] {
-  border: 1px solid #cbd5e1 !important;
+  border: 1px solid var(--border-strong) !important;
 }
 /* ---- Dark swatch subtle border for visibility ---- */
 .color-swatch[data-color-option="#1e293b"] {
-  border: 1px solid #475569 !important;
+  border: 1px solid var(--text-muted) !important;
 }
 
 /* ---- Analytics & rate-history filter bar + tables ---- */
@@ -932,37 +1003,37 @@ a.setup-step--started:hover .setup-step__circle { background: #f59e0b; border-co
   border:1.5px solid var(--border);
   border-radius:0.75rem;
   padding:0.55rem 0.95rem;
-  background:#fff;
+  background:var(--surface);
   display:flex; align-items:center; gap:0.55rem;
   font-size:0.85rem; user-select:none;
   transition: box-shadow .15s, transform .15s, border-color .15s, background .15s;
   min-width:140px;
 }
-.wp-picker-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); transform:translateY(-1px); }
+.wp-picker-card:hover { box-shadow:0 4px 12px rgba(var(--shadow-rgb),.08); transform:translateY(-1px); }
 .wp-picker-card.selected {
   border-color:var(--primary);
-  background:#eef2ff;
+  background:var(--primary-tint);
   box-shadow:0 0 0 1.5px var(--primary), 0 4px 12px rgba(var(--primary-rgb),.18);
 }
 .wp-picker-card .all-badge,
 .wp-picker-card .period-badge {
   width:36px; height:36px; border-radius:50%;
   display:inline-flex; align-items:center; justify-content:center;
-  background:#0f172a; color:#fff; font-weight:700; flex-shrink:0;
+  background:var(--text); color:var(--on-accent); font-weight:700; flex-shrink:0;
 }
 .wp-picker-card .period-badge { background:var(--primary); }
 
 .period-card {
-  background:#fff; border:1.5px solid var(--border); border-radius:0.75rem;
+  background:var(--surface); border:1.5px solid var(--border); border-radius:0.75rem;
   padding:0.55rem 0.95rem;
   display:flex; align-items:center; gap:0.6rem;
   cursor:pointer; user-select:none;
   transition: box-shadow .15s, transform .15s, border-color .15s, background .15s;
 }
-.period-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); transform:translateY(-1px); }
+.period-card:hover { box-shadow:0 4px 12px rgba(var(--shadow-rgb),.08); transform:translateY(-1px); }
 .period-card.show { border-color:var(--primary); box-shadow:0 0 0 1.5px var(--primary), 0 4px 12px rgba(var(--primary-rgb),.18); }
 .period-card__label { font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; line-height:1; }
-.period-card__value { font-size:1.05rem; font-weight:700; color:#0f172a; line-height:1.15; margin-top:2px; }
+.period-card__value { font-size:1.05rem; font-weight:700; color:var(--text); line-height:1.15; margin-top:2px; }
 .period-card .dropdown-toggle::after { display:none; }
 
 /* Inline Air Datepicker range calendar inside the period dropdown */
@@ -983,7 +1054,7 @@ a.setup-step--started:hover .setup-step__circle { background: #f59e0b; border-co
 
 .analytics-table th,
 .analytics-table td { padding:0.75rem 1rem; vertical-align:middle; }
-.analytics-table th { font-weight:600; color:#475569; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.03em; }
+.analytics-table th { font-weight:600; color:var(--text-muted); font-size:0.78rem; text-transform:uppercase; letter-spacing:0.03em; }
 
 .wp-collapse-header {
   cursor:pointer;
@@ -1037,9 +1108,9 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
   --adp-accent-color: var(--primary);
   --adp-color-current-date: var(--primary);
   --adp-day-name-color: var(--primary);
-  --adp-day-name-color-hover: #4f46e5;
+  --adp-day-name-color-hover: var(--primary-strong);
   --adp-cell-background-color-selected: var(--primary);
-  --adp-cell-background-color-selected-hover: #4f46e5;
+  --adp-cell-background-color-selected-hover: var(--primary-strong);
   --adp-cell-background-color-in-range: rgba(var(--primary-rgb), .12);
   --adp-cell-background-color-in-range-hover: rgba(var(--primary-rgb), .20);
   --adp-cell-border-radius: 8px;
@@ -1047,7 +1118,7 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
   --adp-border-color: var(--border);
   --adp-border-color-inner: var(--border);
   --adp-btn-color: var(--primary);
-  --adp-btn-color-hover: #4f46e5;
+  --adp-btn-color-hover: var(--primary-strong);
   --adp-z-index: 1060;   /* above Bootstrap modals (~1055) */
 }
 
@@ -1070,8 +1141,8 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
   color: var(--text) !important;
 }
 .settings-tabs .nav-link.active {
-  background: #fff;
-  border-color: var(--border) var(--border) #fff;
+  background: var(--surface);
+  border-color: var(--border) var(--border) var(--surface);
   color: var(--primary) !important;
 }
 .settings-pane {
@@ -1095,7 +1166,7 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
 .settings-sso-off .form-text { margin-bottom: 0; }
 /* Env-var snippet — a quotable block, not a code editor. */
 .settings-env {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 0.4rem;
   padding: 0.55rem 0.7rem;

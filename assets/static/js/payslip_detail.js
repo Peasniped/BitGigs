@@ -31,7 +31,7 @@
     form.action = addUrl.replace('/add-line/', '/edit-line/' + editingLineId + '/');
     cardTitle.innerHTML = '<i class="bi bi-pencil me-1"></i>Editing: ' + btn.dataset.lineName;
     submitBtn.textContent = 'Save';
-    card.style.backgroundColor = '#fff8e1';
+    card.style.backgroundColor = 'var(--warning-tint)';
     cancelBtn2.style.display = '';
     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     nameInput.focus();

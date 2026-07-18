@@ -161,7 +161,7 @@
             {% elif line.standard_line_key == 'fradrag_used' %}
               <span class="text-muted">({{ line.amount|dk }})</span>
             {% elif line.standard_line_key == 'net_pay' %}
-              <span style="color:#16a34a;">{{ line.amount|dk }} DKK</span>
+              <span class="text-success">{{ line.amount|dk }} DKK</span>
             {% else %}
               {{ line.amount|dk }}
             {% endif %}

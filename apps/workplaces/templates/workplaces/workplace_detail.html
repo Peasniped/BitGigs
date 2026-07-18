@@ -55,7 +55,7 @@
 
 <!-- Pending shifts approval banner -->
 {% if pending_shifts_count %}
-<div class="alert d-flex align-items-center gap-2 py-2 border-0 shadow-sm mb-4" style="background:#dcfce7;color:#166534;">
+<div class="alert approve-success-banner d-flex align-items-center gap-2 py-2 border-0 shadow-sm mb-4">
   <i class="bi bi-calendar-check fs-5"></i>
   <span>
     <strong>{{ pending_shifts_count }} shift{{ pending_shifts_count|pluralize }} to approve</strong>
@@ -470,7 +470,7 @@
 <!-- â•â•â•â•â•â•â• Customize Modal â•â•â•â•â•â•â• -->
 <div class="modal fade" id="customizeModal" tabindex="-1" aria-labelledby="customizeModalLabel" aria-hidden="true">
   <div class="modal-dialog">
-    <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
+    <div class="modal-content app-modal">
       <div class="modal-header border-bottom" style="border-color:var(--bg-lighter) !important;">
         <h5 class="modal-title" id="customizeModalLabel"><i class="bi bi-palette me-2"></i>Customize Appearance</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -481,7 +481,7 @@
         {# â”€â”€ Live Preview â”€â”€ #}
         <div class="text-center mb-3">
           <div id="livePreview" class="d-inline-flex align-items-center justify-content-center"
-               style="width:72px;height:72px;border-radius:50%;background:{{ workplace.color|default:avatar_color }};color:#fff;font-weight:700;font-size:1.4rem;overflow:hidden;transition:background .2s;">
+               style="width:72px;height:72px;border-radius:50%;background:{{ workplace.color|default:avatar_color }};color:var(--on-accent);font-weight:700;font-size:1.4rem;overflow:hidden;transition:background .2s;">
             {% if workplace.custom_icon %}
               <img src="{{ workplace.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;">
             {% elif workplace.icon %}
@@ -533,7 +533,7 @@
           <div class="tab-pane fade {% if workplace.custom_icon %}show active{% endif %}" id="pane-logo" role="tabpanel">
             <div class="d-flex align-items-center gap-3 mb-2">
               <div id="customIconPreview" class="d-flex align-items-center justify-content-center"
-                   style="width:64px;height:64px;border-radius:50%;background:var(--bg-lighter);overflow:hidden;flex-shrink:0;border:2px dashed #cbd5e1;{% if not workplace.custom_icon %}{% endif %}">
+                   style="width:64px;height:64px;border-radius:50%;background:var(--bg-lighter);overflow:hidden;flex-shrink:0;border:2px dashed var(--border-strong);{% if not workplace.custom_icon %}{% endif %}">
                 {% if workplace.custom_icon %}
                   <img src="{{ workplace.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;">
                 {% else %}
@@ -621,7 +621,7 @@
 <!-- â•â•â•â•â•â•â• Crop Modal (sub-modal) â•â•â•â•â•â•â• -->
 <div class="modal fade" id="cropModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
+    <div class="modal-content app-modal">
       <div class="modal-header border-bottom" style="border-color:var(--bg-lighter) !important;">
         <h6 class="modal-title"><i class="bi bi-crop me-2"></i>Crop &amp; Position</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -674,7 +674,7 @@
                style="width:140px;height:140px;display:flex;align-items:center;justify-content:center;
                       border:1px solid var(--border);border-radius:12px;background:var(--bg-light);padding:14px;"></div>
         </div>
-        <div class="mb-3 p-2 border rounded" style="background:#fafafa;">
+        <div class="mb-3 p-2 border rounded" style="background:var(--bg-light);">
           <label class="form-label small fw-medium d-block mb-1">Single tint (overrides all colors)</label>
           <div class="d-flex gap-2 align-items-center">
             <input type="color" id="svgTintAll" class="form-control form-control-color"
@@ -710,7 +710,7 @@
 <!-- â•â•â•â•â•â•â• Add Month Modal â•â•â•â•â•â•â• -->
 <div class="modal fade" id="addMonthModal" tabindex="-1" aria-labelledby="addMonthModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-sm modal-dialog-centered">
-    <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
+    <div class="modal-content app-modal">
       <div class="modal-header border-bottom" style="border-color:var(--bg-lighter) !important;">
         <h6 class="modal-title" id="addMonthModalLabel"><i class="bi bi-calendar-plus me-2"></i>Go to month</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -744,10 +744,10 @@
 {% if pending_shifts_count %}
 <div class="modal fade" id="approveModal" data-approve-modal tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
+    <div class="modal-content app-modal">
       <div class="modal-header border-bottom" style="border-color:var(--bg-lighter) !important;">
         <h5 class="modal-title" id="approveModalLabel">
-          <i class="bi bi-check2-all me-2" style="color:#16a34a;"></i>Review & Approve Shifts
+          <i class="bi bi-check2-all me-2 text-success"></i>Review & Approve Shifts
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
@@ -780,7 +780,7 @@
       </div>
       <div class="modal-footer border-0 pt-2">
         <span class="me-auto small text-muted" id="approveSelectedCount"></span>
-        <span class="small d-none me-2" id="approveWarning" style="color:#dc3545;">
+        <span class="small text-danger d-none me-2" id="approveWarning">
           <i class="bi bi-exclamation-triangle me-1"></i>End time must be after start time.
         </span>
         <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>

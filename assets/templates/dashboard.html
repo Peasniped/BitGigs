@@ -42,7 +42,7 @@
              data-goal-color="var(--text-subtle)" data-goal-label="Goal: {{ total_goal_min|dk:0 }}{% if total_goal_max %}.{{ total_goal_max|dk:0 }}{% endif %}h"></div>
       </div>
     </div>
-    <div class="goal-tooltip" id="goalTooltip" style="display:none;position:fixed;z-index:1000;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;color:#fff;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.18);white-space:nowrap;">
+    <div class="goal-tooltip" id="goalTooltip" style="display:none;position:fixed;z-index:1000;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;color:var(--on-accent);pointer-events:none;box-shadow:0 2px 8px rgba(var(--shadow-rgb),.18);white-space:nowrap;">
       <span class="goal-tooltip__dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle;"></span>
       <span class="goal-tooltip__text"></span>
     </div>
@@ -52,31 +52,31 @@
 
 <!-- ===== Today's shift banner ===== -->
 {% if todays_banner %}
-<div class="today-shift-banner d-block mb-4" style="background:linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);border:1px solid #bfdbfe;border-radius:var(--card-radius);padding:0.85rem 1rem;">
+<div class="today-shift-banner d-block mb-4">
   <div class="d-flex align-items-center gap-3 flex-wrap">
     <div class="d-flex" style="flex-shrink:0;">
     {% for wp in todays_banner.workplaces %}
       {% if wp.custom_icon_url %}
-        <span style="width:36px;height:36px;border-radius:50%;overflow:hidden;background:{{ wp.color }};{% if not forloop.first %}margin-left:-10px;{% endif %}border:2px solid #dbeafe;position:relative;z-index:{{ forloop.revcounter }};">
+        <span class="today-shift-banner__avatar" style="width:36px;height:36px;border-radius:50%;overflow:hidden;background:{{ wp.color }};{% if not forloop.first %}margin-left:-10px;{% endif %}position:relative;z-index:{{ forloop.revcounter }};">
           <img src="{{ wp.custom_icon_url }}" alt="" style="width:100%;height:100%;object-fit:cover;">
         </span>
       {% elif wp.icon %}
-        <span style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:{{ wp.color }};color:#fff;font-size:1rem;{% if not forloop.first %}margin-left:-10px;{% endif %}border:2px solid #dbeafe;position:relative;z-index:{{ forloop.revcounter }};">
+        <span class="today-shift-banner__avatar" style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:{{ wp.color }};color:var(--on-accent);font-size:1rem;{% if not forloop.first %}margin-left:-10px;{% endif %}position:relative;z-index:{{ forloop.revcounter }};">
           <i class="bi {{ wp.icon }}"></i>
         </span>
       {% else %}
-        <span style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:{{ wp.color }};color:#fff;font-size:0.8rem;font-weight:600;{% if not forloop.first %}margin-left:-10px;{% endif %}border:2px solid #dbeafe;position:relative;z-index:{{ forloop.revcounter }};">{{ wp.initials }}</span>
+        <span class="today-shift-banner__avatar" style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:{{ wp.color }};color:var(--on-accent);font-size:0.8rem;font-weight:600;{% if not forloop.first %}margin-left:-10px;{% endif %}position:relative;z-index:{{ forloop.revcounter }};">{{ wp.initials }}</span>
       {% endif %}
     {% endfor %}
     </div>
     <div class="flex-grow-1">
       {% comment %}data-done is swapped in by dashboard.js once the last shift has
       ended — "you're working at" reads oddly when the day is over.{% endcomment %}
-      <div class="fw-semibold" id="todayShiftHeadline" style="font-size:0.95rem;color:#1e3a5f;"
+      <div class="fw-semibold today-shift-banner__title" id="todayShiftHeadline"
            data-done="Today, you worked at {{ todays_banner.workplace_name }}">
         Today, you're working at {{ todays_banner.workplace_name }}
       </div>
-      <div id="todayShiftStatus" style="font-size:0.85rem;color:#3b6ea5;">
+      <div id="todayShiftStatus" class="today-shift-banner__sub" style="font-size:0.85rem;">
         You have a shift
         {% for s in todays_banner.shifts %}{% if not forloop.first %}{% if forloop.last %}{% if todays_banner.shifts|length > 2 %},{% endif %} and{% else %},{% endif %}{% endif %} from {{ s.start_time }} to {{ s.end_time }} <span style="font-size:0.78rem;opacity:0.8;">({{ s.net_hours }}h)</span>{% endfor %}
       </div>
@@ -84,14 +84,14 @@
     {% if todays_banner.has_unconfirmed %}
     <div class="d-flex flex-column align-items-end gap-1">
       <div class="d-flex align-items-center gap-2" id="todayArrivalWrap">
-        <span class="small" style="color:#3b6ea5;" id="todayArrivalLabel"></span>
+        <span class="small today-shift-banner__sub" id="todayArrivalLabel"></span>
         <input type="time" class="form-control form-control-sm" id="todayArrivalTime" style="width:7rem;">
         <button type="button" class="btn btn-sm btn-outline-primary" id="todayArrivalSave" title="Update arrival time">
           <i class="bi bi-check-lg"></i>
         </button>
       </div>
       <div class="d-flex align-items-center gap-2 d-none" id="todayArrivalError">
-        <span class="small" style="color:#dc3545;" id="todayArrivalErrorText"></span>
+        <span class="small text-danger" id="todayArrivalErrorText"></span>
         <button type="button" class="btn btn-sm btn-outline-danger py-0" id="todayArrivalEditBtn">
           <i class="bi bi-pencil me-1"></i>Adjust shift
         </button>
@@ -104,7 +104,7 @@
 
 <!-- ===== Pending shifts approval banner ===== -->
 {% if pending_shifts_count %}
-<div class="alert d-flex align-items-center gap-2 py-2 border-0 shadow-sm mb-4" style="background:#dcfce7;color:#166534;">
+<div class="alert approve-success-banner d-flex align-items-center gap-2 py-2 border-0 shadow-sm mb-4">
   <i class="bi bi-calendar-check fs-5"></i>
   <span>
     <strong>{{ pending_shifts_count }} shift{{ pending_shifts_count|pluralize }} to approve</strong>
@@ -199,10 +199,10 @@
 {% if pending_shifts_count %}
 <div class="modal fade" id="dashApproveModal" data-approve-modal tabindex="-1" aria-labelledby="dashApproveModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content" style="border-radius:var(--card-radius);border:none;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);">
+    <div class="modal-content app-modal">
       <div class="modal-header border-bottom" style="border-color:var(--bg-lighter) !important;">
         <h5 class="modal-title" id="dashApproveModalLabel">
-          <i class="bi bi-check2-all me-2" style="color:#16a34a;"></i>Review & Approve Shifts
+          <i class="bi bi-check2-all me-2 text-success"></i>Review & Approve Shifts
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
@@ -211,7 +211,7 @@
       </div>
       <div class="modal-footer border-0 pt-2">
         <span class="me-auto small text-muted" id="dashApproveSelectedCount"></span>
-        <span class="small d-none me-2" id="dashApproveWarning" style="color:#dc3545;">
+        <span class="small text-danger d-none me-2" id="dashApproveWarning">
           <i class="bi bi-exclamation-triangle me-1"></i>End time must be after start time.
         </span>
         <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>

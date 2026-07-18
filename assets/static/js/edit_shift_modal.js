@@ -61,7 +61,7 @@ function initEditShiftModal(opts) {
 
   function renderBanner(s) {
     var avatar = document.getElementById('shiftModalAvatar');
-    avatar.style.background = s.workplace_color || '#6366f1';
+    avatar.style.background = s.workplace_color || 'var(--primary)';
     if (s.workplace_custom_icon_url) {
       avatar.innerHTML = '<img src="' + s.workplace_custom_icon_url + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
     } else if (s.workplace_icon) {

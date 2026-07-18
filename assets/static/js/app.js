@@ -2,6 +2,13 @@
  * BitGigs client-side JavaScript.
  */
 
+// Resolve a design token (CSS custom property from style.css's :root / dark
+// block) to its computed value — for consumers that can't use var() directly,
+// e.g. Chart.js canvas colors. Inline styles should just use 'var(--token)'.
+window.themeToken = function (name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+};
+
 document.addEventListener('DOMContentLoaded', function () {
   // ----- Payslip line drag-and-drop reordering -----
   var payslipTable = document.getElementById('payslip-lines');

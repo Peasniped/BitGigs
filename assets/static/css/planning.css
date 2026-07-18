@@ -7,7 +7,7 @@
   border: 1px solid var(--border);
   border-radius: 0.75rem;
   padding: 0.6rem 1rem;
-  background: #fff;
+  background: var(--surface);
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -18,12 +18,12 @@
   position: relative;
   overflow: hidden;
 }
-.wp-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform:translateY(-1px); }
+.wp-card:hover { box-shadow: 0 4px 12px rgba(var(--shadow-rgb),.1); transform:translateY(-1px); }
 .wp-card:active { cursor:grabbing; }
 .wp-card .wp-avatar {
   width:32px; height:32px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  font-size:0.7rem; font-weight:700; color:#fff;
+  font-size:0.7rem; font-weight:700; color: var(--on-accent);
   flex-shrink:0; overflow:hidden;
 }
 .wp-card__info { display:flex; flex-direction:column; }
@@ -62,8 +62,8 @@
 }
 
 /* Days outside all workplace periods: no hover/plus, grey tint */
-.planning-calendar .planning-day--no-create { cursor: default; background: #f0f0f0 !important; }
-.planning-calendar .planning-day--no-create:hover { background: #f0f0f0 !important; }
+.planning-calendar .planning-day--no-create { cursor: default; background: var(--bg-lighter) !important; }
+.planning-calendar .planning-day--no-create:hover { background: var(--bg-lighter) !important; }
 /* Suppress global hover bg on planning days . overlay handles it */
 .planning-calendar .calendar-day--clickable:hover { background: inherit !important; }
 
@@ -78,7 +78,7 @@
 .day-hover-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(241, 240, 255, 0.45);
+  background: color-mix(in srgb, var(--primary-tint) 45%, transparent);
   backdrop-filter: blur(1px);
   -webkit-backdrop-filter: blur(1px);
   display: flex;
@@ -122,11 +122,11 @@ body.delete-mode .day-hover-overlay { display: none !important; }
 
 /* Delete-all mode */
 body.delete-all-mode .shift-chip--planned { cursor: pointer; }
-body.delete-all-mode .shift-chip--planned:hover { outline: 2px solid #dc2626; outline-offset: 1px; border-radius: 6px; background: rgba(220,38,38,.12); }
+body.delete-all-mode .shift-chip--planned:hover { outline: 2px solid var(--danger); outline-offset: 1px; border-radius: 6px; background: rgba(var(--danger-rgb),.12); }
 body.delete-all-mode .day-hover-overlay { display: none !important; }
 body.delete-all-mode .wp-card { cursor: pointer; }
 body.delete-all-mode .calendar-day[data-date] { cursor: pointer; }
-body.delete-all-mode .calendar-day[data-date]:hover { background: rgba(220,38,38,.08) !important; outline: 2px dashed #dc2626; outline-offset: -2px; }
+body.delete-all-mode .calendar-day[data-date]:hover { background: rgba(var(--danger-rgb),.08) !important; outline: 2px dashed var(--danger); outline-offset: -2px; }
 
 /* Fast-create-stamp selected card */
 .wp-card--selected,
@@ -143,13 +143,13 @@ body.fast-create-stamp .wp-card { cursor: pointer; }
 }
 .wp-card--no-defaults {
   animation: wp-card-shake 0.4s ease;
-  box-shadow: 0 0 0 2.5px #dc2626, 0 4px 12px rgba(220,38,38,.3) !important;
+  box-shadow: 0 0 0 2.5px var(--danger), 0 4px 12px rgba(var(--danger-rgb),.3) !important;
 }
 .wp-card__no-defaults-tip {
   position: fixed;
   transform: translateX(-50%);
-  background: #dc2626;
-  color: #fff;
+  background: var(--danger);
+  color: var(--on-accent);
   font-size: 0.68rem;
   font-weight: 600;
   padding: 3px 10px;
@@ -157,7 +157,7 @@ body.fast-create-stamp .wp-card { cursor: pointer; }
   white-space: nowrap;
   pointer-events: none;
   z-index: 20;
-  box-shadow: 0 2px 8px rgba(220,38,38,.3);
+  box-shadow: 0 2px 8px rgba(var(--danger-rgb),.3);
 }
 .wp-card__no-defaults-tip::after {
   content: '';
@@ -167,7 +167,7 @@ body.fast-create-stamp .wp-card { cursor: pointer; }
   transform: translateX(-50%);
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
-  border-top: 5px solid #dc2626;
+  border-top: 5px solid var(--danger);
 }
 
 /* Power Edit toolbar */
@@ -206,7 +206,7 @@ body.fast-create-stamp .wp-card { cursor: pointer; }
 .power-toolbar__btn {
   border: 1.5px solid rgba(255,255,255,.35);
   background: rgba(255,255,255,.12);
-  color: #fff;
+  color: var(--on-accent);
   border-radius: 0.5rem;
   padding: 0.35rem 0.85rem;
   font-size: 0.8rem;
@@ -223,11 +223,11 @@ body.fast-create-stamp .wp-card { cursor: pointer; }
   background: rgba(255,255,255,.22);
   border-color: rgba(255,255,255,.5);
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0,0,0,.15);
+  box-shadow: 0 2px 8px rgba(var(--shadow-rgb),.15);
 }
 .power-toolbar__btn.active {
   background: rgba(255,255,255,.85);
-  color: #4f46e5;
+  color: var(--primary-strong);
   border-color: #fff;
   box-shadow: 0 2px 10px rgba(255,255,255,.3);
 }
@@ -269,7 +269,7 @@ body.fast-create-stamp .wp-card { cursor: pointer; }
 }
 .power-toolbar__close:hover {
   background: rgba(255,255,255,.35);
-  color: #fff;
+  color: var(--on-accent);
 }
 body.fast-create-stamp .planning-calendar .calendar-day--clickable { cursor: crosshair; }
 body.fast-create-stamp .day-hover-overlay { display: none !important; }
@@ -289,7 +289,7 @@ body.fast-create-stamp .day-hover-overlay { display: none !important; }
   justify-content: center;
   font-size: 0.45rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--on-accent);
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
@@ -301,7 +301,7 @@ body.fast-create-stamp .day-hover-overlay { display: none !important; }
   background: var(--text-subtle);
   font-size: 0.7rem;
   letter-spacing: -1px;
-  color: #fff;
+  color: var(--on-accent);
 }
 .planning-calendar .calendar-day:not(.chip-hover):hover .day-wp-indicator { opacity: 0.85; }
 
@@ -315,10 +315,10 @@ body.fast-create-stamp .day-hover-overlay { display: none !important; }
 .wp-picker {
   position: absolute;
   z-index: 1050;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 0.6rem;
-  box-shadow: 0 8px 24px rgba(0,0,0,.15);
+  box-shadow: 0 8px 24px rgba(var(--shadow-rgb),.15);
   padding: 0.35rem;
   min-width: 160px;
   display: none;
@@ -343,7 +343,7 @@ body.fast-create-stamp .day-hover-overlay { display: none !important; }
 .wp-picker__avatar {
   width: 22px; height: 22px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 0.5rem; font-weight: 700; color: #fff;
+  font-size: 0.5rem; font-weight: 700; color: var(--on-accent);
   flex-shrink: 0; overflow: hidden;
 }
 .wp-picker__avatar img { width: 100%; height: 100%; object-fit: cover; }

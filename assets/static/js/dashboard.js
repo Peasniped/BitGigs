@@ -333,10 +333,7 @@ trackModal(document.getElementById('dashApproveModal'));
         var headline = document.getElementById('todayShiftHeadline');
         if (headline && headline.dataset.done) headline.textContent = headline.dataset.done;
         var banner = el.closest('.today-shift-banner');
-        if (banner) {
-          banner.style.background = 'linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)';
-          banner.style.borderColor = '#86efac';
-        }
+        if (banner) banner.classList.add('today-shift-banner--done');
       } else {
         el.innerHTML = staticText;
       }

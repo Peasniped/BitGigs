@@ -9,16 +9,16 @@
   height: 3.4rem;
   border: 0;
   border-radius: 50%;
-  color: #fff;
+  color: var(--on-accent);
   font-size: 1.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
   /* Oversized gradient that continuously drifts (see keyframes below). */
-  background: linear-gradient(135deg, #6366f1, #8b5cf6, #ec4899, #8b5cf6, #6366f1);
+  background: linear-gradient(135deg, var(--primary), var(--secondary), #ec4899, var(--secondary), var(--primary));
   background-size: 300% 300%;
   animation: help-fab-gradient 8s ease infinite;
-  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+  box-shadow: 0 6px 20px rgba(var(--primary-rgb), 0.45);
   /* Above modals (1055) so help is reachable from inside a modal. */
   z-index: 1060;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -33,7 +33,7 @@
 }
 .help-fab:hover {
   transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 10px 26px rgba(99, 102, 241, 0.55);
+  box-shadow: 0 10px 26px rgba(var(--primary-rgb), 0.55);
 }
 .help-fab:active {
   transform: scale(0.97);
