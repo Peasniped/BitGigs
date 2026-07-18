@@ -1,19 +1,17 @@
 
 # NU     --------------------------------------------------------
 
-*** Help-system ***
-- Move the shift-type calendar legend to the help menu, show on all pages that has a calendar with shifts. It should just show on pages with calendars, no need to click "Shift types" or "calendar legend" or smth.
-- Make nicer buttons for all the blue-link-text q
-
 Extra work before making base template
-- add hover over effect to the main logo
-- rename the logos to something like assets/static/graphics/App_Main_Logo_64.png or such
 - Design glow up -- more flavorful color and personality?
 - - Central color management -- one source of truth for all colors (user/settings/admin accessible?)
 - Dark mode also?
-- Implement notices where it makes sense (use the circle countdown dismissable notice)
+- UX: Makre sure notices are implemented where it makes sense (use the circle countdown dismissable notice)
+
+- Maybe rename env variables AUTHENTIK_xxx to OIDC_xxx to show that you can use any OIDC provider?
+- - How does this work with the authentic buttons? I still want Authentic branding on my buttons, but what happens if another person hosts their app using some other provider? do they also get Authentik buttons?
 
 - SMTP-integration, så den ligger klar, så andre apps kan sende mails
+- - Setting/configuration page with detailed test (showing what goes wrong, if anything (ie wrong credentials, wrong host/port))
 
 *** API-system ***
 - Security: User must create an API key that can only be viewed once
@@ -22,10 +20,11 @@ Extra work before making base template
 - - Present user with a sample api request in python (ie show the expected data/parameters to access a given endpoint)
 - BitGigs API:
 - - Gross/net income for a given month/range of months for all workplaces
+- - write an API test script/client that I can run
 
 
 - Reset migrations
-- One last pass: Kindly ask Claude Fable 5 tp look the entire codebase through and check if everything is in good working order, secure / best practices, and that no dead/repeated code exists in the codebase.
+- One last pass: Kindly ask Claude Fable 5 to look the entire codebase through and check if everything is in good working order, secure / best practices, and that no dead/repeated code exists in the codebase.
 
 --> Efter refactor, lav en base hjemmeside, så andre Bit-apps kan laves med et lignende visuelt udtryk. Gem denne til D:\Github\BitBase\
 ----> Er det muligt at have den som en slags main som de andre er forks af, så ved opdatering af main template, så opdateres undersiderne også?
