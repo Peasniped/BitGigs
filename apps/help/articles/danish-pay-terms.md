@@ -7,7 +7,7 @@ audience: everyone
 order: 65
 published: true
 keywords: [danish, glossary, tax card, hovedkort, bikort, frikort, trækprocent, personfradrag, am-bidrag, atp, feriepenge, feriekonto, ferietillæg, fritvalgskonto, pension, befordringsfradrag, forskudsopgørelse, skat]
-pages: [core:taxprofile-list, payroll:vacation-overview, payroll:period-list]
+pages: [core:taxprofile-list, payroll:vacation-overview, payroll:period-list, core:onboarding-tax, core:onboarding-terms]
 ---
 BitGigs models a Danish payslip, so its forms use Danish payroll terms. Here's
 what they mean. The authoritative sources are
@@ -20,13 +20,13 @@ most of this.
 
 | Term | Meaning |
 |---|---|
-| **Forskudsopgørelse** | Your preliminary tax assessment at skat.dk — the place to copy your numbers from into a [tax profile](/help/a/tax-profiles/). |
+| **Forskudsopgørelse** | Your preliminary tax assessment at skat.dk — the place to copy your numbers from into a [tax profile](/help/tax-profiles/). |
 | **Trækprocent** | The withholding percentage applied to your taxable pay. |
 | **Personfradrag** | The monthly amount you can earn tax-free — but only at the job using your *hovedkort*. |
 | **Tax card** | Not a physical card: **hovedkort** (main job, gets the personfradrag), **bikort** (extra jobs, full trækprocent from the first krone) or **frikort** (earn up to a yearly amount tax-free). Employers fetch it digitally — you just tell each employer which one to use. |
 | **AM-bidrag** | Labour-market contribution: 8% taken off your gross **before** the other taxes are computed. |
 | **ATP** | *ATP Livslang Pension* — a small fixed pension contribution per month, stepped by how many hours you worked. |
-| **Befordringsfradrag** | The commuting deduction for travel to work beyond 24 km/day — see [Commuting deduction](/help/a/commuting/). |
+| **Befordringsfradrag** | The commuting deduction for travel to work beyond 24 km/day — see [Commuting deduction](/help/commuting/). |
 
 ## Vacation
 
@@ -41,7 +41,7 @@ Danish law gives 25 vacation days a year, funded in one of two ways:
   usually paid out in May and August.
 
 BitGigs tracks whichever model each contract uses — see
-[Vacation & holiday pay](/help/a/vacation-pay/).
+[Vacation & holiday pay](/help/vacation-pay/).
 
 ## Agreement extras
 

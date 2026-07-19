@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -11,9 +12,13 @@ from .forms import HelpArticleForm
 from .models import HelpArticle, HelpArticleRevision, HelpKeyword, HelpPage
 
 
-# ─── Reader (any logged-in user; the whole site is behind the login gate) ─────
+# ─── Reader views ─────────────────────────────────────────────────────────────
+# Marked login_not_required so the pre-login onboarding/account pages can show
+# help; ``visible_to`` limits anonymous visitors to ``public``-audience
+# articles, so everything else stays behind the login gate as before.
 
 
+@method_decorator(login_not_required, name="dispatch")
 class HelpManualView(View):
     """Full-page manual: sidebar of articles + the selected article body."""
 
@@ -52,6 +57,7 @@ class HelpManualView(View):
         )
 
 
+@method_decorator(login_not_required, name="dispatch")
 class HelpArticleFragmentView(View):
     """Rendered single-article fragment for the popup (AJAX)."""
 
@@ -62,6 +68,7 @@ class HelpArticleFragmentView(View):
         return render(request, "help/_article.html", {"article": article})
 
 
+@method_decorator(login_not_required, name="dispatch")
 class HelpContextView(View):
     """The article(s) mapped to a page (by URL view-name) as a fragment."""
 
@@ -89,6 +96,7 @@ class HelpContextView(View):
         )
 
 
+@method_decorator(login_not_required, name="dispatch")
 class HelpSearchIndexView(View):
     """The JSON index the client searches as-you-type."""
 

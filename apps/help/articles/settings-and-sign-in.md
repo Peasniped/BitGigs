@@ -34,7 +34,7 @@ password off while an identity is linked, and only unlink the identity while a
 usable password exists.
 
 > Forgotten your password? If you've connected a mail server the login page can
-> email you a reset link — see [Email & password reset](/help/a/email-and-password-reset/).
+> email you a reset link — see [Email & password reset](/help/email-and-password-reset/).
 > Otherwise recovery is done from the command line (`manage.py changepassword`),
 > which also stays available as the fallback when mail itself is broken.
 

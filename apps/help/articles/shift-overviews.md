@@ -15,7 +15,7 @@ Beside the calendars, BitGigs has two flat overviews of **approved** shifts:
   arrows to step a day back or forward.
 - **Monthly overview** — one card per workplace for the month: total hours,
   how many days you worked, and the hours split by
-  [shift type](/help/a/shift-types/) (on-site / remote / sick / vacation /
+  [shift type](/help/shift-types/) (on-site / remote / sick / vacation /
   paid absence).
 
 Use them when you want numbers rather than a grid — for example to check a

@@ -7,13 +7,13 @@ audience: everyone
 order: 20
 published: true
 keywords: [workplace, create, edit, new job, contract, label, icon, upload, crop, svg, recolour, color, appearance]
-pages: [workplaces:workplace-list, workplaces:workplace-detail]
+pages: [workplaces:workplace-list, workplaces:workplace-detail, core:onboarding-workplace]
 ---
 ## Adding a workplace
 
 **Workplaces › Add** asks for very little: a **name** (the short URL slug is
 generated for you). That's deliberate — a workplace is just the container;
-what it pays lives in its [contract's term sets](/help/a/contracts-and-terms/),
+what it pays lives in its [contract's term sets](/help/contracts-and-terms/),
 which you add next.
 
 ## The contract

@@ -161,7 +161,11 @@
     <small class="text-body-tertiary">BitGigs — Personal work tracking</small>
   </footer>
 
-  {% if user.is_authenticated and onboarding_complete and help_enabled %}
+  {% comment %}Help is available to anyone logged in, and on the onboarding
+  pages — including the anonymous account/claim steps, where visible_to()
+  limits it to public-audience articles — but never on the minimal_chrome
+  hand-off pages, which must keep nothing clickable.{% endcomment %}
+  {% if help_enabled and not minimal_chrome %}{% if user.is_authenticated or onboarding %}
     {% if show_help_button %}
     <button type="button" class="help-fab" data-bs-toggle="offcanvas" data-bs-target="#helpOffcanvas"
             title="Help (F1)" aria-label="Open help">
@@ -169,7 +173,7 @@
     </button>
     {% endif %}
     {% include "help/_help_offcanvas.html" %}
-  {% endif %}
+  {% endif %}{% endif %}
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js" integrity="sha384-jrOgQzBlDeUNdmQn3rUt/PZD+pdcRBdWd/HWRqRo+n2OR2QtGyjSaJC0GiCeH+ir" crossorigin="anonymous"></script>

@@ -25,11 +25,11 @@ Both are optional, off by default, and go to a server **you** name:
 
 - Your password is stored as a hash, never readable.
 - The mail server password is **encrypted at rest**.
-- [API keys](/help/a/api-access/) are stored only as fingerprints — the real
+- [API keys](/help/api-access/) are stored only as fingerprints — the real
   key is shown once at creation and can never be recovered from the server.
 
 ## Backing up
 
 Your data lives in the app's database on your server. For a portable copy, use
-[Export](/help/a/import-export/) — and take one before any big import or
+[Export](/help/import-export/) — and take one before any big import or
 upgrade. Uploaded workplace icons live in the server's `media/` folder.

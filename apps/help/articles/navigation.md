@@ -13,7 +13,7 @@ BitGigs keeps the navigation small: a logo, three main links, and a **More**
 menu for everything else.
 
 - The **BitGigs logo** (top left) always takes you home to the
-  [dashboard](/help/a/dashboard/).
+  [dashboard](/help/dashboard/).
 - The three centre links — **Workplaces**, **Planning**, **Analytics** — are
   the pages you'll live on. The link for the section you're currently in is
   highlighted, so you always know where you are.

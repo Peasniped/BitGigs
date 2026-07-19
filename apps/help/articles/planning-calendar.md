@@ -29,6 +29,6 @@ ahead of time and to confirm the ones you've actually worked.
 ## Going faster
 
 For bulk work — stamping a default shift across a month, copying a shift to
-several days, clearing days — open [Power Edit](/help/a/power-edit/). What the
+several days, clearing days — open [Power Edit](/help/power-edit/). What the
 chip colours and symbols mean is covered in
-[Shift types](/help/a/shift-types/).
+[Shift types](/help/shift-types/).

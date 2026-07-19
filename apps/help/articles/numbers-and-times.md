@@ -26,4 +26,4 @@ built for the keyboard:
 
 > Tip: on the planning calendar you can skip typing times entirely — set a
 > default shift per workplace and stamp it with
-> [Power Edit](/help/a/power-edit/).
+> [Power Edit](/help/power-edit/).

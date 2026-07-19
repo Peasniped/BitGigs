@@ -30,6 +30,10 @@ Three things decide where an article surfaces:
 - **Keywords** — extra search terms (they rank just below the title).
 - **Parent & order** — where it nests in the manual's table of contents, and
   its position among siblings.
+- **Audience** — who may read it. Most articles are *Everyone* (any logged-in
+  user); *Public* makes an article readable **without logging in**, which is
+  how help works on the pre-login setup pages — mark an article Public only if
+  you're happy with it being world-readable.
 
 You can deep-link into the app from an article — plain Markdown links to
 paths like `/settings/?tab=display` work, and anchors can point at a specific

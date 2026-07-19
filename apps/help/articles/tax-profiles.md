@@ -7,7 +7,7 @@ audience: everyone
 order: 60
 published: true
 keywords: [tax, profile, trækprocent, personfradrag, am-bidrag, church]
-pages: [core:taxprofile-list]
+pages: [core:taxprofile-list, core:onboarding-tax]
 ---
 A **tax profile** holds the personal numbers BitGigs uses to estimate what's
 withheld from your pay.

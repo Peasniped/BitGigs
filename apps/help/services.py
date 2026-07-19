@@ -54,9 +54,21 @@ HELP_PAGE_CONTEXTS = [
     ("core:taxprofile-list", "Tax profiles"),
     ("core:settings", "Settings"),
     ("data_io:main", "Import / Export"),
+    # Onboarding steps. The account pages run before login exists, so they only
+    # surface ``public``-audience articles (see HelpArticle.objects.visible_to).
+    ("core:onboarding-account", "Onboarding: claim instance"),
+    ("core:onboarding-account-method", "Onboarding: sign-in method"),
+    ("core:onboarding-account-email", "Onboarding: create account"),
+    ("core:onboarding-tax", "Onboarding: tax profile"),
+    ("core:onboarding-workplace", "Onboarding: workplace"),
+    ("core:onboarding-terms", "Onboarding: pay terms"),
 ]
 
-_SEARCH_KEYS = ["help:search-index:staff", "help:search-index:public"]
+_SEARCH_KEYS = [
+    "help:search-index:staff",
+    "help:search-index:public",
+    "help:search-index:anon",
+]
 _ENABLED_KEY = "help:enabled"
 
 
@@ -130,8 +142,13 @@ def build_search_index(user):
     """Return (and cache) the list of article records the client searches."""
     from .models import HelpArticle
 
-    is_staff = user is not None and (user.is_staff or user.is_superuser)
-    cache_key = f"help:search-index:{'staff' if is_staff else 'public'}"
+    if user is None or not user.is_authenticated:
+        variant = "anon"
+    elif user.is_staff or user.is_superuser:
+        variant = "staff"
+    else:
+        variant = "public"
+    cache_key = f"help:search-index:{variant}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached

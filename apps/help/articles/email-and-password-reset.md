@@ -99,4 +99,4 @@ development, add `--settings=bitgigs.settings.local`).
 
 If you sign in with single sign-on and have no password set, there is nothing to
 reset — recover through your identity provider instead. See
-[Settings & sign-in](/help/a/settings-and-sign-in/).
+[Settings & sign-in](/help/settings-and-sign-in/).

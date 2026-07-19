@@ -29,5 +29,5 @@ a tint per type. The legend matching those colours lives right here in the
 help panel on every calendar page.
 
 > Only **on-site** shifts feed the commuting count — see
-> [Commuting deduction](/help/a/commuting/). Vacation tracking is explained in
-> [Vacation & holiday pay](/help/a/vacation-pay/).
+> [Commuting deduction](/help/commuting/). Vacation tracking is explained in
+> [Vacation & holiday pay](/help/vacation-pay/).

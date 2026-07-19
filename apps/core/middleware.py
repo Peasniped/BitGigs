@@ -16,6 +16,10 @@ def _is_onboarding_flow_url(path):
         # the /api/v1/ endpoints do their own key auth, and the key-management
         # POSTs are harmless mid-onboarding.
         "/api/",
+        # Help is read-only and shown on the logged-in onboarding steps (F1 /
+        # the help button), so its popup endpoints and the manual must not
+        # bounce back into the wizard.
+        "/help/",
     ))
 
 
@@ -37,7 +41,9 @@ class OnboardingRequiredMiddleware:
         if not request.user.is_authenticated:
             from django.contrib.auth.models import User
             if (not request.path.startswith(("/onboarding/account/", "/accounts/oidc/", "/sso/",
-                                             "/static/", "/media/", "/favicon", "/api/v1/"))
+                                             "/static/", "/media/", "/favicon", "/api/v1/",
+                                             # public-audience help on the account pages
+                                             "/help/"))
                     and not User.objects.exists()):
                 return redirect(reverse("core:onboarding-account"))
             # Otherwise anonymous requests are LoginRequiredMiddleware's job;

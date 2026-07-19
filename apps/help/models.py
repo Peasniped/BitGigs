@@ -62,17 +62,24 @@ class HelpArticleQuerySet(models.QuerySet):
         return self.live().filter(is_published=True)
 
     def visible_to(self, user):
-        """Published (and non-archived) articles the user may see. BitGigs is
-        single-owner (owner is staff), so the owner sees everything; ``audience``
-        is the hook for future multi-user first-party apps that reuse this app."""
+        """Published (and non-archived) articles the user may see. Anonymous
+        visitors get only ``public`` articles (the onboarding/account pages run
+        before login exists). BitGigs is single-owner (owner is staff), so the
+        owner sees everything; ``audience`` is the hook for future multi-user
+        first-party apps that reuse this app."""
         qs = self.published()
-        if user is not None and (user.is_staff or user.is_superuser):
+        if user is None or not user.is_authenticated:
+            return qs.filter(audience=HelpArticle.Audience.PUBLIC)
+        if user.is_staff or user.is_superuser:
             return qs
-        return qs.filter(audience=HelpArticle.Audience.EVERYONE)
+        return qs.filter(
+            audience__in=[HelpArticle.Audience.PUBLIC, HelpArticle.Audience.EVERYONE]
+        )
 
 
 class HelpArticle(models.Model):
     class Audience(models.TextChoices):
+        PUBLIC = "public", "Public (readable without login)"
         EVERYONE = "everyone", "Everyone"
         STAFF = "staff", "Staff only"
         ADMIN = "admin", "Admins only"

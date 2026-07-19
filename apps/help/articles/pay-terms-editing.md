@@ -7,11 +7,11 @@ audience: everyone
 order: 10
 published: true
 keywords: [term set, pay terms, hourly rate, salary, weekly hours, payroll period, tax card, hovedkort, bikort, pension, fritvalgskonto, ferietillæg, hour goal, raise]
-pages: [workplaces:workplace-detail]
+pages: [workplaces:workplace-detail, core:onboarding-terms]
 ---
 A **term set** describes how a job pays from a given date. Here's what each
 part of the form means — the Danish concepts themselves are explained in
-[Danish pay concepts](/help/a/danish-pay-terms/).
+[Danish pay concepts](/help/danish-pay-terms/).
 
 ## Dates
 
