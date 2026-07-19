@@ -188,7 +188,7 @@
                       <i class="bi bi-graph-up-arrow me-1"></i>Current &rarr; forward
                     </span>
                   {% else %}
-                    <span class="badge text-bg-light text-secondary">
+                    <span class="badge badge-soft">
                       <i class="bi bi-clock-history me-1"></i>Historic
                     </span>
                   {% endif %}
@@ -214,6 +214,7 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous"></script>
+<script src="{% static 'js/chart_theme.js' %}"></script>
 <script src="{% static 'js/period_picker.js' %}"></script>
 <script>
   (function() {
@@ -276,8 +277,12 @@
   // Rate history charts + combined chart
   // (Period filtering is done server-side via the analytics-style filter form.)
   (function() {
+    // Fallback series hues when a workplace has no colour of its own; the
+    // first two slots follow the theme tokens, the rest stay distinct.
+    const PAL = window.chartPalette();
+    const BRAND = themeToken('--primary');
     const PALETTE = [
-      '#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4',
+      BRAND, PAL.actual, PAL.projected, '#dc2626', '#06b6d4',
       '#a855f7', '#ec4899', '#14b8a6', '#84cc16', '#f97316',
     ];
 
@@ -300,8 +305,8 @@
             {
               label: 'Total / hour (DKK)',
               data: points.map(p => parseFloat(p.total_hourly)),
-              borderColor: '#6366f1',
-              backgroundColor: 'rgba(99,102,241,0.10)',
+              borderColor: BRAND,
+              backgroundColor: PAL.alpha(BRAND, 0.10),
               stepped: 'before',
               pointRadius: 4, pointHoverRadius: 6, fill: false,
               segment: { borderDash: segmentDash },
@@ -309,8 +314,8 @@
             {
               label: 'Net / hour (DKK)',
               data: points.map(p => parseFloat(p.net_hourly)),
-              borderColor: '#22c55e',
-              backgroundColor: 'rgba(34,197,94,0.10)',
+              borderColor: PAL.actual,
+              backgroundColor: PAL.alpha(PAL.actual, 0.10),
               stepped: 'before',
               pointRadius: 4, pointHoverRadius: 6, fill: false,
               segment: { borderDash: segmentDash },

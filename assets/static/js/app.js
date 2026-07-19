@@ -9,6 +9,18 @@ window.themeToken = function (name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 };
 
+// Auto theme (UserSettings.theme == "auto" → base.html sets data-theme-auto):
+// keep following the OS scheme while the page is open. The pre-paint pick
+// happens in an inline <head> script; this only tracks later OS changes.
+(function () {
+  if (!document.documentElement.hasAttribute('data-theme-auto')) return;
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  var apply = function () {
+    document.documentElement.setAttribute('data-bs-theme', mq.matches ? 'dark' : 'light');
+  };
+  if (mq.addEventListener) mq.addEventListener('change', apply);
+})();
+
 document.addEventListener('DOMContentLoaded', function () {
   // ----- Payslip line drag-and-drop reordering -----
   var payslipTable = document.getElementById('payslip-lines');

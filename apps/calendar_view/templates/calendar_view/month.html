@@ -44,7 +44,7 @@
     <tr>
       <td class="week-number">{{ week.week_number }}</td>
       {% for day in week.days %}
-      <td class="{% if not day.is_in_period %}bg-light text-muted{% endif %} {% if day.is_today %}border-primary border-2{% endif %} {% if day.is_weekend %}bg-light{% endif %}"
+      <td class="{% if not day.is_in_period %}cal-outside{% endif %} {% if day.is_today %}border-primary border-2{% endif %} {% if day.is_weekend %}cal-weekend{% endif %}"
           style="min-width:100px; height:80px; vertical-align:top; padding:4px;">
         <div class="d-flex justify-content-between">
           <small>

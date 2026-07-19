@@ -100,8 +100,8 @@
             <a href="{% url 'help:manual-article' a.slug %}">{{ a.title }}</a>
             {% if a.summary %}<div class="small text-body-secondary">{{ a.summary }}</div>{% endif %}
           </td>
-          <td class="small">{% for p in a.pages.all %}<span class="badge text-bg-light">{{ p.label }}</span> {% empty %}<span class="text-body-tertiary">—</span>{% endfor %}</td>
-          <td class="small">{% for k in a.keywords.all %}<span class="badge text-bg-light">{{ k.name }}</span> {% empty %}<span class="text-body-tertiary">—</span>{% endfor %}</td>
+          <td class="small">{% for p in a.pages.all %}<span class="badge badge-soft">{{ p.label }}</span> {% empty %}<span class="text-body-tertiary">—</span>{% endfor %}</td>
+          <td class="small">{% for k in a.keywords.all %}<span class="badge badge-soft">{{ k.name }}</span> {% empty %}<span class="text-body-tertiary">—</span>{% endfor %}</td>
           <td>{% if a.is_published %}<span class="badge text-bg-success">Published</span>{% else %}<span class="badge text-bg-secondary">Draft</span>{% endif %}</td>
           <td class="small text-body-secondary text-nowrap" title="{{ a.updated_at }}">{{ a.updated_at|date:"j M Y, H:i" }}</td>
           <td class="text-end text-nowrap">

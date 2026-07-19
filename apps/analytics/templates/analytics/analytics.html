@@ -275,6 +275,7 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous"></script>
+<script src="{% static 'js/chart_theme.js' %}"></script>
 <script src="{% static 'js/period_picker.js' %}"></script>
 {{ month_labels_json|json_script:"monthLabels" }}
 {{ distribution_datasets|json_script:"distDatasets" }}
@@ -352,13 +353,15 @@
     const labels = JSON.parse(document.getElementById('monthLabels').textContent);
     const distDatasets = JSON.parse(document.getElementById('distDatasets').textContent);
 
-    // Each (workplace, month) is exactly one category. Colours are kept in
-    // sync with the table row states and the legend chips.
+    // Each (workplace, month) is exactly one category. Colours come from the
+    // --chart-* design tokens (via chart_theme.js), so they follow the theme
+    // and stay in sync with the table row states and the legend chips.
     const CATS = ['actual', 'planned', 'projected'];
+    const PAL = window.chartPalette();
     const CAT_COLORS = {
-      actual:    { gross:'rgba(34,197,94,0.65)',  grossBorder:'#16a34a', net:'rgba(22,101,52,0.65)', netBorder:'#166534' },
-      planned:   { gross:'rgba(56,189,248,0.65)', grossBorder:'#0284c7', net:'rgba(2,132,199,0.65)', netBorder:'#075985' },
-      projected: { gross:'rgba(245,158,11,0.65)', grossBorder:'#d97706', net:'rgba(180,83,9,0.65)', netBorder:'#92400e' },
+      actual:    { gross: PAL.alpha(PAL.actual, 0.65),    grossBorder: PAL.actual,    net: PAL.alpha(PAL.actualStrong, 0.65),    netBorder: PAL.actualStrong },
+      planned:   { gross: PAL.alpha(PAL.planned, 0.65),   grossBorder: PAL.planned,   net: PAL.alpha(PAL.plannedStrong, 0.65),   netBorder: PAL.plannedStrong },
+      projected: { gross: PAL.alpha(PAL.projected, 0.65), grossBorder: PAL.projected, net: PAL.alpha(PAL.projectedStrong, 0.65), netBorder: PAL.projectedStrong },
     };
 
     function monthCategory(ds, m) {

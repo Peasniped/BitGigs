@@ -21,14 +21,16 @@ def sso_status(request):
 
 def display_settings(request):
     """Expose global display preferences (from the ``UserSettings`` singleton):
-    ``show_shift_type_colors`` (chips coloured by shift type) and
-    ``show_help_button`` (the floating help button on every page)."""
+    ``show_shift_type_colors`` (chips coloured by shift type),
+    ``show_help_button`` (the floating help button on every page) and
+    ``theme`` (light/dark/auto — base.html turns it into ``data-bs-theme``)."""
     from .models import UserSettings
 
     settings = UserSettings.load()
     return {
         "show_shift_type_colors": settings.show_shift_type_colors,
         "show_help_button": settings.show_help_button,
+        "theme": settings.theme,
     }
 
 

@@ -125,6 +125,19 @@ class UserSettings(models.Model):
         ("avg", "Simple average"),
     ]
 
+    THEME_CHOICES = [
+        ("light", "Light"),
+        ("dark", "Dark"),
+        ("auto", "Auto (follow system)"),
+    ]
+
+    theme = models.CharField(
+        max_length=5,
+        choices=THEME_CHOICES,
+        default="light",
+        help_text="Color theme. Auto follows the operating system's setting.",
+    )
+
     week_start = models.IntegerField(
         choices=WEEK_START_CHOICES,
         default=0,

@@ -194,6 +194,22 @@ class UserSettingsView(View):
         })
 
 
+class SetThemeView(View):
+    """Quick Light/Dark/Auto switch in the navbar's More dropdown. POST-only;
+    persists to the UserSettings singleton and bounces back to the page the
+    toggle was used on (same-origin only, like UserSettingsView._safe_next)."""
+
+    def post(self, request):
+        theme = request.POST.get("theme")
+        if theme in {choice for choice, _ in UserSettings.THEME_CHOICES}:
+            settings = UserSettings.load()
+            settings.theme = theme
+            settings.save()
+        raw = request.POST.get("next")
+        next_url = raw if raw and raw.startswith("/") and not raw.startswith("//") else None
+        return redirect(next_url or f"{reverse('core:settings')}?tab=display")
+
+
 # "signin" carries no form fields of its own, so the valid set is wider than
 # UserSettingsForm.TABS. It is offered even without an IdP configured — that is
 # where the password lives, and where we explain how to turn SSO on.

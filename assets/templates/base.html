@@ -1,8 +1,17 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en-DK" data-bs-theme="light">
+<html lang="en-DK" data-bs-theme="{% if theme == 'dark' %}dark{% else %}light{% endif %}"{% if theme == 'auto' %} data-theme-auto{% endif %}>
 <head>
   <meta charset="UTF-8">
+  {% if theme == 'auto' %}
+  {% comment %}Pre-paint: adopt the OS scheme before any CSS renders, so auto
+  mode never flashes light. app.js follows live OS changes via
+  data-theme-auto.{% endcomment %}
+  <script>
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches)
+      document.documentElement.setAttribute('data-bs-theme', 'dark');
+  </script>
+  {% endif %}
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}BitGigs{% endblock %}</title>
   <link rel="icon" type="image/png" sizes="64x64" href="{% static 'graphics/App_Main_Logo_64.png' %}">
@@ -83,6 +92,29 @@
               <li><a class="dropdown-item" href="{% url 'core:taxprofile-list' %}"><i class="bi bi-percent me-2"></i>Tax Profiles</a></li>
               <li><a class="dropdown-item" href="{% url 'core:settings' %}"><i class="bi bi-gear me-2"></i>Settings</a></li>
               <li><a class="dropdown-item" href="{% url 'data_io:main' %}"><i class="bi bi-arrow-left-right me-2"></i>Import / Export</a></li>
+              <li>
+                {% comment %}
+                  One-tap toggle to the opposite of the current theme. While
+                  Auto (Settings → Display) is active the item turns into a
+                  link to that setting instead — clicking must not silently
+                  kick the user out of auto mode.
+                {% endcomment %}
+                {% if theme == 'auto' %}
+                <a class="dropdown-item" href="{% url 'core:settings' %}?tab=display#div_id_theme" title="Theme follows your system — change it in Settings">
+                  <i class="bi bi-circle-half me-2"></i>Auto theme active
+                </a>
+                {% else %}
+                <form method="post" action="{% url 'core:set-theme' %}" class="m-0">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                  {% if theme == 'dark' %}
+                  <button type="submit" name="theme" value="light" class="dropdown-item"><i class="bi bi-sun me-2"></i>Light mode</button>
+                  {% else %}
+                  <button type="submit" name="theme" value="dark" class="dropdown-item"><i class="bi bi-moon-stars me-2"></i>Dark mode</button>
+                  {% endif %}
+                </form>
+                {% endif %}
+              </li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="{% url 'help:manual' %}"><i class="bi bi-life-preserver me-2"></i>Help</a></li>
               <li><hr class="dropdown-divider"></li>

@@ -50,6 +50,9 @@
   --chart-projected: var(--warning);  --chart-projected-strong: #92400e;
   /* Type */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  /* Deep-link :target flash (see the Utility section) */
+  --target-flash: rgba(var(--primary-rgb), .18);
+  --target-flash-mid: rgba(var(--primary-rgb), .12);
   /* Effects */
   --shadow-rgb: 15,23,42;
   --card-shadow: 0 1px 3px rgba(var(--shadow-rgb),.06), 0 1px 2px rgba(var(--shadow-rgb),.04);
@@ -57,6 +60,153 @@
   --modal-shadow: 0 25px 50px -12px rgba(var(--shadow-rgb),.25);
   --card-radius: 0.75rem;
   --transition-base: 0.2s ease;
+}
+
+/* Dark theme: only the base tokens change — every color-mix() tint above
+   re-resolves against the dark surfaces automatically. Activated by
+   data-bs-theme="dark" on <html> (see base.html / UserSettings.theme). */
+[data-bs-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #131420;
+  --surface: #1c1e2e;
+  --bg-light: #232538;  --bg-lighter: #2a2d44;
+  --border: #32354e;  --border-strong: #454965;
+  --text: #e2e6f0;  --text-muted: #9aa3b8;  --text-subtle: #6b7490;
+  /* "strong" text-on-tint colors need to lighten, not darken, on dark washes */
+  --primary-strong: color-mix(in oklch, var(--primary) 72%, white);
+  --success-strong: #86efac;
+  --info-strong: #93c5fd;
+  --warning-strong: #fcd34d;
+  --danger-strong: #fca5a5;
+  /* Outside-month days recede below the surface (in light they sit above it);
+     keeping them on --bg-lighter here would melt into the cell borders. */
+  --cal-outside: #17182a;
+  --chart-grid: rgba(148,163,184,.14);
+  --chart-planned-strong: #7dd3fc;
+  --chart-projected-strong: #fbbf24;
+  /* The indigo wash needs more presence on dark surfaces */
+  --target-flash: rgba(var(--primary-rgb), .42);
+  --target-flash-mid: rgba(var(--primary-rgb), .28);
+  --shadow-rgb: 0,0,0;
+  --card-shadow: 0 1px 3px rgba(var(--shadow-rgb),.35), 0 1px 2px rgba(var(--shadow-rgb),.25);
+  --card-hover-shadow: 0 10px 15px -3px rgba(var(--shadow-rgb),.45), 0 4px 6px -4px rgba(var(--shadow-rgb),.35);
+  --modal-shadow: 0 25px 50px -12px rgba(var(--shadow-rgb),.6);
+}
+
+/* ============================================================================
+   Bootstrap bridge — points Bootstrap 5.3's own tokens at ours, so stock
+   components (alerts, badges, tables, dropdowns, modals, forms, utilities)
+   follow the palette, the dark theme and the accent with no per-component
+   work. One mapping serves both themes: the values flip because our base
+   tokens flip. Declared after Bootstrap's CSS, so it wins the cascade.
+   ========================================================================== */
+:root, [data-bs-theme="dark"] {
+  --bs-body-bg: var(--canvas);
+  --bs-body-color: var(--text);
+  --bs-heading-color: var(--text);
+  --bs-secondary-color: var(--text-muted);
+  --bs-tertiary-color: var(--text-subtle);
+  --bs-secondary-bg: var(--bg-light);
+  --bs-tertiary-bg: var(--bg-lighter);
+  --bs-border-color: var(--border);
+  --bs-primary: var(--primary);      --bs-primary-rgb: var(--primary-rgb);
+  --bs-link-color: var(--primary);   --bs-link-color-rgb: var(--primary-rgb);
+  --bs-link-hover-color: var(--primary-strong);
+  --bs-success: var(--success);      --bs-success-rgb: var(--success-rgb);
+  --bs-danger: var(--danger);        --bs-danger-rgb: var(--danger-rgb);
+  --bs-warning: var(--warning);      --bs-warning-rgb: var(--warning-rgb);
+  --bs-info: var(--info);            --bs-info-rgb: var(--info-rgb);
+  /* Subtle backgrounds (alerts, badges): derived tints, flip with --surface */
+  --bs-primary-bg-subtle: var(--primary-tint);
+  --bs-primary-border-subtle: var(--primary-border);
+  --bs-primary-text-emphasis: var(--primary-strong);
+  --bs-success-bg-subtle: var(--success-tint);
+  --bs-success-border-subtle: color-mix(in srgb, var(--success) 35%, var(--surface));
+  --bs-success-text-emphasis: var(--success-strong);
+  --bs-danger-bg-subtle: var(--danger-tint);
+  --bs-danger-border-subtle: color-mix(in srgb, var(--danger) 35%, var(--surface));
+  --bs-danger-text-emphasis: var(--danger-strong);
+  --bs-warning-bg-subtle: var(--warning-tint);
+  --bs-warning-border-subtle: color-mix(in srgb, var(--warning) 35%, var(--surface));
+  --bs-warning-text-emphasis: var(--warning-strong);
+  --bs-info-bg-subtle: var(--info-tint);
+  --bs-info-border-subtle: color-mix(in srgb, var(--info) 35%, var(--surface));
+  --bs-info-text-emphasis: var(--info-strong);
+  /* Form validation states */
+  --bs-form-valid-color: var(--success);
+  --bs-form-valid-border-color: var(--success);
+  --bs-form-invalid-color: var(--danger);
+  --bs-form-invalid-border-color: var(--danger);
+}
+
+/* Components whose Bootstrap default background is body-bg (now the tinted
+   canvas) or a compiled literal: pin their surfaces to --surface. */
+.card { --bs-card-bg: var(--surface); }
+.dropdown-menu { --bs-dropdown-bg: var(--surface); }
+.modal { --bs-modal-bg: var(--surface); }
+.offcanvas, .offcanvas-sm, .offcanvas-md, .offcanvas-lg, .offcanvas-xl { --bs-offcanvas-bg: var(--surface); }
+.list-group { --bs-list-group-bg: var(--surface); }
+.toast { --bs-toast-bg: var(--surface); }
+.popover { --bs-popover-bg: var(--surface); }
+.accordion { --bs-accordion-bg: var(--surface); }
+.form-control, .form-select { background-color: var(--surface); color: var(--text); }
+.form-control:focus, .form-select:focus { background-color: var(--surface); color: var(--text); }
+.input-group-text { background-color: var(--bg-lighter); color: var(--text-muted); }
+
+/* Bootstrap's solid buttons compile their colors as literals (#198754 green,
+   #dc3545 red) — repoint the ones BitGigs uses at the canonical families. */
+.btn-success {
+  --bs-btn-bg: var(--success);
+  --bs-btn-border-color: var(--success);
+  --bs-btn-hover-bg: color-mix(in oklch, var(--success) 85%, black);
+  --bs-btn-hover-border-color: color-mix(in oklch, var(--success) 85%, black);
+  --bs-btn-active-bg: color-mix(in oklch, var(--success) 78%, black);
+  --bs-btn-active-border-color: color-mix(in oklch, var(--success) 78%, black);
+  --bs-btn-disabled-bg: var(--success);
+  --bs-btn-disabled-border-color: var(--success);
+}
+.btn-danger {
+  --bs-btn-bg: var(--danger);
+  --bs-btn-border-color: var(--danger);
+  --bs-btn-hover-bg: color-mix(in oklch, var(--danger) 85%, black);
+  --bs-btn-hover-border-color: color-mix(in oklch, var(--danger) 85%, black);
+  --bs-btn-active-bg: color-mix(in oklch, var(--danger) 78%, black);
+  --bs-btn-active-border-color: color-mix(in oklch, var(--danger) 78%, black);
+  --bs-btn-disabled-bg: var(--danger);
+  --bs-btn-disabled-border-color: var(--danger);
+}
+.btn-outline-success {
+  --bs-btn-color: var(--success);
+  --bs-btn-border-color: var(--success);
+  --bs-btn-hover-bg: var(--success);
+  --bs-btn-hover-border-color: var(--success);
+  --bs-btn-active-bg: var(--success);
+  --bs-btn-active-border-color: var(--success);
+}
+.btn-outline-danger {
+  --bs-btn-color: var(--danger);
+  --bs-btn-border-color: var(--danger);
+  --bs-btn-hover-bg: var(--danger);
+  --bs-btn-hover-border-color: var(--danger);
+  --bs-btn-active-bg: var(--danger);
+  --bs-btn-active-border-color: var(--danger);
+}
+
+/* Bootstrap's contextual table variants also compile literal light colors
+   (.table-light heads the calendars' day-name row) — repoint at the palette. */
+.table-light {
+  --bs-table-bg: var(--bg-lighter);
+  --bs-table-color: var(--text);
+  --bs-table-border-color: var(--border);
+  --bs-table-striped-bg: var(--bg-lighter);
+  --bs-table-striped-color: var(--text);
+  --bs-table-hover-bg: var(--bg-light);
+  --bs-table-hover-color: var(--text);
+}
+.table-success {
+  --bs-table-bg: var(--success-tint);
+  --bs-table-color: var(--success-strong);
+  --bs-table-border-color: color-mix(in srgb, var(--success) 35%, var(--surface));
 }
 
 /* ---- Typography ---- */
@@ -581,6 +731,17 @@ a.navbar-brand:hover span { color: var(--primary); }
 
 /* ---- Badges ---- */
 .badge { font-weight: 500; }
+/* Soft neutral chip (replaces Bootstrap's bg-light/text-bg-light badges, which
+   stay light gray in dark mode). */
+.badge-soft {
+  background: var(--bg-lighter);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+/* ---- Theme-safe calendar cell washes (month + payroll-period grids) ---- */
+.cal-weekend { background: var(--cal-weekend); }
+.cal-outside { background: var(--cal-outside); color: var(--text-subtle); }
 
 /* ---- Drag handle ---- */
 .drag-handle {
@@ -856,6 +1017,21 @@ a.setup-step--started:hover .setup-step__circle { background: var(--warning); bo
 .password-checklist li.is-fail { color: var(--danger); }
 
 /* ---- Utility ---- */
+/* Deep-link emphasis: whatever element a URL fragment addresses (the More
+   menu's "Auto theme active" → #div_id_theme, links in help articles, …)
+   flashes briefly so the eye lands on the right setting. scroll-margin keeps
+   it clear of the sticky navbar. */
+:target {
+  scroll-margin-top: 5rem;
+  animation: target-highlight 2.5s ease-out 1;
+  border-radius: 0.5rem;
+}
+@keyframes target-highlight {
+  0%   { background-color: var(--target-flash); box-shadow: 0 0 0 6px var(--target-flash); }
+  55%  { background-color: var(--target-flash-mid); box-shadow: 0 0 0 6px var(--target-flash-mid); }
+  100% { background-color: transparent; box-shadow: 0 0 0 6px transparent; }
+}
+
 .section-title {
   font-size: 0.8rem;
   font-weight: 600;
@@ -1103,7 +1279,9 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
 .form-control-sm.time-24-input.is-invalid,
 .form-control-sm.time-24-input.is-valid { padding-right: 0.5rem; }
 
-/* Air Datepicker (see initDatePickers in app.js) — themed to the app palette. */
+/* Air Datepicker (see initDatePickers in app.js) — themed to the app palette.
+   The surface/text vars matter for dark mode: the vendor CSS defaults them to
+   literal white/grays. */
 .air-datepicker {
   --adp-accent-color: var(--primary);
   --adp-color-current-date: var(--primary);
@@ -1113,12 +1291,28 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
   --adp-cell-background-color-selected-hover: var(--primary-strong);
   --adp-cell-background-color-in-range: rgba(var(--primary-rgb), .12);
   --adp-cell-background-color-in-range-hover: rgba(var(--primary-rgb), .20);
+  --adp-cell-background-color-hover: var(--bg-lighter);
   --adp-cell-border-radius: 8px;
+  --adp-background-color: var(--surface);
+  --adp-background-color-hover: var(--bg-lighter);
+  --adp-background-color-active: var(--bg-lighter);
   --adp-color: var(--text);
+  --adp-color-secondary: var(--text-muted);
+  --adp-color-other-month: var(--text-subtle);
+  --adp-color-other-month-hover: var(--text-muted);
+  --adp-color-disabled: var(--text-subtle);
+  --adp-color-disabled-in-range: var(--text-muted);
+  --adp-nav-color-secondary: var(--text-muted);
   --adp-border-color: var(--border);
   --adp-border-color-inner: var(--border);
+  --adp-border-color-inline: var(--border);
   --adp-btn-color: var(--primary);
   --adp-btn-color-hover: var(--primary-strong);
+  --adp-btn-background-color-hover: var(--bg-lighter);
+  --adp-btn-background-color-active: var(--bg-lighter);
+  --adp-time-day-period-color: var(--text-muted);
+  --adp-input-background-color: var(--surface);
+  --adp-input-color: var(--text);
   --adp-z-index: 1060;   /* above Bootstrap modals (~1055) */
 }
 

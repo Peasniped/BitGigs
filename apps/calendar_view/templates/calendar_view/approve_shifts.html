@@ -62,7 +62,7 @@
                 <small class="text-muted ms-1" data-field="break">({{ shift.break_minutes }}min break)</small>
               {% endif %}
             </td>
-            <td><span class="badge bg-light text-dark" data-field="type">{{ shift.get_shift_type_display }}</span></td>
+            <td><span class="badge badge-soft" data-field="type">{{ shift.get_shift_type_display }}</span></td>
             <td><small class="text-muted" data-field="notes">{{ shift.notes|truncatechars:40 }}</small></td>
             <td>
               <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 edit-shift-btn" data-shift-id="{{ shift.pk }}" title="Edit shift">

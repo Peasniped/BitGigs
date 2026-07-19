@@ -30,6 +30,7 @@ urlpatterns = [
         name="taxprofile-delete",
     ),
     path("settings/", views.UserSettingsView.as_view(), name="settings"),
+    path("settings/theme/", views.SetThemeView.as_view(), name="set-theme"),
     path("settings/sign-in/", views.PasswordSignInView.as_view(), name="password-signin"),
     path("settings/sign-in/link/", views.SSOLinkConfirmView.as_view(), name="sso-link-confirm"),
     # Set this as the application's Launch URL at the identity provider.
