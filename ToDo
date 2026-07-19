@@ -1,5 +1,6 @@
 
 # NU     --------------------------------------------------------
+
 - SMTP-integration, så den ligger klar, så andre apps kan sende mails
 - - Setting/configuration page with detailed test (showing what goes wrong, if anything (ie wrong credentials, wrong host/port))
 

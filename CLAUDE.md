@@ -98,6 +98,7 @@ How new code / changes should be written:
 - Don't run destructive git/db commands without confirmation.
 - Don't bypass `--settings=bitgigs.settings.local` in dev.
 - Don't introduce new dependencies without need.
+- No need to tell me about the 'CRLF→LF warnings' every commit
 
 ## Do's
 
