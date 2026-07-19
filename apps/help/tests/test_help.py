@@ -63,6 +63,17 @@ class HelpModelTests(HelpTestMixin, TestCase):
         self.assertIn("pub", visible_member)
         self.assertNotIn("staff-only", visible_member)
 
+    def test_update_or_create_persists_rerendered_html(self):
+        # Django ≥5 passes update_fields limited to defaults from
+        # update_or_create (help_import's upsert path) — save() must force the
+        # derived body_html into the UPDATE or re-imports keep stale HTML.
+        self.make_article(slug="upsert", body_md="old text")
+        HelpArticle.objects.update_or_create(
+            slug="upsert", defaults={"title": "Upsert", "body_md": "**new text**"}
+        )
+        article = HelpArticle.objects.get(slug="upsert")
+        self.assertIn("<strong>new text</strong>", article.body_html)
+
     def test_revision_pruning_keeps_recent(self):
         article = self.make_article()
         for i in range(HelpArticleRevision.PRUNE_KEEP + 5):

@@ -120,6 +120,12 @@ class HelpArticle(models.Model):
         if not self.slug:
             self.slug = slugify(self.title)[:80]
         self.body_html = services.render_markdown(self.body_md)
+        # update_or_create (help_import's upsert) passes update_fields limited
+        # to its defaults, which would silently drop the derived fields from
+        # the UPDATE — the cached render must always land with the markdown.
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None:
+            kwargs["update_fields"] = set(update_fields) | {"slug", "body_html"}
         super().save(*args, **kwargs)
 
     def get_absolute_url(self):
