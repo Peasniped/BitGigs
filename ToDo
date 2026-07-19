@@ -2,8 +2,6 @@
 # NU     --------------------------------------------------------
 
 - SMTP-integration, så den ligger klar, så andre apps kan sende mails
-- - Setting/configuration page with detailed test (showing what goes wrong, if anything (ie wrong credentials, wrong host/port))
-
 *** API-system ***
 - Security: User must create an API key that can only be viewed once
 - - API key can be named with nickname and given an expiration date
