@@ -20,6 +20,12 @@ your Danish net pay.
 | **Payroll** | Estimated payslips per period — tax, holiday pay, pension, the lot. |
 | **Analytics** | Income projection and rate history across all your jobs. |
 
+## Make it yours
+
+Dark mode and the app's accent colour live under
+**More › Settings › [Display](/settings/?tab=display)** — there's also a
+one-tap **Dark mode** toggle right in the **More** menu.
+
 ## Finding help
 
 - Press **F1** on any page, or click the **?** icon, to open help for *that* page.

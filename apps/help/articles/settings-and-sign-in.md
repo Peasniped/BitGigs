@@ -6,11 +6,21 @@ parent:
 audience: everyone
 order: 70
 published: true
-keywords: [settings, preferences, password, sso, oidc, authentik, sign in]
+keywords: [settings, preferences, password, sso, oidc, authentik, sign in, theme, dark mode, accent, colour, color]
 pages: [core:settings]
 ---
 ## Display preferences
 
+- **[Theme](/settings/?tab=display#div_id_theme)** — Light, Dark, or **Auto**
+  (follows your operating system, switching live when it does). There's also a
+  one-tap **Dark mode / Light mode** toggle in the **More** menu; while Auto is
+  active that menu item instead links back to this setting.
+- **[Accent colour](/settings/?tab=display#div_id_accent_color_picker)** — one
+  colour drives the whole app: buttons, links, tints, gradients and focus
+  rings. Pick a preset swatch, use the colour wheel, or type a hex value — the
+  page previews the colour live, and **Save** makes it stick. *Reset to
+  default* returns to BitGigs indigo. (Charts keep their fixed
+  actual/planned/projected colours so their meaning never changes.)
 - **Colour shifts by type** — tint calendar chips by shift type.
 - **Use planned shifts** — let analytics project future months from your
   planned shifts (on by default).

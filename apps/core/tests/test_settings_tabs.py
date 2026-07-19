@@ -69,6 +69,8 @@ class SettingsTabsTest(TestCase):
 
         resp = self.client.post("/settings/", {
             "tab": "display",
+            "theme": "light",
+            "accent_color": "#6366f1",
             "week_start": "6",
             "show_shift_type_colors": "on",
         })
@@ -89,7 +91,10 @@ class SettingsTabsTest(TestCase):
         settings_row.show_help_button = True
         settings_row.save()
 
-        self.client.post("/settings/", {"tab": "display", "week_start": "0"})
+        self.client.post("/settings/", {
+            "tab": "display", "theme": "light", "accent_color": "#6366f1",
+            "week_start": "0",
+        })
 
         settings_row = UserSettings.load()
         self.assertFalse(settings_row.show_help_button)

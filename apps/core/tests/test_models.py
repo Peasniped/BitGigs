@@ -58,6 +58,8 @@ class UserSettingsModelTest(TestCase):
         # An unchecked checkbox is absent from the POST → turns the setting off.
         form = UserSettingsForm(
             data={
+                "theme": "light",
+                "accent_color": "#6366f1",
                 "week_start": 0,
                 "projection_method": "ema",
                 "projection_trailing_months": 6,
