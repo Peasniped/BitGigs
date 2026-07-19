@@ -46,7 +46,7 @@
         <thead>
           <tr>
             <th>Name</th>
-            <th>Key</th>
+            <th>Created</th>
             <th>Access</th>
             <th>Expires</th>
             <th>Last used</th>
@@ -60,7 +60,9 @@
               {{ key.name }}
               {% if key.just_created %}<span class="badge-soft text-success ms-1">New</span>{% endif %}
             </td>
-            <td class="font-monospace small">{{ key.prefix }}…</td>
+            {% comment %}No part of the key is ever shown after creation — the
+            owner's choice; the stored prefix stays admin-only.{% endcomment %}
+            <td class="small">{{ key.created_at|date:"j M Y" }}</td>
             <td class="small">
               {% if key.has_all_scopes %}All endpoints{% else %}{{ key.scopes|join:", " }}{% endif %}
             </td>
