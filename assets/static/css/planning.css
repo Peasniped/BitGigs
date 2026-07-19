@@ -75,8 +75,12 @@
 .shift-chip--prior-period:hover .shift-chip__edit { opacity: 0; }
 
 /* Days outside all workplace periods: no hover/plus, grey tint */
-.planning-calendar .planning-day--no-create { cursor: default; background: var(--bg-lighter) !important; }
-.planning-calendar .planning-day--no-create:hover { background: var(--bg-lighter) !important; }
+/* --cal-outside, not --bg-lighter: these cells overlap the prev/next-month
+   days, and the other calendars paint those with --cal-outside — bg-lighter
+   made planning's outside days visibly diverge (and sit *lighter* than the
+   sunk dark-mode day cells). In light mode the two tokens are identical. */
+.planning-calendar .planning-day--no-create { cursor: default; background: var(--cal-outside) !important; }
+.planning-calendar .planning-day--no-create:hover { background: var(--cal-outside) !important; }
 /* Suppress global hover bg on planning days . overlay handles it */
 .planning-calendar .calendar-day--clickable:hover { background: inherit !important; }
 

@@ -64,11 +64,13 @@
   --danger-tint: color-mix(in srgb, var(--danger) 8%, var(--surface));
   --danger-strong: #991b1b;
   /* Calendar day washes. Every one derives from --cal-day (the plain day cell),
-     so lifting that in dark mode carries the whole grid with it. */
+     so re-basing that in dark mode carries the whole grid with it. */
   --cal-day: var(--surface);
   --cal-weekend: color-mix(in srgb, var(--warning) 7%, var(--cal-day));
   --cal-today: color-mix(in srgb, var(--primary) 9%, var(--cal-day));
   --cal-outside: var(--bg-lighter);
+  /* Leading ISO-week column: a whisper of the accent, in either theme. */
+  --cal-week: color-mix(in srgb, var(--primary) 6%, var(--cal-day));
   /* Chart chrome + category colors (read by JS via getComputedStyle) */
   --chart-grid: rgba(100,116,139,.15);
   --chart-tick: var(--text-muted);
@@ -111,13 +113,14 @@
   --info-strong: #93c5fd;
   --warning-strong: #fcd34d;
   --danger-strong: #fca5a5;
-  /* Day cells sit a step above the card they're in: the approved-shift chip is
-     a tint of the (dark blue) accent, which all but vanished against a cell at
-     plain --surface. */
-  --cal-day: color-mix(in srgb, white 8%, var(--surface));
-  /* Outside-month days recede below the surface (in light they sit above it);
-     keeping them on --bg-lighter here would melt into the cell borders. */
-  --cal-outside: #17182a;
+  /* Day cells sink *below* the card they're in — recessed wells, so the
+     grid borders read clearly against them. (They used to be lifted above
+     the surface for the approved-shift chip's sake, but that chip carries
+     its own weight in dark mode now — see .shift-chip--approved.) */
+  --cal-day: color-mix(in srgb, black 14%, var(--surface));
+  /* Outside-month days recede a step further below the (already sunk) day
+     cells; --bg-lighter here would invert the emphasis. */
+  --cal-outside: color-mix(in srgb, black 45%, var(--surface));
   --chart-grid: rgba(148,163,184,.14);
   --chart-planned-strong: #7dd3fc;
   --chart-projected-strong: #fbbf24;
@@ -710,7 +713,7 @@ a.navbar-brand:hover span { color: var(--primary); }
   font-size: 0.7rem;
   font-weight: 600;
   color: var(--text-muted);
-  background: var(--bg-lighter);
+  background: var(--cal-week);
   cursor: default;
 }
 .calendar-table thead th {
@@ -719,6 +722,10 @@ a.navbar-brand:hover span { color: var(--primary); }
   line-height: 1;
   padding-top: 0.4rem;
   padding-bottom: 0.4rem;
+  /* Plain header row: let the card's surface show through. Light mode always
+     looked this way (white cells on a white card); without this, dark mode's
+     re-based --cal-day painted the weekday row as a coloured band. */
+  background: transparent;
 }
 .calendar-day {
   min-width: 5rem;
