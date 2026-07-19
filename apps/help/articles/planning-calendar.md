@@ -21,5 +21,14 @@ ahead of time and to confirm the ones you've actually worked.
 ## Handy things
 
 - Click a day to add a shift; click an existing chip to edit it.
+- **Drag a workplace card** from the strip at the top onto a day to plan a
+  shift there.
 - Times are always entered in **24-hour** format.
-- Overlapping shifts at the same workplace are flagged before you save.
+- Overlapping shifts are highlighted in amber and flagged before you save.
+
+## Going faster
+
+For bulk work — stamping a default shift across a month, copying a shift to
+several days, clearing days — open [Power Edit](/help/a/power-edit/). What the
+chip colours and symbols mean is covered in
+[Shift types](/help/a/shift-types/).

@@ -91,10 +91,10 @@ class HelpServiceTests(HelpTestMixin, TestCase):
         self.assertIn("<code>code</code>", html)
 
     def test_articles_for_page(self):
-        # shifts:daily-overview isn't used by any seeded baseline article.
+        # calendar_view:month isn't used by any seeded baseline article.
         article = self.make_article(slug="daily-help")
-        article.pages.add(HelpPage.objects.get(key="shifts:daily-overview"))
-        found = list(services.articles_for_page("shifts:daily-overview", self.user))
+        article.pages.add(HelpPage.objects.get(key="calendar_view:month"))
+        found = list(services.articles_for_page("calendar_view:month", self.user))
         self.assertEqual(found, [article])
 
     def test_import_links_parent_and_builds_tree(self):
