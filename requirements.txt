@@ -7,6 +7,10 @@ crispy-bootstrap5>=2024.10
 # migration state.
 django-allauth[socialaccount]>=65.18,<66
 python-dateutil>=2.9
+# Encrypts the stored SMTP password at rest (core/crypto.py). Already present as
+# an allauth[socialaccount] dependency; declared here because BitGigs imports it
+# directly and must not silently lose it if allauth's extras change.
+cryptography>=42
 # Renders help articles (author-controlled Markdown) to HTML. Pure-Python, no
 # C deps. All rendering happens on-server — no external calls (see CLAUDE.md).
 # pymdown-extensions adds task lists, strikethrough and smarter emphasis.

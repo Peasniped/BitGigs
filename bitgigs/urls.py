@@ -14,6 +14,16 @@ urlpatterns = [
     # /accounts/oidc/…  (allauth's own signup page is closed by NoSignupAccountAdapter.)
     # Our LoginView first — it knows whether password sign-in is even available.
     path("accounts/login/", core_views.BitGigsLoginView.as_view(), name="login"),
+    # Same reasoning for the reset flow: ours knows whether mail is configured
+    # at all, rate-limits the public form, and sends From the operator's address.
+    path("accounts/password_reset/",
+         core_views.BitGigsPasswordResetView.as_view(), name="password_reset"),
+    path("accounts/password_reset/done/",
+         core_views.BitGigsPasswordResetDoneView.as_view(), name="password_reset_done"),
+    path("accounts/reset/<uidb64>/<token>/",
+         core_views.BitGigsPasswordResetConfirmView.as_view(), name="password_reset_confirm"),
+    path("accounts/reset/done/",
+         core_views.BitGigsPasswordResetCompleteView.as_view(), name="password_reset_complete"),
     path("accounts/", include("django.contrib.auth.urls")),
     path("accounts/", include("allauth.urls")),
     path("", include("core.urls")),

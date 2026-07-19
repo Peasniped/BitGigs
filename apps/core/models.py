@@ -209,6 +209,129 @@ class UserSettings(models.Model):
         return obj
 
 
+class EmailSettings(models.Model):
+    """Singleton SMTP configuration, edited in Settings → Email.
+
+    Held in the database rather than env vars so the operator can configure and
+    *test* mail from inside the app. The password is the one exception to
+    "config is plain data": it is stored encrypted (see ``core.crypto``) and only
+    ever read back through the ``password`` property.
+
+    ``enabled`` is the master switch — with it off, ``core.mail`` refuses to send
+    and every email-dependent feature (today: password reset) hides itself. A
+    fresh install has this row absent entirely, which reads as off.
+    """
+
+    SECURITY_NONE = "none"
+    SECURITY_STARTTLS = "starttls"
+    SECURITY_SSL = "ssl"
+    SECURITY_CHOICES = [
+        (SECURITY_STARTTLS, "STARTTLS (usually port 587)"),
+        (SECURITY_SSL, "Implicit TLS / SSL (usually port 465)"),
+        (SECURITY_NONE, "None — unencrypted (not recommended)"),
+    ]
+
+    enabled = models.BooleanField(
+        default=False,
+        help_text="Master switch. While this is off BitGigs sends no mail at all "
+                  "and features that need it stay hidden.",
+    )
+
+    host = models.CharField(max_length=255, blank=True, help_text="e.g. smtp.gmail.com")
+    port = models.PositiveIntegerField(default=587)
+    security = models.CharField(
+        max_length=10, choices=SECURITY_CHOICES, default=SECURITY_STARTTLS,
+    )
+    username = models.CharField(
+        max_length=255, blank=True,
+        help_text="Leave blank if the server accepts mail without authenticating.",
+    )
+    # Never read this directly — use the `password` property, which decrypts and
+    # applies the environment override.
+    password_encrypted = models.CharField(max_length=512, blank=True)
+
+    from_email = models.EmailField(
+        blank=True,
+        help_text="The address mail is sent from. Many providers require this to "
+                  "match the account you authenticate as.",
+    )
+    from_name = models.CharField(
+        max_length=100, blank=True, default="BitGigs",
+        help_text="Display name shown beside the from address.",
+    )
+    timeout = models.PositiveIntegerField(
+        default=10,
+        validators=[MinValueValidator(1), MaxValueValidator(120)],
+        help_text="Seconds to wait for the server before giving up.",
+    )
+
+    allow_password_reset = models.BooleanField(
+        default=True,
+        help_text="Offer 'Forgot your password?' on the login page. Needs a "
+                  "working mail setup; turn it off to require console recovery.",
+    )
+
+    last_test_at = models.DateTimeField(null=True, blank=True)
+    last_test_ok = models.BooleanField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Email Settings"
+        verbose_name_plural = "Email Settings"
+
+    def __str__(self):
+        if not self.enabled:
+            return "Email (disabled)"
+        return f"Email via {self.host or 'unconfigured'}:{self.port}"
+
+    def save(self, *args, **kwargs):
+        # Enforce singleton, matching UserSettings.
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    # ── Password: encrypted at rest, overridable from the environment ─────────
+    @property
+    def password(self):
+        """The SMTP password, or ``None`` if a stored one can't be decrypted.
+
+        An ``EMAIL_HOST_PASSWORD`` environment variable wins over the stored
+        value, so a deployment that keeps secrets outside the database can, and
+        the settings page shows the field as environment-managed.
+        """
+        from django.conf import settings as django_settings
+        override = getattr(django_settings, "EMAIL_PASSWORD_OVERRIDE", "")
+        if override:
+            return override
+        from .crypto import decrypt_secret
+        return decrypt_secret(self.password_encrypted)
+
+    @password.setter
+    def password(self, value):
+        from .crypto import encrypt_secret
+        self.password_encrypted = encrypt_secret(value)
+
+    @property
+    def password_from_env(self):
+        from django.conf import settings as django_settings
+        return bool(getattr(django_settings, "EMAIL_PASSWORD_OVERRIDE", ""))
+
+    @property
+    def password_unreadable(self):
+        """True when a password is stored but SECRET_KEY can no longer decrypt it."""
+        return bool(self.password_encrypted) and self.password is None
+
+    @property
+    def is_configured(self):
+        return bool(self.enabled and self.host and self.from_email)
+
+
 class OnboardingDraft(models.Model):
     """In-progress onboarding input, held per user until the final Finish writes
     the real rows. Stored in the DB (not just the session) so the data survives

@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_not_required
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.views import LoginView
 from django.db import transaction
 from django.http import JsonResponse
@@ -14,8 +15,8 @@ from django.views import View
 from django.utils import timezone
 
 from .constants import APP_ACCENT_CHOICES, DEFAULT_ACCENT, DEFAULT_SECONDARY
-from .models import TaxProfile, UserSettings
-from .forms import TaxProfileForm, UserSettingsForm
+from .models import EmailSettings, TaxProfile, UserSettings
+from .forms import EmailSettingsForm, TaxProfileForm, UserSettingsForm
 from .utils import avatar_for_name, parse_int_param, prev_next_month
 from .dashboard_service import DashboardDataService, get_pending_shifts, get_todays_banner
 
@@ -190,6 +191,8 @@ class UserSettingsView(View):
             "accent_choices": APP_ACCENT_CHOICES, "default_accent": DEFAULT_ACCENT,
             "secondary_choices": APP_ACCENT_CHOICES, "default_secondary": DEFAULT_SECONDARY,
             **sign_in_context(request.user),
+            # Only the Email tab touches the EmailSettings row.
+            **(email_context() if tab == "email" else {}),
         })
 
     def post(self, request):
@@ -207,6 +210,8 @@ class UserSettingsView(View):
             "accent_choices": APP_ACCENT_CHOICES, "default_accent": DEFAULT_ACCENT,
             "secondary_choices": APP_ACCENT_CHOICES, "default_secondary": DEFAULT_SECONDARY,
             **sign_in_context(request.user),
+            # Only the Email tab touches the EmailSettings row.
+            **(email_context() if tab == "email" else {}),
         })
 
 
@@ -226,10 +231,11 @@ class SetThemeView(View):
         return redirect(next_url or f"{reverse('core:settings')}?tab=display")
 
 
-# "signin" carries no form fields of its own, so the valid set is wider than
-# UserSettingsForm.TABS. It is offered even without an IdP configured — that is
-# where the password lives, and where we explain how to turn SSO on.
-SETTINGS_TABS = ("display", "analytics", "signin")
+# "signin" and "email" carry no UserSettings fields of their own, so the valid
+# set is wider than UserSettingsForm.TABS. Sign-in is offered even without an IdP
+# configured — that is where the password lives, and where we explain how to turn
+# SSO on.
+SETTINGS_TABS = ("display", "analytics", "email", "signin")
 
 
 def active_settings_tab(raw):
@@ -259,6 +265,192 @@ class BitGigsLoginView(LoginView):
         context["show_password_form"] = usable or not django_settings.SSO_ENABLED
         context["password_login_disabled"] = not usable
         context["owner_username"] = owner.get_username() if owner else ""
+        # Drives the recovery modal: an emailed reset link, or console-only.
+        context["password_reset_enabled"] = password_reset_available()
+        return context
+
+
+def email_context(form=None):
+    """Email-tab state: the configuration form plus the presets the fill buttons
+    offer. Built lazily so the other tabs never touch the EmailSettings row."""
+    from .mail import PRESETS
+    config = EmailSettings.load()
+    return {
+        "email_config": config,
+        "email_form": form or EmailSettingsForm(instance=config),
+        "email_presets": PRESETS,
+    }
+
+
+class EmailSettingsView(View):
+    """Save the Email tab. It has its own POST endpoint for the same reason the
+    Sign-in tab does: its form can't nest inside the UserSettings form."""
+
+    def post(self, request):
+        from django.contrib import messages
+
+        config = EmailSettings.load()
+        form = EmailSettingsForm(request.POST, instance=config)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Email settings saved.")
+            return redirect(f"{reverse('core:settings')}?tab=email")
+        return render(request, "core/settings.html", {
+            "form": UserSettingsForm(instance=UserSettings.load(), tab="display"),
+            "next_url": None,
+            "active_tab": "email",
+            **email_context(form),
+        })
+
+
+class EmailTestView(View):
+    """Run the staged connection test and return the per-stage results as JSON.
+
+    POST-only and behind the site-wide login gate, because it reaches out to an
+    arbitrary host:port with the stored credentials — exactly the kind of thing
+    that should not be reachable by following a link.
+    """
+
+    def post(self, request):
+        from django.core.validators import validate_email
+        from django.core.exceptions import ValidationError
+
+        from .mail import run_and_record
+
+        send_to = (request.POST.get("send_to") or "").strip()
+        if send_to:
+            try:
+                validate_email(send_to)
+            except ValidationError:
+                return JsonResponse(
+                    {"error": f"'{send_to}' is not a valid email address."}, status=400
+                )
+        result = run_and_record(send_to=send_to or None)
+        return JsonResponse(result.as_dict())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Password reset
+#
+# Django already routes /accounts/password_reset/ (contrib.auth.urls is included
+# in bitgigs/urls.py), so these subclasses exist for three reasons the stock
+# views can't cover: the flow must disappear entirely when mail isn't configured,
+# the From header comes from EmailSettings rather than DEFAULT_FROM_EMAIL, and
+# the request form is unauthenticated and therefore needs a rate limit.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def password_reset_available():
+    """Reset is only offered when mail actually works *and* the operator left it
+    on. Otherwise the login page points at ``manage.py changepassword``."""
+    config = EmailSettings.load()
+    return config.is_configured and config.allow_password_reset
+
+
+# Per-IP budget for reset requests. The form is public and each submit sends
+# mail, so an unbounded one is both a mail-bomb and a user-enumeration oracle.
+RESET_RATE_LIMIT = 5
+RESET_RATE_WINDOW = 60 * 60  # seconds
+
+
+def _reset_rate_key(request):
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    ip = forwarded.split(",")[0].strip() or request.META.get("REMOTE_ADDR", "unknown")
+    return f"pwreset:{ip}"
+
+
+@method_decorator(login_not_required, name="dispatch")
+class BitGigsPasswordResetView(auth_views.PasswordResetView):
+    """The 'email me a reset link' form."""
+
+    template_name = "registration/password_reset_form.html"
+    email_template_name = "registration/password_reset_email.txt"
+    html_email_template_name = "registration/password_reset_email.html"
+    subject_template_name = "registration/password_reset_subject.txt"
+    success_url = "/accounts/password_reset/done/"
+
+    def dispatch(self, request, *args, **kwargs):
+        if not password_reset_available():
+            return redirect("login")
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        from django.contrib import messages
+        from django.core.cache import cache
+
+        key = _reset_rate_key(self.request)
+        used = cache.get(key, 0)
+        if used >= RESET_RATE_LIMIT:
+            messages.error(
+                self.request,
+                "Too many reset requests from this address. Wait an hour and try "
+                "again, or reset from the server console.",
+            )
+            return redirect("login")
+        # add() only sets the TTL on the first request, so the window is fixed
+        # from the first attempt rather than sliding with each one.
+        cache.add(key, 0, RESET_RATE_WINDOW)
+        try:
+            cache.incr(key)
+        except ValueError:
+            cache.set(key, 1, RESET_RATE_WINDOW)
+
+        # The From header belongs to the operator's mail configuration, not to
+        # DEFAULT_FROM_EMAIL, which BitGigs never sets.
+        from .mail import from_address
+        self.from_email = from_address()
+        self.extra_email_context = {
+            # Mail clients don't support CSS variables, so the HTML email needs
+            # the accent as a literal rather than a token.
+            "accent_color": UserSettings.load().accent_color,
+            # django.contrib.sites is installed (allauth requires it), so Django
+            # would otherwise build the link from the Site row — which nobody
+            # edits, leaving every reset link pointing at example.com. The real
+            # host is the right answer, and get_host() is already validated
+            # against ALLOWED_HOSTS, so it can't be spoofed into a phishing link.
+            "domain": self.request.get_host(),
+            "site_name": "BitGigs",
+            "protocol": "https" if self.request.is_secure() else "http",
+        }
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["minimal_chrome"] = True
+        return context
+
+
+@method_decorator(login_not_required, name="dispatch")
+class BitGigsPasswordResetDoneView(auth_views.PasswordResetDoneView):
+    template_name = "registration/password_reset_done.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["minimal_chrome"] = True
+        return context
+
+
+@method_decorator(login_not_required, name="dispatch")
+class BitGigsPasswordResetConfirmView(auth_views.PasswordResetConfirmView):
+    """Where the emailed link lands. Deliberately *not* gated on
+    ``password_reset_available()``: a link already in someone's inbox should
+    still work if the operator turned mail off in the meantime."""
+
+    template_name = "registration/password_reset_confirm.html"
+    success_url = "/accounts/reset/done/"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["minimal_chrome"] = True
+        return context
+
+
+@method_decorator(login_not_required, name="dispatch")
+class BitGigsPasswordResetCompleteView(auth_views.PasswordResetCompleteView):
+    template_name = "registration/password_reset_complete.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["minimal_chrome"] = True
         return context
 
 
@@ -275,6 +467,7 @@ def sign_in_context(user):
         "has_usable_password": user.has_usable_password(),
         "set_password_form": SetPasswordForm(user),  # drives the set/change modal
         "account_details_form": AccountDetailsForm(instance=user),
+        "password_reset_enabled": password_reset_available(),
     }
 
 

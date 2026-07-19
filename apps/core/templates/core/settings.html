@@ -25,6 +25,12 @@
         </a>
       </li>
       <li class="nav-item">
+        <a class="nav-link{% if active_tab == 'email' %} active{% endif %}"
+           href="?tab=email{% if next_url %}&next={{ next_url|urlencode }}{% endif %}">
+          <i class="bi bi-envelope-at me-1"></i>Email
+        </a>
+      </li>
+      <li class="nav-item">
         <a class="nav-link{% if active_tab == 'signin' %} active{% endif %}"
            href="?tab=signin{% if next_url %}&next={{ next_url|urlencode }}{% endif %}">
           <i class="bi bi-shield-check me-1"></i>Sign-in
@@ -133,9 +139,13 @@ OIDC_CLIENT_SECRET=</code></pre>
             <div class="fw-medium">Password sign-in</div>
             {% if not sso_enabled and has_usable_password %}
               <div class="form-text mb-0">
-                Enabled — the only way in, and all BitGigs needs. There is no email backend, so
-                if you ever lock yourself out, <code>manage.py changepassword</code> on the
-                server is the way back.
+                Enabled — the only way in, and all BitGigs needs. If you ever lock yourself out,
+                {% if password_reset_enabled %}
+                  you can email yourself a reset link from the login page, or run
+                {% else %}
+                  set up mail on the Email tab to enable reset links, or run
+                {% endif %}
+                <code>manage.py changepassword</code> on the server.
               </div>
             {% elif not sso_enabled %}
               {% comment %}
@@ -305,16 +315,7 @@ OIDC_CLIENT_SECRET=</code></pre>
 
                   <div class="col-12 col-md-6 password-box__reqs">
                     <span class="form-label fw-medium">Password requirements</span>
-                    <ul class="password-checklist list-unstyled small mb-0" data-pw-checklist>
-                      <li data-check="length"><i class="bi bi-circle me-1"></i>At least 8 characters</li>
-                      <li data-check="lowercase"><i class="bi bi-circle me-1"></i>Includes at least one lowercase letter (a-z)</li>
-                      <li data-check="uppercase"><i class="bi bi-circle me-1"></i>Includes at least one uppercase letter (A-Z)</li>
-                      <li data-check="number"><i class="bi bi-circle me-1"></i>Includes at least one number (0-9)</li>
-                      <li data-check="symbol"><i class="bi bi-circle me-1"></i>Includes at least one symbol (! ? # @)</li>
-                      <li data-check="nosequence"><i class="bi bi-circle me-1"></i>No repeated (aaa) or sequential (abc, 123) runs</li>
-                      <li data-check="notsimilar"><i class="bi bi-circle me-1"></i>Not too similar to your email</li>
-                      <li data-check="match"><i class="bi bi-circle me-1"></i>Both passwords match</li>
-                    </ul>
+                    {% include "core/_password_checklist.html" %}
                   </div>
                 </div>
               </div>
@@ -328,6 +329,102 @@ OIDC_CLIENT_SECRET=</code></pre>
             </div>
           </form>
         </div>
+      </div>
+    </div>
+
+    {% elif active_tab == 'email' %}
+    <div class="card settings-pane">
+      <div class="card-body" data-email-settings>
+
+        {% comment %}
+          Mail is off by default and the whole app works without it, so this pane
+          leads with what it unlocks rather than warning about what's missing.
+        {% endcomment %}
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <div class="fw-medium">Outgoing mail</div>
+            <p class="form-text mb-0">
+              Optional. BitGigs sends nothing until you turn this on. It powers
+              password reset today, and calendar invites later.
+            </p>
+          </div>
+          {% if email_config.last_test_at %}
+            <span class="badge-soft flex-shrink-0
+                         {% if email_config.last_test_ok %}text-success{% else %}text-danger{% endif %}">
+              <i class="bi bi-{% if email_config.last_test_ok %}check-circle{% else %}exclamation-triangle{% endif %} me-1"></i>
+              Last test {% if email_config.last_test_ok %}passed{% else %}failed{% endif %}
+            </span>
+          {% endif %}
+        </div>
+
+        {% if email_config.password_unreadable %}
+          <div class="alert alert-warning py-2 px-3">
+            <i class="bi bi-key me-1"></i>
+            The stored password can no longer be decrypted &mdash; this happens when
+            <code>DJANGO_SECRET_KEY</code> changes. Enter the password again to fix it.
+          </div>
+        {% endif %}
+        {% if email_config.password_from_env %}
+          <div class="alert alert-info py-2 px-3">
+            <i class="bi bi-terminal me-1"></i>
+            The password is supplied by the <code>EMAIL_HOST_PASSWORD</code>
+            environment variable, so it can't be edited here.
+          </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'core:email-settings' %}" id="emailSettingsForm">
+          {% csrf_token %}
+
+          {% comment %}Host/port/security for the usual providers — one click
+          instead of three lookups. Credentials stay the operator's own.{% endcomment %}
+          <div class="mb-3">
+            <label class="form-label fw-medium">Quick setup</label>
+            <div class="d-flex flex-wrap gap-2">
+              {% for key, preset in email_presets.items %}
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        data-email-preset="{{ key }}"
+                        data-host="{{ preset.host }}" data-port="{{ preset.port }}"
+                        data-security="{{ preset.security }}" data-note="{{ preset.note }}">
+                  {{ preset.label }}
+                </button>
+              {% endfor %}
+            </div>
+            <div class="form-text mt-2 d-none" data-preset-note></div>
+          </div>
+
+          {{ email_form|crispy }}
+
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-lg me-1"></i>Save
+            </button>
+          </div>
+        </form>
+
+        <hr class="my-4">
+
+        {% comment %}
+          The test is the reason this configuration lives in the database rather
+          than in env vars: it reports each stage of a real SMTP session, so the
+          first failure says *which* setting is wrong. It runs against the saved
+          configuration, hence the note about saving first.
+        {% endcomment %}
+        <div class="fw-medium">Test the connection</div>
+        <p class="form-text mt-0">
+          Checks the saved settings step by step &mdash; save your changes first.
+          Add an address to also send a real message and confirm it arrives.
+        </p>
+        <div class="input-group mb-2">
+          <input type="email" class="form-control" id="emailTestTo"
+                 placeholder="Optional: send a test message to…"
+                 value="{{ user.email }}" autocomplete="off">
+          <button type="button" class="btn btn-primary" id="emailTestRun"
+                  data-url="{% url 'core:email-test' %}">
+            <i class="bi bi-play-fill me-1"></i>Run test
+          </button>
+        </div>
+        <div id="emailTestResults" class="mt-3"></div>
+
       </div>
     </div>
 
@@ -443,6 +540,7 @@ OIDC_CLIENT_SECRET=</code></pre>
 {% block extra_js %}
 <script src="{% static 'js/password_checklist.js' %}"></script>
 <script src="{% static 'js/settings.js' %}"></script>
+<script src="{% static 'js/email_settings.js' %}"></script>
 {% if open_password_modal %}
   {% comment %} The submit failed validation — reopen the modal so the errors are visible. {% endcomment %}
   <script>new bootstrap.Modal(document.getElementById("passwordModal")).show();</script>

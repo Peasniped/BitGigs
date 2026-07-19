@@ -33,9 +33,10 @@ always holds: **at least one way in must survive** — you can only turn the
 password off while an identity is linked, and only unlink the identity while a
 usable password exists.
 
-> There's no email server, so password recovery is done from the command line
-> (`manage.py changepassword`). The login page's "Forgot your password?" note
-> says the same.
+> Forgotten your password? If you've connected a mail server the login page can
+> email you a reset link — see [Email & password reset](/help/a/email-and-password-reset/).
+> Otherwise recovery is done from the command line (`manage.py changepassword`),
+> which also stays available as the fallback when mail itself is broken.
 
 ### Naming the sign-in button
 

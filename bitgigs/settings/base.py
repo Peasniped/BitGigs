@@ -152,6 +152,22 @@ LOGOUT_REDIRECT_URL = "/accounts/login/"
 # exists. See core/setup_key.py and `manage.py setup_key`.
 SETUP_KEY_PATH = BASE_DIR / "instance" / "setup_key.txt"
 
+# ─── Outbound mail (optional, configured in-app) ─────────────────────────────
+# BitGigs keeps its SMTP configuration in the database (the EmailSettings
+# singleton) so the operator can set it up and *test* it from Settings → Email
+# rather than through a redeploy. This backend reads that row; see core/mail.py.
+#
+# Like SSO, mail is entirely optional: with nothing configured the app sends no
+# mail and the features that need it (password reset) stay hidden.
+EMAIL_BACKEND = "core.mail_backend.DbConfiguredEmailBackend"
+
+# Deployments that keep secrets out of the database can set this; it wins over
+# the stored password and the settings page then shows the field as read-only.
+EMAIL_PASSWORD_OVERRIDE = os.environ.get("EMAIL_HOST_PASSWORD", "")
+
+# How long a password-reset link stays valid.
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 2  # 2 hours
+
 # ─── Optional SSO (any OpenID Connect provider) ──────────────────────────────
 # BitGigs must stay feature-complete standalone: with no OIDC_* env vars it
 # behaves exactly as before (native password login, no SSO button, no IdP needed).

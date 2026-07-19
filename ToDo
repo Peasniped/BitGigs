@@ -1,8 +1,16 @@
 
 # NU     --------------------------------------------------------
 
-- SMTP-integration, så den ligger klar, så andre apps kan sende mails
-- - Setting/configuration page with detailed test (showing what goes wrong, if anything (ie wrong credentials, wrong host/port))
+- [x] SMTP-integration  (EmailSettings singleton + core/mail.py; other features
+      send via core.mail.send_mail(), calendar invites reuse the same connection)
+- - [x] Might as well wire up a reset password system  (2h links, per-IP rate limit,
+        hidden unless mail is configured; console changepassword stays the fallback)
+- - [x] Setting/configuration page with detailed test (showing what goes wrong, if anything (ie wrong credentials, connection issues - wrong host/port))
+
+Make the test steps update live with a progress bar and the possibility to uncollapse and see the steps.
+  --> NOT DONE. Currently the test runs as one request and renders all stages at
+      once when it finishes. Live stepping needs the endpoint to stream (SSE or
+      one request per stage) — a real change to EmailTestView, not just JS.
 
 *** API-system ***
 - Security: User must create an API key that can only be viewed once

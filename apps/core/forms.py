@@ -5,7 +5,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.core.validators import validate_email
 
-from .models import TaxProfile, UserSettings
+from .models import EmailSettings, TaxProfile, UserSettings
 
 
 class OnboardingUserCreationForm(UserCreationForm):
@@ -103,6 +103,74 @@ class AccountDetailsForm(forms.ModelForm):
         if commit:
             user.save()
         return user
+
+
+class EmailSettingsForm(forms.ModelForm):
+    """SMTP configuration (Settings → Email).
+
+    The password is deliberately *not* a model field here: it is stored
+    encrypted, so it can never be round-tripped into a rendered input. Instead
+    the field is write-only — blank means "leave whatever is stored alone" — with
+    a separate checkbox for actively clearing it. That also means a stray save
+    from another part of the page can't wipe the password.
+    """
+
+    password = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(render_value=False, attrs={"autocomplete": "new-password"}),
+        help_text="Leave blank to keep the current password.",
+    )
+    clear_password = forms.BooleanField(
+        required=False,
+        label="Remove the stored password",
+    )
+
+    class Meta:
+        model = EmailSettings
+        fields = [
+            "enabled", "host", "port", "security", "username",
+            "from_email", "from_name", "timeout", "allow_password_reset",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        stored = self.instance and self.instance.pk and self.instance.password_encrypted
+        if self.instance and self.instance.password_from_env:
+            pwd = self.fields["password"]
+            pwd.disabled = True
+            pwd.help_text = ("Managed by the EMAIL_HOST_PASSWORD environment "
+                             "variable — edit it there, not here.")
+            self.fields["clear_password"].disabled = True
+        elif stored:
+            self.fields["password"].widget.attrs["placeholder"] = "•••••••• (unchanged)"
+        if not stored:
+            # Nothing to remove — offering the checkbox would only confuse.
+            del self.fields["clear_password"]
+
+    def clean(self):
+        cleaned = super().clean()
+        # Only a configuration that is actually turned on has to be complete;
+        # half-filled drafts are allowed so the operator can save and come back.
+        if cleaned.get("enabled"):
+            for name, label in (("host", "Server hostname"), ("from_email", "From address")):
+                if not cleaned.get(name):
+                    self.add_error(name, f"{label} is required to enable email.")
+        if cleaned.get("clear_password") and cleaned.get("password"):
+            self.add_error(
+                "clear_password",
+                "Either enter a new password or remove the stored one — not both.",
+            )
+        return cleaned
+
+    def save(self, commit=True):
+        config = super().save(commit=False)
+        if self.cleaned_data.get("clear_password"):
+            config.password = ""
+        elif self.cleaned_data.get("password"):
+            config.password = self.cleaned_data["password"]
+        if commit:
+            config.save()
+        return config
 
 
 class TaxProfileForm(forms.ModelForm):

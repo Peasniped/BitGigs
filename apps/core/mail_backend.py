@@ -1,0 +1,49 @@
+"""The project's default ``EMAIL_BACKEND``.
+
+Django's ``EMAIL_*`` settings are static, but BitGigs keeps its mail
+configuration in the database so it can be edited and tested from the settings
+page. This backend closes that gap: it is a stock SMTP backend that reads its
+host/port/credentials from ``EmailSettings`` at connect time.
+
+Wiring it as the *default* backend is what lets code that knows nothing about
+BitGigs — notably Django's own password-reset views — send mail correctly.
+"""
+from django.core.mail.backends.smtp import EmailBackend as SMTPEmailBackend
+
+from .mail import MailNotConfigured
+from .models import EmailSettings
+
+
+class DbConfiguredEmailBackend(SMTPEmailBackend):
+    """SMTP backend configured from the ``EmailSettings`` singleton.
+
+    Explicit keyword arguments still win, so ``get_connection(host=…)`` and the
+    test-connection code path behave exactly as they would with the stock
+    backend.
+    """
+
+    def __init__(self, host=None, port=None, username=None, password=None,
+                 use_tls=None, use_ssl=None, timeout=None, **kwargs):
+        config = EmailSettings.load()
+        if not config.is_configured:
+            raise MailNotConfigured(
+                "Email is not configured. Set it up in Settings → Email."
+            )
+        stored_password = config.password
+        if stored_password is None:
+            raise MailNotConfigured(
+                "The stored mail password could not be decrypted — "
+                "DJANGO_SECRET_KEY has changed. Re-enter it in Settings → Email."
+            )
+        super().__init__(
+            host=host if host is not None else config.host,
+            port=port if port is not None else config.port,
+            username=username if username is not None else (config.username or None),
+            password=password if password is not None else (stored_password or None),
+            use_tls=(use_tls if use_tls is not None
+                     else config.security == EmailSettings.SECURITY_STARTTLS),
+            use_ssl=(use_ssl if use_ssl is not None
+                     else config.security == EmailSettings.SECURITY_SSL),
+            timeout=timeout if timeout is not None else config.timeout,
+            **kwargs,
+        )
