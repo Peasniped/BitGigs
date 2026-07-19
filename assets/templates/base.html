@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en-DK" data-bs-theme="{% if theme == 'dark' %}dark{% else %}light{% endif %}"{% if theme == 'auto' %} data-theme-auto{% endif %}>
+<html lang="en-DK" data-bs-theme="{% if theme == 'dark' %}dark{% else %}light{% endif %}"{% if theme == 'auto' %} data-theme-auto{% endif %}{% if not accent_is_default %} style="--primary:{{ accent_color }};--primary-rgb:{{ accent_color_rgb }};"{% endif %}>
 <head>
   <meta charset="UTF-8">
   {% if theme == 'auto' %}

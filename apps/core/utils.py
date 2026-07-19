@@ -203,6 +203,13 @@ _AVATAR_COLORS = [
 ]
 
 
+def hex_to_rgb_str(value: str) -> str:
+    """``"#6366f1"`` → ``"99,102,241"`` — the format the ``--primary-rgb``
+    CSS token wants (see base.html's accent override)."""
+    value = value.lstrip("#")
+    return ",".join(str(int(value[i:i + 2], 16)) for i in (0, 2, 4))
+
+
 def avatar_for_name(name: str) -> tuple[str, str]:
     """Return (initials, hex colour) for a workplace name."""
     parts = name.strip().split()

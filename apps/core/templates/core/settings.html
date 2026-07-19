@@ -276,6 +276,36 @@ OIDC_CLIENT_SECRET=</code></pre>
           {% csrf_token %}
           <input type="hidden" name="tab" value="{{ active_tab }}">
           {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+          {% if active_tab == 'display' %}
+          {% comment %}
+            Accent picker: swatches / wheel / hex all drive the form's hidden
+            accent_color input (settings.js), previewing live by overriding
+            --primary on <html>. Save persists; leaving discards the preview.
+          {% endcomment %}
+          <div class="mb-3" id="div_id_accent_color_picker" data-accent-picker data-default-accent="{{ default_accent }}">
+            <label class="form-label fw-medium">Accent colour</label>
+            <p class="form-text mt-0 mb-2">One colour drives the whole app &mdash; buttons, links, tints and
+              gradients. Changes preview live; Save makes them stick.</p>
+            <div class="d-flex flex-wrap gap-1 align-items-center">
+              {% for hex in accent_choices %}
+                <button type="button"
+                        class="btn btn-sm border-0 color-swatch {% if form.accent_color.value == hex %}ring-selected{% endif %}"
+                        data-color-option="{{ hex }}"
+                        style="width:28px;height:28px;padding:0;border-radius:50%;background:{{ hex }};"
+                        title="{{ hex }}">
+                </button>
+              {% endfor %}
+              <input type="color" id="accentWheel" class="form-control form-control-color ms-2"
+                     style="width:46px;height:32px;padding:2px;" value="{{ form.accent_color.value }}"
+                     title="Pick any colour">
+              <input type="text" id="accentHex" class="form-control form-control-sm font-monospace"
+                     style="width:90px;" value="{{ form.accent_color.value }}" maxlength="7" spellcheck="false"
+                     aria-label="Accent colour hex value">
+              <button type="button" class="btn btn-link btn-sm p-0 ms-2" id="accentReset">Reset to default</button>
+            </div>
+            {% for err in form.accent_color.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+          </div>
+          {% endif %}
           {{ form|crispy }}
           <div class="d-flex gap-2 mt-3">
             <button type="submit" class="btn btn-primary">
@@ -298,6 +328,7 @@ OIDC_CLIENT_SECRET=</code></pre>
 
 {% block extra_js %}
 <script src="{% static 'js/password_checklist.js' %}"></script>
+<script src="{% static 'js/settings.js' %}"></script>
 {% if open_password_modal %}
   {% comment %} The submit failed validation — reopen the modal so the errors are visible. {% endcomment %}
   <script>new bootstrap.Modal(document.getElementById("passwordModal")).show();</script>

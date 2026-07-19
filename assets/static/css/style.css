@@ -12,7 +12,11 @@
   color-scheme: light;
   /* Brand (accent setting overrides --primary/--primary-rgb inline on <html>) */
   --primary: #6366f1;      --primary-rgb: 99,102,241;
+  /* The gradient companion sits +19° around the hue wheel from the accent —
+     the second line re-derives it for any accent; browsers without relative
+     color syntax keep the static indigo pairing. */
   --secondary: #8b5cf6;
+  --secondary: hsl(from var(--primary) calc(h + 19) s l);
   --brand-gradient: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
   --primary-tint:   color-mix(in srgb, var(--primary) 9%, var(--surface));
   --primary-border: color-mix(in srgb, var(--primary) 35%, var(--surface));

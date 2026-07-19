@@ -22,15 +22,24 @@ def sso_status(request):
 def display_settings(request):
     """Expose global display preferences (from the ``UserSettings`` singleton):
     ``show_shift_type_colors`` (chips coloured by shift type),
-    ``show_help_button`` (the floating help button on every page) and
-    ``theme`` (light/dark/auto — base.html turns it into ``data-bs-theme``)."""
+    ``show_help_button`` (the floating help button on every page),
+    ``theme`` (light/dark/auto — base.html turns it into ``data-bs-theme``)
+    and the accent colour (base.html overrides ``--primary``/``--primary-rgb``
+    inline on <html> when it differs from the default — every other colour
+    derives from those two tokens)."""
+    from .constants import DEFAULT_ACCENT
     from .models import UserSettings
+    from .utils import hex_to_rgb_str
 
     settings = UserSettings.load()
+    accent = (settings.accent_color or DEFAULT_ACCENT).lower()
     return {
         "show_shift_type_colors": settings.show_shift_type_colors,
         "show_help_button": settings.show_help_button,
         "theme": settings.theme,
+        "accent_color": accent,
+        "accent_color_rgb": hex_to_rgb_str(accent),
+        "accent_is_default": accent == DEFAULT_ACCENT,
     }
 
 

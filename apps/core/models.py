@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
 
 
 class TaxProfile(models.Model):
@@ -136,6 +136,14 @@ class UserSettings(models.Model):
         choices=THEME_CHOICES,
         default="light",
         help_text="Color theme. Auto follows the operating system's setting.",
+    )
+
+    accent_color = models.CharField(
+        max_length=7,
+        default="#6366f1",
+        validators=[RegexValidator(r"^#[0-9a-fA-F]{6}$", "Enter a colour as #RRGGBB.")],
+        help_text="The app's accent colour — buttons, links, tints and "
+                  "gradients all follow it.",
     )
 
     week_start = models.IntegerField(

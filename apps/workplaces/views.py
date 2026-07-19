@@ -24,15 +24,7 @@ ICON_CHOICES = [
     "bi-house", "bi-graph-up", "bi-people", "bi-book", "bi-star",
 ]
 
-BG_COLOR_CHOICES = [
-    "#c7d2fe", "#ddd6fe", "#fbcfe8", "#fecaca", "#fed7aa",
-    "#fef08a", "#bbf7d0", "#99f6e4", "#bfdbfe", "#ffffff",
-]
-
-ACCENT_COLOR_CHOICES = [
-    "#6366f1", "#8b5cf6", "#ec4899", "#ef4444", "#f97316",
-    "#eab308", "#22c55e", "#14b8a6", "#3b82f6", "#1e293b",
-]
+from core.constants import BG_COLOR_CHOICES, ACCENT_COLOR_CHOICES
 
 import calendar as _cal_mod
 MONTH_CHOICES = [(str(i), _cal_mod.month_abbr[i]) for i in range(1, 13)]

@@ -90,8 +90,8 @@ class UserSettingsForm(forms.ModelForm):
 
     # Tab slug → the fields that tab owns. Order here is the render order.
     TABS = {
-        "display": ["theme", "week_start", "show_shift_type_colors",
-                    "show_help_button"],
+        "display": ["theme", "accent_color", "week_start",
+                    "show_shift_type_colors", "show_help_button"],
         "analytics": ["projection_method", "projection_trailing_months",
                       "use_planned_shifts"],
     }
@@ -100,6 +100,7 @@ class UserSettingsForm(forms.ModelForm):
         model = UserSettings
         fields = [
             "theme",
+            "accent_color",
             "week_start",
             "show_shift_type_colors",
             "show_help_button",
@@ -107,6 +108,11 @@ class UserSettingsForm(forms.ModelForm):
             "projection_trailing_months",
             "use_planned_shifts",
         ]
+        widgets = {
+            # Driven by the swatch/wheel picker in settings.html (settings.js);
+            # a bare text input would just invite typos.
+            "accent_color": forms.HiddenInput(),
+        }
 
     def __init__(self, *args, tab=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -115,3 +121,6 @@ class UserSettingsForm(forms.ModelForm):
             for name in list(self.fields):
                 if name not in keep:
                     del self.fields[name]
+
+    def clean_accent_color(self):
+        return self.cleaned_data["accent_color"].lower()

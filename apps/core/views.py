@@ -13,6 +13,7 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.utils import timezone
 
+from .constants import APP_ACCENT_CHOICES, DEFAULT_ACCENT
 from .models import TaxProfile, UserSettings
 from .forms import TaxProfileForm, UserSettingsForm
 from .utils import avatar_for_name, parse_int_param, prev_next_month
@@ -175,6 +176,7 @@ class UserSettingsView(View):
         next_url = self._safe_next(request, request.GET.get("next"))
         return render(request, "core/settings.html", {
             "form": form, "next_url": next_url, "active_tab": tab,
+            "accent_choices": APP_ACCENT_CHOICES, "default_accent": DEFAULT_ACCENT,
             **sign_in_context(request.user),
         })
 
@@ -190,6 +192,7 @@ class UserSettingsView(View):
             return redirect(next_url or f"{reverse('core:settings')}?tab={tab}")
         return render(request, "core/settings.html", {
             "form": form, "next_url": next_url, "active_tab": tab,
+            "accent_choices": APP_ACCENT_CHOICES, "default_accent": DEFAULT_ACCENT,
             **sign_in_context(request.user),
         })
 
