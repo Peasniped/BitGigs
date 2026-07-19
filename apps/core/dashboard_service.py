@@ -32,6 +32,7 @@ class DashboardStats:
     total_goal_max: Decimal = Decimal("0")
     total_planned_hours: Decimal = Decimal("0")
     total_approved_hours: Decimal = Decimal("0")
+    total_approved_shift_count: int = 0
 
     @property
     def combined_gross(self) -> Decimal:
@@ -94,7 +95,7 @@ class DashboardDataService:
                 wp, year, month
             )
 
-            actual_hours = cls._sum_shift_hours(wp, period_start, period_end)
+            actual_count, actual_hours = cls._sum_shift_hours(wp, period_start, period_end)
             planned_hours = cls._sum_planned_hours(wp, period_start, period_end)
 
             # Resolve terms with the mid-month termset, not period_start: when
@@ -112,6 +113,7 @@ class DashboardDataService:
             cls._accumulate_goals(stats, terms)
             stats.total_planned_hours += planned_hours
             stats.total_approved_hours += actual_hours
+            stats.total_approved_shift_count += actual_count
 
         return stats
 
@@ -134,7 +136,7 @@ class DashboardDataService:
             cls._detect_cross_period(data, wp, year, month, period_start, period_end)
 
             # Actual hours worked
-            actual_hours = cls._sum_shift_hours(wp, period_start, period_end)
+            actual_count, actual_hours = cls._sum_shift_hours(wp, period_start, period_end)
             avg_hours_per_week = (actual_hours / WEEKS_PER_MONTH).quantize(TWO_PLACES)
 
             # Planned hours
@@ -154,6 +156,7 @@ class DashboardDataService:
             cls._accumulate_goals(data.stats, terms)
             data.stats.total_planned_hours += planned_hours
             data.stats.total_approved_hours += actual_hours
+            data.stats.total_approved_shift_count += actual_count
 
             data.workplace_data.append({
                 "workplace": wp,
@@ -223,13 +226,14 @@ class DashboardDataService:
         return pay
 
     @staticmethod
-    def _sum_shift_hours(wp: Workplace, period_start: date, period_end: date) -> Decimal:
-        shifts = Shift.objects.filter(
+    def _sum_shift_hours(wp: Workplace, period_start: date, period_end: date) -> tuple[int, Decimal]:
+        """Return (shift count, total net hours) for approved shifts in the period."""
+        shifts = list(Shift.objects.filter(
             workplace=wp,
             date__gte=period_start,
             date__lte=period_end,
-        )
-        return sum((s.net_hours for s in shifts), Decimal("0"))
+        ))
+        return len(shifts), sum((s.net_hours for s in shifts), Decimal("0"))
 
     @staticmethod
     def _sum_planned_hours(wp: Workplace, period_start: date, period_end: date) -> Decimal:

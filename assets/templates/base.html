@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en-DK" data-bs-theme="{% if theme == 'dark' %}dark{% else %}light{% endif %}"{% if theme == 'auto' %} data-theme-auto{% endif %}{% if not accent_is_default %} style="--primary:{{ accent_color }};--primary-rgb:{{ accent_color_rgb }};"{% endif %}>
+<html lang="en-DK" data-bs-theme="{% if theme == 'dark' %}dark{% else %}light{% endif %}"{% if theme == 'auto' %} data-theme-auto{% endif %}{% if not accent_is_default or not secondary_is_default %} style="{% if not accent_is_default %}--primary:{{ accent_color }};--primary-rgb:{{ accent_color_rgb }};{% endif %}{% if not secondary_is_default %}--secondary:{{ secondary_color }};{% endif %}"{% endif %}>
 <head>
   <meta charset="UTF-8">
   {% if theme == 'auto' %}
@@ -37,7 +37,7 @@
   {% endcomment %}
   {% if not onboarding_first_step %}
   <nav class="navbar navbar-expand-lg sticky-top">
-    <div class="container {% if onboarding or minimal_chrome %}justify-content-center position-relative{% endif %}">
+    <div class="container {% if onboarding or minimal_chrome %}justify-content-center position-relative{% else %}navbar-3col{% endif %}">
       {% if onboarding and not minimal_chrome and user.is_authenticated %}
       <div class="onboarding-userbar small text-muted d-none d-sm-flex align-items-center gap-2">
         <span><i class="bi bi-person-circle me-1"></i>Logged in as {{ user.username }}</span>
@@ -66,26 +66,31 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarNav">
         {% if user.is_authenticated and onboarding_complete %}
-        <ul class="navbar-nav ms-auto gap-1">
+        {% comment %}
+          "You are here" highlighting keys off the URL *namespace*, not the exact
+          view, so every page of a section lights its own link — a workplace's
+          detail or edit page keeps Workplaces lit, rate history keeps Analytics
+          lit. Only these three ever light: More is a menu rather than a place,
+          and the dashboard belongs to the logo.
+        {% endcomment %}
+        {% with ns=request.resolver_match.namespace %}
+        <ul class="navbar-nav nav-pill nav-pill--accent mx-lg-auto gap-1">
           <li class="nav-item">
-            <a class="nav-link" href="{% url 'core:dashboard' %}"><i class="bi bi-grid-1x2 me-1"></i>Dashboard</a>
+            <a class="nav-link{% if ns == 'workplaces' %} active{% endif %}" href="{% url 'workplaces:workplace-list' %}"><i class="bi bi-building me-1"></i>Workplaces</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="{% url 'workplaces:workplace-list' %}"><i class="bi bi-building me-1"></i>Workplaces</a>
+            <a class="nav-link{% if ns == 'calendar_view' %} active{% endif %}" href="{% url 'calendar_view:planning' %}"><i class="bi bi-calendar2-week me-1"></i>Planning</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="{% url 'calendar_view:planning' %}"><i class="bi bi-calendar2-week me-1"></i>Planning</a>
+            <a class="nav-link{% if ns == 'analytics' %} active{% endif %}" href="{% url 'analytics:overview' %}"><i class="bi bi-bar-chart-line me-1"></i>Analytics</a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{% url 'payroll:period-list' %}"><i class="bi bi-cash-stack me-1"></i>Payroll</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{% url 'analytics:overview' %}"><i class="bi bi-bar-chart-line me-1"></i>Analytics</a>
-          </li>
+        </ul>
+        <ul class="navbar-nav nav-pill nav-pill--menu gap-1">
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" role="button"
                data-bs-toggle="dropdown"><i class="bi bi-three-dots me-1"></i>More</a>
             <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item" href="{% url 'payroll:period-list' %}"><i class="bi bi-cash-stack me-2"></i>Payroll</a></li>
               <li><a class="dropdown-item" href="{% url 'payroll:commuting-list' %}"><i class="bi bi-bus-front me-2"></i>Commuting</a></li>
               <li><a class="dropdown-item" href="{% url 'payroll:vacation-overview' %}"><i class="bi bi-sun me-2"></i>Vacation</a></li>
               <li><hr class="dropdown-divider"></li>
@@ -127,6 +132,7 @@
             </ul>
           </li>
         </ul>
+        {% endwith %}
         {% endif %}
       </div>
       {% endif %}

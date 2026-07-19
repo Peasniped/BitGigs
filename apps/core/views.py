@@ -13,7 +13,7 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.utils import timezone
 
-from .constants import APP_ACCENT_CHOICES, DEFAULT_ACCENT
+from .constants import APP_ACCENT_CHOICES, DEFAULT_ACCENT, DEFAULT_SECONDARY
 from .models import TaxProfile, UserSettings
 from .forms import TaxProfileForm, UserSettingsForm
 from .utils import avatar_for_name, parse_int_param, prev_next_month
@@ -29,6 +29,14 @@ class DashboardView(View):
         today = timezone.localdate()
         year = parse_int_param(request.GET.get("year"), today.year)
         month = parse_int_param(request.GET.get("month"), today.month)
+
+        hour = timezone.localtime().hour
+        if hour < 12:
+            greeting = "Good morning"
+        elif hour < 18:
+            greeting = "Good afternoon"
+        else:
+            greeting = "Good evening"
 
         grid = CalendarService.month_calendar(year, month)
         grid.annotate_overlaps()
@@ -50,6 +58,7 @@ class DashboardView(View):
             request,
             "dashboard.html",
             {
+                "greeting": greeting,
                 "grid": grid,
                 "hidden_workplace_count": hidden_workplace_count(len(dashboard.workplace_data)),
                 "year": year,
@@ -70,6 +79,7 @@ class DashboardView(View):
                 "total_goal_max": stats.total_goal_max,
                 "total_planned_hours": stats.total_planned_hours,
                 "total_approved_hours": stats.total_approved_hours,
+                "total_approved_shift_count": stats.total_approved_shift_count,
                 "goal_bar_max": stats.total_goal_max if stats.total_goal_max else stats.total_goal_min,
                 "goal_approved_pct": stats.goal_approved_pct,
                 "goal_planned_pct": stats.goal_planned_pct,
@@ -105,6 +115,7 @@ class DashboardStatsAPIView(View):
             "has_any_goal": stats.has_any_goal,
             "total_planned_hours": str(stats.total_planned_hours.quantize(Decimal("0.01"))),
             "total_approved_hours": str(stats.total_approved_hours.quantize(Decimal("0.01"))),
+            "total_approved_shift_count": stats.total_approved_shift_count,
             "total_goal_min": int(stats.total_goal_min.quantize(Decimal("0"))),
             "total_goal_max": int(stats.total_goal_max.quantize(Decimal("0"))) if stats.total_goal_max else None,
             "goal_approved_pct": stats.goal_approved_pct,
@@ -177,6 +188,7 @@ class UserSettingsView(View):
         return render(request, "core/settings.html", {
             "form": form, "next_url": next_url, "active_tab": tab,
             "accent_choices": APP_ACCENT_CHOICES, "default_accent": DEFAULT_ACCENT,
+            "secondary_choices": APP_ACCENT_CHOICES, "default_secondary": DEFAULT_SECONDARY,
             **sign_in_context(request.user),
         })
 
@@ -193,6 +205,7 @@ class UserSettingsView(View):
         return render(request, "core/settings.html", {
             "form": form, "next_url": next_url, "active_tab": tab,
             "accent_choices": APP_ACCENT_CHOICES, "default_accent": DEFAULT_ACCENT,
+            "secondary_choices": APP_ACCENT_CHOICES, "default_secondary": DEFAULT_SECONDARY,
             **sign_in_context(request.user),
         })
 
@@ -254,12 +267,14 @@ def sign_in_context(user):
     password sign-in still available."""
     from allauth.socialaccount.models import SocialAccount
     from django.contrib.auth.forms import SetPasswordForm
+    from .forms import AccountDetailsForm
     linked = SocialAccount.objects.filter(user=user).first()
     return {
         "sso_account": linked,
         "sso_linked": linked is not None,
         "has_usable_password": user.has_usable_password(),
         "set_password_form": SetPasswordForm(user),  # drives the set/change modal
+        "account_details_form": AccountDetailsForm(instance=user),
     }
 
 
@@ -425,6 +440,23 @@ class PasswordSignInView(View):
             update_session_auth_hash(request, request.user)
             messages.success(request, f"Password sign-in is off. Use {provider} from now on.")
             return redirect(_signin_tab_url())
+
+        if action == "account_details":
+            from .forms import AccountDetailsForm
+            form = AccountDetailsForm(request.POST, instance=request.user)
+            if form.is_valid():
+                form.save()
+                messages.success(request, "Account details updated.")
+                return redirect(_signin_tab_url())
+            # Re-render with the modal open, so the errors are where the user is.
+            return render(request, "core/settings.html", {
+                "form": UserSettingsForm(instance=UserSettings.load(), tab="display"),
+                "next_url": None,
+                "active_tab": "signin",
+                **ctx,
+                "account_details_form": form,
+                "open_account_modal": True,
+            })
 
         if action == "set_password":
             form = SetPasswordForm(request.user, request.POST)

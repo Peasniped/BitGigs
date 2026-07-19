@@ -7,7 +7,12 @@
   border: 1px solid var(--border);
   border-radius: 0.75rem;
   padding: 0.6rem 1rem;
-  background: var(--surface);
+  /* Workplace wash behind the avatar, resolved to plain --surface by the time
+     it reaches the name and hours so those stay legible on any accent.
+     --wp-accent is set inline per card (DB data, see planning.html). */
+  background: linear-gradient(135deg,
+              var(--wp-accent, var(--surface)) 0%,
+              var(--surface) 62%);
   display: flex;
   align-items: center;
   gap: 0.6rem;

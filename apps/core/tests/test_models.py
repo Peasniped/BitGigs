@@ -60,6 +60,7 @@ class UserSettingsModelTest(TestCase):
             data={
                 "theme": "light",
                 "accent_color": "#6366f1",
+                "secondary_color": "#9fd6fb",
                 "week_start": 0,
                 "projection_method": "ema",
                 "projection_trailing_months": 6,

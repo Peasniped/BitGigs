@@ -1,15 +1,5 @@
 
 # NU     --------------------------------------------------------
-
-Extra work before making base template
-- Design glow up -- more flavorful color and personality?
-- - Central color management -- one source of truth for all colors (user/settings/admin accessible?)
-- Dark mode also?
-- UX: Makre sure notices are implemented where it makes sense (use the circle countdown dismissable notice)
-
-- Maybe rename env variables AUTHENTIK_xxx to OIDC_xxx to show that you can use any OIDC provider?
-- - How does this work with the authentic buttons? I still want Authentic branding on my buttons, but what happens if another person hosts their app using some other provider? do they also get Authentik buttons?
-
 - SMTP-integration, så den ligger klar, så andre apps kan sende mails
 - - Setting/configuration page with detailed test (showing what goes wrong, if anything (ie wrong credentials, wrong host/port))
 
@@ -30,6 +20,15 @@ Extra work before making base template
 ----> Er det muligt at have den som en slags main som de andre er forks af, så ved opdatering af main template, så opdateres undersiderne også?
 
 # SENERE --------------------------------------------------------
+
+*** Analytics Page: ***
+- On the rate history you should be able to click the records, which would expand showing the extra things that are counted in the total rate (such as company pension contrib, fritvalgskonto etc.+)
+- Is there anything you think could be helpful to add?
+- It seems like the workplace table showing Salaried H does not work with the proration.
+- Rework of Actual, Planned, Projection
+- - All salaried hours are planned, not projected. Projections are only for hourly positions
+- - In my currently loaded data, for july and august, it seems there is a mix of projection and planned hours, but it seems like my approved JKF shifts for july is not shown in the graph.
+- Hovering over the months should show the total gross/net amounts
 
 - Remove the limit on one active contract per workplace. -- for some workplaces it makes sense that you might have two active jobs that are more or less unrelated and has wildly different terms.
 - - Each _active_ contract should have their own chip in the planning mode (contracts may have different hour goals etc.)
@@ -54,10 +53,6 @@ Extra work before making base template
 *** Main Dashboard: ***
 - On the hour goal-statcard, when hovering over the grey portion of the progress bar, it should show the hour deficit(if any), ie how far you are from the goal, not just the goal.
 - The message "2 shifts in February belong to March payroll (19,70h)" is nice, but maybe you can click to expand, so it shows the shifts/dates and the hours? -- maybe hovering over it and/or clicking highlights the shifts if they are visible on the calendar.
-
-*** Analytics Page: ***
-- On the rate history you should be able to click the records, which would expand showing the extra things that are counted in the total rate (such as company pension contrib, fritvalgskonto etc.+)
-- Is there anything you think could be helpful to add?
 
 *** All Calendars: ***
 - Possibility to change to a list view where each shift is a row in a list/table

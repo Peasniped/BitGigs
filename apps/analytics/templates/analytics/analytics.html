@@ -50,12 +50,14 @@
     </small>
   </div>
   <div class="d-flex gap-2">
-    <a href="{% url 'core:settings' %}?next={{ next_url|urlencode }}"
+    <a href="{% url 'analytics:rate-history' %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-graph-up me-1"></i>Rate history
+    </a>
+    {% comment %}Lands directly on the Analytics tab — the projection settings
+    this page is about live there, not on the default Display tab.{% endcomment %}
+    <a href="{% url 'core:settings' %}?tab=analytics&next={{ next_url|urlencode }}"
        class="btn btn-outline-secondary btn-sm" title="Configure projection method/period">
       <i class="bi bi-gear me-1"></i>Settings
-    </a>
-    <a href="{% url 'analytics:rate-history' %}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-graph-up me-1"></i>Rate history
     </a>
   </div>
 </div>

@@ -99,6 +99,7 @@ class ThemeRenderingTest(LoggedInTestCase):
 class SettingsFormTest(LoggedInTestCase):
     DISPLAY_POST = {
         "tab": "display", "theme": "dark", "accent_color": "#EC4899",
+        "secondary_color": "#9FD6FB",
         "week_start": "0", "show_shift_type_colors": "on", "show_help_button": "on",
     }
 

@@ -24,15 +24,17 @@ def display_settings(request):
     ``show_shift_type_colors`` (chips coloured by shift type),
     ``show_help_button`` (the floating help button on every page),
     ``theme`` (light/dark/auto — base.html turns it into ``data-bs-theme``)
-    and the accent colour (base.html overrides ``--primary``/``--primary-rgb``
-    inline on <html> when it differs from the default — every other colour
-    derives from those two tokens)."""
-    from .constants import DEFAULT_ACCENT
+    and the accent/secondary colours (base.html overrides ``--primary``/
+    ``--primary-rgb``/``--secondary`` inline on <html>, each independently,
+    whenever it differs from its default — every other colour derives from
+    those tokens)."""
+    from .constants import DEFAULT_ACCENT, DEFAULT_SECONDARY
     from .models import UserSettings
     from .utils import hex_to_rgb_str
 
     settings = UserSettings.load()
     accent = (settings.accent_color or DEFAULT_ACCENT).lower()
+    secondary = (settings.secondary_color or DEFAULT_SECONDARY).lower()
     return {
         "show_shift_type_colors": settings.show_shift_type_colors,
         "show_help_button": settings.show_help_button,
@@ -40,6 +42,8 @@ def display_settings(request):
         "accent_color": accent,
         "accent_color_rgb": hex_to_rgb_str(accent),
         "accent_is_default": accent == DEFAULT_ACCENT,
+        "secondary_color": secondary,
+        "secondary_is_default": secondary == DEFAULT_SECONDARY,
     }
 
 

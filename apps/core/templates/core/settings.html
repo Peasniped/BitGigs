@@ -36,6 +36,23 @@
     <div class="card settings-pane">
       <div class="card-body">
 
+        {% comment %}Who the account is, before how it signs in. The email is
+        also the username, so both live behind the one modal.{% endcomment %}
+        <div class="d-flex justify-content-between align-items-center gap-3">
+          <div>
+            <div class="fw-medium">Account</div>
+            <div class="form-text mb-0">
+              {{ user.first_name|default:"No display name" }} &middot; {{ user.get_username }}
+            </div>
+          </div>
+          <button type="button" class="btn btn-outline-secondary btn-sm flex-shrink-0"
+                  data-bs-toggle="modal" data-bs-target="#accountDetailsModal">
+            <i class="bi bi-person-gear me-1"></i>Edit
+          </button>
+        </div>
+
+        <hr class="my-3">
+
         {% if not sso_enabled %}
         {% comment %}
           No IdP configured. BitGigs is fully usable this way, so this is a
@@ -180,6 +197,55 @@ OIDC_CLIENT_SECRET=</code></pre>
       </div>
     </div>
 
+    {% comment %} Display name + sign-in email. The email doubles as the username
+    (AccountDetailsForm rewrites both together), so they belong in one dialog. {% endcomment %}
+    <div class="modal fade" id="accountDetailsModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content app-modal">
+          <form method="post" action="{% url 'core:password-signin' %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="account_details">
+
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="bi bi-person-gear me-2"></i>Account details</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+              {% if account_details_form.non_field_errors %}
+                <div class="alert alert-danger py-2">
+                  {% for err in account_details_form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+                </div>
+              {% endif %}
+
+              <label for="{{ account_details_form.first_name.id_for_label }}" class="form-label fw-medium">Display name</label>
+              <input type="text" name="{{ account_details_form.first_name.html_name }}"
+                     id="{{ account_details_form.first_name.id_for_label }}"
+                     value="{{ account_details_form.first_name.value|default_if_none:'' }}"
+                     class="form-control {% if account_details_form.first_name.errors %}is-invalid{% endif %}"
+                     autocomplete="name" maxlength="150" required>
+              {% for err in account_details_form.first_name.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+              <div class="form-text">What BitGigs calls you around the app.</div>
+
+              <label for="{{ account_details_form.email.id_for_label }}" class="form-label fw-medium mt-3">Email</label>
+              <input type="email" name="{{ account_details_form.email.html_name }}"
+                     id="{{ account_details_form.email.id_for_label }}"
+                     value="{{ account_details_form.email.value|default_if_none:'' }}"
+                     class="form-control {% if account_details_form.email.errors %}is-invalid{% endif %}"
+                     autocomplete="email" maxlength="150" required>
+              {% for err in account_details_form.email.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+              <div class="form-text">This is also the username you sign in with.</div>
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
     {% comment %} Set / change password — same layout and live checklist as the account step. {% endcomment %}
     <div class="modal fade" id="passwordModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -282,11 +348,20 @@ OIDC_CLIENT_SECRET=</code></pre>
             accent_color input (settings.js), previewing live by overriding
             --primary on <html>. Save persists; leaving discards the preview.
           {% endcomment %}
-          <div class="mb-3" id="div_id_accent_color_picker" data-accent-picker data-default-accent="{{ default_accent }}">
+          <div class="mb-3" id="div_id_accent_color_picker" data-accent-picker="primary" data-default-accent="{{ default_accent }}">
             <label class="form-label fw-medium">Accent colour</label>
             <p class="form-text mt-0 mb-2">One colour drives the whole app &mdash; buttons, links, tints and
               gradients. Changes preview live; Save makes them stick.</p>
             <div class="d-flex flex-wrap gap-1 align-items-center">
+              {% comment %}This picker's own default first, then a divider, then
+              the rest of the palette (which excludes both brand colours).{% endcomment %}
+              <button type="button"
+                      class="btn btn-sm border-0 color-swatch {% if form.accent_color.value|lower == default_accent %}ring-selected{% endif %}"
+                      data-color-option="{{ default_accent }}"
+                      style="width:28px;height:28px;padding:0;border-radius:50%;background:{{ default_accent }};"
+                      title="{{ default_accent }} &mdash; BitGigs default">
+              </button>
+              <span class="picker-divider"></span>
               {% for hex in accent_choices %}
                 <button type="button"
                         class="btn btn-sm border-0 color-swatch {% if form.accent_color.value == hex %}ring-selected{% endif %}"
@@ -301,9 +376,48 @@ OIDC_CLIENT_SECRET=</code></pre>
               <input type="text" id="accentHex" class="form-control form-control-sm font-monospace"
                      style="width:90px;" value="{{ form.accent_color.value }}" maxlength="7" spellcheck="false"
                      aria-label="Accent colour hex value">
-              <button type="button" class="btn btn-link btn-sm p-0 ms-2" id="accentReset">Reset to default</button>
+              {% comment %}Hidden while the colour already is the default — there is
+              nothing to restore; settings.js toggles it as the value changes.{% endcomment %}
+              <button type="button" class="btn btn-primary btn-sm rounded-pill ms-2 picker-reset{% if form.accent_color.value|lower == default_accent %} d-none{% endif %}"
+                      id="accentReset">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Default
+              </button>
             </div>
             {% for err in form.accent_color.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+          </div>
+
+          <div class="mb-3" id="div_id_secondary_color_picker" data-accent-picker="secondary" data-default-accent="{{ default_secondary }}">
+            <label class="form-label fw-medium">Secondary colour</label>
+            <p class="form-text mt-0 mb-2">Pairs with the accent in gradients and dual-tone
+              accents. Changes preview live; Save makes them stick.</p>
+            <div class="d-flex flex-wrap gap-1 align-items-center">
+              <button type="button"
+                      class="btn btn-sm border-0 color-swatch {% if form.secondary_color.value|lower == default_secondary %}ring-selected{% endif %}"
+                      data-color-option="{{ default_secondary }}"
+                      style="width:28px;height:28px;padding:0;border-radius:50%;background:{{ default_secondary }};"
+                      title="{{ default_secondary }} &mdash; BitGigs default">
+              </button>
+              <span class="picker-divider"></span>
+              {% for hex in secondary_choices %}
+                <button type="button"
+                        class="btn btn-sm border-0 color-swatch {% if form.secondary_color.value == hex %}ring-selected{% endif %}"
+                        data-color-option="{{ hex }}"
+                        style="width:28px;height:28px;padding:0;border-radius:50%;background:{{ hex }};"
+                        title="{{ hex }}">
+                </button>
+              {% endfor %}
+              <input type="color" id="secondaryWheel" class="form-control form-control-color ms-2"
+                     style="width:46px;height:32px;padding:2px;" value="{{ form.secondary_color.value }}"
+                     title="Pick any colour">
+              <input type="text" id="secondaryHex" class="form-control form-control-sm font-monospace"
+                     style="width:90px;" value="{{ form.secondary_color.value }}" maxlength="7" spellcheck="false"
+                     aria-label="Secondary colour hex value">
+              <button type="button" class="btn btn-primary btn-sm rounded-pill ms-2 picker-reset{% if form.secondary_color.value|lower == default_secondary %} d-none{% endif %}"
+                      id="secondaryReset">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Default
+              </button>
+            </div>
+            {% for err in form.secondary_color.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
           </div>
           {% endif %}
           {{ form|crispy }}
@@ -332,5 +446,8 @@ OIDC_CLIENT_SECRET=</code></pre>
 {% if open_password_modal %}
   {% comment %} The submit failed validation — reopen the modal so the errors are visible. {% endcomment %}
   <script>new bootstrap.Modal(document.getElementById("passwordModal")).show();</script>
+{% endif %}
+{% if open_account_modal %}
+  <script>new bootstrap.Modal(document.getElementById("accountDetailsModal")).show();</script>
 {% endif %}
 {% endblock %}

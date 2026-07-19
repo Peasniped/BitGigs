@@ -113,7 +113,7 @@ class OwnerOnlySocialAccountAdapter(DefaultSocialAccountAdapter):
                 request.session[PENDING_SSO_SESSION_KEY] = sociallogin.serialize()
                 raise ImmediateHttpResponse(redirect(reverse("core:onboarding-account-confirm")))
 
-            owner = self._bootstrap_owner(email)
+            owner = self._bootstrap_owner(email, claim(sociallogin, "name"))
             request.session.pop(setup_key.SESSION_FLAG, None)
             request.session.pop(PENDING_SSO_SESSION_KEY, None)
             sociallogin.connect(request, owner)
@@ -136,11 +136,20 @@ class OwnerOnlySocialAccountAdapter(DefaultSocialAccountAdapter):
 
         sociallogin.connect(request, owner)
 
-    def _bootstrap_owner(self, email):
+    def _bootstrap_owner(self, email, display_name=None):
         """Create the single owner/admin from an IdP identity. No password is set —
-        the IdP is the only way in until one is added from the settings page."""
+        the IdP is the only way in until one is added from the settings page.
+
+        The display name comes from the raw ``name`` claim (read via ``claim``,
+        not ``sociallogin.user``, which splits it — see that helper), landing in
+        the same ``User.first_name`` the local account form fills, so the app
+        greets an SSO owner by name rather than by email."""
         from core import setup_key
-        owner = User(username=email, email=email, is_staff=True, is_superuser=True)
+        owner = User(
+            username=email, email=email,
+            first_name=(display_name or "").strip()[:150],
+            is_staff=True, is_superuser=True,
+        )
         owner.set_unusable_password()
         owner.save()
         setup_key.clear_key()  # claimed

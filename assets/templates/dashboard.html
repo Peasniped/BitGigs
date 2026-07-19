@@ -1,9 +1,17 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% load dk_filters %}
 {% load static %}
 {% block title %}Dashboard &middot; BitGigs{% endblock %}
 
 {% block content %}
+<!-- ===== Greeting / status line ===== -->
+<div class="mb-3">
+  <h1 class="h4 mb-1">{{ greeting }}, {{ user.first_name|default:user.username }}</h1>
+  <p class="text-muted mb-0" style="font-size:0.85rem;">
+    {{ today|date:"l j F" }}{% if todays_banner %} &middot; {{ todays_banner.shifts|length }} shift{{ todays_banner.shifts|length|pluralize }} today at {{ todays_banner.workplace_name }}{% endif %}{% if pending_shifts_count %} &middot; {{ pending_shifts_count }} shift{{ pending_shifts_count|pluralize }} waiting on approval{% endif %}
+  </p>
+</div>
+
 <!-- ===== Pay stat counters ===== -->
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">
@@ -17,14 +25,14 @@
     <div class="stat-card">
       <div class="stat-card__label">Earned</div>
       <div class="stat-card__value"><span id="stat-earned-gross">{{ total_earned_gross|dk:0 }}</span> <small class="stat-card__sub">DKK</small></div>
-      <div class="stat-card__sub">Net <span id="stat-earned-net">{{ total_earned_net|dk:0 }}</span> DKK</div>
+      <div class="stat-card__sub">Net <span id="stat-earned-net">{{ total_earned_net|dk:0 }}</span> DKK &middot; <span id="stat-earned-shift-count">{{ total_approved_shift_count }}</span> shift{{ total_approved_shift_count|pluralize }} approved</div>
     </div>
   </div>
   <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">
     <div class="stat-card">
       <div class="stat-card__label">Total</div>
       <div class="stat-card__value"><span id="stat-combined-gross">{{ total_combined_gross|dk:0 }}</span> <small class="stat-card__sub">DKK</small></div>
-      <div class="stat-card__sub">Net <span id="stat-combined-net">{{ total_combined_net|dk:0 }}</span> DKK</div>
+      <div class="stat-card__sub">Net <span id="stat-combined-net">{{ total_combined_net|dk:0 }}</span> DKK &middot; across {{ workplace_data|length }} workplace{{ workplace_data|length|pluralize }}</div>
     </div>
   </div>
   {% if has_any_goal %}
@@ -34,9 +42,9 @@
       <div class="stat-card__value" style="font-size:1.05rem;"><span id="stat-planned-hours">{{ total_planned_hours|dk }}</span>h <small class="stat-card__sub">+</small> <span id="stat-approved-hours">{{ total_approved_hours|dk }}</span>h <small class="stat-card__sub">/ <span id="stat-goal-range">{{ total_goal_min|dk:0 }}{% if total_goal_max %}.{{ total_goal_max|dk:0 }}{% endif %}</span>h</small></div>
       <div class="stat-card__sub" style="visibility:hidden;">&nbsp;</div>
       <div class="goal-bar" style="position:absolute;bottom:0;left:0;right:0;height:10px;background:var(--border);display:flex;">
-        <div id="goal-bar-approved" class="goal-bar__seg" style="width:{{ goal_approved_pct }}%;background:var(--success);"
+        <div id="goal-bar-approved" class="goal-bar__seg goal-bar__seg--approved" style="width:{{ goal_approved_pct }}%;"
              data-goal-color="var(--success)" data-goal-label="Approved: {{ total_approved_hours|dk:1 }}h"></div>
-        <div id="goal-bar-planned" class="goal-bar__seg" style="width:{{ goal_planned_pct }}%;background:var(--info);"
+        <div id="goal-bar-planned" class="goal-bar__seg goal-bar__seg--planned" style="width:{{ goal_planned_pct }}%;"
              data-goal-color="var(--info)" data-goal-label="Planned: {{ total_planned_hours|dk:1 }}h"></div>
         <div class="goal-bar__seg" style="flex:1;"
              data-goal-color="var(--text-subtle)" data-goal-label="Goal: {{ total_goal_min|dk:0 }}{% if total_goal_max %}.{{ total_goal_max|dk:0 }}{% endif %}h"></div>
@@ -117,11 +125,14 @@
 {% endif %}
 
 <!-- ===== Workplace cards ===== -->
-<div class="row g-2 mb-4">
+{% comment %}Centred like the planning strip, so a part-filled last row sits in
+the middle rather than hanging off to the left.{% endcomment %}
+<div class="row g-2 mb-4 justify-content-center">
   {% for item in workplace_data %}
+  {% with wp_accent=item.workplace.accent_color|default:item.workplace.color|default:item.avatar_color %}
   <div class="col-12 col-md-6 col-lg-4">
   <a href="{% url 'workplaces:workplace-detail' item.workplace.slug %}" class="workplace-card d-flex align-items-center gap-3 py-2 px-3"
-     {% if item.workplace.accent_color %}style="border-left:4px solid {{ item.workplace.accent_color }};"{% endif %}>
+     style="background:linear-gradient(90deg, {{ wp_accent }} 0%, var(--surface) 60%);">
     {% if item.workplace.custom_icon %}
       <span class="workplace-avatar" style="background:{{ item.workplace.color|default:item.avatar_color }};width:36px;height:36px;overflow:hidden;">
         <img src="{{ item.workplace.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
@@ -150,6 +161,7 @@
     </div>
   </a>
   </div>
+  {% endwith %}
   {% empty %}
   {% if hidden_workplace_count %}
   <div class="col-12">{% include "_period_filter_notice.html" %}</div>
@@ -190,7 +202,7 @@
     {% endif %}
   </div>
   {% endfor %}
-  <div class="card-body p-2">
+  <div class="card-body p-0">
     {% include "calendar_view/_calendar_component.html" with grid=grid clickable=False %}
   </div>
 </div>

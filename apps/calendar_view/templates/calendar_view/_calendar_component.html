@@ -1,4 +1,4 @@
-﻿{# Reusable calendar component. Include with: #}
+{# Reusable calendar component. Include with: #}
 {# {% include "calendar_view/_calendar_component.html" with grid=grid clickable=True workplace_id=workplace.pk %} #}
 {% load dk_filters %}
 
@@ -9,12 +9,12 @@
     <span>One or more shifts on this calendar overlap in time. Overlapping shifts are highlighted in amber.</span>
   </div>
   {% endif %}
-  <table class="table table-bordered calendar-table mb-0">
+  <table class="table calendar-table mb-0">
     <thead>
-      <tr class="table-light">
-        <th class="text-center small text-uppercase text-muted py-2 week-number-head"></th>
+      <tr>
+        <th class="text-center small text-uppercase text-muted week-number-head"></th>
         {% for header in grid.day_headers %}
-          <th class="text-center small text-uppercase text-muted py-2">{{ header }}</th>
+          <th class="text-center small text-uppercase text-muted">{{ header }}</th>
         {% endfor %}
       </tr>
     </thead>

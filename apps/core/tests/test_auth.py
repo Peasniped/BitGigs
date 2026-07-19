@@ -67,6 +67,7 @@ class SetupKeyMixin:
 
     def account_post(self, **overrides):
         payload = {
+            "first_name": "Alex",   # display name, required (see the form)
             "username": "me@example.com",
             "password1": VALID_PW,
             "password2": VALID_PW,
@@ -124,6 +125,17 @@ class OnboardingAccountTest(SetupKeyMixin, TestCase):
         self.assertTrue(user.is_superuser)
         # Username is a valid email and is copied to the email field.
         self.assertEqual(user.email, "me@example.com")
+        # The display name is what the app greets by — the username is an email.
+        self.assertEqual(user.first_name, "Alex")
+
+    def test_display_name_is_required(self):
+        """Without it every greeting would address the owner by email address."""
+        self.claim()
+        resp = self.client.post(
+            "/onboarding/account/email/", self.account_post(first_name="  ")
+        )
+        self.assertEqual(resp.status_code, 200)   # redisplayed, not created
+        self.assertFalse(User.objects.filter(username="me@example.com").exists())
 
     def test_the_key_is_deleted_once_the_owner_exists(self):
         self.claim()

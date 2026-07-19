@@ -12,12 +12,21 @@ BG_COLOR_CHOICES = [
 ]
 
 ACCENT_COLOR_CHOICES = [
-    "#6366f1", "#8b5cf6", "#ec4899", "#ef4444", "#f97316",
+    "#0e61de", "#8b5cf6", "#ec4899", "#ef4444", "#f97316",
     "#eab308", "#22c55e", "#14b8a6", "#3b82f6", "#1e293b",
 ]
 
-# App-wide accent presets (Settings → Display): the same family minus the
-# near-black, which is unusable as the primary on dark surfaces.
-APP_ACCENT_CHOICES = ACCENT_COLOR_CHOICES[:-1]
+DEFAULT_ACCENT = "#0e61de"
+DEFAULT_SECONDARY = "#9fd6fb"
 
-DEFAULT_ACCENT = "#6366f1"
+# Each app colour picker (Settings → Display) pins its *own* default to the
+# far left, ahead of a divider — that is what its "Default" button restores.
+# The pair is listed here only so the presets below can exclude both.
+_APP_BRAND_COLORS = (DEFAULT_ACCENT, DEFAULT_SECONDARY)
+
+# The rest of the app-wide presets: the shared family minus the near-black
+# (unusable as the primary on dark surfaces) and minus both brand colours, so
+# a picker never shows its own default twice.
+APP_ACCENT_CHOICES = [
+    c for c in ACCENT_COLOR_CHOICES[:-1] if c not in _APP_BRAND_COLORS
+]

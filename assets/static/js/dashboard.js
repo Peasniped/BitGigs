@@ -116,6 +116,7 @@ trackModal(document.getElementById('dashApproveModal'));
         if ((el = document.getElementById('stat-planned-net'))) el.textContent = dkFmt(d.planned_net);
         if ((el = document.getElementById('stat-earned-gross'))) el.textContent = dkFmt(d.earned_gross);
         if ((el = document.getElementById('stat-earned-net'))) el.textContent = dkFmt(d.earned_net);
+        if ((el = document.getElementById('stat-earned-shift-count'))) el.textContent = d.total_approved_shift_count;
         if ((el = document.getElementById('stat-combined-gross'))) el.textContent = dkFmt(d.combined_gross);
         if ((el = document.getElementById('stat-combined-net'))) el.textContent = dkFmt(d.combined_net);
         if (d.has_any_goal) {

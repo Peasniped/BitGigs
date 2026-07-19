@@ -155,15 +155,16 @@
 
   // Create mode toggle
   peCreateBtn.addEventListener('click', function() {
-    exitAllModes();
-    fastCreateMode = !fastCreateMode;
+    // Check before exitAllModes(), which clears fastCreateMode itself — reading
+    // it afterwards always saw false, so the flag could only ever be turned on.
     if (fastCreateMode) {
-      peCreateBtn.classList.add('active');
-      peHint.textContent = 'Click or drag a workplace card, then click days to stamp shifts';
-    } else {
-      peCreateBtn.classList.remove('active');
-      peHint.textContent = '';
+      exitAllModes();
+      return;
     }
+    exitAllModes();
+    fastCreateMode = true;
+    peCreateBtn.classList.add('active');
+    peHint.textContent = 'Click or drag a workplace card, then click days to stamp shifts';
   });
 
   // Copy mode toggle
@@ -636,14 +637,16 @@
     });
   }
 
-  // Escape key exits active modes
+  // Escape key exits active modes. fastCreateMode is checked alongside
+  // fastCreateWpId: the latter is only set once a workplace card is picked, so
+  // on its own it left an armed-but-unpicked Fast Create with no way out.
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && (copyMode || deleteMode || deleteAllMode || fastCreateWpId)) exitAllModes();
+    if (e.key === 'Escape' && (copyMode || deleteMode || deleteAllMode || fastCreateMode || fastCreateWpId)) exitAllModes();
   });
 
   // Click outside calendar exits copy/delete/delete-all/fast-create-stamp mode
   document.addEventListener('click', function(e) {
-    if ((copyMode || deleteMode || deleteAllMode || fastCreateWpId) && !e.target.closest('.planning-calendar') && !e.target.closest('.power-toolbar') && !e.target.closest('#powerEditToggle') && !e.target.closest('.wp-card')) {
+    if ((copyMode || deleteMode || deleteAllMode || fastCreateMode || fastCreateWpId) && !e.target.closest('.planning-calendar') && !e.target.closest('.power-toolbar') && !e.target.closest('#powerEditToggle') && !e.target.closest('.wp-card')) {
       exitAllModes();
     }
   });

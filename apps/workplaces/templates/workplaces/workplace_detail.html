@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% load dk_filters %}
 {% load static %}
 {% block title %}{{ workplace.name }} &middot; BitGigs{% endblock %}
@@ -263,7 +263,7 @@
           </div>
         </div>
       </div>
-      <div class="card-body p-2">
+      <div class="card-body p-0">
         {% include "calendar_view/_calendar_component.html" with grid=grid clickable=True workplace_id=workplace.pk %}
       </div>
     </div>

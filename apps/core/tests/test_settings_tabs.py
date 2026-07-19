@@ -71,6 +71,7 @@ class SettingsTabsTest(TestCase):
             "tab": "display",
             "theme": "light",
             "accent_color": "#6366f1",
+            "secondary_color": "#9fd6fb",
             "week_start": "6",
             "show_shift_type_colors": "on",
         })
@@ -93,9 +94,67 @@ class SettingsTabsTest(TestCase):
 
         self.client.post("/settings/", {
             "tab": "display", "theme": "light", "accent_color": "#6366f1",
-            "week_start": "0",
+            "secondary_color": "#9fd6fb", "week_start": "0",
         })
 
         settings_row = UserSettings.load()
         self.assertFalse(settings_row.show_help_button)
         self.assertFalse(settings_row.show_shift_type_colors)
+
+
+class AccountDetailsTest(TestCase):
+    """Settings → Sign-in lets the owner rename themselves and change the email.
+    The email doubles as the username, so both must move together."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            "me@example.com", email="me@example.com", password="pw", first_name="Alex"
+        )
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["onboarding_complete"] = True
+        session.save()
+
+    def post(self, **overrides):
+        payload = {
+            "action": "account_details",
+            "first_name": "Alex",
+            "email": "me@example.com",
+        }
+        payload.update(overrides)
+        return self.client.post("/settings/sign-in/", payload)
+
+    def test_display_name_and_email_save_together(self):
+        resp = self.post(first_name="  Morten  ", email="new@example.com")
+        self.assertEqual(resp.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.first_name, "Morten")   # whitespace stripped
+        self.assertEqual(self.user.email, "new@example.com")
+        # The username is the email — it must not be left behind.
+        self.assertEqual(self.user.username, "new@example.com")
+
+    def test_non_email_is_rejected(self):
+        resp = self.post(email="not-an-email")
+        self.assertEqual(resp.status_code, 200)   # redisplayed with the modal open
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "me@example.com")
+
+    def test_blank_display_name_is_rejected(self):
+        resp = self.post(first_name="   ")
+        self.assertEqual(resp.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.first_name, "Alex")
+
+    def test_email_longer_than_the_username_column_is_rejected(self):
+        """User.email allows 254 chars but User.username only 150, and the two
+        have to stay identical — so the shorter cap wins."""
+        long_email = ("a" * 145) + "@example.com"
+        resp = self.post(email=long_email)
+        self.assertEqual(resp.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "me@example.com")
+
+    def test_signin_tab_shows_the_account_row(self):
+        resp = self.client.get("/settings/?tab=signin")
+        self.assertContains(resp, "accountDetailsModal")
+        self.assertContains(resp, "me@example.com")

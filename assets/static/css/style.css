@@ -10,13 +10,12 @@
    ========================================================================== */
 :root {
   color-scheme: light;
-  /* Brand (accent setting overrides --primary/--primary-rgb inline on <html>) */
-  --primary: #6366f1;      --primary-rgb: 99,102,241;
-  /* The gradient companion sits +19° around the hue wheel from the accent —
-     the second line re-derives it for any accent; browsers without relative
-     color syntax keep the static indigo pairing. */
-  --secondary: #8b5cf6;
-  --secondary: hsl(from var(--primary) calc(h + 19) s l);
+  /* Brand — dark/light blue lifted from the app logo. Primary and secondary
+     are independently user-configurable (Settings → Display); base.html
+     overrides --primary/--primary-rgb/--secondary inline on <html> whenever
+     either differs from its default. */
+  --primary: #0e61de;      --primary-rgb: 14,97,222;
+  --secondary: #9fd6fb;
   --brand-gradient: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
   --primary-tint:   color-mix(in srgb, var(--primary) 9%, var(--surface));
   --primary-border: color-mix(in srgb, var(--primary) 35%, var(--surface));
@@ -24,6 +23,21 @@
   /* Surfaces — the canvas carries a whisper of the accent so cards visibly
      sit on something instead of white-on-near-white */
   --canvas: color-mix(in srgb, var(--primary) 4%, #f6f7fb);
+  /* The deep end of the page wash. Light mode deepens by pulling in more
+     accent; dark mode has its own override that pulls toward black instead
+     (mixing in the accent there would *lighten* it). */
+  --canvas-deep: color-mix(in srgb, var(--primary) 13%, var(--canvas));
+  /* The open end. A lift off --canvas rather than --canvas itself, so the
+     band can be brightened for contrast without moving --bs-body-bg (which
+     every Bootstrap component inherits from). Dark mode overrides it. */
+  --canvas-light: color-mix(in srgb, white 55%, var(--canvas));
+  /* Painted by body and .navbar, both background-attachment: fixed, so the
+     two line up seamlessly: deep in the top-left, opening up through the
+     middle, closing down again bottom-right. */
+  --canvas-gradient: linear-gradient(150deg,
+                     var(--canvas-deep) 0%,
+                     var(--canvas-light) 45%,
+                     var(--canvas-deep) 100%);
   --surface: #fff;
   --bg-light: #f8fafc;  --bg-lighter: #f1f5f9;
   --border: #e2e8f0;  --border-strong: #cbd5e1;
@@ -43,9 +57,11 @@
   --danger: #dc2626;   --danger-rgb: 220,38,38;
   --danger-tint: color-mix(in srgb, var(--danger) 8%, var(--surface));
   --danger-strong: #991b1b;
-  /* Calendar day washes */
-  --cal-weekend: color-mix(in srgb, var(--warning) 7%, var(--surface));
-  --cal-today: var(--primary-tint);
+  /* Calendar day washes. Every one derives from --cal-day (the plain day cell),
+     so lifting that in dark mode carries the whole grid with it. */
+  --cal-day: var(--surface);
+  --cal-weekend: color-mix(in srgb, var(--warning) 7%, var(--cal-day));
+  --cal-today: color-mix(in srgb, var(--primary) 9%, var(--cal-day));
   --cal-outside: var(--bg-lighter);
   /* Chart chrome + category colors (read by JS via getComputedStyle) */
   --chart-grid: rgba(100,116,139,.15);
@@ -73,6 +89,12 @@
 [data-bs-theme="dark"] {
   color-scheme: dark;
   --canvas: #131420;
+  /* Deepen toward black — mixing the accent in (as light mode does) would
+     lighten these corners instead of sinking them. */
+  --canvas-deep: color-mix(in srgb, black 45%, var(--canvas));
+  /* A small white lift: enough to make the band read as light against the
+     sunk corners, without washing the dark theme out. */
+  --canvas-light: color-mix(in srgb, white 9%, var(--canvas));
   --surface: #1c1e2e;
   --bg-light: #232538;  --bg-lighter: #2a2d44;
   --border: #32354e;  --border-strong: #454965;
@@ -83,6 +105,10 @@
   --info-strong: #93c5fd;
   --warning-strong: #fcd34d;
   --danger-strong: #fca5a5;
+  /* Day cells sit a step above the card they're in: the approved-shift chip is
+     a tint of the (dark blue) accent, which all but vanished against a cell at
+     plain --surface. */
+  --cal-day: color-mix(in srgb, white 8%, var(--surface));
   /* Outside-month days recede below the surface (in light they sit above it);
      keeping them on --bg-lighter here would melt into the cell borders. */
   --cal-outside: #17182a;
@@ -199,6 +225,12 @@
   --bs-btn-active-border-color: var(--danger);
 }
 
+/* Bootstrap 5.3 defaults --bs-table-bg to --bs-body-bg, which the bridge above
+   points at the tinted --canvas — so every cell painted the page background
+   instead of the card it sits on (the calendars' day cells most visibly).
+   Tables live on surfaces here, so that is what a cell should paint. */
+.table { --bs-table-bg: var(--surface); }
+
 /* Bootstrap's contextual table variants also compile literal light colors
    (.table-light heads the calendars' day-name row) — repoint at the palette. */
 .table-light {
@@ -219,7 +251,11 @@
 /* ---- Typography ---- */
 body {
   font-family: var(--font-sans);
-  background: var(--canvas);
+  background-color: var(--canvas);
+  background-image: var(--canvas-gradient);
+  /* Fixed so the wash is anchored to the viewport, not the document: long
+     pages don't stretch it, and the sticky navbar's copy stays in register. */
+  background-attachment: fixed;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -230,18 +266,38 @@ main.container { flex: 1; }
 h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
 
 /* ---- Navbar ---- */
+/* Merges into the page canvas — no seam, shadow or border of its own; the
+   nav links and the More button carry their own pill chrome instead. */
+/* Shares the body's fixed canvas gradient so the sticky bar is an invisible
+   continuation of the page rather than a band sitting on top of it — both are
+   background-attachment: fixed, so the two slices line up exactly. */
 .navbar {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 2px rgba(var(--shadow-rgb),.04);
+  background-image: var(--canvas-gradient);
+  background-attachment: fixed;
+  background-size: cover;
+  /* Holds the breathing room that used to sit on .nav-pill's margin-top —
+     applied to the bar, so the brand and both pills all move together and stay
+     vertically aligned with each other. */
+  --bs-navbar-padding-y: 0.75rem;
 }
-/* Brand hairline across the very top of the app. */
-.navbar::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  background: var(--brand-gradient);
+/* Three equal-weight columns so the centre pill is centred on the *page*.
+   Left as flex, the pill only centres within whatever space is left beside the
+   brand, which pushes it right. The 1fr outer tracks balance each other, so the
+   auto middle track lands dead centre regardless of how wide the brand is.
+   Only from lg up, where the collapse is always open — display:contents lifts
+   the two pills out of the collapse so they can be grid items beside the brand. */
+@media (min-width: 992px) {
+  .navbar > .container.navbar-3col {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+  }
+  /* !important is required: Bootstrap's .navbar-expand-lg .navbar-collapse sets
+     display:flex !important, which otherwise wins and leaves the two pills
+     boxed together in one grid cell instead of becoming cells of their own. */
+  .navbar-3col > .navbar-collapse { display: contents !important; }
+  .navbar-3col .nav-pill--accent { justify-self: center; }
+  .navbar-3col .nav-pill--menu { justify-self: end; }
 }
 .navbar-brand {
   font-weight: 700;
@@ -259,21 +315,62 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
   font-size: 1rem;
 }
 .brand-logo {
-  width: 32px; height: 32px;
+  width: 46px; height: 46px;
   object-fit: contain;
-  transition: transform var(--transition-base), filter var(--transition-base);
+  position: relative;   /* above the glow halo below */
+  z-index: 1;
+  transition: transform .28s ease;
+}
+/* The glow is a pseudo-element faded with opacity rather than a filter:
+   drop-shadow list. Interpolating filter lists proved unreliable — it would
+   animate while the pointer was still moving but snap on the first hover after
+   the transition had settled. opacity always interpolates, and composites on
+   the GPU. Two stops: an accent core with a white-ish ring behind it. */
+a.navbar-brand { position: relative; }
+a.navbar-brand::before {
+  content: "";
+  position: absolute;
+  left: -2px;           /* (logo 46px - halo 50px) / 2, so it stays concentric */
+  top: 50%;
+  width: 50px;
+  height: 50px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  /* Light canvas: both stops are brand colours — a white one would be invisible
+     against a near-white background. Secondary core, deeper primary behind it. */
+  background: radial-gradient(circle,
+              color-mix(in srgb, var(--secondary) 85%, transparent) 25%,
+              rgba(var(--primary-rgb), .4) 60%,
+              transparent 78%);
+  /* The blur is what makes it a glow rather than a coloured disc: it feathers
+     the edge and lets the light spill past the element's own bounds, so the
+     halo only needs to be a few px wider than the logo. */
+  filter: blur(7px);
+  opacity: 0;
+  transition: opacity .3s ease;
+  pointer-events: none;
+}
+a.navbar-brand:hover::before { opacity: 1; }
+/* Dark canvas: no white stop at all — any amount of it bleached the halo out
+   and read as a white glow rather than the pale blue you actually get. */
+[data-bs-theme="dark"] a.navbar-brand::before {
+  background: radial-gradient(circle,
+              color-mix(in srgb, var(--secondary) 90%, transparent) 25%,
+              color-mix(in srgb, var(--secondary) 45%, transparent) 60%,
+              transparent 78%);
+  filter: blur(8px);
 }
 /* Scoped to the anchor so the minimal-chrome variant (a plain span, nothing
    clickable) stays inert. */
 a.navbar-brand:hover .brand-logo {
   transform: scale(1.08) rotate(-4deg);
-  filter: drop-shadow(0 2px 6px rgba(var(--primary-rgb), .45));
 }
 a.navbar-brand:active .brand-logo { transform: scale(1.02) rotate(-2deg); }
 a.navbar-brand span { transition: color var(--transition-base); }
 a.navbar-brand:hover span { color: var(--primary); }
 @media (prefers-reduced-motion: reduce) {
   .brand-logo { transition: none; }
+  a.navbar-brand::before { transition: none; }
   a.navbar-brand:hover .brand-logo,
   a.navbar-brand:active .brand-logo { transform: none; }
 }
@@ -289,6 +386,94 @@ a.navbar-brand:hover span { color: var(--primary); }
 .nav-link.active {
   color: var(--primary) !important;
   background: var(--primary-tint);
+}
+/* Pill chrome for the two nav groups (center links + the standalone More
+   button) — now that .navbar itself carries no border/shadow of its own.
+   No margin-top here: it used to nudge the pills down, but that pushed them
+   out of line with the brand. The breathing room lives on the navbar's own
+   vertical padding instead, so all three stay vertically centred together. */
+.nav-pill {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.25rem;
+  box-shadow: var(--card-shadow);
+}
+/* Fully round the links themselves so their hover/active fill reads as one
+   shape with the pill that contains them, not a small square peeking out of
+   a round container. */
+.nav-pill .nav-link {
+  border-radius: 999px;
+}
+/* The center nav group carries the app accent as a filled pill.
+   It gets its own gradient rather than --brand-gradient: the raw --secondary
+   is the logo's pale light blue, and white labels are unreadable on it, so
+   the far end is pulled back toward the accent.
+   Border is removed outright (not just made transparent) — the inherited 1px
+   transparent border let the gradient paint through it and antialiased into
+   light/dark specks at the two rounded caps; the padding absorbs its width so
+   the geometry is unchanged. */
+.nav-pill--accent {
+  /* 90deg, not the 135deg of --brand-gradient: a diagonal gradient inside a
+     fully-rounded box seams visibly where the cap radius meets the straight
+     edge. Running it along the pill's long axis renders clean and shows the
+     full primary→secondary sweep. */
+  background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%);
+  border: 0;
+  padding: calc(0.25rem + 1px);
+  box-shadow: 0 4px 14px -4px rgba(var(--primary-rgb), .45);
+}
+/* The secondary end is the logo's pale blue, so white labels need their own
+   contrast rather than a darker pill — the shadow buys it without muddying
+   the brand colours underneath. */
+.nav-pill--accent .nav-link {
+  color: var(--on-accent) !important;
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(var(--shadow-rgb), .55);
+}
+/* More menu: neutral at rest, then the *whole pill* fills with the same
+   travelling gradient the buttons use — and stays filled while its menu is open
+   (Bootstrap puts .show on the toggle), so the open menu reads as anchored to
+   it. The fill goes on the pill rather than the link inside it, or the pill's
+   own surface and border would ring the gradient in white.
+   No ::after sheen here: on a .dropdown-toggle that pseudo-element is the caret. */
+.nav-pill--menu {
+  background-size: 230% 230%;
+  background-position: 0% 0%;
+  transition: background-position .9s cubic-bezier(.22, .61, .36, 1),
+              background-color var(--transition-base);
+}
+.nav-pill--menu:hover,
+.nav-pill--menu:has(.nav-link.show) {
+  background-image: linear-gradient(135deg,
+                    var(--primary) 0%,
+                    var(--secondary) 50%,
+                    var(--primary) 100%);
+  background-color: transparent;
+  background-position: 100% 100%;
+  /* Dropped outright rather than made transparent: a transparent border lets
+     the gradient paint through it and antialiases into specks at the caps. */
+  border: 0;
+  padding: calc(0.25rem + 1px);
+}
+/* The link stays see-through so the pill's fill is what shows. */
+.nav-pill--menu .nav-link:hover,
+.nav-pill--menu .nav-link:focus-visible,
+.nav-pill--menu .nav-link.show {
+  background: transparent;
+  color: var(--on-accent) !important;
+  text-shadow: 0 1px 3px rgba(var(--shadow-rgb), .5);
+}
+.nav-pill--accent .nav-link:hover {
+  color: var(--on-accent) !important;
+  background: color-mix(in srgb, var(--on-accent) 18%, transparent);
+}
+/* Current section — a clear step beyond hover, plus an inset edge, so "you are
+   here" stays readable even while the cursor is somewhere else in the pill. */
+.nav-pill--accent .nav-link.active {
+  color: var(--on-accent) !important;
+  background: color-mix(in srgb, var(--on-accent) 34%, transparent);
+  box-shadow: inset 0 1px 3px rgba(var(--shadow-rgb), .22);
 }
 .dropdown-menu {
   border: 1px solid var(--border);
@@ -329,15 +514,6 @@ a.navbar-brand:hover span { color: var(--primary); }
   transition: all var(--transition-base);
   text-align: center;
 }
-/* Gradient top strip — the stat row's colour moment. */
-.stat-card::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  background: var(--brand-gradient);
-  opacity: .9;
-}
 .stat-card:hover { box-shadow: var(--card-hover-shadow); transform: translateY(-2px); }
 .stat-card:hover .stat-card__value { color: var(--primary); }
 .stat-card__label {
@@ -357,6 +533,26 @@ a.navbar-brand:hover span { color: var(--primary); }
 .stat-card__sub {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+/* Hour-goal progress bar (dashboard). Each segment carries its own gradient
+   so a mixed approved+planned bar reads as two lit bands meeting cleanly:
+   both run pale→saturated left to right, so each segment resolves to its own
+   full colour at its right edge and the junction is a colour change rather
+   than a seam.
+   The glow is an outward box-shadow; the card clips its bottom half, which
+   leaves the light spilling upward into the card — which is the effect. */
+.goal-bar__seg--approved {
+  background: linear-gradient(90deg,
+              color-mix(in oklch, var(--success) 58%, white) 0%,
+              var(--success) 100%);
+  box-shadow: 0 0 10px 0 rgba(var(--success-rgb), .65);
+}
+.goal-bar__seg--planned {
+  background: linear-gradient(90deg,
+              color-mix(in oklch, var(--info) 55%, white) 0%,
+              var(--info) 100%);
+  box-shadow: 0 0 10px 0 rgba(var(--info-rgb), .6);
 }
 
 /* ---- Workplace cards on dashboard ---- */
@@ -429,10 +625,39 @@ a.navbar-brand:hover span { color: var(--primary); }
 }
 
 /* ---- Calendar ---- */
-.calendar-component { overflow-x: auto; }
+/* Sits flush against the card's edges (see card-body p-0 on calendar pages),
+   so it needs its own bottom radius + clipping or the table's square corners
+   would poke past the card's rounded bottom corners. */
+.calendar-component {
+  overflow-x: auto;
+  border-bottom-left-radius: var(--card-radius);
+  border-bottom-right-radius: var(--card-radius);
+}
 .calendar-table {
   font-size: 0.8rem;
   table-layout: fixed;
+}
+/* Flush grid: the table runs edge-to-edge in its card (no outer gutter), with
+   just a hairline between cells rather than Bootstrap's heavier table-bordered
+   grid — background wash (weekend/outside/today) still carries most of the
+   day-to-day distinction. */
+.calendar-table {
+  border: 0;
+  /* Plain day cells. Set through --bs-table-bg rather than a .calendar-day
+     rule so it lands at Bootstrap's own specificity and the day modifiers
+     (weekend / outside / today) keep overriding it as before. */
+  --bs-table-bg: var(--cal-day);
+}
+.calendar-table > :not(caption) > * > * {
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-left: 0;
+}
+.calendar-table tbody > tr:last-child > * {
+  border-bottom: 0;
+}
+.calendar-table > :not(caption) > * > *:last-child {
+  border-right: 0;
 }
 /* Leading ISO week-number column, shown on every calendar. */
 .calendar-table .week-number-head { width: 2.2rem; }
@@ -451,6 +676,9 @@ a.navbar-brand:hover span { color: var(--primary); }
 .calendar-table thead th {
   font-weight: 600;
   font-size: 0.7rem;
+  line-height: 1;
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
 }
 .calendar-day {
   min-width: 5rem;
@@ -466,7 +694,10 @@ a.navbar-brand:hover span { color: var(--primary); }
   background: var(--cal-outside) !important;
   color: var(--text-subtle);
 }
-.calendar-day--today {
+/* Scoped to .calendar-table for specificity: bare .calendar-day--today (0,1,0)
+   loses to Bootstrap's .table > :not(caption) > * > * (0,1,1), so the tint
+   never painted — only the border did. Weekend below gets there via :not(). */
+.calendar-table .calendar-day--today {
   border: 2px solid var(--primary) !important;
   background: var(--cal-today);
 }
@@ -516,6 +747,12 @@ a.navbar-brand:hover span { color: var(--primary); }
 .shift-chip--approved {
   background: rgba(var(--primary-rgb),.08);
   border: 1px solid rgba(var(--primary-rgb),.2);
+}
+/* The accent is a dark blue, so on a dark cell an 8%/20% tint of it all but
+   disappears — the chip needs to carry its own weight here. */
+[data-bs-theme="dark"] .shift-chip--approved {
+  background: rgba(var(--primary-rgb),.42);
+  border-color: rgba(var(--primary-rgb),.85);
 }
 .shift-chip--planned {
   background: color-mix(in srgb, var(--surface) 70%, transparent);
@@ -707,22 +944,91 @@ a.navbar-brand:hover span { color: var(--primary); }
 }
 
 /* ---- Buttons ---- */
+/* Gradient buttons. The fill is oversized and parked at one end, so hovering
+   just slides it across — cheap, and it animates rather than merely dimming.
+   Set through background-image (not the `background` shorthand) because the
+   shorthand resets background-size/position and would kill the travel. */
 .btn-primary {
-  background: var(--brand-gradient);
+  /* Primary at BOTH ends: travelling to a plain primary→secondary gradient's
+     far end lands on the pale logo blue, which washed the button out on hover.
+     Alternating keeps every position saturated. */
+  background-image: linear-gradient(135deg,
+                    var(--primary) 0%,
+                    var(--secondary) 50%,
+                    var(--primary) 100%);
+  /* Oversized on both axes so the travel below reads as diagonal, not a slide. */
+  background-size: 230% 230%;
+  background-position: 0% 0%;
   border: none;
   font-weight: 500;
+  transition: background-position .9s cubic-bezier(.22, .61, .36, 1),
+              box-shadow .35s ease;
 }
-.btn-primary:hover {
-  opacity: 0.9;
-  background: var(--brand-gradient);
+.btn-primary:hover,
+.btn-primary:focus-visible {
+  background-position: 100% 100%;
+  /* Backglow: a coloured halo behind the button, in both brand colours. */
+  box-shadow: 0 6px 24px -4px rgba(var(--primary-rgb), .65),
+              0 0 28px color-mix(in srgb, var(--secondary) 45%, transparent);
 }
+/* The outline variant fills with the same travelling gradient rather than a
+   flat colour — planning's Power Edit toggle is this in its inactive state and
+   .btn-primary once armed, so it behaves the same either way. */
 .btn-outline-primary {
   color: var(--primary);
   border-color: var(--primary);
+  background-size: 230% 230%;
+  background-position: 0% 0%;
+  transition: background-position .9s cubic-bezier(.22, .61, .36, 1),
+              color var(--transition-base), border-color var(--transition-base),
+              box-shadow .35s ease;
 }
-.btn-outline-primary:hover {
-  background: var(--primary);
+.btn-outline-primary:hover,
+.btn-outline-primary:focus-visible {
+  background-image: linear-gradient(135deg,
+                    var(--primary) 0%,
+                    var(--secondary) 50%,
+                    var(--primary) 100%);
+  background-position: 100% 100%;
   border-color: var(--primary);
+  color: var(--on-accent);
+  box-shadow: 0 6px 24px -4px rgba(var(--primary-rgb), .55),
+              0 0 28px color-mix(in srgb, var(--secondary) 38%, transparent);
+}
+
+/* Frontglow: a soft white highlight that sweeps across the face on hover,
+   deliberately weaker than the backglow above so it reads as a sheen on the
+   button rather than a second light source. Excluded from dropdown toggles,
+   whose ::after is Bootstrap's caret — and whose menu the overflow would clip. */
+.btn-primary:not(.dropdown-toggle),
+.btn-outline-primary:not(.dropdown-toggle) {
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary:not(.dropdown-toggle)::after,
+.btn-outline-primary:not(.dropdown-toggle)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg,
+              transparent 46%,
+              color-mix(in srgb, var(--on-accent) 10%, transparent) 50%,
+              transparent 54%);
+  transform: translateX(-125%);
+  transition: transform .9s cubic-bezier(.22, .61, .36, 1);
+  pointer-events: none;
+}
+.btn-primary:not(.dropdown-toggle):hover::after,
+.btn-primary:not(.dropdown-toggle):focus-visible::after,
+.btn-outline-primary:not(.dropdown-toggle):hover::after,
+.btn-outline-primary:not(.dropdown-toggle):focus-visible::after {
+  transform: translateX(125%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary,
+  .btn-outline-primary { transition: none; }
+  .btn-primary::after,
+  .btn-outline-primary::after { transition: none; opacity: 0; }
 }
 
 /* ---- Forms ---- */
@@ -1144,6 +1450,15 @@ a.setup-step--started:hover .setup-step__circle { background: var(--warning); bo
 .ring-selected {
   box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--primary) !important;
 }
+/* Separates the pinned BitGigs brand swatches from the rest of the palette
+   in the Settings → Display colour pickers. */
+.picker-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--border-strong);
+  margin: 0 0.45rem;
+  flex-shrink: 0;
+}
 .color-swatch {
   cursor: pointer;
   transition: box-shadow 0.15s ease, transform 0.15s ease;
@@ -1383,15 +1698,6 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
   background: var(--surface);
   border-color: var(--border) var(--border) var(--surface);
   color: var(--primary) !important;
-}
-/* Gradient tongue along the top edge of the active tab. */
-.settings-tabs .nav-link.active::after {
-  content: "";
-  position: absolute;
-  top: 0; left: 0.9rem; right: 0.9rem;
-  height: 3px;
-  border-radius: 0 0 3px 3px;
-  background: var(--brand-gradient);
 }
 .settings-pane {
   border-top-left-radius: 0;

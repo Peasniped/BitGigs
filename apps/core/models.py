@@ -140,10 +140,18 @@ class UserSettings(models.Model):
 
     accent_color = models.CharField(
         max_length=7,
-        default="#6366f1",
+        default="#0e61de",
         validators=[RegexValidator(r"^#[0-9a-fA-F]{6}$", "Enter a colour as #RRGGBB.")],
         help_text="The app's accent colour — buttons, links, tints and "
                   "gradients all follow it.",
+    )
+
+    secondary_color = models.CharField(
+        max_length=7,
+        default="#9fd6fb",
+        validators=[RegexValidator(r"^#[0-9a-fA-F]{6}$", "Enter a colour as #RRGGBB.")],
+        help_text="The gradient companion colour — pairs with the accent for "
+                  "buttons, tints and gradients.",
     )
 
     week_start = models.IntegerField(

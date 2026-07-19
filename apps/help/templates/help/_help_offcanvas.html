@@ -14,7 +14,6 @@
      data-article-url="{% url 'help:manual-article' 'SLUG' %}">
   <div class="offcanvas-header">
     <h5 class="offcanvas-title" id="helpOffcanvasLabel"><i class="bi bi-life-preserver me-2"></i>Help</h5>
-    <a class="btn btn-sm btn-outline-secondary ms-auto me-1" href="{% url 'help:manual' %}" data-help-manual-link><i class="bi bi-book me-1"></i>Full manual</a>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
   <div class="offcanvas-body">
@@ -52,5 +51,13 @@
       </button>
       <div data-help-content></div>
     </div>
+  </div>
+  {% comment %}Outside .offcanvas-body on purpose: the body scrolls, and this
+  should stay put at the bottom. help.js repoints the href at whichever article
+  is open, so keep data-help-manual-link on it.{% endcomment %}
+  <div class="help-offcanvas__footer">
+    <a class="btn btn-sm btn-primary" href="{% url 'help:manual' %}" data-help-manual-link>
+      <i class="bi bi-book me-1"></i>Full manual
+    </a>
   </div>
 </div>
