@@ -220,8 +220,8 @@ class UserSettingsForm(forms.ModelForm):
 
     # Tab slug → the fields that tab owns. Order here is the render order.
     TABS = {
-        "display": ["theme", "accent_color", "secondary_color", "week_start",
-                    "show_shift_type_colors", "show_help_button"],
+        "display": ["show_shift_type_colors", "show_help_button", "week_start",
+                    "theme", "accent_color", "secondary_color"],
         "analytics": ["projection_method", "projection_trailing_months",
                       "use_planned_shifts"],
     }

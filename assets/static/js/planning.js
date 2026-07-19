@@ -426,7 +426,12 @@
 
     if (wpId && dateStr && !isInPeriod(wpId, dateStr)) {
       chip.classList.add('shift-chip--prior-period');
-      chip.removeAttribute('draggable');
+      // Stays draggable so a drag *attempt* can be answered with the
+      // wrong-period warning instead of silently doing nothing.
+      chip.addEventListener('dragstart', function(e) {
+        e.preventDefault();
+        showChipPeriodWarning(wpId, dateStr);
+      });
       return;
     }
 
@@ -879,6 +884,22 @@
     document.getElementById('periodWarningTitle').textContent = 'Wrong payroll period';
     document.getElementById('periodWarningText').textContent = info.text;
     document.getElementById('periodWarningHint').textContent = info.hint;
+    var go = document.getElementById('periodWarningGoBtn');
+    document.getElementById('periodWarningGoBtnLabel').textContent = 'Go to ' + info.targetName;
+    go.href = '?year=' + info.targetYear + '&month=' + info.targetMonth;
+    go.style.display = '';
+    new bootstrap.Modal(document.getElementById('periodWarningModal')).show();
+  }
+
+  // Variant for dragging an existing chip that belongs to another payroll
+  // period — same modal, but worded for moving rather than planning.
+  function showChipPeriodWarning(wpId, dateStr) {
+    var info = outOfPeriodMessage(wpId, dateStr);
+    document.getElementById('periodWarningTitle').textContent = 'Wrong payroll period';
+    document.getElementById('periodWarningText').textContent =
+      'This shift belongs to the ' + info.targetName + ' payroll period, so it can’t be moved from here.';
+    document.getElementById('periodWarningHint').textContent =
+      'Switch the calendar to ' + info.targetName + ' to move or edit it.';
     var go = document.getElementById('periodWarningGoBtn');
     document.getElementById('periodWarningGoBtnLabel').textContent = 'Go to ' + info.targetName;
     go.href = '?year=' + info.targetYear + '&month=' + info.targetMonth;

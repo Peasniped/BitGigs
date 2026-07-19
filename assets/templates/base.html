@@ -91,10 +91,10 @@
                data-bs-toggle="dropdown"><i class="bi bi-three-dots me-1"></i>More</a>
             <ul class="dropdown-menu dropdown-menu-end">
               <li><a class="dropdown-item" href="{% url 'payroll:period-list' %}"><i class="bi bi-cash-stack me-2"></i>Payroll</a></li>
-              <li><a class="dropdown-item" href="{% url 'payroll:commuting-list' %}"><i class="bi bi-bus-front me-2"></i>Commuting</a></li>
               <li><a class="dropdown-item" href="{% url 'payroll:vacation-overview' %}"><i class="bi bi-sun me-2"></i>Vacation</a></li>
-              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'payroll:commuting-list' %}"><i class="bi bi-bus-front me-2"></i>Commuting</a></li>
               <li><a class="dropdown-item" href="{% url 'core:taxprofile-list' %}"><i class="bi bi-percent me-2"></i>Tax Profiles</a></li>
+              <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="{% url 'core:settings' %}"><i class="bi bi-gear me-2"></i>Settings</a></li>
               <li><a class="dropdown-item" href="{% url 'data_io:main' %}"><i class="bi bi-arrow-left-right me-2"></i>Import / Export</a></li>
               <li>
@@ -112,10 +112,17 @@
                 <form method="post" action="{% url 'core:set-theme' %}" class="m-0">
                   {% csrf_token %}
                   <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                  {% comment %}
+                    The button previews the theme it switches to: data-bs-theme
+                    scoped on it re-resolves the base tokens locally (the token
+                    blocks in style.css match [data-bs-theme] anywhere, not just
+                    <html>), so the Dark button renders on dark surfaces and the
+                    Light one on light — a little swatch of where you're going.
+                  {% endcomment %}
                   {% if theme == 'dark' %}
-                  <button type="submit" name="theme" value="light" class="dropdown-item"><i class="bi bi-sun me-2"></i>Light mode</button>
+                  <button type="submit" name="theme" value="light" class="dropdown-item theme-switch-item" data-bs-theme="light"><i class="bi bi-sun me-2"></i>Light mode</button>
                   {% else %}
-                  <button type="submit" name="theme" value="dark" class="dropdown-item"><i class="bi bi-moon-stars me-2"></i>Dark mode</button>
+                  <button type="submit" name="theme" value="dark" class="dropdown-item theme-switch-item" data-bs-theme="dark"><i class="bi bi-moon-stars me-2"></i>Dark mode</button>
                   {% endif %}
                 </form>
                 {% endif %}

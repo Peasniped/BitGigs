@@ -23,8 +23,8 @@ menu for everything else.
 | Item | What's there |
 |---|---|
 | **Payroll** | Estimated payslips per period. |
-| **Commuting** | Commuting days for the transport deduction. |
 | **Vacation** | Accrued holiday pay across workplaces. |
+| **Commuting** | Commuting days for the transport deduction. |
 | **Tax Profiles** | Your date-versioned tax numbers. |
 | **Settings** | Display, analytics, email and sign-in preferences. |
 | **Import / Export** | Backups and data migration. |

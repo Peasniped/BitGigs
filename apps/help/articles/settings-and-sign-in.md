@@ -11,6 +11,7 @@ pages: [core:settings]
 ---
 ## Display preferences
 
+- **Colour shifts by type** — tint calendar chips by shift type.
 - **[Theme](/settings/?tab=display#div_id_theme)** — Light, Dark, or **Auto**
   (follows your operating system, switching live when it does). There's also a
   one-tap **Dark mode / Light mode** toggle in the **More** menu; while Auto is
@@ -21,7 +22,6 @@ pages: [core:settings]
   page previews the colour live, and **Save** makes it stick. *Reset to
   default* returns to BitGigs indigo. (Charts keep their fixed
   actual/planned/projected colours so their meaning never changes.)
-- **Colour shifts by type** — tint calendar chips by shift type.
 - **Use planned shifts** — let analytics project future months from your
   planned shifts (on by default).
 

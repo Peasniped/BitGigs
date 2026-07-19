@@ -8,7 +8,13 @@
    Never hardcode a hex outside these blocks (per-workplace accent colors are
    DB data and stay inline where they come from).
    ========================================================================== */
-:root {
+/* [data-bs-theme="light"] rides along so an element can opt *into* the light
+   tokens from inside a dark page (the More menu's theme-toggle chip) — the
+   mirror of how the dark block below already matches any element. Caveat: a
+   scoped light element re-declares --primary/--secondary, so it ignores a
+   custom accent set inline on <html>; fine for the toggle chip, but don't
+   scope-theme anything accent-critical. */
+:root, [data-bs-theme="light"] {
   color-scheme: light;
   /* Brand — dark/light blue lifted from the app logo. Primary and secondary
      are independently user-configurable (Settings → Display); base.html
@@ -131,7 +137,7 @@
    work. One mapping serves both themes: the values flip because our base
    tokens flip. Declared after Bootstrap's CSS, so it wins the cascade.
    ========================================================================== */
-:root, [data-bs-theme="dark"] {
+:root, [data-bs-theme="light"], [data-bs-theme="dark"] {
   --bs-body-bg: var(--canvas);
   --bs-body-color: var(--text);
   --bs-heading-color: var(--text);
@@ -456,6 +462,19 @@ a.navbar-brand:hover span { color: var(--primary); }
   border: 0;
   padding: calc(0.25rem + 1px);
 }
+/* The pill's own padding ring (and border) sits outside the link, so hovering
+   there played the fill animation while a click landed on the <ul> and did
+   nothing. A ::before overlay (not ::after — on a .dropdown-toggle that's the
+   caret) grows the link's hit area to cover the whole pill. */
+.nav-pill--menu .nav-link {
+  position: relative;
+}
+.nav-pill--menu .nav-link::before {
+  content: "";
+  position: absolute;
+  inset: calc(-0.25rem - 1px);
+  border-radius: 999px;
+}
 /* The link stays see-through so the pill's fill is what shows. */
 .nav-pill--menu .nav-link:hover,
 .nav-pill--menu .nav-link:focus-visible,
@@ -481,6 +500,27 @@ a.navbar-brand:hover span { color: var(--primary); }
   border-radius: 0.5rem;
 }
 .dropdown-item { font-size: 0.875rem; }
+/* More-menu theme toggle: a bordered chip painted with the *target* theme's
+   tokens (data-bs-theme is scoped on the button itself, see base.html), so
+   "Dark mode" is a dark swatch on the light menu and vice versa. Bordered and
+   inset so the opposite-theme surface reads as deliberate, not as a stuck
+   hover state. */
+.theme-switch-item {
+  width: calc(100% - 1rem);
+  margin: 0.125rem 0.5rem;
+  padding: 0.3rem 0.75rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  transition: background var(--transition-base), border-color var(--transition-base);
+}
+.theme-switch-item:hover,
+.theme-switch-item:focus {
+  background: var(--bg-light);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
 
 /* ---- Cards ---- */
 .card {

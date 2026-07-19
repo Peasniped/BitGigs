@@ -58,13 +58,21 @@
 .planning-calendar .calendar-day.in-period-highlight { background:rgba(var(--success-rgb),.06) !important; outline:2px dashed rgba(var(--success-rgb),.35); outline-offset:-2px; }
 .planning-calendar .calendar-day.in-period-highlight.drag-over { background:rgba(var(--success-rgb),.14) !important; outline:2px solid rgba(var(--success-rgb),.5); outline-offset:-2px; }
 
-/* Prior-period shift chips: greyed out, not interactive */
+/* Prior-period shift chips: greyed out; clicks do nothing, but a drag
+   attempt is caught in planning.js and answered with the wrong-period
+   warning modal — which needs pointer events to reach the chip. */
 .shift-chip--prior-period {
   opacity: 0.45;
   cursor: default !important;
-  pointer-events: none;
   filter: grayscale(0.6);
 }
+/* …but without the --planned hover affordances (tint, pencil, mode outlines):
+   clicks still do nothing, so the chip must not look clickable. */
+.shift-chip--planned.shift-chip--prior-period:hover {
+  background: transparent;
+  outline: none !important;
+}
+.shift-chip--prior-period:hover .shift-chip__edit { opacity: 0; }
 
 /* Days outside all workplace periods: no hover/plus, grey tint */
 .planning-calendar .planning-day--no-create { cursor: default; background: var(--bg-lighter) !important; }
