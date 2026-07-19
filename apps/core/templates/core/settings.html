@@ -31,6 +31,12 @@
         </a>
       </li>
       <li class="nav-item">
+        <a class="nav-link{% if active_tab == 'api' %} active{% endif %}"
+           href="?tab=api{% if next_url %}&next={{ next_url|urlencode }}{% endif %}">
+          <i class="bi bi-braces me-1"></i>API
+        </a>
+      </li>
+      <li class="nav-item">
         <a class="nav-link{% if active_tab == 'signin' %} active{% endif %}"
            href="?tab=signin{% if next_url %}&next={{ next_url|urlencode }}{% endif %}">
           <i class="bi bi-shield-check me-1"></i>Sign-in
@@ -428,6 +434,9 @@ OIDC_CLIENT_SECRET=</code></pre>
       </div>
     </div>
 
+    {% elif active_tab == 'api' %}
+    {% include "api/_settings_tab.html" %}
+
     {% else %}
     <div class="card settings-pane">
       <div class="card-body">
@@ -541,6 +550,7 @@ OIDC_CLIENT_SECRET=</code></pre>
 <script src="{% static 'js/password_checklist.js' %}"></script>
 <script src="{% static 'js/settings.js' %}"></script>
 <script src="{% static 'js/email_settings.js' %}"></script>
+<script src="{% static 'js/api_settings.js' %}"></script>
 {% if open_password_modal %}
   {% comment %} The submit failed validation — reopen the modal so the errors are visible. {% endcomment %}
   <script>new bootstrap.Modal(document.getElementById("passwordModal")).show();</script>

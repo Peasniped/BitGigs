@@ -1,0 +1,220 @@
+{% comment %}
+  Settings → API pane. Included by core/settings.html; context comes from
+  api.views.api_settings_context. Driven by js/api_settings.js (guarded by
+  [data-api-settings]).
+{% endcomment %}
+<div class="card settings-pane">
+  <div class="card-body" data-api-settings>
+
+    <div class="fw-medium">API access</div>
+    <p class="form-text mb-3">
+      Read your BitGigs data from scripts and other tools. Every request needs
+      an API key, sent as <code>Authorization: Bearer bg_…</code> — create one
+      below, give it only the access it needs, and revoke it when it's done.
+    </p>
+
+    {% if api_new_key %}
+    {% comment %}
+      One-time reveal: the key rode the session across the redirect and was
+      popped on render — reloading this page will not show it again.
+    {% endcomment %}
+    <div class="alert alert-success" data-new-key-panel>
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <i class="bi bi-key-fill"></i>
+        <span class="fw-semibold">Your new API key</span>
+      </div>
+      <div class="input-group">
+        <input type="text" class="form-control font-monospace" value="{{ api_new_key.key }}"
+               id="apiNewKeyValue" readonly spellcheck="false" aria-label="New API key">
+        <button type="button" class="btn btn-primary" data-copy-target="apiNewKeyValue">
+          <i class="bi bi-clipboard me-1"></i>Copy
+        </button>
+      </div>
+      <div class="form-text mt-2 mb-0">
+        <i class="bi bi-exclamation-triangle me-1"></i>Copy it now — this is the
+        only time it will ever be shown. If you lose it, revoke this key and
+        create a new one.
+      </div>
+    </div>
+    {% endif %}
+
+    {% comment %} ── Existing keys ─────────────────────────────────────────── {% endcomment %}
+    <div class="fw-medium mb-2">Your keys</div>
+    {% if api_keys %}
+    <div class="table-responsive mb-3">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Key</th>
+            <th>Access</th>
+            <th>Expires</th>
+            <th>Last used</th>
+            <th class="text-end"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for key in api_keys %}
+          <tr>
+            <td>
+              {{ key.name }}
+              {% if key.just_created %}<span class="badge-soft text-success ms-1">New</span>{% endif %}
+            </td>
+            <td class="font-monospace small">{{ key.prefix }}…</td>
+            <td class="small">
+              {% if key.has_all_scopes %}All endpoints{% else %}{{ key.scopes|join:", " }}{% endif %}
+            </td>
+            <td class="small">
+              {% if key.expires_at %}{{ key.expires_at }}{% else %}Never{% endif %}
+            </td>
+            <td class="small">
+              {% if key.last_used_at %}{{ key.last_used_at }}{% else %}Never{% endif %}
+            </td>
+            <td class="text-end">
+              {% if key.is_revoked %}
+                <span class="badge text-bg-secondary me-1">Revoked</span>
+              {% elif key.is_expired %}
+                <span class="badge text-bg-warning me-1">Expired</span>
+              {% else %}
+                <span class="badge text-bg-success me-1">Active</span>
+              {% endif %}
+              {% if key.is_active %}
+                <form method="post" action="{% url 'api:key-revoke' key.pk %}" class="d-inline"
+                      data-confirm="Revoke “{{ key.name }}”? Anything using it stops working immediately.">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-outline-danger btn-sm">Revoke</button>
+                </form>
+              {% else %}
+                <form method="post" action="{% url 'api:key-delete' key.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-outline-secondary btn-sm" title="Remove from this list">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="form-text">No API keys yet.</p>
+    {% endif %}
+
+    {% comment %} ── Create key ────────────────────────────────────────────── {% endcomment %}
+    <hr class="my-4">
+    <div class="fw-medium mb-2">Create a key</div>
+    <form method="post" action="{% url 'api:key-create' %}">
+      {% csrf_token %}
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <label for="apiKeyName" class="form-label fw-medium">Name</label>
+          <input type="text" class="form-control" id="apiKeyName" name="name"
+                 maxlength="100" required placeholder="e.g. Home Assistant"
+                 autocomplete="off">
+          <div class="form-text">A nickname so you can tell your keys apart.</div>
+        </div>
+        <div class="col-12 col-md-6">
+          <label for="apiKeyExpiry" class="form-label fw-medium">Expiration date</label>
+          <input type="date" class="form-control" id="apiKeyExpiry" name="expires_at">
+          <div class="form-text">Optional — leave blank for a key that never expires.</div>
+        </div>
+      </div>
+
+      <div class="mt-3">
+        <span class="form-label fw-medium d-block">Access</span>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="scope_mode" value="all"
+                 id="apiScopeAll" checked>
+          <label class="form-check-label" for="apiScopeAll">
+            All endpoints <span class="form-text">(including ones added in future versions)</span>
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="scope_mode" value="selected"
+                 id="apiScopeSelected">
+          <label class="form-check-label" for="apiScopeSelected">Only selected endpoints</label>
+        </div>
+        <div class="ms-4 mt-1" data-scope-list hidden>
+          {% for ep in api_scope_choices %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="scopes" value="{{ ep.id }}"
+                   id="apiScope-{{ ep.id }}">
+            <label class="form-check-label" for="apiScope-{{ ep.id }}">
+              <span class="fw-medium">{{ ep.title }}</span>
+              <span class="form-text d-block">{{ ep.description }}</span>
+            </label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary mt-3">
+        <i class="bi bi-plus-lg me-1"></i>Create key
+      </button>
+    </form>
+
+    {% comment %} ── Endpoint docs + sample requests ───────────────────────── {% endcomment %}
+    <hr class="my-4">
+    <div class="fw-medium mb-1">Endpoints</div>
+    <p class="form-text mb-3">
+      Each endpoint below shows a ready-to-run Python example — paste in your
+      key and go. All endpoints answer JSON; amounts are strings in DKK with a
+      dot decimal separator.
+    </p>
+
+    <div class="accordion" id="apiEndpointDocs">
+      {% for item in api_endpoints %}
+      <div class="accordion-item">
+        <h2 class="accordion-header">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                  data-bs-target="#apiEp-{{ item.endpoint.id }}">
+            <code class="me-2">GET {{ item.endpoint.path }}</code> {{ item.endpoint.title }}
+          </button>
+        </h2>
+        <div id="apiEp-{{ item.endpoint.id }}" class="accordion-collapse collapse"
+             data-bs-parent="#apiEndpointDocs">
+          <div class="accordion-body">
+            <p class="form-text mt-0">{{ item.endpoint.description }}</p>
+
+            {% if item.endpoint.params %}
+            <div class="table-responsive">
+              <table class="table table-sm mb-3">
+                <thead>
+                  <tr><th>Parameter</th><th>Example</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {% for p in item.endpoint.params %}
+                  <tr>
+                    <td><code>{{ p.name }}</code>{% if p.required %} <span class="text-danger">*</span>{% endif %}</td>
+                    <td><code>{{ p.example }}</code></td>
+                    <td class="small">{{ p.description }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% endif %}
+
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="fw-medium small">Sample request (Python)</span>
+              <button type="button" class="btn btn-outline-secondary btn-sm"
+                      data-copy-target="apiSample-{{ item.endpoint.id }}">
+                <i class="bi bi-clipboard me-1"></i>Copy
+              </button>
+            </div>
+            <pre class="settings-env small mb-0"><code id="apiSample-{{ item.endpoint.id }}">{{ item.sample }}</code></pre>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <p class="form-text mt-3 mb-0">
+      There is also a ready-made command-line client in the repository:
+      <code>python scripts/api_client.py --key bg_… income --year 2026</code>.
+    </p>
+
+  </div>
+</div>

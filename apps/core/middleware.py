@@ -12,6 +12,10 @@ def _is_onboarding_flow_url(path):
         "/favicon",
         "/accounts/",
         "/sso/",
+        # API requests answer with JSON, never with a redirect into the wizard —
+        # the /api/v1/ endpoints do their own key auth, and the key-management
+        # POSTs are harmless mid-onboarding.
+        "/api/",
     ))
 
 
@@ -33,7 +37,7 @@ class OnboardingRequiredMiddleware:
         if not request.user.is_authenticated:
             from django.contrib.auth.models import User
             if (not request.path.startswith(("/onboarding/account/", "/accounts/oidc/", "/sso/",
-                                             "/static/", "/media/", "/favicon"))
+                                             "/static/", "/media/", "/favicon", "/api/v1/"))
                     and not User.objects.exists()):
                 return redirect(reverse("core:onboarding-account"))
             # Otherwise anonymous requests are LoginRequiredMiddleware's job;

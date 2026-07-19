@@ -34,6 +34,7 @@ urlpatterns = [
     path("data/", include("data_io.urls")),
     path("analytics/", include("analytics.urls")),
     path("help/", include("help.urls")),
+    path("api/", include("api.urls")),
 ]
 
 if settings.DEBUG:

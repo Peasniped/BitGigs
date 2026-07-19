@@ -19,6 +19,7 @@ from .models import EmailSettings, TaxProfile, UserSettings
 from .forms import EmailSettingsForm, TaxProfileForm, UserSettingsForm
 from .utils import avatar_for_name, parse_int_param, prev_next_month
 from .dashboard_service import DashboardDataService, get_pending_shifts, get_todays_banner
+from api.views import api_settings_context
 
 
 class DashboardView(View):
@@ -193,6 +194,7 @@ class UserSettingsView(View):
             **sign_in_context(request.user),
             # Only the Email tab touches the EmailSettings row.
             **(email_context() if tab == "email" else {}),
+            **(api_settings_context(request) if tab == "api" else {}),
         })
 
     def post(self, request):
@@ -212,6 +214,7 @@ class UserSettingsView(View):
             **sign_in_context(request.user),
             # Only the Email tab touches the EmailSettings row.
             **(email_context() if tab == "email" else {}),
+            **(api_settings_context(request) if tab == "api" else {}),
         })
 
 
@@ -235,7 +238,7 @@ class SetThemeView(View):
 # set is wider than UserSettingsForm.TABS. Sign-in is offered even without an IdP
 # configured — that is where the password lives, and where we explain how to turn
 # SSO on.
-SETTINGS_TABS = ("display", "analytics", "email", "signin")
+SETTINGS_TABS = ("display", "analytics", "email", "api", "signin")
 
 
 def active_settings_tab(raw):

@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     "data_io.apps.DataIoConfig",
     "analytics.apps.AnalyticsConfig",
     "help.apps.HelpConfig",
+    "api.apps.ApiConfig",
 ]
 
 MIDDLEWARE = [
