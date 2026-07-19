@@ -227,7 +227,9 @@ body.fast-create-stamp .wp-card { cursor: pointer; }
 }
 .power-toolbar__btn.active {
   background: rgba(255,255,255,.85);
-  color: var(--primary-strong);
+  /* The glass stays white in dark mode too, so this must not flip to the dark
+     theme's lightened --primary-strong — derive the dark ink directly. */
+  color: color-mix(in oklch, var(--primary) 85%, black);
   border-color: #fff;
   box-shadow: 0 2px 10px rgba(255,255,255,.3);
 }

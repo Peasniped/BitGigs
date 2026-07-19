@@ -17,8 +17,9 @@
   --primary-tint:   color-mix(in srgb, var(--primary) 9%, var(--surface));
   --primary-border: color-mix(in srgb, var(--primary) 35%, var(--surface));
   --primary-strong: color-mix(in oklch, var(--primary) 85%, black);
-  /* Surfaces */
-  --canvas: #f5f7fa;
+  /* Surfaces — the canvas carries a whisper of the accent so cards visibly
+     sit on something instead of white-on-near-white */
+  --canvas: color-mix(in srgb, var(--primary) 4%, #f6f7fb);
   --surface: #fff;
   --bg-light: #f8fafc;  --bg-lighter: #f1f5f9;
   --border: #e2e8f0;  --border-strong: #cbd5e1;
@@ -132,6 +133,8 @@
   --bs-info-bg-subtle: var(--info-tint);
   --bs-info-border-subtle: color-mix(in srgb, var(--info) 35%, var(--surface));
   --bs-info-text-emphasis: var(--info-strong);
+  /* Focus rings follow the accent */
+  --bs-focus-ring-color: rgba(var(--primary-rgb), .25);
   /* Form validation states */
   --bs-form-valid-color: var(--success);
   --bs-form-valid-border-color: var(--success);
@@ -228,6 +231,14 @@ h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
   border-bottom: 1px solid var(--border);
   box-shadow: 0 1px 2px rgba(var(--shadow-rgb),.04);
 }
+/* Brand hairline across the very top of the app. */
+.navbar::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--brand-gradient);
+}
 .navbar-brand {
   font-weight: 700;
   font-size: 1.25rem;
@@ -304,6 +315,8 @@ a.navbar-brand:hover span { color: var(--primary); }
 
 /* ---- Stat cards ---- */
 .stat-card {
+  position: relative;
+  overflow: hidden;
   border-radius: var(--card-radius);
   padding: 0.85rem 0.5rem;
   background: var(--surface);
@@ -312,7 +325,17 @@ a.navbar-brand:hover span { color: var(--primary); }
   transition: all var(--transition-base);
   text-align: center;
 }
+/* Gradient top strip — the stat row's colour moment. */
+.stat-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--brand-gradient);
+  opacity: .9;
+}
 .stat-card:hover { box-shadow: var(--card-hover-shadow); transform: translateY(-2px); }
+.stat-card:hover .stat-card__value { color: var(--primary); }
 .stat-card__label {
   font-size: 0.7rem;
   font-weight: 600;
@@ -353,8 +376,8 @@ a.navbar-brand:hover span { color: var(--primary); }
 }
 
 .today-shift-banner {
-  background: linear-gradient(135deg, var(--info-tint) 0%, color-mix(in srgb, var(--info) 5%, var(--surface)) 100%);
-  border: 1px solid color-mix(in srgb, var(--info) 25%, var(--surface));
+  background: linear-gradient(135deg, var(--primary-tint) 0%, color-mix(in srgb, var(--primary) 4%, var(--surface)) 100%);
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--surface));
   border-radius: var(--card-radius);
   padding: 0.85rem 1rem;
 }
@@ -369,14 +392,15 @@ a.navbar-brand:hover span { color: var(--primary); }
   border-color: color-mix(in srgb, var(--success) 35%, var(--surface));
 }
 /* Overlapping workplace avatars ring in the banner's own surface colour. */
-.today-shift-banner__avatar { border: 2px solid var(--info-tint); }
-.today-shift-banner__title { font-size: 0.95rem; color: var(--info-strong); }
-.today-shift-banner__sub { color: color-mix(in srgb, var(--info-strong) 50%, var(--info)); }
+.today-shift-banner__avatar { border: 2px solid var(--primary-tint); }
+.today-shift-banner__title { font-size: 0.95rem; color: var(--primary-strong); }
+.today-shift-banner__sub { color: color-mix(in srgb, var(--primary-strong) 55%, var(--primary)); }
 
 /* "N shifts to approve" alert on the dashboard / workplace detail. */
 .approve-success-banner {
   background: var(--success-tint);
   color: var(--success-strong);
+  border-left: 3px solid var(--success) !important; /* border-0 sits on the element */
 }
 
 /* ---- Workplace accent banner on detail page ---- */
@@ -670,7 +694,12 @@ a.navbar-brand:hover span { color: var(--primary); }
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
-  border-bottom: 2px solid var(--border);
+  border-bottom: 2px solid var(--border-strong);
+}
+/* Row hover leans accent instead of Bootstrap's neutral gray. */
+.table-hover {
+  --bs-table-hover-bg: rgba(var(--primary-rgb), .05);
+  --bs-table-hover-color: var(--text);
 }
 
 /* ---- Buttons ---- */
@@ -1040,6 +1069,17 @@ a.setup-step--started:hover .setup-step__circle { background: var(--warning); bo
   color: var(--text-subtle);
   margin-bottom: 0.75rem;
 }
+/* Small gradient dash in front of every section title. */
+.section-title::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--brand-gradient);
+  margin-right: 0.4rem;
+  vertical-align: 0.18em;
+}
 
 /* ---- Narrow numeric inputs ---- */
 .input-group .dk-number {
@@ -1334,10 +1374,20 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
   border-color: transparent;
   color: var(--text) !important;
 }
+.settings-tabs .nav-link { position: relative; }
 .settings-tabs .nav-link.active {
   background: var(--surface);
   border-color: var(--border) var(--border) var(--surface);
   color: var(--primary) !important;
+}
+/* Gradient tongue along the top edge of the active tab. */
+.settings-tabs .nav-link.active::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0.9rem; right: 0.9rem;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--brand-gradient);
 }
 .settings-pane {
   border-top-left-radius: 0;
