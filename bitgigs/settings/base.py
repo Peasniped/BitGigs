@@ -39,6 +39,12 @@ ALLOWED_HOSTS = (
     else []
 )
 
+# Only set this behind a reverse proxy you control: it makes rate limiting read
+# the client IP from X-Forwarded-For (set by the proxy) instead of REMOTE_ADDR
+# (which would be the proxy itself). Off by default because the header is
+# client-supplied and therefore spoofable when no proxy strips it.
+TRUST_PROXY_IP = os.environ.get("DJANGO_TRUST_PROXY_IP", "").lower() in ("1", "true", "yes", "on")
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",

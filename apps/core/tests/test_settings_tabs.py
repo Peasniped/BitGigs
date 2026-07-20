@@ -1,5 +1,5 @@
 from django.contrib.auth.models import User
-from django.test import TestCase, override_settings
+from django.test import TestCase
 
 from core.models import UserSettings
 

@@ -1,4 +1,4 @@
-﻿import json
+import json
 from datetime import date, time
 from decimal import Decimal
 
@@ -10,13 +10,19 @@ from django.utils import timezone
 
 from core.services import TaxCalculationService
 from workplaces.models import Workplace
-from workplaces.services import workplaces_active_today, workplaces_active_in_period, hidden_workplace_count
+from workplaces.services import workplaces_active_in_period, hidden_workplace_count
 from shifts.models import PlannedShift, Shift
 from core.utils import (
     avatar_for_name, parse_int_param, parse_iso_date_param, parse_iso_time_param,
     prev_next_month,
 )
 from .services import CalendarService, approve_planned_shifts
+
+
+def _valid_shift_type(value):
+    """Guard for shift_type strings arriving via the JSON APIs — objects are
+    saved without full_clean() here, so choice validation must happen by hand."""
+    return value in Shift.ShiftType.values
 
 
 class MonthCalendarView(View):
@@ -230,6 +236,8 @@ class PlannedShiftAPIView(View):
 
         if not all([workplace_id, shift_date, start_time_str, end_time_str]):
             return JsonResponse({"ok": False, "error": "Missing required fields."}, status=400)
+        if not _valid_shift_type(shift_type):
+            return JsonResponse({"ok": False, "error": "Unknown shift type."}, status=400)
 
         workplace = get_object_or_404(Workplace, pk=workplace_id)
         parsed_date = parse_iso_date_param(shift_date)
@@ -293,6 +301,8 @@ class PlannedShiftUpdateAPIView(View):
         if "break_minutes" in data:
             shift.break_minutes = parse_int_param(data["break_minutes"], 0)
         if "shift_type" in data:
+            if not _valid_shift_type(data["shift_type"]):
+                return JsonResponse({"ok": False, "error": "Unknown shift type."}, status=400)
             shift.shift_type = data["shift_type"]
         if "notes" in data:
             shift.notes = data["notes"]
@@ -352,18 +362,18 @@ class BulkDeleteShiftsView(View):
             return JsonResponse({"ok": True, "deleted": count})
 
         # Workplace/period deletion (original behaviour)
-        workplace_id = data.get("workplace_id")
-        period_start = data.get("period_start")
-        period_end = data.get("period_end")
+        workplace_id = parse_int_param(data.get("workplace_id"))
+        period_start = parse_iso_date_param(data.get("period_start"))
+        period_end = parse_iso_date_param(data.get("period_end"))
 
-        if not all([workplace_id, period_start, period_end]):
-            return JsonResponse({"ok": False, "error": "Missing required fields."}, status=400)
+        if workplace_id is None or period_start is None or period_end is None:
+            return JsonResponse({"ok": False, "error": "Missing or invalid fields."}, status=400)
 
         shifts = PlannedShift.objects.filter(
-            workplace_id=int(workplace_id),
+            workplace_id=workplace_id,
             status=PlannedShift.Status.PLANNED,
-            date__gte=date.fromisoformat(period_start),
-            date__lte=date.fromisoformat(period_end),
+            date__gte=period_start,
+            date__lte=period_end,
         )
         count = shifts.count()
         shifts.delete()
@@ -393,10 +403,13 @@ class DefaultShiftAPIView(View):
         end = data.get("end_time", "")
         if (start and parse_iso_time_param(start) is None) or (end and parse_iso_time_param(end) is None):
             return JsonResponse({"ok": False, "error": "Invalid time."}, status=400)
+        shift_type = data.get("shift_type", "on_site") or "on_site"
+        if not _valid_shift_type(shift_type):
+            return JsonResponse({"ok": False, "error": "Unknown shift type."}, status=400)
         wp.default_shift_start_time = parse_iso_time_param(start) if start else None
         wp.default_shift_end_time = parse_iso_time_param(end) if end else None
         wp.default_shift_break_minutes = parse_int_param(data.get("break_minutes"), 0) or 0
-        wp.default_shift_type = data.get("shift_type", "on_site") or "on_site"
+        wp.default_shift_type = shift_type
         wp.save(update_fields=["default_shift_start_time", "default_shift_end_time", "default_shift_break_minutes", "default_shift_type"])
         return JsonResponse({"ok": True})
 
@@ -597,6 +610,8 @@ class ApprovedShiftUpdateAPIView(View):
         if "break_minutes" in data:
             session.break_minutes = parse_int_param(data["break_minutes"], 0)
         if "shift_type" in data:
+            if not _valid_shift_type(data["shift_type"]):
+                return JsonResponse({"ok": False, "error": "Unknown shift type."}, status=400)
             session.shift_type = data["shift_type"]
         if "notes" in data:
             session.notes = data["notes"]

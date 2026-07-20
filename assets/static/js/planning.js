@@ -398,7 +398,7 @@
     } else if (wp && wp.icon) {
       avatarHtml = '<i class="bi ' + wp.icon + '"></i>';
     } else {
-      avatarHtml = (wp ? (wp.initials ? wp.initials.charAt(0) : wp.name.charAt(0)) : '?');
+      avatarHtml = escapeHtml(wp ? (wp.initials ? wp.initials.charAt(0) : wp.name.charAt(0)) : '?');
     }
     var breakHtml = s.break_minutes ? '<i class="bi bi-cup-hot shift-chip__break" title="Includes a break"></i>' : '';
     var typeHtml = '';
@@ -409,7 +409,7 @@
       typeHtml = '<span class="shift-chip__type" title="' + (s.shift_type_display || '') + '">' + symInner + '</span>';
     }
     div.innerHTML =
-      '<span class="shift-chip__avatar" style="background:' + (wp && wp.color ? wp.color : 'var(--primary)') + ';">' + avatarHtml + '</span>' +
+      '<span class="shift-chip__avatar" style="background:' + (wp && wp.color ? escapeHtml(wp.color) : 'var(--primary)') + ';">' + avatarHtml + '</span>' +
       '<small class="shift-chip__time">' + s.start_time + '-' + s.end_time + '</small>' +
       '<small class="shift-chip__hours">(' + toDanish(s.net_hours) + 'h)</small>' +
       breakHtml + typeHtml +
@@ -764,9 +764,9 @@
       ind.className = 'day-wp-indicator';
       ind.style.background = wp.color || 'var(--primary)';
       if (wp.custom_icon_url) {
-        ind.innerHTML = '<img src="' + wp.custom_icon_url + '" alt="">';
+        ind.innerHTML = '<img src="' + escapeHtml(wp.custom_icon_url) + '" alt="">';
       } else if (wp.icon) {
-        ind.innerHTML = '<i class="bi ' + wp.icon + '" style="font-size:0.5rem;"></i>';
+        ind.innerHTML = '<i class="bi ' + escapeHtml(wp.icon) + '" style="font-size:0.5rem;"></i>';
       } else {
         ind.textContent = wp.initials;
       }
@@ -1032,15 +1032,16 @@
       var rgb = accent && hexToRgb(accent);
       btn.style.background = rgb ? 'rgba(' + rgb + ',0.15)' : 'rgba(var(--primary-rgb),0.15)';
 
+      var avatarBg = wp.color ? escapeHtml(wp.color) : 'var(--primary)';
       var avatarHtml;
       if (wp.custom_icon_url) {
-        avatarHtml = '<span class="wp-picker__avatar" style="background:' + (wp.color || 'var(--primary)') + ';"><img src="' + wp.custom_icon_url + '" alt=""></span>';
+        avatarHtml = '<span class="wp-picker__avatar" style="background:' + avatarBg + ';"><img src="' + escapeHtml(wp.custom_icon_url) + '" alt=""></span>';
       } else if (wp.icon) {
-        avatarHtml = '<span class="wp-picker__avatar" style="background:' + (wp.color || 'var(--primary)') + ';"><i class="bi ' + wp.icon + '" style="font-size:0.55rem;"></i></span>';
+        avatarHtml = '<span class="wp-picker__avatar" style="background:' + avatarBg + ';"><i class="bi ' + escapeHtml(wp.icon) + '" style="font-size:0.55rem;"></i></span>';
       } else {
-        avatarHtml = '<span class="wp-picker__avatar" style="background:' + (wp.color || 'var(--primary)') + ';">' + wp.initials + '</span>';
+        avatarHtml = '<span class="wp-picker__avatar" style="background:' + avatarBg + ';">' + escapeHtml(wp.initials) + '</span>';
       }
-      btn.innerHTML = avatarHtml + '<span>' + wp.name + '</span>';
+      btn.innerHTML = avatarHtml + '<span>' + escapeHtml(wp.name) + '</span>';
       btn.addEventListener('click', function(e) {
         e.stopPropagation();
         hideWpPicker();
@@ -1176,9 +1177,9 @@
     var avatar = document.getElementById('shiftModalAvatar');
     avatar.style.background = wp.color || 'var(--primary)';
     if (wp.custom_icon_url) {
-      avatar.innerHTML = '<img src="' + wp.custom_icon_url + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
+      avatar.innerHTML = '<img src="' + escapeHtml(wp.custom_icon_url) + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
     } else if (wp.icon) {
-      avatar.innerHTML = '<i class="bi ' + wp.icon + '" style="font-size:0.7rem;"></i>';
+      avatar.innerHTML = '<i class="bi ' + escapeHtml(wp.icon) + '" style="font-size:0.7rem;"></i>';
     } else {
       avatar.textContent = wp.initials;
     }
@@ -1392,9 +1393,9 @@
     if (!wp) return;
     defWorkplaceId = wpId;
     var banner = document.getElementById('defBanner');
-    banner.innerHTML = '<span class="wp-avatar" style="background:' + (wp.color||'var(--primary)') +
+    banner.innerHTML = '<span class="wp-avatar" style="background:' + (wp.color ? escapeHtml(wp.color) : 'var(--primary)') +
       ';width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-weight:700;color:var(--on-accent);">' +
-      wp.initials + '</span><strong class="small">' + wp.name + '</strong>';
+      escapeHtml(wp.initials) + '</span><strong class="small">' + escapeHtml(wp.name) + '</strong>';
     var hasDefault = !!(wp.default_start && wp.default_end);
     document.getElementById('defToggle').checked = hasDefault;
     document.getElementById('defFields').style.display = hasDefault ? '' : 'none';

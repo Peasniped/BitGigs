@@ -304,19 +304,19 @@ trackModal(document.getElementById('dashApproveModal'));
 
     if (current) {
       var remaining = current.endMin - nowMin;
-      var wpName = shifts.length > 1 ? (' at ' + current.shift.workplace_name) : '';
+      var wpName = shifts.length > 1 ? (' at ' + escapeHtml(current.shift.workplace_name)) : '';
       var html = '<i class="bi bi-clock me-1"></i>Your current shift' + wpName +
                  ' ends in <strong>' + fmtDuration(remaining) + '</strong>' +
                  ' <span style="font-size:0.78rem;opacity:0.7;">(' + current.shift.start_time + '–' + current.shift.end_time + ')</span>';
       if (next) {
         html += '<br><span style="font-size:0.82rem;">Then at <strong>' + next.start_time +
-                '</strong> you have a' + (shifts.length > 1 ? ' ' + next.workplace_name : '') +
+                '</strong> you have a' + (shifts.length > 1 ? ' ' + escapeHtml(next.workplace_name) : '') +
                 ' shift until ' + next.end_time + '</span>';
       }
       el.innerHTML = html;
     } else if (next) {
       var untilStart = toMin(next.start_time) - nowMin;
-      var wpName2 = shifts.length > 1 ? (next.workplace_name + ' ') : '';
+      var wpName2 = shifts.length > 1 ? (escapeHtml(next.workplace_name) + ' ') : '';
       var html2 = '<i class="bi bi-hourglass-split me-1"></i>Your ' + wpName2 + 'shift starts in <strong>' +
                   fmtDuration(untilStart) + '</strong>' +
                   ' <span style="font-size:0.78rem;opacity:0.7;">(' + next.start_time + '–' + next.end_time + ')</span>';
@@ -480,8 +480,8 @@ trackModal(document.getElementById('dashApproveModal'));
       var header = document.createElement('div');
       header.className = 'px-3 pt-3 pb-1 d-flex align-items-center gap-2';
       header.innerHTML =
-        '<span style="width:10px;height:10px;border-radius:50%;background:' + g.color + ';flex-shrink:0;"></span>' +
-        '<span class="fw-semibold" style="font-size:0.9rem;">' + g.name + '</span>' +
+        '<span style="width:10px;height:10px;border-radius:50%;background:' + escapeHtml(g.color) + ';flex-shrink:0;"></span>' +
+        '<span class="fw-semibold" style="font-size:0.9rem;">' + escapeHtml(g.name) + '</span>' +
         (single() ? '' :
         '<div class="form-check ms-auto mb-0">' +
           '<input class="form-check-input wp-select-all" type="checkbox" data-wp="' + wpId + '">' +
@@ -511,25 +511,12 @@ trackModal(document.getElementById('dashApproveModal'));
       g.shifts.forEach(function(s) {
         var tr = document.createElement('tr');
         tr.dataset.shiftId = s.id;
-        tr.innerHTML =
-          (single() ? '' :
-          '<td class="select-cell"><input type="checkbox" class="form-check-input dash-approve-cb" value="' + s.id + '" data-wp="' + wpId + '"></td>') +
-          '<td class="small" data-field="date">' + s.date + '</td>' +
-          '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.start_time + '" data-field="start_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
-          '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.end_time + '" data-field="end_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
-          '<td><div class="input-group input-group-sm" style="width:5rem;">' +
-            '<input type="number" class="form-control form-control-sm py-0" min="0" step="5" value="' + (s.break_minutes || 0) + '" data-field="break_minutes" data-id="' + s.id + '" title="Break (minutes)">' +
-            '<span class="input-group-text px-1 small text-muted">m</span>' +
-          '</div></td>' +
-          '<td><select class="form-select form-select-sm py-0" data-field="shift_type" data-id="' + s.id + '" style="width:7rem;">' +
-            '<option value="on_site"' + (s.shift_type==='on_site'?' selected':'') + '>On-site</option>' +
-            '<option value="remote"' + (s.shift_type==='remote'?' selected':'') + '>Remote</option>' +
-            '<option value="sick_leave"' + (s.shift_type==='sick_leave'?' selected':'') + '>Sick leave</option>' +
-            '<option value="paid_absence"' + (s.shift_type==='paid_absence'?' selected':'') + '>Paid absence</option>' +
-            '<option value="vacation"' + (s.shift_type==='vacation'?' selected':'') + '>Vacation</option>' +
-          '</select></td>' +
-          '<td class="small text-end" data-field="hours">' + toDanish(s.net_hours) + 'h</td>' +
-          '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 dash-edit-btn" data-shift-id="' + s.id + '" title="Edit shift"><i class="bi bi-pencil" style="font-size:0.65rem;"></i></button></td>';
+        tr.innerHTML = window.buildApproveRowHtml(s, {
+          selectable: !single(),
+          cbClass: 'dash-approve-cb',
+          cbAttrs: 'data-wp="' + wpId + '"',
+          editBtnClass: 'dash-edit-btn',
+        });
         tbody.appendChild(tr);
       });
 

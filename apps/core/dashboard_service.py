@@ -282,7 +282,7 @@ class DashboardDataService:
             if count > 0:
                 data.cross_period_info.append({
                     "workplace": wp.name,
-                    "color": wp.accent_color or wp.color or "#6366f1",
+                    "color": wp.accent_color or wp.color or "var(--primary)",
                     "count": count,
                     "hours": hours,
                     "direction": "prev",
@@ -307,7 +307,7 @@ class DashboardDataService:
                 nm = 1 if month == 12 else month + 1
                 data.cross_period_info.append({
                     "workplace": wp.name,
-                    "color": wp.accent_color or wp.color or "#6366f1",
+                    "color": wp.accent_color or wp.color or "var(--primary)",
                     "count": count,
                     "hours": hours,
                     "direction": "next",

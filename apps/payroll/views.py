@@ -1,5 +1,4 @@
-﻿import json
-from datetime import date
+import json
 from decimal import Decimal
 
 from django.db import models
@@ -103,6 +102,9 @@ class PayslipLineReorderView(View):
     """AJAX endpoint to reorder payslip lines via drag-and-drop."""
 
     def post(self, request, period_pk):
+        period = get_object_or_404(PayrollPeriod, pk=period_pk)
+        if period.is_locked:
+            return JsonResponse({"status": "error", "detail": "Period is locked."}, status=400)
         try:
             data = json.loads(request.body)
             order = data.get("order", [])

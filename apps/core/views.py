@@ -1,6 +1,5 @@
 import calendar as _calendar
 import json
-from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_not_required
@@ -11,15 +10,25 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.urls import reverse
 from django.utils.decorators import method_decorator
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 from django.utils import timezone
 
 from .constants import APP_ACCENT_CHOICES, DEFAULT_ACCENT, DEFAULT_SECONDARY
 from .models import EmailSettings, TaxProfile, UserSettings
 from .forms import EmailSettingsForm, TaxProfileForm, UserSettingsForm
-from .utils import avatar_for_name, parse_int_param, prev_next_month
+from .utils import parse_int_param, prev_next_month
 from .dashboard_service import DashboardDataService, get_pending_shifts, get_todays_banner
 from api.views import api_settings_context
+
+
+def _safe_next(request, raw):
+    """A same-origin relative redirect target, or None. Uses Django's checker,
+    which also rejects the ``/\\evil.com`` form browsers treat as ``//``."""
+    if raw and url_has_allowed_host_and_scheme(raw, allowed_hosts=None,
+                                               require_https=request.is_secure()):
+        return raw
+    return None
 
 
 class DashboardView(View):
@@ -176,18 +185,8 @@ class UserSettingsView(View):
     POST forms, which cannot legally nest inside the settings form, and links
     give deep-linking and a working back button for free."""
 
-    def _safe_next(self, request, raw):
-        # Only allow same-origin relative redirects.
-        if raw and raw.startswith("/") and not raw.startswith("//"):
-            return raw
-        return None
-
-    def get(self, request):
-        settings = UserSettings.load()
-        tab = active_settings_tab(request.GET.get("tab"))
-        form = UserSettingsForm(instance=settings, tab=tab)
-        next_url = self._safe_next(request, request.GET.get("next"))
-        return render(request, "core/settings.html", {
+    def _context(self, request, form, next_url, tab):
+        return {
             "form": form, "next_url": next_url, "active_tab": tab,
             "accent_choices": APP_ACCENT_CHOICES, "default_accent": DEFAULT_ACCENT,
             "secondary_choices": APP_ACCENT_CHOICES, "default_secondary": DEFAULT_SECONDARY,
@@ -195,7 +194,15 @@ class UserSettingsView(View):
             # Only the Email tab touches the EmailSettings row.
             **(email_context() if tab == "email" else {}),
             **(api_settings_context(request) if tab == "api" else {}),
-        })
+        }
+
+    def get(self, request):
+        settings = UserSettings.load()
+        tab = active_settings_tab(request.GET.get("tab"))
+        form = UserSettingsForm(instance=settings, tab=tab)
+        next_url = _safe_next(request, request.GET.get("next"))
+        return render(request, "core/settings.html",
+                      self._context(request, form, next_url, tab))
 
     def post(self, request):
         settings = UserSettings.load()
@@ -203,25 +210,18 @@ class UserSettingsView(View):
         # tab's Save must only ever write that tab's fields.
         tab = active_settings_tab(request.POST.get("tab"))
         form = UserSettingsForm(request.POST, instance=settings, tab=tab)
-        next_url = self._safe_next(request, request.POST.get("next"))
+        next_url = _safe_next(request, request.POST.get("next"))
         if form.is_valid():
             form.save()
             return redirect(next_url or f"{reverse('core:settings')}?tab={tab}")
-        return render(request, "core/settings.html", {
-            "form": form, "next_url": next_url, "active_tab": tab,
-            "accent_choices": APP_ACCENT_CHOICES, "default_accent": DEFAULT_ACCENT,
-            "secondary_choices": APP_ACCENT_CHOICES, "default_secondary": DEFAULT_SECONDARY,
-            **sign_in_context(request.user),
-            # Only the Email tab touches the EmailSettings row.
-            **(email_context() if tab == "email" else {}),
-            **(api_settings_context(request) if tab == "api" else {}),
-        })
+        return render(request, "core/settings.html",
+                      self._context(request, form, next_url, tab))
 
 
 class SetThemeView(View):
     """Quick Light/Dark/Auto switch in the navbar's More dropdown. POST-only;
     persists to the UserSettings singleton and bounces back to the page the
-    toggle was used on (same-origin only, like UserSettingsView._safe_next)."""
+    toggle was used on (same-origin only, via ``_safe_next``)."""
 
     def post(self, request):
         theme = request.POST.get("theme")
@@ -229,8 +229,7 @@ class SetThemeView(View):
             settings = UserSettings.load()
             settings.theme = theme
             settings.save()
-        raw = request.POST.get("next")
-        next_url = raw if raw and raw.startswith("/") and not raw.startswith("//") else None
+        next_url = _safe_next(request, request.POST.get("next"))
         return redirect(next_url or f"{reverse('core:settings')}?tab=display")
 
 
@@ -356,8 +355,18 @@ RESET_RATE_WINDOW = 60 * 60  # seconds
 
 
 def _reset_rate_key(request):
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    ip = forwarded.split(",")[0].strip() or request.META.get("REMOTE_ADDR", "unknown")
+    """Cache key for the per-IP reset budget.
+
+    X-Forwarded-For is client-supplied, so honouring it unconditionally would
+    let anyone bypass the limit by rotating the header. It is only trusted when
+    the operator declares a reverse proxy (DJANGO_TRUST_PROXY_IP), where
+    REMOTE_ADDR would otherwise be the proxy for every client."""
+    from django.conf import settings as django_settings
+    ip = ""
+    if getattr(django_settings, "TRUST_PROXY_IP", False):
+        forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
+        ip = forwarded.split(",")[0].strip()
+    ip = ip or request.META.get("REMOTE_ADDR", "unknown")
     return f"pwreset:{ip}"
 
 

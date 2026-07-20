@@ -1,4 +1,4 @@
-﻿"""
+"""
 Export/import services for BitGigs data.
 
 Export format is JSON with sections:
@@ -454,13 +454,28 @@ def _create_workplace_from_dict(d):
     """Create a Workplace (and its contracts/termsets) from an exported dict."""
     from datetime import time as _time
     from workplaces.models import WorkplaceContract
+    from workplaces.services import valid_hex_color, valid_icon_class
+
+    # Appearance fields from the file are untrusted (a hand-edited export could
+    # smuggle markup into style/class contexts) — drop anything malformed, the
+    # same shapes the customize view enforces. The icon is cosmetic; the import
+    # itself proceeds.
+    icon = d.get("icon", "") or ""
+    color = d.get("color", "") or ""
+    accent_color = d.get("accent_color", "") or ""
+
+    # A slug already in use would IntegrityError mid-transaction; blank it and
+    # let Workplace.save() derive a unique one from the name instead.
+    slug = d.get("slug", "") or ""
+    if slug and Workplace.objects.filter(slug=slug).exists():
+        slug = ""
 
     wp = Workplace.objects.create(
         name=d["name"],
-        slug=d.get("slug", ""),
-        icon=d.get("icon", ""),
-        color=d.get("color", ""),
-        accent_color=d.get("accent_color", ""),
+        slug=slug,
+        icon=icon if valid_icon_class(icon) else "",
+        color=color if valid_hex_color(color) else "",
+        accent_color=accent_color if valid_hex_color(accent_color) else "",
         default_shift_start_time=_time.fromisoformat(d["default_shift_start_time"]) if d.get("default_shift_start_time") else None,
         default_shift_end_time=_time.fromisoformat(d["default_shift_end_time"]) if d.get("default_shift_end_time") else None,
         default_shift_break_minutes=d.get("default_shift_break_minutes", 0) or 0,

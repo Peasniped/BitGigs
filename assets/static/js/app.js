@@ -9,6 +9,15 @@ window.themeToken = function (name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 };
 
+// Escape a value for interpolation into an innerHTML string (text or attribute
+// context). User-named things (workplaces, payslip lines) must go through this
+// — data_io import means such names are not guaranteed to be harmless.
+window.escapeHtml = function (value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+};
+
 // Auto theme (UserSettings.theme == "auto" → base.html sets data-theme-auto):
 // keep following the OS scheme while the page is open. The pre-paint pick
 // happens in an inline <head> script; this only tracks later OS changes.

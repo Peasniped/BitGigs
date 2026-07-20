@@ -3,7 +3,7 @@
 {% block title %}{% if termset %}Edit Pay Terms{% else %}Add Pay Terms{% endif %} &mdash; {{ workplace.name }} &middot; BitGigs{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center accent-form" style="--wp-accent: {{ workplace.accent_color|default:'#6366f1' }};">
+<div class="row justify-content-center accent-form" style="--wp-accent: {{ workplace.accent_color|default:'var(--primary)' }};">
   <div class="col-12 col-md-10 col-lg-8">
 
     {% if onboarding %}

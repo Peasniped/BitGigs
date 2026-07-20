@@ -90,8 +90,8 @@ def _month_state(row: MonthRow) -> str:
 def income_payload(start: date, end: date) -> dict:
     settings = UserSettings.load()
 
-    from workplaces.services import WorkplaceService
-    workplaces = WorkplaceService.workplaces_active_in_period(start, end).order_by("name")
+    from workplaces.services import workplaces_active_in_period
+    workplaces = workplaces_active_in_period(start, end).order_by("name")
 
     projection = AnalyticsService.project_period(
         workplaces, start=start, end=end,

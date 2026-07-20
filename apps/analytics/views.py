@@ -9,7 +9,9 @@ from django.utils import timezone
 from core.models import UserSettings
 from core.utils import avatar_for_name, parse_int_param
 from workplaces.models import Workplace
-from workplaces.services import workplaces_active_today, hidden_workplace_count
+from workplaces.services import (
+    hidden_workplace_count, workplaces_active_in_period, workplaces_active_today,
+)
 from .services import AnalyticsService
 
 
@@ -124,8 +126,7 @@ class AnalyticsView(View):
         trailing_months = settings.projection_trailing_months
         method = settings.projection_method
 
-        from workplaces.services import WorkplaceService
-        all_workplaces_qs = WorkplaceService.workplaces_active_in_period(start, end).order_by("name")
+        all_workplaces_qs = workplaces_active_in_period(start, end).order_by("name")
         selected_qs, selected_slugs, is_all = _resolve_workplace_filter(
             request, all_workplaces_qs
         )
@@ -227,9 +228,8 @@ class RateHistoryView(View):
         else:
             start, end, period_mode, year = _resolve_period(request, today)
 
-        from workplaces.services import WorkplaceService
         if start and end:
-            all_workplaces_qs = WorkplaceService.workplaces_active_in_period(start, end).order_by("name")
+            all_workplaces_qs = workplaces_active_in_period(start, end).order_by("name")
         else:
             all_workplaces_qs = workplaces_active_today().order_by("name")
         selected_qs, selected_slugs, is_all = _resolve_workplace_filter(

@@ -162,10 +162,10 @@ document.addEventListener('DOMContentLoaded', function() {
       var existingSrc = previewBox.querySelector('img').src;
       livePreview.innerHTML = '<img src="' + existingSrc + '" alt="" style="width:100%;height:100%;object-fit:cover;">';
     } else if (iconInput.value) {
-      var iconColor = accent ? 'color:' + accent : '';
-      livePreview.innerHTML = '<i class="bi ' + iconInput.value + '" style="font-size:1.6rem;' + iconColor + '"></i>';
+      var iconColor = accent ? 'color:' + escapeHtml(accent) : '';
+      livePreview.innerHTML = '<i class="bi ' + escapeHtml(iconInput.value) + '" style="font-size:1.6rem;' + iconColor + '"></i>';
     } else {
-      livePreview.innerHTML = '<span>' + cfg.avatarInitials + '</span>';
+      livePreview.innerHTML = '<span>' + escapeHtml(cfg.avatarInitials) + '</span>';
     }
   }
 
@@ -736,25 +736,12 @@ document.addEventListener('DOMContentLoaded', function() {
     SHIFTS.forEach(function(s) {
       var tr = document.createElement('tr');
       tr.dataset.shiftId = s.id;
-      tr.innerHTML =
-        (single() ? '' :
-        '<td class="select-cell"><input type="checkbox" class="form-check-input approve-cb" value="' + s.id + '"></td>') +
-        '<td class="small" data-field="date">' + s.date + '</td>' +
-        '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.start_time + '" data-field="start_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
-        '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.end_time + '" data-field="end_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
-        '<td><div class="input-group input-group-sm" style="width:5rem;">' +
-          '<input type="number" class="form-control form-control-sm py-0" min="0" step="5" value="' + (s.break_minutes || 0) + '" data-field="break_minutes" data-id="' + s.id + '" title="Break (minutes)">' +
-          '<span class="input-group-text px-1 small text-muted">m</span>' +
-        '</div></td>' +
-        '<td><select class="form-select form-select-sm py-0" data-field="shift_type" data-id="' + s.id + '" style="width:7rem;">' +
-          '<option value="on_site"' + (s.shift_type==='on_site'?' selected':'') + '>On-site</option>' +
-          '<option value="remote"' + (s.shift_type==='remote'?' selected':'') + '>Remote</option>' +
-          '<option value="sick_leave"' + (s.shift_type==='sick_leave'?' selected':'') + '>Sick leave</option>' +
-          '<option value="paid_absence"' + (s.shift_type==='paid_absence'?' selected':'') + '>Paid absence</option>' +
-          '<option value="vacation"' + (s.shift_type==='vacation'?' selected':'') + '>Vacation</option>' +
-        '</select></td>' +
-        '<td class="small text-end" data-field="hours">' + toDanish(s.net_hours) + 'h</td>' +
-        '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 edit-approve-btn" data-shift-id="' + s.id + '" title="Edit shift"><i class="bi bi-pencil" style="font-size:0.65rem;"></i></button></td>';
+      tr.innerHTML = window.buildApproveRowHtml(s, {
+        selectable: !single(),
+        cbClass: 'approve-cb',
+        cbAttrs: '',
+        editBtnClass: 'edit-approve-btn',
+      });
       tbody.appendChild(tr);
     });
     updateCount();

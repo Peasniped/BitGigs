@@ -28,11 +28,6 @@ TWO_PLACES = Decimal("0.01")
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _month_iter(year: int):
-    for m in range(1, 13):
-        yield year, m
-
-
 def _is_past_month(year: int, month: int, today: date | None = None) -> bool:
     today = today or timezone.localdate()
     last_day = calendar.monthrange(year, month)[1]
@@ -160,16 +155,6 @@ class AnalyticsService:
             else:
                 m -= 1
         return list(reversed(months))
-
-    @classmethod
-    def trailing_monthly_hours(
-        cls, workplace: Workplace, n_months: int, ref: date | None = None,
-    ) -> list[Decimal]:
-        ref = ref or timezone.localdate()
-        return [
-            _shift_hours_in_month(workplace, y, m)
-            for (y, m) in cls._trailing_months(n_months, ref)
-        ]
 
     @classmethod
     def trailing_average_hours(

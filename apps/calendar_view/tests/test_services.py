@@ -6,7 +6,6 @@ from django.template.loader import render_to_string
 from django.test import TestCase
 
 from core.models import UserSettings
-from workplaces.models import Workplace
 from calendar_view.services import CalendarService, CalendarDay
 
 

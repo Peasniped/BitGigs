@@ -13,7 +13,7 @@ from django.urls import reverse
 
 from core import mail as core_mail
 from core.crypto import decrypt_secret, encrypt_secret
-from core.models import EmailSettings, TaxProfile, UserSettings
+from core.models import EmailSettings, UserSettings
 from core.mail import FAILED, OK, SKIPPED
 
 

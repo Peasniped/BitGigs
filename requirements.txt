@@ -6,7 +6,6 @@ crispy-bootstrap5>=2024.10
 # vars are set, but allauth is always installed so every deploy shares one
 # migration state.
 django-allauth[socialaccount]>=65.18,<66
-python-dateutil>=2.9
 # Encrypts the stored SMTP password at rest (core/crypto.py). Already present as
 # an allauth[socialaccount] dependency; declared here because BitGigs imports it
 # directly and must not silently lose it if allauth's extras change.

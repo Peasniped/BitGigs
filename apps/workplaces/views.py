@@ -12,7 +12,10 @@ from django.utils import timezone
 
 from .models import Workplace, WorkplaceContract, ContractTermSet
 from .forms import WorkplaceForm, WorkplaceContractForm, ContractTermSetForm
-from .services import ALLOWED_ICON_CONTENT_TYPES, ALLOWED_ICON_EXTS, MAX_ICON_SIZE
+from .services import (
+    ALLOWED_ICON_CONTENT_TYPES, ALLOWED_ICON_EXTS, MAX_ICON_SIZE,
+    valid_hex_color, valid_icon_class,
+)
 from core.utils import avatar_for_name, parse_int_param, prev_next_month, WEEKS_PER_MONTH, sanitize_svg
 
 # Curated icon choices for the workplace icon picker
@@ -101,8 +104,7 @@ class WorkplaceDetailView(View):
             )
             tax_pull_date = PayrollPeriodService.get_tax_pull_date(viewed_termset, year, month)
         else:
-            import calendar as _cal
-            last_day = _cal.monthrange(year, month)[1]
+            last_day = _cal_mod.monthrange(year, month)[1]
             period_start = date(year, month, 1)
             period_end = date(year, month, last_day)
             tax_pull_date = date(year, month, 18)
@@ -184,12 +186,11 @@ class WorkplaceDetailView(View):
             months_with_data.append((today.year, today.month))
             months_with_data.sort()
 
-        import calendar as cal_mod
         month_picker = []
         for y, m in months_with_data:
             month_picker.append({
                 "year": y, "month": m,
-                "label": cal_mod.month_abbr[m],
+                "label": _cal_mod.month_abbr[m],
                 "is_current": y == today.year and m == today.month,
                 "is_selected": y == year and m == month,
             })
@@ -199,7 +200,7 @@ class WorkplaceDetailView(View):
         for mp in month_picker:
             month_picker_by_year.setdefault(mp["year"], []).append(mp)
 
-        all_months = [(i, cal_mod.month_name[i]) for i in range(1, 13)]
+        all_months = [(i, _cal_mod.month_name[i]) for i in range(1, 13)]
 
         pending_shifts = list(
             PlannedShift.objects.filter(
@@ -331,10 +332,12 @@ class WorkplaceCustomizeView(View):
         accent_color = request.POST.get("accent_color", "")
         remove_custom_icon = request.POST.get("remove_custom_icon") == "1"
 
-        if color and (len(color) != 7 or not color.startswith("#")):
+        if not valid_hex_color(color):
             return JsonResponse({"ok": False, "error": "Invalid background hex colour."}, status=400)
-        if accent_color and (len(accent_color) != 7 or not accent_color.startswith("#")):
+        if not valid_hex_color(accent_color):
             return JsonResponse({"ok": False, "error": "Invalid accent hex colour."}, status=400)
+        if not valid_icon_class(icon):
+            return JsonResponse({"ok": False, "error": "Invalid icon."}, status=400)
 
         workplace.icon = icon
         workplace.color = color

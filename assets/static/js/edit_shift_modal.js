@@ -24,6 +24,42 @@
      backdrop: true,                  // false = the caller supplies the backdrop
                                       // (init only — it is a Bootstrap config)
      onHidden: function() {} */
+/* One approve-table row's inner HTML — shared by the dashboard's Review &
+   Approve modal (dashboard.js) and the workplace page's approve modal
+   (workplace_detail.js), which used to keep identical copies of this markup.
+   Element IDs/classes are part of the contract with those scripts.
+
+   o: { selectable: bool,        // render the leading checkbox cell
+        cbClass: 'approve-cb',   // checkbox class the caller listens on
+        cbAttrs: '',             // extra checkbox attributes (e.g. data-wp="3")
+        editBtnClass: 'edit-approve-btn' } */
+window.buildApproveRowHtml = function (s, o) {
+  function typeOption(value, label) {
+    return '<option value="' + value + '"' + (s.shift_type === value ? ' selected' : '') + '>' + label + '</option>';
+  }
+  return (
+    (o.selectable ?
+    '<td class="select-cell"><input type="checkbox" class="form-check-input ' + o.cbClass + '" value="' + s.id + '"' +
+      (o.cbAttrs ? ' ' + o.cbAttrs : '') + '></td>' : '') +
+    '<td class="small" data-field="date">' + s.date + '</td>' +
+    '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.start_time + '" data-field="start_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
+    '<td><input type="time" class="form-control form-control-sm py-0" value="' + s.end_time + '" data-field="end_time" data-id="' + s.id + '" style="width:5.5rem;"></td>' +
+    '<td><div class="input-group input-group-sm" style="width:5rem;">' +
+      '<input type="number" class="form-control form-control-sm py-0" min="0" step="5" value="' + (s.break_minutes || 0) + '" data-field="break_minutes" data-id="' + s.id + '" title="Break (minutes)">' +
+      '<span class="input-group-text px-1 small text-muted">m</span>' +
+    '</div></td>' +
+    '<td><select class="form-select form-select-sm py-0" data-field="shift_type" data-id="' + s.id + '" style="width:7rem;">' +
+      typeOption('on_site', 'On-site') +
+      typeOption('remote', 'Remote') +
+      typeOption('sick_leave', 'Sick leave') +
+      typeOption('paid_absence', 'Paid absence') +
+      typeOption('vacation', 'Vacation') +
+    '</select></td>' +
+    '<td class="small text-end" data-field="hours">' + toDanish(s.net_hours) + 'h</td>' +
+    '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 ' + o.editBtnClass + '" data-shift-id="' + s.id + '" title="Edit shift"><i class="bi bi-pencil" style="font-size:0.65rem;"></i></button></td>'
+  );
+};
+
 function initEditShiftModal(opts) {
   var el = document.getElementById('shiftModal');
   if (!el) return null;
@@ -63,9 +99,9 @@ function initEditShiftModal(opts) {
     var avatar = document.getElementById('shiftModalAvatar');
     avatar.style.background = s.workplace_color || 'var(--primary)';
     if (s.workplace_custom_icon_url) {
-      avatar.innerHTML = '<img src="' + s.workplace_custom_icon_url + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
+      avatar.innerHTML = '<img src="' + escapeHtml(s.workplace_custom_icon_url) + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
     } else if (s.workplace_icon) {
-      avatar.innerHTML = '<i class="bi ' + s.workplace_icon + '" style="font-size:0.7rem;"></i>';
+      avatar.innerHTML = '<i class="bi ' + escapeHtml(s.workplace_icon) + '" style="font-size:0.7rem;"></i>';
     } else {
       avatar.textContent = s.workplace_initials || '';
     }

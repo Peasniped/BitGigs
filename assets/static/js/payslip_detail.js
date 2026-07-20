@@ -29,7 +29,7 @@
     document.getElementById('new_type_deduct').checked = !isAdd;
     // Update form action to edit endpoint
     form.action = addUrl.replace('/add-line/', '/edit-line/' + editingLineId + '/');
-    cardTitle.innerHTML = '<i class="bi bi-pencil me-1"></i>Editing: ' + btn.dataset.lineName;
+    cardTitle.innerHTML = '<i class="bi bi-pencil me-1"></i>Editing: ' + escapeHtml(btn.dataset.lineName);
     submitBtn.textContent = 'Save';
     card.style.backgroundColor = 'var(--warning-tint)';
     cancelBtn2.style.display = '';

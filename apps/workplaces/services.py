@@ -1,4 +1,5 @@
 """Workplace-related business logic."""
+import re
 from datetime import date
 
 from django.db.models import Q
@@ -9,6 +10,22 @@ from django.utils import timezone
 ALLOWED_ICON_CONTENT_TYPES = {"image/png", "image/svg+xml"}
 ALLOWED_ICON_EXTS = {".png", ".svg"}
 MAX_ICON_SIZE = 512 * 1024  # 512 KB
+
+# Appearance-field guards, shared by the customize view and data_io import.
+# These values end up inside style attributes and JS-built markup, so only a
+# strict hex colour / icon-class shape may ever be stored.
+HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+ICON_CLASS_RE = re.compile(r"^[A-Za-z0-9-]{1,50}$")  # e.g. "bi-briefcase"
+
+
+def valid_hex_color(value: str) -> bool:
+    """True for '' (unset) or a strict #RRGGBB colour."""
+    return value == "" or bool(HEX_COLOR_RE.match(value))
+
+
+def valid_icon_class(value: str) -> bool:
+    """True for '' (unset) or a plausible Bootstrap Icons class name."""
+    return value == "" or bool(ICON_CLASS_RE.match(value))
 
 
 def workplaces_active_in_period(start: date, end: date):
@@ -42,12 +59,3 @@ def hidden_workplace_count(active_count: int) -> int:
         return 0
     from .models import Workplace
     return Workplace.objects.count()
-
-
-class WorkplaceService:
-    """Utilities for workplace queries."""
-
-    @staticmethod
-    def workplaces_active_in_period(start: date, end: date):
-        """Workplaces with at least one contract overlapping [start, end]."""
-        return workplaces_active_in_period(start, end)

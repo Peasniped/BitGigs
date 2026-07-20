@@ -14,6 +14,8 @@ from dataclasses import dataclass
 
 from django.conf import settings
 
+from .constants import DEFAULT_ACCENT
+
 # Presets only exist for providers whose icon we actually ship. Adding one means
 # vendoring someone else's trademark, so the bar is deliberately high.
 PRESETS = {
@@ -33,8 +35,8 @@ PRESETS = {
 }
 
 DEFAULT_NAME = "SSO"
-DEFAULT_COLOR = "#6366f1"  # --primary in style.css
-GLYPH = "bi-shield-lock"   # stands in when there is no icon file
+DEFAULT_COLOR = DEFAULT_ACCENT  # the app's default --primary (core.constants)
+GLYPH = "bi-shield-lock"        # stands in when there is no icon file
 
 _LIGHT_TEXT = "#ffffff"
 _DARK_TEXT = "#1e293b"  # --text in style.css

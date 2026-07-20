@@ -9,7 +9,7 @@ from __future__ import annotations
 import calendar
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.db import transaction
@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from core.models import UserSettings
 from core.services import TaxCalculationService
-from core.utils import parse_int_param
+from core.utils import parse_int_param, parse_iso_time_param
 from shifts.models import Shift, PlannedShift
 
 
@@ -111,20 +111,6 @@ class CalendarService:
         else:  # Sunday (week_start == 6)
             offset = (d.weekday() + 1) % 7
         return d - timedelta(days=offset)
-
-    @staticmethod
-    def _align_to_week_end(d: date, week_start: int) -> date:
-        """Move a date forward to the end of its week."""
-        if week_start == 0:
-            offset = 6 - d.weekday()
-        else:
-            offset = (6 - (d.weekday() + 1) % 7) % 7
-            if offset == 0 and d.weekday() != 5:
-                offset = 0
-            offset = (5 - d.weekday()) % 7  # Saturday for Sunday-start
-        # Simpler: just go to start of next week minus 1
-        start = CalendarService._align_to_week_start(d, week_start)
-        return start + timedelta(days=6)
 
     @classmethod
     def _build_grid(
@@ -299,17 +285,19 @@ def approve_planned_shifts(shift_ids, edits=None, workplace=None):
     for sid in shift_ids:
         try:
             shift = PlannedShift.objects.get(pk=int(sid), **lookup)
-        except PlannedShift.DoesNotExist:
+        except (PlannedShift.DoesNotExist, TypeError, ValueError):
             continue
         edit = edits.get(str(sid))
         if edit:
+            # Unparseable/unknown values keep the stored ones — the inline edit
+            # UI can only produce valid input, so anything else is noise.
             if "start_time" in edit:
-                shift.start_time = time.fromisoformat(edit["start_time"])
+                shift.start_time = parse_iso_time_param(edit["start_time"]) or shift.start_time
             if "end_time" in edit:
-                shift.end_time = time.fromisoformat(edit["end_time"])
+                shift.end_time = parse_iso_time_param(edit["end_time"]) or shift.end_time
             if "break_minutes" in edit:
                 shift.break_minutes = parse_int_param(edit["break_minutes"], shift.break_minutes)
-            if "shift_type" in edit:
+            if "shift_type" in edit and edit["shift_type"] in Shift.ShiftType.values:
                 shift.shift_type = edit["shift_type"]
             shift.save()
         shift.approve()

@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.views import View
 
@@ -113,7 +113,10 @@ class DailyOverviewView(View):
     """Show all shifts for a given date, grouped by workplace."""
 
     def get(self, request, year, month, day):
-        target_date = date(year, month, day)
+        try:
+            target_date = date(year, month, day)
+        except ValueError:  # e.g. /daily/2026/2/31/ — not a date
+            raise Http404("No such date.")
         summaries = ShiftSummaryService.daily_summary(target_date)
         prev_date = target_date - timedelta(days=1)
         next_date = target_date + timedelta(days=1)
@@ -134,6 +137,8 @@ class MonthlyOverviewView(View):
     """Show monthly aggregates for all workplaces."""
 
     def get(self, request, year, month):
+        if not 1 <= month <= 12:
+            raise Http404("No such month.")
         summaries = ShiftSummaryService.monthly_summary(year, month)
         prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
 
