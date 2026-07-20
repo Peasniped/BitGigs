@@ -1,8 +1,7 @@
 """BitGigs URL configuration."""
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
 
 from core import views as core_views
 
@@ -37,5 +36,10 @@ urlpatterns = [
     path("api/", include("api.urls")),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Media is served by the app in every environment, not just DEBUG: WhiteNoise
+# covers STATIC_ROOT only, so without this a containerised (production-settings)
+# deployment 404s every uploaded workplace icon. See core.views.MediaView.
+urlpatterns += [
+    re_path(r"^%s(?P<path>.*)$" % settings.MEDIA_URL.lstrip("/"),
+            core_views.MediaView.as_view(), name="media"),
+]
