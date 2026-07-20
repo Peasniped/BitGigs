@@ -19,5 +19,6 @@ Everything else — icon, colours, more workplaces — is added later from the
 [Creating & editing workplaces](/help/workplace-editing/). The pay side of
 this job comes on the next step.
 
-> Nothing is written to the database until **Finish** on the last step, and
-> going back keeps what you've typed.
+> Nothing is written to the database until **Finish** on the Review step, and
+> going back keeps what you've typed. Already have a BitGigs export? You can
+> [import it instead](/help/onboarding-start/).

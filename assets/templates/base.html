@@ -37,8 +37,8 @@
   {% endcomment %}
   {% if not onboarding_first_step %}
   <nav class="navbar navbar-expand-lg sticky-top">
-    <div class="container {% if onboarding or minimal_chrome %}justify-content-center position-relative{% else %}navbar-3col{% endif %}">
-      {% if onboarding and not minimal_chrome and user.is_authenticated %}
+    <div class="container {% if onboarding or setup_in_progress or minimal_chrome %}justify-content-center position-relative{% else %}navbar-3col{% endif %}">
+      {% if onboarding or setup_in_progress %}{% if not minimal_chrome and user.is_authenticated %}
       <div class="onboarding-userbar small text-muted d-none d-sm-flex align-items-center gap-2">
         <span><i class="bi bi-person-circle me-1"></i>Logged in as {{ user.username }}</span>
         <span>&middot;</span>
@@ -47,19 +47,19 @@
           <button type="submit" class="btn btn-link btn-sm p-0 align-baseline text-decoration-none">Log out</button>
         </form>
       </div>
-      {% endif %}
+      {% endif %}{% endif %}
       {% if minimal_chrome %}
       <span class="navbar-brand d-flex align-items-center gap-2 m-0">
         <img src="{% static 'graphics/App_Main_Logo_96.png' %}" alt="BitGigs" class="brand-logo">
         <span>BitGigs</span>
       </span>
       {% else %}
-      <a class="navbar-brand d-flex align-items-center gap-2" href="{% if onboarding %}#{% else %}{% url 'core:dashboard' %}{% endif %}">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="{% if onboarding or setup_in_progress %}#{% else %}{% url 'core:dashboard' %}{% endif %}">
         <img src="{% static 'graphics/App_Main_Logo_96.png' %}" alt="BitGigs" class="brand-logo">
         <span>BitGigs</span>
       </a>
       {% endif %}
-      {% if not onboarding and not minimal_chrome %}
+      {% if not onboarding and not setup_in_progress and not minimal_chrome %}
       <button class="navbar-toggler border-0" type="button"
               data-bs-toggle="collapse" data-bs-target="#navbarNav">
         <span class="navbar-toggler-icon"></span>
@@ -149,16 +149,25 @@
 
   <main class="container py-4">
     {% if messages %}
-      {% for message in messages %}
-        {% comment %}
-          Success notices auto-dismiss via the countdown-ring control (app.js,
-          opt-in through data-dismiss-after); others stay until closed.
-        {% endcomment %}
-        <div class="alert alert-{{ message.tags }} alert-dismissible fade show border-0 shadow-sm"{% if 'success' in message.tags %} data-dismiss-after="6000"{% endif %}>
-          {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      {% comment %}
+        Same grid cell the page content uses, so a notice lines up with what it
+        is talking about instead of overhanging it — the onboarding wizard sits
+        in a narrower centred column than the full container.
+      {% endcomment %}
+      <div class="row justify-content-center">
+        <div class="{% if onboarding %}col-12 col-md-10 col-lg-8{% else %}col-12{% endif %}">
+          {% for message in messages %}
+            {% comment %}
+              Success notices auto-dismiss via the countdown-ring control (app.js,
+              opt-in through data-dismiss-after); others stay until closed.
+            {% endcomment %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show border-0 shadow-sm"{% if 'success' in message.tags %} data-dismiss-after="6000"{% endif %}>
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endfor %}
         </div>
-      {% endfor %}
+      </div>
     {% endif %}
 
     {% block content %}{% endblock %}

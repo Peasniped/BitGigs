@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Getting started &middot; BitGigs Setup{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-10 col-lg-8">
+
+    {% include "core/_onboarding_steps.html" %}
+
+    <div class="card">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-signpost-split me-2"></i>How would you like to start?
+      </div>
+      <div class="card-body">
+        {% if error %}
+          <div class="alert alert-danger py-2">{{ error }}</div>
+        {% endif %}
+        <p class="text-muted small mb-3">
+          You can switch between these later — nothing here is final.
+        </p>
+        <div class="row g-3">
+
+          <div class="col-12 col-md-6">
+            <div class="method-card h-100">
+              <i class="bi bi-box-arrow-in-down method-card__glyph"></i>
+              <div class="fw-semibold mt-2">Import an export file</div>
+              <p class="form-text">
+                Already used BitGigs elsewhere? Upload the JSON file from
+                <strong>Data &rsaquo; Export</strong> and your workplaces, pay terms,
+                shifts and tax details come across as they were.
+              </p>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="setup_method" value="import">
+                <button type="submit" class="btn btn-primary w-100">
+                  Import my data <i class="bi bi-arrow-right ms-1"></i>
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <div class="method-card h-100">
+              <i class="bi bi-pencil-square method-card__glyph"></i>
+              <div class="fw-semibold mt-2">Set up from scratch</div>
+              <p class="form-text">
+                Start fresh. We'll ask for your tax details, your first workplace and
+                how it pays — three short steps.
+              </p>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="setup_method" value="scratch">
+                <button type="submit" class="btn btn-outline-primary w-100">
+                  Set it up myself
+                </button>
+              </form>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

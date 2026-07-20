@@ -71,6 +71,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ----- Auto-dismissing notices (countdown ring) -----
   initDismissibleNotices(document);
+
+  // Show/hide control on every password field on the page.
+  initPasswordReveals(document);
 });
 
 /* Reusable dismissible notice with a countdown ring.
@@ -78,6 +81,91 @@ document.addEventListener('DOMContentLoaded', function () {
    a draining ring replaces the default close button and dismisses the alert
    when it empties. Hovering the ring pauses the countdown and reveals an X you
    can click to dismiss immediately. */
+// ── Password reveal ─────────────────────────────────────────────────────────
+// Adds a show/hide eye to every password input, wherever it appears (login,
+// account creation, the settings modal, password reset). Applied from JS rather
+// than each template so no password field can be built without one.
+//
+// Password-manager extensions (1Password, LastPass, Bitwarden, Dashlane…) also
+// inject a button into the right-hand end of the field. There is no standard API
+// to ask whether one is present, so this watches for the markers they leave and
+// slides our own button further left when it finds one. Necessarily a
+// best-effort heuristic: an unrecognised extension will still overlap, which is
+// why the shift is applied by a class the CSS owns rather than pinned pixels.
+var PW_MANAGER_MARKERS = [
+  '[data-lastpass-icon-root]',
+  '[data-lastpass-root]',
+  'com-1password-button',
+  '[data-onepassword-filled]',
+  '[data-dashlane-rid]',
+  '[data-dashlane-icon]',
+  '[data-bw-inserted]',
+  '[data-bitwarden-watching]',
+  'onepassword-extension-button',
+];
+
+function pwManagerPresent(wrap, input) {
+  if (PW_MANAGER_MARKERS.some(function (sel) {
+    try { return wrap.querySelector(sel) || document.querySelector(sel); }
+    catch (e) { return false; }
+  })) return true;
+  // Several extensions don't inject a node but paint their icon as a background
+  // image on the field itself, or pad the text away from the right edge.
+  var cs = window.getComputedStyle(input);
+  if (cs.backgroundImage && cs.backgroundImage !== 'none'
+      && cs.backgroundImage.indexOf('data:') !== -1
+      && !input.classList.contains('is-valid')
+      && !input.classList.contains('is-invalid')) return true;
+  return false;
+}
+
+function initPasswordReveals(root) {
+  (root || document).querySelectorAll('input[type="password"]').forEach(function (el) {
+    if (el.dataset.pwRevealReady) return;
+    el.dataset.pwRevealReady = '1';
+
+    var wrap = document.createElement('div');
+    wrap.className = 'pw-reveal';
+    el.parentNode.insertBefore(wrap, el);
+    wrap.appendChild(el);
+
+    var btn = document.createElement('button');
+    btn.type = 'button';                 // never submits the form
+    btn.className = 'pw-reveal__btn';
+    btn.tabIndex = -1;                   // keep it out of the tab order
+    btn.setAttribute('aria-label', 'Show password');
+    btn.innerHTML = '<i class="bi bi-eye"></i>';
+    wrap.appendChild(btn);
+
+    btn.addEventListener('click', function () {
+      // Read the live type: a manager can flip it, and the field may have been
+      // re-rendered since.
+      var shown = el.getAttribute('type') === 'text';
+      el.setAttribute('type', shown ? 'password' : 'text');
+      btn.innerHTML = '<i class="bi bi-eye' + (shown ? '' : '-slash') + '"></i>';
+      btn.setAttribute('aria-label', shown ? 'Show password' : 'Hide password');
+      el.focus();
+    });
+
+    function syncManagerOffset() {
+      wrap.classList.toggle('pw-reveal--shifted', pwManagerPresent(wrap, el));
+    }
+    syncManagerOffset();
+    // Extensions inject asynchronously, often well after load and again on
+    // focus, so keep watching rather than checking once.
+    if (window.MutationObserver) {
+      new MutationObserver(syncManagerOffset).observe(wrap, {
+        childList: true, subtree: true, attributes: true,
+        attributeFilter: ['style', 'class'],
+      });
+    }
+    el.addEventListener('focus', syncManagerOffset);
+    setTimeout(syncManagerOffset, 800);
+  });
+}
+window.initPasswordReveals = initPasswordReveals;
+
+
 function initDismissibleNotices(root) {
   var RADIUS = 9;
   var CIRC = 2 * Math.PI * RADIUS;

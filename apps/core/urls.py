@@ -10,9 +10,16 @@ urlpatterns = [
     path("onboarding/account/method/", views.OnboardingAccountMethodView.as_view(), name="onboarding-account-method"),
     path("onboarding/account/email/", views.OnboardingAccountEmailView.as_view(), name="onboarding-account-email"),
     path("onboarding/account/confirm/", views.OnboardingAccountConfirmView.as_view(), name="onboarding-account-confirm"),
+    path("onboarding/start/", views.OnboardingStartView.as_view(), name="onboarding-start"),
     path("onboarding/tax/", views.OnboardingTaxView.as_view(), name="onboarding-tax"),
     path("onboarding/workplace/", views.OnboardingWorkplaceView.as_view(), name="onboarding-workplace"),
     path("onboarding/terms/", views.OnboardingTermsView.as_view(), name="onboarding-terms"),
+    path("onboarding/review/", views.OnboardingReviewView.as_view(), name="onboarding-review"),
+    path("onboarding/start-over/", views.OnboardingResetView.as_view(), name="onboarding-reset"),
+    # Entered from the Start step, and again from Review to top up a partial file.
+    path("onboarding/import/", views.OnboardingImportView.as_view(), name="onboarding-import"),
+    path("onboarding/import/confirm/", views.OnboardingImportConfirmView.as_view(),
+         name="onboarding-import-confirm"),
     path("tax-profiles/", views.TaxProfileListView.as_view(), name="taxprofile-list"),
     path(
         "tax-profiles/new/",

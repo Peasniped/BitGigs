@@ -2,6 +2,7 @@ import json
 
 from django.http import HttpResponse
 from django.shortcuts import render, redirect
+from django.urls import reverse
 from django.views import View
 from django.utils import timezone
 
@@ -90,13 +91,7 @@ class ImportUploadView(View):
                 if name in conflicts
             }
 
-            # Summary counts
-            summary = {
-                "workplaces": len(data.get("workplaces", [])),
-                "shifts": len(data.get("shifts", [])),
-                "planned_shifts": len(data.get("planned_shifts", [])),
-                "tax_profiles": len(data.get("tax_profiles", [])),
-            }
+            summary = services.import_summary(data)
         except (UnicodeDecodeError, *IMPORT_ERRORS) as e:
             messages.error(request, f"Import failed: {e}")
             return redirect("data_io:main")
@@ -108,10 +103,14 @@ class ImportUploadView(View):
 
         return render(request, "data_io/import_confirm.html", {
             "conflicts": conflicts,
+            "conflict_rows": services.describe_conflicts(data, conflicts),
             "existing_workplaces": existing_workplaces,
             "contract_overlaps": contract_overlaps,
             "summary": summary,
             "data": data,
+            # The onboarding wizard reuses this template with its own endpoints.
+            "confirm_url": reverse("data_io:import-confirm"),
+            "cancel_url": reverse("data_io:main"),
         })
 
 
@@ -134,20 +133,7 @@ class ImportConfirmView(View):
             messages.error(request, f"Import failed: {e}")
             return redirect("data_io:main")
 
-        # Build workplace_mapping from form
-        workplace_mapping = {}
-        for name in conflicts:
-            action = request.POST.get(f"action_{name}", "skip")
-            if action == "create":
-                workplace_mapping[name] = {"action": "create"}
-            elif action.startswith("map_"):
-                target_id = parse_int_param(action.removeprefix("map_"))
-                if target_id is None:
-                    workplace_mapping[name] = {"action": "skip"}
-                else:
-                    workplace_mapping[name] = {"action": "map", "target_id": target_id}
-            else:
-                workplace_mapping[name] = {"action": "skip"}
+        workplace_mapping = services.build_workplace_mapping(request.POST, conflicts)
 
         # Overlapping contracts only bite workplaces actually being created.
         overlaps = services.detect_contract_overlaps(data)
@@ -182,18 +168,7 @@ class ImportConfirmView(View):
         # Clean up session
         del request.session["import_data"]
 
-        parts = []
-        if counts["shifts_created"]:
-            parts.append(f"{counts['shifts_created']} shift(s)")
-        if counts["planned_created"]:
-            parts.append(f"{counts['planned_created']} planned shift(s)")
-        if counts["tax_created"]:
-            parts.append(f"{counts['tax_created']} tax profile(s)")
-        if counts["skipped"]:
-            parts.append(f"{counts['skipped']} skipped")
-
-        msg = "Import complete: " + (", ".join(parts) if parts else "nothing to import.")
-        messages.success(request, msg)
+        messages.success(request, services.describe_import(counts))
         if skip_workplaces:
             messages.warning(
                 request,

@@ -2,12 +2,20 @@
 {% block title %}Confirm Import &middot; BitGigs{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
-  <h4 class="mb-0"><i class="bi bi-box-arrow-in-down me-2"></i>Review Import</h4>
-  <a href="{% url 'data_io:main' %}" class="btn btn-sm btn-outline-secondary">
-    <i class="bi bi-arrow-left me-1"></i>Back
-  </a>
-</div>
+{% comment %}
+  Inside the wizard this is step 2's review page, so it takes the same centred
+  column as every other onboarding page — a full-width card mid-flow reads as a
+  different part of the app. Reached from Settings → Import it stays full width,
+  like the other settings pages.
+{% endcomment %}
+{% if onboarding %}
+  <div class="row justify-content-center"><div class="col-12 col-md-10 col-lg-8">
+  {% include "core/_onboarding_steps.html" %}
+{% endif %}
+{% comment %}
+  No Back control here: Cancel at the foot of the form goes to the same place.
+{% endcomment %}
+<h4 class="mb-4"><i class="bi bi-box-arrow-in-down me-2"></i>Review Import</h4>
 
 <!-- Summary -->
 <div class="card border-0 shadow-sm mb-4">
@@ -40,10 +48,11 @@
   <div class="card-body">
     <h6 class="fw-semibold mb-2"><i class="bi bi-exclamation-triangle text-warning me-1"></i>Unmatched Workplaces</h6>
     <p class="text-muted small mb-3">
-      The following workplace names from the import file don't match any existing workplace.
-      Choose what to do with each one.
+      These workplace names from the import file don't match anything you already have.
+      Choose what to do with each — the note under a name says how much the file
+      actually knows about it.
     </p>
-    <form method="post" action="{% url 'data_io:import-confirm' %}" id="importForm">
+    <form method="post" action="{{ confirm_url }}" id="importForm">
       {% csrf_token %}
       {% if contract_overlaps %}
       <div class="alert alert-danger border-0 mb-3">
@@ -89,12 +98,36 @@
             </tr>
           </thead>
           <tbody>
-            {% for name, _ in conflicts.items %}
+            {% for row in conflict_rows %}
             <tr>
-              <td><strong>{{ name }}</strong></td>
               <td>
-                <select class="form-select form-select-sm" name="action_{{ name }}" style="max-width:320px;">
-                  <option value="create">Create new workplace "{{ name }}"</option>
+                <strong>{{ row.name }}</strong>
+                {% comment %}
+                  "Create" means two different things depending on whether the file
+                  actually describes this workplace or merely names it on a shift,
+                  so say which one this is.
+                {% endcomment %}
+                <div class="form-text mt-0">
+                  {% if row.defined %}
+                    Described in the file, with its own settings and pay terms.
+                  {% else %}
+                    Only named on shifts — the file doesn't describe it.
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                <select class="form-select form-select-sm" name="action_{{ row.name }}" style="max-width:100%;min-width:22rem;">
+                  {% comment %}
+                    A described workplace gets both: take the file's settings, or
+                    start clean and keep only the shifts. A name the file never
+                    describes has nothing to take, so only the blank option.
+                  {% endcomment %}
+                  {% if row.defined %}
+                    <option value="create">Create "{{ row.name }}" with its imported settings</option>
+                    <option value="create_blank">Create blank workplace "{{ row.name }}" (ignore imported settings)</option>
+                  {% else %}
+                    <option value="create_blank">Create blank workplace "{{ row.name }}"</option>
+                  {% endif %}
                   {% for wp in existing_workplaces %}
                   <option value="map_{{ wp.pk }}">Map to: {{ wp.name }}</option>
                   {% endfor %}
@@ -110,7 +143,7 @@
         <button type="submit" class="btn btn-success">
           <i class="bi bi-check-lg me-1"></i>Confirm & Import
         </button>
-        <a href="{% url 'data_io:main' %}" class="btn btn-outline-secondary">Cancel</a>
+        <a href="{{ cancel_url }}" class="btn btn-outline-secondary">Cancel</a>
       </div>
     </form>
   </div>
@@ -123,16 +156,17 @@
       <i class="bi bi-check-circle text-success fs-4"></i>
       <span>All workplaces in the file match existing workplaces. Ready to import.</span>
     </div>
-    <form method="post" action="{% url 'data_io:import-confirm' %}">
+    <form method="post" action="{{ confirm_url }}">
       {% csrf_token %}
       <div class="d-flex gap-2">
         <button type="submit" class="btn btn-success">
           <i class="bi bi-check-lg me-1"></i>Import Now
         </button>
-        <a href="{% url 'data_io:main' %}" class="btn btn-outline-secondary">Cancel</a>
+        <a href="{{ cancel_url }}" class="btn btn-outline-secondary">Cancel</a>
       </div>
     </form>
   </div>
 </div>
 {% endif %}
+{% if onboarding %}</div></div>{% endif %}
 {% endblock %}

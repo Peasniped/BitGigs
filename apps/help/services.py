@@ -59,9 +59,12 @@ HELP_PAGE_CONTEXTS = [
     ("core:onboarding-account", "Onboarding: claim instance"),
     ("core:onboarding-account-method", "Onboarding: sign-in method"),
     ("core:onboarding-account-email", "Onboarding: create account"),
+    ("core:onboarding-start", "Onboarding: import or scratch"),
     ("core:onboarding-tax", "Onboarding: tax profile"),
     ("core:onboarding-workplace", "Onboarding: workplace"),
+    ("core:onboarding-import", "Onboarding: import data"),
     ("core:onboarding-terms", "Onboarding: pay terms"),
+    ("core:onboarding-review", "Onboarding: review"),
 ]
 
 _SEARCH_KEYS = [

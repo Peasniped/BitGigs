@@ -1,7 +1,7 @@
 ---
 title: The pay terms step
 slug: onboarding-terms
-summary: How your first job pays — then Finish writes everything at once.
+summary: How your first job pays.
 parent: first-time-setup
 audience: everyone
 order: 5
@@ -9,7 +9,7 @@ published: true
 keywords: [pay terms, step, hourly, salary, rate, hours, vacation, finish]
 pages: [core:onboarding-terms]
 ---
-The last step describes how the job from the previous step pays: hourly or
+This step describes how the job from the previous step pays: hourly or
 salaried, the rate or monthly salary, weekly hours, payroll period, tax card,
 vacation type and any extras.
 
@@ -21,10 +21,9 @@ If you're unsure about a value, enter your best guess — terms are
 **date-versioned**, so they can be corrected or extended later from the
 workplace's page without losing history.
 
-## Finish
+## Next: review
 
-**Finish** is the moment everything happens: your tax profile, workplace,
-contract and these pay terms are all written to the database **together**.
-Until then the wizard holds your entries as a draft, which is why you can move
-back and forth (or log out) without losing anything. After Finish, BitGigs
-opens on your dashboard — you're set up.
+**Continue** takes you to [Review](/help/onboarding-review/), which lists what
+setup has and what it still needs. Nothing is written until you press **Finish**
+there — until then the wizard holds your entries as a draft, which is why you can
+move back and forth (or log out) without losing anything.

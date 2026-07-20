@@ -220,9 +220,31 @@
         }
       });
     }
+    // A link inside an article body points at the full manual page. Following it
+    // would throw the reader out of the popup — and, mid-onboarding, out of the
+    // wizard and into the running app — when all they wanted was a quick look at
+    // a related article. Keep those in the panel; anything else (an external
+    // link, a deep link into the app) behaves normally.
+    function slugFromHref(href) {
+      if (!href || !articleUrlTpl) return null;
+      var parts = articleUrlTpl.split("SLUG");
+      var prefix = parts[0], suffix = parts[1] || "";
+      var path = href.split("?")[0].split("#")[0];
+      if (path.indexOf(prefix) !== 0) return null;
+      var rest = path.slice(prefix.length);
+      if (suffix && rest.slice(-suffix.length) === suffix) rest = rest.slice(0, -suffix.length);
+      // A single path segment is an article; anything deeper isn't.
+      return rest && rest.indexOf("/") === -1 ? decodeURIComponent(rest) : null;
+    }
+
     root.addEventListener("click", function (e) {
       var opener = e.target.closest("[data-help-open]");
-      if (opener) { e.preventDefault(); openArticle(opener.getAttribute("data-help-open")); }
+      if (opener) { e.preventDefault(); openArticle(opener.getAttribute("data-help-open")); return; }
+
+      var link = e.target.closest("a[href]");
+      if (!link || link.hasAttribute("data-help-manual-link")) return;
+      var slug = slugFromHref(link.getAttribute("href"));
+      if (slug) { e.preventDefault(); openArticle(slug); }
     });
     // Keyboard-openable context items (role="button" tabindex="0").
     root.addEventListener("keydown", function (e) {

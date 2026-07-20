@@ -1,11 +1,8 @@
-import calendar as _calendar
-import json
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.views import LoginView
-from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.urls import reverse
@@ -19,6 +16,7 @@ from .models import EmailSettings, TaxProfile, UserSettings
 from .forms import EmailSettingsForm, TaxProfileForm, UserSettingsForm
 from .utils import parse_int_param, prev_next_month
 from .dashboard_service import DashboardDataService, get_pending_shifts, get_todays_banner
+from . import onboarding as ob
 from api.views import api_settings_context
 
 
@@ -29,6 +27,22 @@ def _safe_next(request, raw):
                                                require_https=request.is_secure()):
         return raw
     return None
+
+
+class MediaView(View):
+    """Serve MEDIA_ROOT (workplace icons) behind the site's login gate.
+
+    WhiteNoise handles the static files, but it indexes them once at startup, so
+    an icon uploaded after boot would 404 until the process restarted — media has
+    to come from a live path instead. Deliberately *not* marked
+    ``login_not_required``: uploads belong to the owner, like every other page.
+    ``django.views.static.serve`` normalises the path and refuses to escape the
+    document root."""
+
+    def get(self, request, path):
+        from django.conf import settings as django_settings
+        from django.views.static import serve
+        return serve(request, path, document_root=django_settings.MEDIA_ROOT)
 
 
 class DashboardView(View):
@@ -593,8 +607,17 @@ class SSOLinkConfirmView(View):
         return complete_social_login(request, sociallogin)
 
 
-def _signin_tab_url():
-    """Sign-in actions all live on the Sign-in tab — come back to it."""
+def _signin_tab_url(request=None):
+    """Where a sign-in action returns to.
+
+    Normally the Sign-in tab that hosts it, but the onboarding Review step reuses
+    the same modals, so a same-origin ``next`` wins — otherwise saving a password
+    mid-setup would bounce the user to a settings page the wizard funnel then
+    redirects away from."""
+    if request is not None:
+        target = _safe_next(request, request.POST.get("next"))
+        if target:
+            return target
     return f"{reverse('core:settings')}?tab=signin"
 
 
@@ -624,27 +647,27 @@ class PasswordSignInView(View):
 
         if action == "unlink_sso":
             if not ctx["sso_linked"]:
-                return redirect(_signin_tab_url())
+                return redirect(_signin_tab_url(request))
             if not ctx["has_usable_password"]:
                 messages.error(request, f"Set a password before unlinking {provider} — "
                                         "otherwise you would have no way back in.")
-                return redirect(_signin_tab_url())
+                return redirect(_signin_tab_url(request))
             ctx["sso_account"].delete()
             messages.success(request, f"{provider} is no longer linked. Sign in with your password.")
-            return redirect(_signin_tab_url())
+            return redirect(_signin_tab_url(request))
 
         if action == "disable":
             if not ctx["sso_linked"]:
                 messages.error(request, f"Link your {provider} account before turning off password "
                                         "sign-in — otherwise you would have no way back in.")
-                return redirect(_signin_tab_url())
+                return redirect(_signin_tab_url(request))
             request.user.set_unusable_password()
             request.user.save(update_fields=["password"])
             # Any change to the password rotates the session hash, which would log
             # the owner straight out of the session they're doing this from.
             update_session_auth_hash(request, request.user)
             messages.success(request, f"Password sign-in is off. Use {provider} from now on.")
-            return redirect(_signin_tab_url())
+            return redirect(_signin_tab_url(request))
 
         if action == "account_details":
             from .forms import AccountDetailsForm
@@ -652,7 +675,7 @@ class PasswordSignInView(View):
             if form.is_valid():
                 form.save()
                 messages.success(request, "Account details updated.")
-                return redirect(_signin_tab_url())
+                return redirect(_signin_tab_url(request))
             # Re-render with the modal open, so the errors are where the user is.
             return render(request, "core/settings.html", {
                 "form": UserSettingsForm(instance=UserSettings.load(), tab="display"),
@@ -671,7 +694,7 @@ class PasswordSignInView(View):
                 update_session_auth_hash(request, request.user)
                 messages.success(request, "Password changed." if had_one
                                  else "Password sign-in is on.")
-                return redirect(_signin_tab_url())
+                return redirect(_signin_tab_url(request))
             # Re-render with the modal open, so the errors are where the user is.
             return render(request, "core/settings.html", {
                 "form": UserSettingsForm(instance=UserSettings.load(), tab="display"),
@@ -682,210 +705,7 @@ class PasswordSignInView(View):
                 "open_password_modal": True,
             })
 
-        return redirect(_signin_tab_url())
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Onboarding wizard
-#
-# The account is created immediately (step 1) — the whole site is behind a login,
-# so there must be a logged-in user for the remaining steps. Tax → Workplace →
-# Terms are then held in a durable per-user OnboardingDraft (a DB row, not the
-# session, so logging out mid-onboarding doesn't lose the data) and written to
-# the real tables together, atomically, only on the final "Finish" (the Terms
-# step's submit), after which the draft is deleted. Each step's stored payload is
-# the raw POST of a form that already passed is_valid(), so re-binding it on a
-# later visit re-shows the input with no validation errors — that's what makes
-# back-navigation keep its place.
-#
-# The contract has no step of its own: its only editable field is an optional
-# label, so the Workplace step carries it as a prefixed "contract-name" field and
-# a single payload holds both forms.
-# ─────────────────────────────────────────────────────────────────────────────
-
-_ONBOARDING_ORDER = ["tax", "workplace", "terms"]
-_ONBOARDING_URLS = {
-    "account": "core:onboarding-account",
-    "tax": "core:onboarding-tax",
-    "workplace": "core:onboarding-workplace",
-    "terms": "core:onboarding-terms",
-}
-_ONBOARDING_MONTH_CHOICES = [(str(i), _calendar.month_abbr[i]) for i in range(1, 13)]
-
-
-def _onboarding_data(request):
-    """The current user's saved onboarding step payloads (empty dict if none)."""
-    from .models import OnboardingDraft
-    draft = OnboardingDraft.objects.filter(user=request.user).first()
-    return draft.data if draft else {}
-
-
-def _store_onboarding(request, key, post):
-    from .models import OnboardingDraft
-    payload = {k: v for k, v in post.items() if k != "csrfmiddlewaretoken"}
-    draft, _ = OnboardingDraft.objects.get_or_create(user=request.user)
-    draft.data[key] = payload
-    draft.save(update_fields=["data", "updated_at"])
-
-
-def _clear_onboarding(request):
-    from .models import OnboardingDraft
-    OnboardingDraft.objects.filter(user=request.user).delete()
-    request.session.pop("onboarding", None)  # clear any legacy session copy
-
-
-_STEP_LABELS = {
-    "tax": "Tax details",
-    "workplace": "Workplace",
-    "terms": "Pay terms",
-}
-
-
-def _build_step_form(key, payload):
-    """The bound form for a stored step payload — used to check completeness and
-    to commit. Terms is built without a contract (guards no-op until Finish)."""
-    from workplaces.forms import WorkplaceForm, ContractTermSetForm
-    if key == "tax":
-        return TaxProfileForm(data=payload)
-    if key == "workplace":
-        return WorkplaceForm(data=payload)
-    return ContractTermSetForm(data=payload, contract=None)
-
-
-def _build_contract_form(payload=None):
-    """The contract's optional label rides along on the Workplace step, prefixed
-    so it can't collide with the workplace's own `name`."""
-    from workplaces.forms import WorkplaceContractForm
-    if payload is None:
-        return WorkplaceContractForm(prefix="contract")
-    return WorkplaceContractForm(data=payload, prefix="contract")
-
-
-def _resolve_goto(request, current):
-    """Destination after saving `current`: the ``onboarding_goto`` field is
-    ``next`` (the following step) or a step key (jump there). Guards against
-    arbitrary values."""
-    goto = request.POST.get("onboarding_goto", "next")
-    if goto in _ONBOARDING_ORDER:
-        target = goto
-    else:  # "next" (or anything unexpected)
-        idx = _ONBOARDING_ORDER.index(current)
-        target = _ONBOARDING_ORDER[min(idx + 1, len(_ONBOARDING_ORDER) - 1)]
-    return reverse(_ONBOARDING_URLS[target])
-
-
-def _onboarding_progress(data):
-    """Per indicator-step status: 'valid' (complete), 'started' (has data but not
-    yet valid), or 'empty'. Step 1 (Account) is always valid here."""
-    def status(key):
-        if key not in data:
-            return "empty"
-        return "valid" if _build_step_form(key, data[key]).is_valid() else "started"
-
-    return {1: "valid", 2: status("tax"), 3: status("workplace"), 4: status("terms")}
-
-
-def _onboarding_steps(current, data):
-    """Step-indicator model for the given wizard page. A step is 'active' (the
-    current page), 'done' (green check — an earlier step, filled and valid),
-    'started' (yellow number — filled but ahead of the current page because the
-    user navigated back, or filled yet incomplete), or 'upcoming' (grey — not
-    started). 'done' and 'started' are both clickable so the user can jump back
-    and forth."""
-    active_num = {"account": 1, "tax": 2, "workplace": 3, "terms": 4}[current]
-    progress = _onboarding_progress(data)
-    definitions = [
-        (1, "Account", None),
-        (2, "Tax Profile", reverse("core:onboarding-tax")),
-        (3, "Workplace", reverse("core:onboarding-workplace")),
-        (4, "Pay Terms", reverse("core:onboarding-terms")),
-    ]
-    steps = []
-    for num, label, url in definitions:
-        if num == active_num:
-            state, step_url = "active", None
-        elif progress[num] == "empty":
-            state, step_url = "upcoming", None
-        elif progress[num] == "valid" and num < active_num:
-            state, step_url = "done", url
-        else:
-            # Filled but ahead of the current page (the user navigated back), or
-            # filled yet incomplete → yellow.
-            state, step_url = "started", url
-        steps.append({"num": num, "label": label, "state": state, "url": step_url})
-    return steps
-
-
-def _steps_for(request, current):
-    """`_onboarding_steps` for a request — the account step runs before login, so
-    it has no draft to read."""
-    data = _onboarding_data(request) if request.user.is_authenticated else {}
-    return _onboarding_steps(current, data)
-
-
-def _transient_workplace(request):
-    """Unsaved Workplace built from the stored workplace step — for display only
-    (name) on the later onboarding pages, since nothing is saved yet."""
-    from workplaces.models import Workplace
-    data = _onboarding_data(request).get("workplace", {})
-    return Workplace(name=data.get("name", ""), slug=data.get("slug", "") or "")
-
-
-def _transient_contract(request):
-    from workplaces.models import WorkplaceContract
-    data = _onboarding_data(request).get("workplace", {})
-    return WorkplaceContract(name=data.get("contract-name", ""))
-
-
-def _onboarding_tax_profile_json(request):
-    """Tax card JSON for the Terms page's live gross-pay estimate, built from the
-    stored (not-yet-saved) tax step. Mirrors workplaces.views._tax_profile_json."""
-    tax = _onboarding_data(request).get("tax")
-    if not tax:
-        return ""
-    form = TaxProfileForm(data=tax)
-    if not form.is_valid():
-        return ""
-    cd = form.cleaned_data
-    percent = cd["tax_percent"] + (cd.get("church_tax_percent") or Decimal("0"))
-    return json.dumps({"deduction": str(cd["monthly_deduction"]), "percent": str(percent)})
-
-
-def _commit_onboarding(request):
-    """Validate every saved step and, if all complete, write the wizard to the
-    database atomically. Returns True on success, or (step_key, message) naming
-    the first incomplete step to send the user back to (with its fields flagged)."""
-    from django.core.exceptions import ValidationError
-    from workplaces.forms import ContractTermSetForm
-
-    ob = _onboarding_data(request)
-    forms = {}
-    for key in _ONBOARDING_ORDER:
-        if key not in ob:
-            return (key, f"Please fill in the {_STEP_LABELS[key]} step before you can submit.")
-        form = _build_step_form(key, ob[key])
-        if not form.is_valid():
-            return (key, f"Please finish the {_STEP_LABELS[key]} step before you can submit.")
-        forms[key] = form
-
-    contract_form = _build_contract_form(ob["workplace"])
-    contract_form.is_valid()  # only an optional label — never fails
-
-    try:
-        with transaction.atomic():
-            forms["tax"].save()
-            workplace = forms["workplace"].save()
-            contract = contract_form.save(commit=False)
-            contract.workplace = workplace
-            contract.save()
-            # Re-bind the terms to the real contract so it's linked + fully validated.
-            terms_form = ContractTermSetForm(data=ob["terms"], contract=contract)
-            if not terms_form.is_valid():
-                raise ValidationError("terms")
-            terms_form.save()
-    except ValidationError:
-        return ("terms", f"Please finish the {_STEP_LABELS['terms']} step before you can submit.")
-    return True
+        return redirect(_signin_tab_url(request))
 
 
 # ── Onboarding step 1: claim the instance, then create the owner ─────────────
@@ -927,7 +747,7 @@ class _AccountStepView(View):
         return {
             "onboarding": True,
             "onboarding_first_step": True,
-            "steps": _steps_for(request, "account"),
+            "steps": ob.steps_for(request, "account"),
             **extra,
         }
 
@@ -1031,30 +851,71 @@ class OnboardingAccountConfirmView(_AccountStepView):
 
 
 class OnboardingRootView(View):
-    """Entry point — resume at the first step still lacking data, else the last."""
+    """Entry point — resume wherever the user actually is on their chosen path."""
 
     def get(self, request):
-        ob = _onboarding_data(request)
-        for key in _ONBOARDING_ORDER:
-            if key not in ob:
-                return redirect(_ONBOARDING_URLS[key])
-        return redirect(_ONBOARDING_URLS["terms"])
+        draft = ob.draft_data(request)
+        cov = ob.coverage(request)
+        # Not chosen a path yet. The `imported_anything` guard matters when a
+        # session was lost mid-import: don't send someone whose database is
+        # already half-populated back to a choice they made.
+        if "start" not in draft and not cov.imported_anything:
+            return redirect(ob.URLS["start"])
+        if cov.can_finish:
+            return redirect(ob.URLS["review"])
+        if cov.method == "import" and not cov.imported_anything:
+            return redirect("core:onboarding-import")
+        for key in ob.DRAFT_KEYS:
+            if key not in draft and not getattr(cov, key).covered:
+                return redirect(ob.URLS[key])
+        # Everything's been touched but gaps remain — Review names them.
+        return redirect(ob.URLS["review"])
+
+
+class OnboardingStartView(View):
+    """Onboarding step 2 — restore an export, or set everything up by hand.
+
+    The choice is advisory, not a lock: it decides where Continue goes and how
+    Review words itself, but either path stays reachable throughout."""
+
+    METHODS = ("import", "scratch")
+
+    def _context(self, request, error=""):
+        return {
+            "onboarding": True,
+            "steps": ob.steps_for(request, "start"),
+            "chosen": ob.draft_data(request).get("start", {}).get("method", ""),
+            "error": error,
+        }
+
+    def get(self, request):
+        return render(request, "core/onboarding_start.html", self._context(request))
+
+    def post(self, request):
+        method = request.POST.get("setup_method", "")
+        if method not in self.METHODS:
+            return render(request, "core/onboarding_start.html",
+                          self._context(request, error="Please choose how you'd like to start."))
+        ob.store_step(request, "start", {"method": method})
+        if method == "import":
+            return redirect("core:onboarding-import")
+        return redirect(ob.URLS["tax"])
 
 
 class OnboardingTaxView(View):
     def _context(self, request, form):
-        return {"tax_form": form, "onboarding": True, "steps": _steps_for(request, "tax")}
+        return {"tax_form": form, "onboarding": True, "steps": ob.steps_for(request, "tax")}
 
     def get(self, request):
-        stored = _onboarding_data(request).get("tax")
+        stored = ob.draft_data(request).get("tax")
         form = TaxProfileForm(data=stored) if stored else TaxProfileForm()
         return render(request, "core/onboarding_tax.html", self._context(request, form))
 
     def post(self, request):
         # Save whatever's entered (even partial) and navigate — validation is
         # deferred to Finish, so the user can fill steps in any order.
-        _store_onboarding(request, "tax", request.POST)
-        return redirect(_resolve_goto(request, "tax"))
+        ob.store_step(request, "tax", request.POST)
+        return redirect(ob.resolve_goto(request, "tax"))
 
 
 class OnboardingWorkplaceView(View):
@@ -1066,55 +927,301 @@ class OnboardingWorkplaceView(View):
             "form": form,
             "contract_form": contract_form,
             "onboarding": True,
-            "steps": _steps_for(request, "workplace"),
+            "steps": ob.steps_for(request, "workplace"),
         }
 
     def get(self, request):
         from workplaces.forms import WorkplaceForm
-        stored = _onboarding_data(request).get("workplace")
+        stored = ob.draft_data(request).get("workplace")
         form = WorkplaceForm(data=stored) if stored else WorkplaceForm()
-        contract_form = _build_contract_form(stored)
+        contract_form = ob._build_contract_form(stored)
         return render(request, "workplaces/workplace_form.html", self._context(request, form, contract_form))
 
     def post(self, request):
-        _store_onboarding(request, "workplace", request.POST)
-        return redirect(_resolve_goto(request, "workplace"))
+        ob.store_step(request, "workplace", request.POST)
+        return redirect(ob.resolve_goto(request, "workplace"))
 
 
 class OnboardingTermsView(View):
-    def _context(self, request, form):
+    """Onboarding step 5 — how the workplace pays.
+
+    Two modes. Normally it stores into the draft like every other step and Review
+    commits. But when an import left a stub term set — written so a file's shifts
+    had a contract to attach to — this step overwrites that real row **in place
+    and immediately**: it already exists in the database, and replacing it is the
+    only way the imported shifts stop pricing at zero.
+
+    The stub is an implementation detail the user never needs to hear about, so
+    the form is presented blank, exactly like entering terms for any new job."""
+
+    def _stub(self, request):
+        """The placeholder term set this step should repair, if any."""
+        return ob.placeholder_termsets().first()
+
+    def _context(self, request, form, stub=None):
         return {
             "form": form,
-            "workplace": _transient_workplace(request),
-            "contract": _transient_contract(request),
+            "workplace": stub.contract.workplace if stub else ob.transient_workplace(request),
+            "contract": stub.contract if stub else ob.transient_contract(request),
             "onboarding": True,
-            "steps": _steps_for(request, "terms"),
-            "tax_profile_json": _onboarding_tax_profile_json(request),
-            "month_choices": _ONBOARDING_MONTH_CHOICES,
+            "fixing_placeholder": bool(stub),
+            "steps": ob.steps_for(request, "terms"),
+            "tax_profile_json": ob.tax_profile_json(request),
+            "month_choices": ob.MONTH_CHOICES,
             "existing_terms_json": "[]",
         }
 
     def get(self, request):
         from workplaces.forms import ContractTermSetForm
-        stored = _onboarding_data(request).get("terms")
+        stub = self._stub(request)
+        if stub:
+            # Unbound: a blank form with the normal defaults. Binding it to the
+            # stub would prefill the placeholder's 0 kr and year-2000 date, which
+            # is worse than useless as a starting point.
+            form = ContractTermSetForm(contract=stub.contract)
+            return render(request, "workplaces/termset_form.html",
+                          self._context(request, form, stub))
+
+        stored = ob.draft_data(request).get("terms")
         form = ContractTermSetForm(data=stored, contract=None) if stored else ContractTermSetForm(contract=None)
         return render(request, "workplaces/termset_form.html", self._context(request, form))
 
     def post(self, request):
+        from workplaces.forms import ContractTermSetForm
+        stub = self._stub(request)
+        if stub:
+            form = ContractTermSetForm(data=request.POST, contract=stub.contract, instance=stub)
+            if not form.is_valid():
+                return render(request, "workplaces/termset_form.html",
+                              self._context(request, form, stub))
+            form.save()
+            # Another workplace may still be waiting; Review routes to the next.
+            return redirect(ob.URLS["review"])
+
+        # Terms deliberately does NOT finish: it stores and navigates like every
+        # other data step, and Review is the only page that commits.
+        ob.store_step(request, "terms", request.POST)
+        return redirect(ob.resolve_goto(request, "terms"))
+
+
+class OnboardingResetView(View):
+    """Start over: discard everything the wizard has gathered and return to step 2.
+
+    Steps 3-5 are only a draft, but the import path writes as it goes — so a
+    genuine restart has to clear the imported rows too, or "start over" would
+    leave the workplaces and shifts it was meant to discard. Deliberately scoped
+    to setup: once onboarding is finished this refuses, so it can never become a
+    wipe button for a live install."""
+
+    def post(self, request):
         from django.contrib import messages
-        _store_onboarding(request, "terms", request.POST)
+        from django.db import transaction as db_transaction
+        from core.models import TaxProfile
+        from shifts.models import PlannedShift, Shift
+        from workplaces.models import Workplace
 
-        goto = request.POST.get("onboarding_goto", "next")
-        if goto not in ("next", "finish"):
-            # Back / step-jump: just save and navigate, don't try to finish.
-            return redirect(_resolve_goto(request, "terms"))
+        # Guard on having *left* the wizard, not on the database completion
+        # signal: a full import satisfies that signal while the user is still on
+        # Review, and undoing an import they didn't want is the main reason this
+        # button exists. OnboardingReviewView turns finished users away, so the
+        # form that posts here is unreachable once setup is done.
+        if request.session.get("onboarding_complete"):
+            messages.error(request, "Setup is already finished, so there's nothing to restart.")
+            return redirect("core:dashboard")
 
-        result = _commit_onboarding(request)
+        with db_transaction.atomic():
+            Shift.objects.all().delete()
+            PlannedShift.objects.all().delete()
+            Workplace.objects.all().delete()   # cascades contracts + term sets
+            TaxProfile.objects.all().delete()
+            ob.clear_draft(request)
+
+        request.session.pop("import_data", None)
+        messages.success(request, "Cleared — let's start again.")
+        return redirect(ob.URLS["start"])
+
+
+class OnboardingReviewView(View):
+    """Onboarding step 6 — what setup has, what it still needs, and Finish.
+
+    The single exit for both paths. On the scratch path this previews a draft
+    that Finish then writes; after an import it reports rows already saved. Only
+    tax details and pay terms gate Finish — shift counts are shown because they
+    reassure, never because they block."""
+
+    def _context(self, request):
+        cov = ob.coverage(request)
+        return {
+            "onboarding": True,
+            "steps": ob.steps_for(request, "review"),
+            "cov": cov,
+            "missing": cov.missing(),
+            "urls": {key: reverse(ob.URLS[key]) for key in ("tax", "workplace", "terms")},
+            "import_url": reverse("core:onboarding-import"),
+            "reset_url": reverse("core:onboarding-reset"),
+            # The account modals are the settings page's, reused verbatim; they
+            # post to core:password-signin and come back here via `next`.
+            "signin_return": reverse(ob.URLS["review"]),
+            **sign_in_context(request.user),
+        }
+
+    def get(self, request):
+        # Finished users have no business back here — and this is the only page
+        # that renders the Start over form, so turning them away keeps that out of
+        # reach too. Keyed on the session flag (set by mark_complete when they
+        # pressed Finish), not on the database signal: a full import satisfies that
+        # signal while the user is legitimately still standing here.
+        if request.session.get("onboarding_complete"):
+            return redirect("core:dashboard")
+        return render(request, "core/onboarding_review.html", self._context(request))
+
+    def post(self, request):
+        from django.contrib import messages
+
+        result = ob.commit_setup(request)
         if result is True:
-            request.session["onboarding_complete"] = True
-            _clear_onboarding(request)
+            ob.mark_complete(request)
             messages.success(request, "You're all set up — welcome to BitGigs!")
             return redirect("core:dashboard")
+        # Defence in depth: Finish is disabled in the template when gaps remain.
         step_key, msg = result
         messages.error(request, msg)
-        return redirect(_ONBOARDING_URLS[step_key])
+        return redirect(ob.URLS[step_key])
+
+
+# ── Onboarding: restore a BitGigs export instead of typing it in ─────────────
+# Entered from the Start step (2), and again from Review when one file didn't
+# cover everything — importing is repeatable, and each run sees the workplaces
+# the previous one created. These views are thin wrappers over data_io.services,
+# the same code path Settings → Import uses; only the entry/exit URLs differ.
+# They live under /onboarding/ so the middleware exemption already covers them.
+#
+# Unlike the wizard's own steps this writes immediately, so it always exits to
+# Review rather than deciding anything about completion itself.
+
+def _import_error_config():
+    from data_io.views import IMPORT_ERRORS, MAX_IMPORT_SIZE
+    return IMPORT_ERRORS, MAX_IMPORT_SIZE
+
+
+class OnboardingImportView(View):
+    """Upload step: take the export file and show the same review page the
+    Settings → Import flow uses."""
+
+    def _context(self, request):
+        return {"onboarding": True, "steps": ob.steps_for(request, "start")}
+
+    def get(self, request):
+        return render(request, "core/onboarding_import.html", self._context(request))
+
+    def post(self, request):
+        from django.contrib import messages
+        from data_io import services as io_services
+        from workplaces.models import Workplace
+        IMPORT_ERRORS, MAX_IMPORT_SIZE = _import_error_config()
+
+        uploaded = request.FILES.get("import_file")
+        if not uploaded:
+            messages.error(request, "Please choose a BitGigs export file to import.")
+            return redirect("core:onboarding-import")
+        if uploaded.size > MAX_IMPORT_SIZE:
+            messages.error(request, "Import failed: the file is larger than 10 MB.")
+            return redirect("core:onboarding-import")
+
+        try:
+            content = uploaded.read().decode("utf-8")
+            data = io_services.parse_import_file(content)
+            conflicts = io_services.detect_workplace_conflicts(data)
+            contract_overlaps = {
+                name: clashes
+                for name, clashes in io_services.detect_contract_overlaps(data).items()
+                if name in conflicts
+            }
+            summary = io_services.import_summary(data)
+        except (UnicodeDecodeError, *IMPORT_ERRORS) as e:
+            messages.error(request, f"Import failed: {e}")
+            return redirect("core:onboarding-import")
+
+        request.session["import_data"] = content
+        return render(request, "data_io/import_confirm.html", {
+            "conflicts": conflicts,
+            "conflict_rows": io_services.describe_conflicts(data, conflicts),
+            # Must be the real list, not []: a second import (offered from Review)
+            # runs against workplaces the first one created, and the user needs the
+            # "map to existing" option for them.
+            "existing_workplaces": Workplace.objects.all(),
+            "contract_overlaps": contract_overlaps,
+            "summary": summary,
+            "data": data,
+            "onboarding": True,
+            "steps": ob.steps_for(request, "start"),
+            "confirm_url": reverse("core:onboarding-import-confirm"),
+            # Back out to whichever page the user came from.
+            "cancel_url": reverse(ob.URLS["review"] if ob.coverage(request).imported_anything
+                                  else ob.URLS["start"]),
+        })
+
+
+class OnboardingImportConfirmView(View):
+    """Write the reviewed import, then hand off to Review.
+
+    Never decides completion itself: Review is the single exit, so importing a
+    file that covers everything still shows the user what landed."""
+
+    def post(self, request):
+        from django.contrib import messages
+        from django.core.exceptions import ValidationError
+        from data_io import services as io_services
+        IMPORT_ERRORS, _ = _import_error_config()
+
+        content = request.session.get("import_data")
+        if not content:
+            messages.error(request, "No import data found. Please upload the file again.")
+            return redirect("core:onboarding-import")
+
+        try:
+            data = io_services.parse_import_file(content)
+            conflicts = io_services.detect_workplace_conflicts(data)
+        except IMPORT_ERRORS as e:
+            del request.session["import_data"]
+            messages.error(request, f"Import failed: {e}")
+            return redirect("core:onboarding-import")
+
+        mapping = io_services.build_workplace_mapping(request.POST, conflicts)
+        overlaps = io_services.detect_contract_overlaps(data)
+        overlapping_created = {
+            name for name in overlaps if mapping.get(name, {}).get("action") == "create"
+        }
+        skip_workplaces = set()
+        if overlapping_created:
+            if request.POST.get("overlap_action") == "discard_all":
+                del request.session["import_data"]
+                messages.error(
+                    request,
+                    "Import cancelled — the file contains workplaces with "
+                    "overlapping contracts. Nothing was imported.",
+                )
+                return redirect("core:onboarding-import")
+            skip_workplaces = overlapping_created
+
+        try:
+            counts = io_services.perform_import(
+                data, mapping, skip_workplaces=skip_workplaces
+            )
+        except (ValidationError, *IMPORT_ERRORS) as e:
+            # perform_import is atomic — nothing was written.
+            del request.session["import_data"]
+            messages.error(request, f"Import failed, nothing was imported: {e}")
+            return redirect("core:onboarding-import")
+
+        del request.session["import_data"]
+        messages.success(request, io_services.describe_import(counts))
+        if skip_workplaces:
+            messages.warning(
+                request,
+                "Skipped {} workplace(s) with overlapping contracts: {}.".format(
+                    len(skip_workplaces), ", ".join(sorted(skip_workplaces))
+                ),
+            )
+
+        return redirect(ob.URLS["review"])

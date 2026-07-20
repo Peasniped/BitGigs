@@ -51,14 +51,22 @@ def onboarding_status(request):
     """Expose ``onboarding_complete`` to every template so the base layout can
     hide the main navigation until first-time setup is finished.
 
-    Mirrors OnboardingRequiredMiddleware's completion signal (a tax profile and
-    at least one term set exist). The middleware caches the result in the session
-    once true, so the DB check only runs while onboarding is still in progress."""
+    Mirrors OnboardingRequiredMiddleware's gate — ``onboarding.setup_finished``,
+    which is the data check *plus* "the wizard is actually over". The middleware
+    caches the result in the session once true, so the DB check only runs while
+    onboarding is still in progress."""
     if getattr(request, "session", None) is not None and request.session.get("onboarding_complete"):
-        return {"onboarding_complete": True}
+        return {"onboarding_complete": True, "setup_in_progress": False}
 
-    from .models import TaxProfile
-    from workplaces.models import ContractTermSet
+    from . import onboarding
 
-    complete = TaxProfile.objects.exists() and ContractTermSet.objects.exists()
-    return {"onboarding_complete": complete}
+    finished = onboarding.setup_finished(request)
+    return {
+        "onboarding_complete": finished,
+        # Pages exempt from the funnel (the help manual, most visibly) render the
+        # normal layout, which would hand a half-set-up owner the full navigation.
+        # This lets base.html keep the wizard's minimal chrome on them.
+        "setup_in_progress": bool(
+            getattr(getattr(request, "user", None), "is_authenticated", False) and not finished
+        ),
+    }

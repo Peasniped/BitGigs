@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+{% block title %}Review &middot; BitGigs Setup{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-10 col-lg-8">
+
+    {% include "core/_onboarding_steps.html" %}
+
+    <div class="card">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-clipboard-check me-2"></i>Review your setup
+      </div>
+      <div class="card-body">
+
+        {% if cov.can_finish %}
+          <div class="alert alert-success d-flex align-items-start gap-2 py-2 mb-3">
+            <i class="bi bi-check-circle-fill mt-1 flex-shrink-0"></i>
+            <div>Everything BitGigs needs is here. Press <strong>Finish setup</strong> to start using it.</div>
+          </div>
+        {% else %}
+          <div class="alert alert-warning d-flex align-items-start gap-2 py-2 mb-3 setup-blocked-note"
+               data-blocked-note>
+            <i class="bi bi-exclamation-triangle-fill mt-1 flex-shrink-0"></i>
+            <div>
+              Almost there — the item{{ missing|length|pluralize }} marked below
+              {{ missing|length|pluralize:"is,are" }} still needed before setup can finish.
+            </div>
+          </div>
+        {% endif %}
+
+        <h6 class="fw-semibold mb-2">Your account</h6>
+        <ul class="list-group mb-4">
+          <li class="list-group-item d-flex align-items-center gap-3">
+            <i class="bi bi-person-circle text-muted"></i>
+            <div class="flex-grow-1">
+              <div class="fw-medium">{{ user.first_name|default:user.get_username }}</div>
+              <small class="text-muted">{{ user.email|default:user.get_username }}</small>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    data-bs-toggle="modal" data-bs-target="#accountDetailsModal">Edit</button>
+          </li>
+          <li class="list-group-item d-flex align-items-center gap-3">
+            <i class="bi bi-key text-muted"></i>
+            <div class="flex-grow-1">
+              <div class="fw-medium">Password</div>
+              {% comment %}
+                A dot run, not the length of anything — never leak how long it is.
+              {% endcomment %}
+              <small class="text-muted font-monospace">
+                {% if has_usable_password %}&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;{% else %}Not set &mdash; you sign in with {{ sso_brand.name }}{% endif %}
+              </small>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    data-bs-toggle="modal" data-bs-target="#passwordModal">
+              {% if has_usable_password %}Change{% else %}Set{% endif %}
+            </button>
+          </li>
+        </ul>
+
+        {% comment %}
+          Required = the real completion signal (a tax profile and a set of pay
+          terms). Shifts are shown further down and never gate Finish.
+        {% endcomment %}
+        <h6 class="fw-semibold mb-2">Required</h6>
+        <ul class="list-group mb-4">
+
+          <li class="list-group-item d-flex align-items-center gap-3">
+            {% if cov.has_tax %}
+              <i class="bi bi-check-circle-fill text-success fs-5"></i>
+            {% else %}
+              <i class="bi bi-x-circle text-warning fs-5"></i>
+            {% endif %}
+            <div class="flex-grow-1">
+              <div class="fw-medium">Tax details</div>
+              <small class="text-muted">
+                {% if cov.tax.in_db %}Imported from your file.
+                {% elif cov.tax.from_draft %}Entered in step 3 — will be created when you finish.
+                {% else %}Not in your file, and not filled in yet.
+                {% endif %}
+              </small>
+            </div>
+            {% if not cov.has_tax %}
+              <a href="{{ urls.tax }}" class="btn btn-sm btn-outline-primary">Fill this in</a>
+            {% endif %}
+          </li>
+
+          <li class="list-group-item d-flex align-items-center gap-3">
+            {% if cov.has_terms %}
+              <i class="bi bi-check-circle-fill text-success fs-5"></i>
+            {% else %}
+              <i class="bi bi-x-circle text-warning fs-5"></i>
+            {% endif %}
+            <div class="flex-grow-1">
+              <div class="fw-medium">A workplace and its pay terms</div>
+              <small class="text-muted">
+                {% if cov.terms.in_db %}Imported from your file.
+                {% elif cov.has_terms %}Entered in steps 4&ndash;5 — will be created when you finish.
+                {% elif cov.workplace.covered %}Workplace ready, but it has no pay terms yet.
+                {% else %}Not in your file, and not filled in yet.
+                {% endif %}
+              </small>
+            </div>
+            {% if not cov.has_terms %}
+              <a href="{% if cov.workplace.covered %}{{ urls.terms }}{% else %}{{ urls.workplace }}{% endif %}"
+                 class="btn btn-sm btn-outline-primary">Fill this in</a>
+            {% endif %}
+          </li>
+
+        </ul>
+
+        {% comment %}
+          A workplace the import created from shifts alone has no pay terms yet.
+          The stub that lets those shifts exist is an internal detail — the user
+          just needs to know this workplace still needs its pay set up.
+        {% endcomment %}
+        {% if cov.placeholders %}
+          <div class="alert alert-warning mb-4 d-flex align-items-center gap-2 flex-wrap">
+            <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+            <div class="flex-grow-1">
+              <strong>{% for name in cov.placeholder_names %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}</strong>
+              {{ cov.placeholders|length|pluralize:"doesn't,don't" }} have pay terms yet.
+            </div>
+            <a href="{{ urls.terms }}" class="btn btn-sm btn-primary flex-shrink-0">
+              Set pay terms{% if cov.placeholders|length > 1 %} for {{ cov.placeholder_names.0 }}{% endif %}
+            </a>
+          </div>
+        {% endif %}
+
+        {% if cov.workplaces %}
+          <h6 class="fw-semibold mb-2">Workplaces</h6>
+          <ul class="list-group mb-4">
+            {% for wp in cov.workplaces %}
+              <li class="list-group-item d-flex align-items-center gap-3">
+                {% if wp.ready %}
+                  <i class="bi bi-check-circle-fill text-success"></i>
+                {% else %}
+                  <i class="bi bi-exclamation-circle-fill text-warning"></i>
+                {% endif %}
+                <span class="flex-grow-1">{{ wp.name }}</span>
+                <small class="text-muted">{% if wp.ready %}Pay terms set{% else %}Needs pay terms{% endif %}</small>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+
+        {% if cov.shifts or cov.planned %}
+          <h6 class="fw-semibold mb-2">Also imported</h6>
+          <ul class="list-group mb-4">
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span>Approved shifts</span><span class="badge-soft">{{ cov.shifts }}</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span>Planned shifts</span><span class="badge-soft">{{ cov.planned }}</span>
+            </li>
+          </ul>
+          <p class="form-text mt-n2 mb-4">Shifts are optional — you can add them any time.</p>
+        {% endif %}
+
+        <div class="d-flex flex-wrap gap-2">
+          {% comment %}
+            A disabled button emits no pointer events, so the hover that nudges
+            the banner has to be caught on a wrapper around it.
+          {% endcomment %}
+          <form method="post" class="flex-grow-1">
+            {% csrf_token %}
+            <span class="d-block" {% if not cov.can_finish %}data-blocked-finish{% endif %}>
+              <button type="submit" class="btn btn-primary w-100" {% if not cov.can_finish %}disabled{% endif %}>
+                <i class="bi bi-check-lg me-1"></i>Finish setup
+              </button>
+            </span>
+          </form>
+          <a href="{{ import_url }}" class="btn btn-outline-secondary">
+            <i class="bi bi-box-arrow-in-down me-1"></i>Import another file
+          </a>
+          <a href="{{ urls.terms }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back
+          </a>
+          <button type="button" class="btn btn-outline-danger ms-auto"
+                  data-bs-toggle="modal" data-bs-target="#startOverModal">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Start over
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% include "core/_account_modals.html" %}
+
+{% comment %} Start over — destructive, so it asks first and says what goes. {% endcomment %}
+<div class="modal fade" id="startOverModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content app-modal">
+      <form method="post" action="{{ reset_url }}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-arrow-counterclockwise me-2"></i>Start over?</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>This clears everything setup has gathered and takes you back to the start:</p>
+          <ul class="mb-3">
+            <li>Any workplaces, pay terms and shifts brought in by an import</li>
+            <li>Your tax details</li>
+            <li>Anything typed into the setup steps</li>
+          </ul>
+          <p class="mb-0 text-muted small">
+            Your account stays as it is — you won't be signed out, and you won't need
+            the setup key again. Import files on your computer aren't touched.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Yes, start over
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Hovering a blocked "Finish setup" nudges the banner that explains why.
+  (function () {
+    var zone = document.querySelector("[data-blocked-finish]");
+    var note = document.querySelector("[data-blocked-note]");
+    if (!zone || !note) return;
+    zone.addEventListener("mouseenter", function () {
+      if (note.classList.contains("is-nudging")) return;
+      note.classList.add("is-nudging");
+      setTimeout(function () { note.classList.remove("is-nudging"); }, 500);
+    });
+  })();
+</script>
+{% endblock %}

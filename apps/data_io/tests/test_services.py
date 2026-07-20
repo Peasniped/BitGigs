@@ -5,6 +5,7 @@ from datetime import date, time
 from decimal import Decimal
 
 from django.core.files.base import ContentFile
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 
 from core.models import TaxProfile
@@ -291,3 +292,26 @@ class IconRoundTripTest(TestCase):
         wp2.custom_icon.open("rb")
         self.assertEqual(wp2.custom_icon.read(), b"\x89PNGfakebytes")
         wp2.custom_icon.close()
+
+
+class ImportConfirmLayoutTest(TestCase):
+    """Outside the wizard the same page is a normal full-width settings page."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.user = User.objects.create_user("tester", password="pw")
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["onboarding_complete"] = True
+        session.save()
+
+    def test_no_wizard_column_or_step_bar(self):
+        _populate()
+        payload = services.export_json()
+        response = self.client.post("/data/import/", {
+            "import_file": SimpleUploadedFile("e.json", payload.encode("utf-8"),
+                                              content_type="application/json"),
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "setup-steps-track")
+        self.assertNotContains(response, "col-12 col-md-10 col-lg-8")

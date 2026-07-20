@@ -56,10 +56,9 @@ class OnboardingRequiredMiddleware:
         if request.session.get("onboarding_complete"):
             return self.get_response(request)
 
-        from core.models import TaxProfile
-        from workplaces.models import ContractTermSet
+        from core import onboarding
 
-        if TaxProfile.objects.exists() and ContractTermSet.objects.exists():
+        if onboarding.setup_finished(request):
             request.session["onboarding_complete"] = True
             return self.get_response(request)
 

@@ -163,6 +163,67 @@ def detect_contract_overlaps(data):
     return problems
 
 
+def import_summary(data):
+    """Row counts for the review page, per export section."""
+    return {
+        "workplaces": len(data.get("workplaces", [])),
+        "shifts": len(data.get("shifts", [])),
+        "planned_shifts": len(data.get("planned_shifts", [])),
+        "tax_profiles": len(data.get("tax_profiles", [])),
+    }
+
+
+def describe_conflicts(data, conflicts):
+    """Review-page rows for unmatched names: ``{"name", "defined"}``, sorted.
+
+    ``defined`` separates the two very different things "create" can mean. A file
+    that *defines* the workplace restores its settings, contracts and pay terms;
+    a file that only *mentions* it on a shift yields a bare workplace with a stub
+    contract that still needs its pay terms entered. Same word, same button —
+    which is why the option text has to say which one you're getting."""
+    defined = {wp.get("name") for wp in data.get("workplaces", [])}
+    return [{"name": name, "defined": name in defined} for name in sorted(conflicts)]
+
+
+def build_workplace_mapping(post, conflicts):
+    """Decode the review page's per-workplace ``action_<name>`` selects into the
+    mapping ``perform_import`` expects. Anything unrecognised (including a
+    non-numeric target id) falls back to "skip", so a tampered form can only ever
+    import less, never something unintended."""
+    from core.utils import parse_int_param
+
+    mapping = {}
+    for name in conflicts:
+        action = post.get(f"action_{name}", "skip")
+        if action in ("create", "create_blank"):
+            mapping[name] = {"action": action}
+        elif action.startswith("map_"):
+            target_id = parse_int_param(action.removeprefix("map_"))
+            mapping[name] = ({"action": "skip"} if target_id is None
+                             else {"action": "map", "target_id": target_id})
+        else:
+            mapping[name] = {"action": "skip"}
+    return mapping
+
+
+def describe_import(counts):
+    """Human summary of a completed import ("Import complete: 3 shift(s), …")."""
+    parts = []
+    if counts.get("workplaces_created"):
+        parts.append(f"{counts['workplaces_created']} workplace(s)")
+    if counts.get("termsets_created"):
+        parts.append(f"{counts['termsets_created']} pay term set(s)")
+    if counts["shifts_created"]:
+        parts.append(f"{counts['shifts_created']} shift(s)")
+    if counts["planned_created"]:
+        parts.append(f"{counts['planned_created']} planned shift(s)")
+    if counts["tax_created"]:
+        parts.append(f"{counts['tax_created']} tax profile(s)")
+    if counts["skipped"]:
+        parts.append(f"{counts['skipped']} skipped")
+    return "Import complete: " + (", ".join(parts) if parts else "nothing to import.")
+
+
 @transaction.atomic
 def perform_import(data, workplace_mapping, skip_workplaces=None):
     """
@@ -182,6 +243,9 @@ def perform_import(data, workplace_mapping, skip_workplaces=None):
     """
     skip_workplaces = skip_workplaces or set()
     existing_by_name = {wp.name: wp for wp in Workplace.objects.all()}
+    # Initialised before the resolution loop below, which creates workplaces.
+    counts = {"workplaces_created": 0, "termsets_created": 0,
+              "shifts_created": 0, "planned_created": 0, "tax_created": 0, "skipped": 0}
     # Resolve mapping: build imported_name -> Workplace instance
     resolved = {}
 
@@ -195,6 +259,12 @@ def perform_import(data, workplace_mapping, skip_workplaces=None):
                 raise ValueError(
                     f"The workplace selected for '{name}' no longer exists."
                 )
+        elif action["action"] == "create_blank":
+            # The file describes this workplace, but the user chose to start it
+            # clean rather than take its settings.
+            resolved[name] = _create_blank_workplace(name)
+            counts["workplaces_created"] += 1
+            counts["termsets_created"] += 1
         elif action["action"] == "create":
             # Find workplace data from the export
             wp_data = None
@@ -203,23 +273,15 @@ def perform_import(data, workplace_mapping, skip_workplaces=None):
                     wp_data = wp
                     break
             if wp_data:
-                resolved[name] = _create_workplace_from_dict(wp_data)
+                created_wp, n_termsets = _create_workplace_from_dict(wp_data)
+                resolved[name] = created_wp
+                counts["workplaces_created"] += 1
+                counts["termsets_created"] += n_termsets
             else:
-                # Create minimal workplace with a placeholder contract/termset
-                from datetime import date as _date
-                from workplaces.models import WorkplaceContract, ContractTermSet
-                minimal_wp = Workplace.objects.create(name=name)
-                minimal_contract = WorkplaceContract.objects.create(
-                    workplace=minimal_wp,
-                )
-                ContractTermSet.objects.create(
-                    contract=minimal_contract,
-                    effective_from=_date(2000, 1, 1),
-                    employment_type="hourly",
-                    hourly_rate=Decimal("0"),
-                    weekly_hours_fixed=Decimal("37"),
-                )
-                resolved[name] = minimal_wp
+                # The file names this workplace but never describes it.
+                resolved[name] = _create_blank_workplace(name)
+                counts["workplaces_created"] += 1
+                counts["termsets_created"] += 1
 
     # Also include already-matching workplaces
     for name in set(
@@ -229,8 +291,6 @@ def perform_import(data, workplace_mapping, skip_workplaces=None):
     ):
         if name not in resolved and name in existing_by_name:
             resolved[name] = existing_by_name[name]
-
-    counts = {"shifts_created": 0, "planned_created": 0, "tax_created": 0, "skipped": 0}
 
     # Import tax profiles
     for tp in data.get("tax_profiles", []):
@@ -450,8 +510,36 @@ def _restore_custom_icon(wp, icon_data):
     wp.custom_icon.save(filename, ContentFile(file_bytes), save=True)
 
 
+def _create_blank_workplace(name):
+    """A workplace with nothing but a name, plus the stub contract its shifts need.
+
+    Used when the file doesn't describe the workplace, and when the user asks for
+    a clean one instead of the file's settings. The term set is a placeholder — a
+    Shift is refused unless a contract is active on its date, so the shifts would
+    be dropped without it. Callers surface it for correction; see
+    ``core.onboarding.placeholder_termsets``."""
+    from datetime import date as _date
+    from workplaces.models import WorkplaceContract, ContractTermSet
+
+    wp = Workplace.objects.create(name=name)
+    contract = WorkplaceContract.objects.create(workplace=wp)
+    ContractTermSet.objects.create(
+        contract=contract,
+        effective_from=_date(2000, 1, 1),
+        employment_type="hourly",
+        hourly_rate=Decimal("0"),
+        weekly_hours_fixed=Decimal("37"),
+    )
+    return wp
+
+
 def _create_workplace_from_dict(d):
-    """Create a Workplace (and its contracts/termsets) from an exported dict."""
+    """Create a Workplace (and its contracts/termsets) from an exported dict.
+
+    Returns ``(workplace, termsets_created)`` — the caller counts term sets so a
+    coverage report can tell "imported a workplace" from "imported pay terms".
+    An export may legitimately carry a workplace with ``contracts: []``, which
+    yields zero term sets."""
     from datetime import time as _time
     from workplaces.models import WorkplaceContract
     from workplaces.services import valid_hex_color, valid_icon_class
@@ -486,6 +574,7 @@ def _create_workplace_from_dict(d):
     if custom_icon_data and isinstance(custom_icon_data, dict):
         _restore_custom_icon(wp, custom_icon_data)
 
+    termsets = 0
     if "contracts" in d:
         # New-format export: restore full contract/termset structure (an empty
         # list is valid — a workplace with no contracts yet). A contract has no
@@ -499,12 +588,14 @@ def _create_workplace_from_dict(d):
             )
             for ts_data in c_data.get("term_sets", []):
                 _create_termset_from_dict(contract, ts_data)
+                termsets += 1
     else:
         # Legacy flat format: create one contract + one termset
         contract = WorkplaceContract.objects.create(workplace=wp, name="")
         _create_termset_from_dict(contract, dict(d, effective_from="2000-01-01"))
+        termsets = 1
 
-    return wp
+    return wp, termsets
 
 
 def _create_termset_from_dict(contract, d):

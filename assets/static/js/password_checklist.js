@@ -47,6 +47,18 @@ document.querySelectorAll('form[data-pw1-id]').forEach(function (form) {
     });
   }
 
+  // Display name: the only rule is "not blank", so it goes green as soon as
+  // there's anything in it — no debounce, since there's no half-typed state to
+  // misjudge the way an email address has.
+  var nameField = form.dataset.nameId ? document.getElementById(form.dataset.nameId) : null;
+  if (nameField) {
+    var markName = function () {
+      nameField.classList.toggle('is-valid', nameField.value.trim().length > 0);
+    };
+    nameField.addEventListener('input', markName);
+    markName();  // a re-rendered form arrives with its value already filled
+  }
+
   var items = {};
   list.querySelectorAll('li[data-check]').forEach(function (li) {
     items[li.dataset.check] = li;

@@ -178,6 +178,10 @@ class OnboardingWizardTest(TestCase):
         self.user = User.objects.create_superuser("me@example.com", password="pw")
         self.client.force_login(self.user)
 
+    def _finish(self):
+        """Complete the scratch path. Pay Terms only stores now — Review commits."""
+        return self.client.post("/onboarding/review/", {})
+
     def test_incomplete_onboarding_funnels_into_the_wizard(self):
         resp = self.client.get("/")
         self.assertEqual(resp.status_code, 302)
@@ -193,8 +197,13 @@ class OnboardingWizardTest(TestCase):
         self.assertFalse(WorkplaceContract.objects.exists())
         self.assertFalse(ContractTermSet.objects.exists())
 
-        # Finish (the terms step) writes all four atomically.
-        resp = self.client.post("/onboarding/terms/", TERMS_POST)
+        # The terms step stores too — still nothing written.
+        self.client.post("/onboarding/terms/", TERMS_POST)
+        self.assertFalse(TaxProfile.objects.exists())
+        self.assertFalse(ContractTermSet.objects.exists())
+
+        # Finish (on Review) writes all four atomically.
+        resp = self._finish()
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(resp["Location"], "/")
         self.assertEqual(TaxProfile.objects.count(), 1)
@@ -217,8 +226,8 @@ class OnboardingWizardTest(TestCase):
         # rendered with transient, unsaved workplace/contract objects).
         self.client.post("/onboarding/tax/", TAX_POST)
         self.client.post("/onboarding/workplace/", WORKPLACE_POST)
-        for path in ("/onboarding/account/", "/onboarding/tax/",
-                     "/onboarding/workplace/", "/onboarding/terms/"):
+        for path in ("/onboarding/account/", "/onboarding/start/", "/onboarding/tax/",
+                     "/onboarding/workplace/", "/onboarding/terms/", "/onboarding/review/"):
             resp = self.client.get(path)
             # account step is gone once a user exists → 302; the rest render.
             expected = 302 if path.endswith("/account/") else 200
@@ -231,6 +240,7 @@ class OnboardingWizardTest(TestCase):
         self.client.post("/onboarding/tax/", TAX_POST)
         self.client.post("/onboarding/workplace/", dict(WORKPLACE_POST, **{"contract-name": "Physics Lab"}))
         self.client.post("/onboarding/terms/", TERMS_POST)
+        self._finish()
 
         contract = WorkplaceContract.objects.get()
         self.assertEqual(contract.name, "Physics Lab")
@@ -240,6 +250,7 @@ class OnboardingWizardTest(TestCase):
         self.client.post("/onboarding/tax/", TAX_POST)
         self.client.post("/onboarding/workplace/", WORKPLACE_POST)  # contract-name blank
         self.client.post("/onboarding/terms/", TERMS_POST)
+        self._finish()
 
         contract = WorkplaceContract.objects.get()
         self.assertEqual(contract.name, "")
@@ -254,6 +265,7 @@ class OnboardingWizardTest(TestCase):
         self.client.post("/onboarding/tax/", TAX_POST)
         self.client.post("/onboarding/workplace/", WORKPLACE_POST)
         self.client.post("/onboarding/terms/", TERMS_POST)
+        self._finish()
         resp = self.client.get("/")
         self.assertEqual(resp.status_code, 200)
 
@@ -270,6 +282,7 @@ class OnboardingWizardTest(TestCase):
         self.client.post("/onboarding/tax/", TAX_POST)
         self.client.post("/onboarding/workplace/", WORKPLACE_POST)
         self.client.post("/onboarding/terms/", TERMS_POST)
+        self._finish()
         self.assertFalse(OnboardingDraft.objects.filter(user=self.user).exists())
 
     def test_earlier_navigation_marks_ahead_step_started(self):

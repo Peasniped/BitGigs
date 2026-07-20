@@ -55,9 +55,17 @@
   {% comment %}Outside .offcanvas-body on purpose: the body scrolls, and this
   should stay put at the bottom. help.js repoints the href at whichever article
   is open, so keep data-help-manual-link on it.{% endcomment %}
+  {% comment %}
+    Hidden during first-time setup: the full manual is a normal app page, so
+    opening it drops the owner out of the wizard and into the running app before
+    they've finished. The popup covers everything the setup steps need, and its
+    in-panel article links (help.js) mean nothing here is a dead end.
+  {% endcomment %}
+  {% if not onboarding and not setup_in_progress %}
   <div class="help-offcanvas__footer">
     <a class="btn btn-sm btn-primary" href="{% url 'help:manual' %}" data-help-manual-link>
       <i class="bi bi-book me-1"></i>Full manual
     </a>
   </div>
+  {% endif %}
 </div>
