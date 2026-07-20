@@ -1,0 +1,77 @@
+# BitGigs local/production stack.
+#
+#   docker compose up             → Postgres + the app on http://localhost:8000
+#   docker compose up db          → just Postgres, e.g. to develop against it
+#                                   from the host venv (DJANGO_DB=postgres).
+#
+# The app runs a pre-built image so deploying never means building the repo.
+# Releasing a new image is manual (no CI):
+#   docker build -t ghcr.io/peasniped/bitgigs:latest .
+#   docker push ghcr.io/peasniped/bitgigs:latest
+# A locally built tag also satisfies `up` without any registry access, which
+# is how you test unpushed changes; BITGIGS_IMAGE overrides the tag entirely.
+#
+# Configuration comes from .env in this directory (compose reads it for the
+# ${…} substitutions below; see .env.example). Only POSTGRES_PASSWORD is
+# required to bring up the db; the app additionally needs DJANGO_SECRET_KEY —
+# left unset it fails fast at startup with a clear error rather than here,
+# so a db-only run never asks for it.
+services:
+  app:
+    image: ${BITGIGS_IMAGE:-ghcr.io/peasniped/bitgigs:latest}
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      # Default off so the stack works on plain http://localhost:8000.
+      # Set to 1 in .env when serving over TLS (via your reverse proxy).
+      DJANGO_ENABLE_HTTPS: ${DJANGO_ENABLE_HTTPS:-0}
+      DJANGO_TRUST_PROXY_IP: ${DJANGO_TRUST_PROXY_IP:-}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
+      # In-network address of the db service; host-side values in .env don't apply.
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-bitgigs}
+      POSTGRES_USER: ${POSTGRES_USER:-bitgigs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Optional integrations — pass through whatever .env defines.
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      OIDC_SERVER_URL: ${OIDC_SERVER_URL:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_PROVIDER_BRAND: ${OIDC_PROVIDER_BRAND:-}
+      OIDC_PROVIDER_NAME: ${OIDC_PROVIDER_NAME:-}
+      OIDC_PROVIDER_COLOR: ${OIDC_PROVIDER_COLOR:-}
+      OIDC_PROVIDER_ICON: ${OIDC_PROVIDER_ICON:-}
+    ports:
+      - "8000:8000"
+    volumes:
+      # Runtime state: media uploads and the first-run setup key.
+      - instance:/app/instance
+    restart: unless-stopped
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bitgigs}
+      POSTGRES_USER: ${POSTGRES_USER:-bitgigs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports:
+      # Loopback only: reachable from this machine for local testing, never
+      # from the network. POSTGRES_PORT moves it if 5432 is taken on the host.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bitgigs} -d ${POSTGRES_DB:-bitgigs}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+
+volumes:
+  pgdata:
+  instance:

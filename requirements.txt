@@ -1,5 +1,8 @@
 Django>=6.0,<6.1
 psycopg2-binary>=2.9
+# Serves collected static files from the app process itself, so the Docker
+# image needs no nginx sidecar. Middleware is in base.py (inert in dev).
+whitenoise>=6.8
 django-crispy-forms>=2.3
 crispy-bootstrap5>=2024.10
 # Optional SSO: the OIDC provider is only registered when the OIDC_* env

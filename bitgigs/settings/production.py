@@ -37,13 +37,13 @@ if ENABLE_HTTPS:
     SECURE_HSTS_PRELOAD = True
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("POSTGRES_DB", "bitgigs"),
-        "USER": os.environ.get("POSTGRES_USER", "bitgigs"),
-        "PASSWORD": _postgres_password,
-        "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
-        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
-    }
+DATABASES = {"default": postgres_database()}
+
+# Static files are served by WhiteNoise (see MIDDLEWARE in base.py) so the
+# container is self-contained behind gunicorn. Compressed variants are built at
+# collectstatic time; no manifest storage (yet), so filenames are stable and a
+# stale-reference in a template degrades to a plain 404 instead of a 500.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
 }

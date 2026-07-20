@@ -1,0 +1,27 @@
+# Keep the build context to app code only. Most important exclusions:
+# .env (secrets stay out of image layers) and instance/ (the dev SQLite db,
+# media and setup key are runtime state, not code).
+.git
+.gitignore
+.gitattributes
+.claude
+.vscode
+.idea
+.venv
+venv
+env
+.env
+.env.local
+instance
+media
+staticfiles
+__pycache__
+**/__pycache__
+*.py[cod]
+db.sqlite3
+db.sqlite3-journal
+Dockerfile
+.dockerignore
+compose.yaml
+ToDo
+CLAUDE.md

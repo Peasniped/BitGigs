@@ -18,7 +18,7 @@ BitGigs is an open-source Django web application for tracking work hours, estima
 
 | Layer | Technology |
 |---|---|
-| Backend | Django 5.1 |
+| Backend | Django 6.0 |
 | Frontend | Bootstrap 5 (via django-crispy-forms) |
 | Database (dev) | SQLite |
 | Database (prod) | PostgreSQL |
@@ -60,6 +60,49 @@ python manage.py runserver --settings=bitgigs.settings.local
 ```
 
 Visit `http://127.0.0.1:8000/` in your browser.
+
+### Developing against PostgreSQL (optional)
+
+Dev defaults to SQLite. To use a local PostgreSQL instead, start the bundled
+container and flip the dev database switch:
+
+```bash
+cp .env.example .env       # set POSTGRES_PASSWORD, uncomment DJANGO_DB=postgres
+docker compose up db
+python manage.py migrate --settings=bitgigs.settings.local
+```
+
+## Running with Docker
+
+The repo ships a production-shaped stack — the app image (gunicorn + WhiteNoise,
+hardened production settings) plus PostgreSQL. The app service uses the
+pre-built image `ghcr.io/peasniped/bitgigs:latest`, so running it never
+requires building the repo:
+
+```bash
+cp .env.example .env       # set DJANGO_SECRET_KEY and POSTGRES_PASSWORD
+docker compose up
+```
+
+While the GHCR package is private, pulling needs a one-time
+`docker login ghcr.io` with a read-only PAT (`read:packages`).
+
+### Releasing the image (maintainers)
+
+There is no CI — a release is built and pushed by hand. A locally built tag
+also satisfies `docker compose up` without touching the registry, which is how
+you test unpushed changes:
+
+```bash
+docker build -t ghcr.io/peasniped/bitgigs:latest .
+docker push ghcr.io/peasniped/bitgigs:latest    # requires docker login ghcr.io
+```
+
+Visit `http://localhost:8000/`. First-run setup asks for the setup key, which is
+printed to the app log: `docker compose logs app`. HTTPS enforcement defaults to
+off in compose for local use; set `DJANGO_ENABLE_HTTPS=1` in `.env` when serving
+behind a TLS-terminating reverse proxy. Media uploads and the setup key live in
+the `instance` volume, the database in `pgdata`.
 
 ## Settings
 

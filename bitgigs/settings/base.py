@@ -33,6 +33,24 @@ SECRET_KEY = os.environ.get(
     "django-insecure-CHANGE-ME-in-production-bitgigs",
 )
 
+
+def postgres_database():
+    """DATABASES["default"] entry built from the POSTGRES_* environment.
+
+    Single source for the connection config so production.py and an opted-in
+    dev setup (DJANGO_DB=postgres in local.py) can never drift apart.
+    Password validation stays with the caller: production refuses to boot
+    without one, dev may talk to a throwaway container.
+    """
+    return {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ.get("POSTGRES_DB", "bitgigs"),
+        "USER": os.environ.get("POSTGRES_USER", "bitgigs"),
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
+        "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
+        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+    }
+
 ALLOWED_HOSTS = (
     os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",")
     if os.environ.get("DJANGO_ALLOWED_HOSTS")
@@ -77,6 +95,10 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Serves collected static files straight from gunicorn, which is what makes
+    # the Docker image self-contained (no nginx sidecar). Inert under runserver
+    # in dev (DEBUG static handling wins). Storage backend: see production.py.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
