@@ -50,7 +50,7 @@
              data-goal-color="var(--text-subtle)" data-goal-label="Goal: {{ total_goal_min|dk:0 }}{% if total_goal_max %}.{{ total_goal_max|dk:0 }}{% endif %}h"></div>
       </div>
     </div>
-    <div class="goal-tooltip" id="goalTooltip" style="display:none;position:fixed;z-index:1000;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;color:var(--on-accent);pointer-events:none;box-shadow:0 2px 8px rgba(var(--shadow-rgb),.18);white-space:nowrap;">
+    <div class="goal-tooltip" id="goalTooltip" style="display:none;position:fixed;z-index:1000;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;pointer-events:none;box-shadow:0 2px 8px rgba(var(--shadow-rgb),.18);white-space:nowrap;">
       <span class="goal-tooltip__dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle;"></span>
       <span class="goal-tooltip__text"></span>
     </div>

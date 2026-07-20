@@ -1856,3 +1856,12 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
 }
 .pw-reveal__btn:hover { color: var(--text); }
 .pw-reveal__btn:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+
+/* Goal-bar hover chip: an inverted surface, so it reads as an overlay rather
+   than part of the card. Both colours must come from tokens that flip together
+   — it used to pair --text (which flips) with --on-accent (which does not,
+   being "text on a filled accent"), so dark mode rendered white on near-white. */
+.goal-tooltip {
+  background: var(--text);
+  color: var(--surface);
+}

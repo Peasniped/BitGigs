@@ -62,7 +62,6 @@ trackModal(document.getElementById('dashApproveModal'));
     seg.addEventListener('mouseenter', function(e) {
       dot.style.background = seg.dataset.goalColor;
       txt.textContent = seg.dataset.goalLabel;
-      tip.style.background = 'var(--text)';
       tip.style.display = '';
       positionTip(e);
     });
