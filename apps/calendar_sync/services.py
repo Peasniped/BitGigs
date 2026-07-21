@@ -17,12 +17,22 @@ therefore drops any ``bitgigs-`` UID by default.
 """
 from __future__ import annotations
 
+import ipaddress
+import logging
+import socket
+import urllib.error
+import urllib.request
+from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
+from urllib.parse import urlparse
 
 from dateutil.rrule import rrulestr
+from django.core.cache import cache
 from django.utils import timezone
 from icalendar import Calendar, Event, vCalAddress
+
+logger = logging.getLogger(__name__)
 
 PRODID = "-//BitGigs//Calendar//EN"
 UID_PREFIX = "bitgigs-"
@@ -306,3 +316,239 @@ def _ensure_naive(value: datetime) -> datetime:
     if timezone.is_aware(value):
         return timezone.make_naive(value, timezone.get_current_timezone())
     return value
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Direction 1 — fetching an operator's feed (SSRF-guarded), caching, aggregating
+#
+# This is a *server-side* outbound fetch of a URL the operator pasted — inbound
+# data only, one of the two sanctioned outbound shapes (see CLAUDE.md). It never
+# leaks app data, but a server that will fetch an arbitrary operator-supplied URL
+# is an SSRF surface, so the fetch is hardened: https/http only, public IPs only,
+# capped size, short timeout, redirects re-validated, and it fails *soft* — a
+# broken feed records an error and contributes nothing, never 500s planning.
+# ─────────────────────────────────────────────────────────────────────────────
+
+FETCH_TIMEOUT = 10          # seconds, connect+read
+MAX_FEED_BYTES = 5_000_000  # 5 MB — a personal calendar feed is far smaller
+CACHE_TTL = 900             # 15 min; a manual refresh busts it
+_CACHE_PREFIX = "calsync:ical:"
+_USER_AGENT = "BitGigs-CalendarSync/1.0 (+https://bitgigs.local)"
+
+
+class CalendarFetchError(Exception):
+    """A feed could not be fetched or read safely. Always caught + logged."""
+
+
+def _guard_url(raw_url: str):
+    """Reject anything that isn't a plain public http(s) target (SSRF guard).
+
+    Resolves the hostname and refuses if *any* resolved address is private,
+    loopback, link-local, reserved, multicast or unspecified. Note: this does not
+    close a determined DNS-rebinding attack (the address could differ between this
+    resolve and urllib's own connect) — pinning the socket to the vetted IP is the
+    full fix — but it blocks the ordinary ``file://`` / ``localhost`` / ``169.254``
+    / RFC-1918 mistakes and probes, which is the realistic threat for an
+    operator-pasted URL.
+    """
+    parsed = urlparse(raw_url or "")
+    if parsed.scheme not in ("http", "https"):
+        raise CalendarFetchError(
+            f"Only http and https URLs are allowed (got '{parsed.scheme or 'none'}')."
+        )
+    host = parsed.hostname
+    if not host:
+        raise CalendarFetchError("The URL has no host.")
+    try:
+        infos = socket.getaddrinfo(host, parsed.port or 0, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as exc:
+        raise CalendarFetchError(f"Could not resolve '{host}' ({exc}).") from exc
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if (
+            ip.is_private or ip.is_loopback or ip.is_link_local
+            or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+        ):
+            raise CalendarFetchError(
+                f"'{host}' resolves to a non-public address ({ip}); refused."
+            )
+
+
+class _GuardedRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Re-run the SSRF guard on every redirect target so a public URL can't
+    bounce the fetch to an internal one."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _guard_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_opener = urllib.request.build_opener(_GuardedRedirectHandler())
+
+
+def fetch_ical(url: str, *, timeout=FETCH_TIMEOUT, max_bytes=MAX_FEED_BYTES) -> bytes:
+    """Fetch feed bytes for *url*, guarded and size-capped. Raises on any problem."""
+    _guard_url(url)
+    request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+    try:
+        with _opener.open(request, timeout=timeout) as resp:
+            data = resp.read(max_bytes + 1)
+    except CalendarFetchError:
+        raise
+    except (urllib.error.URLError, socket.timeout, TimeoutError, OSError) as exc:
+        raise CalendarFetchError(f"Fetch failed: {exc}.") from exc
+    if len(data) > max_bytes:
+        raise CalendarFetchError(
+            f"Feed is larger than the {max_bytes // 1_000_000} MB limit."
+        )
+    return data
+
+
+def _cache_key(subscription) -> str:
+    return f"{_CACHE_PREFIX}{subscription.pk}"
+
+
+def refresh_subscription(subscription):
+    """Drop the cached feed for *subscription* so the next read re-fetches."""
+    cache.delete(_cache_key(subscription))
+
+
+def _load_feed(subscription, *, refresh=False):
+    """Return raw feed bytes for a subscription, cached ~15 min.
+
+    Records fetch state on the row (``last_fetch_*``) on every real fetch. Raises
+    :class:`CalendarFetchError` on failure; the cache is only populated on success
+    so a broken feed keeps being retried rather than caching emptiness.
+    """
+    key = _cache_key(subscription)
+    if not refresh:
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+
+    url = subscription.url
+    if not url:
+        raise CalendarFetchError(
+            "No calendar URL is set (or it could not be decrypted)."
+        )
+    try:
+        data = fetch_ical(url)
+    except CalendarFetchError as exc:
+        _record_fetch(subscription, ok=False, error=str(exc))
+        raise
+    _record_fetch(subscription, ok=True, error="")
+    cache.set(key, data, CACHE_TTL)
+    return data
+
+
+def _record_fetch(subscription, *, ok, error):
+    subscription.last_fetch_at = timezone.now()
+    subscription.last_fetch_ok = ok
+    subscription.last_error = error
+    subscription.save(
+        update_fields=["last_fetch_at", "last_fetch_ok", "last_error", "updated_at"]
+    )
+
+
+def subscription_busy(subscription, window_start, window_end, *, refresh=False):
+    """Busy events for one subscription over a window. Fails soft → ``[]``."""
+    try:
+        data = _load_feed(subscription, refresh=refresh)
+    except CalendarFetchError:
+        return []
+    try:
+        return parse_calendar(data, window_start, window_end)
+    except Exception:  # a malformed feed must never break the planning page
+        _record_fetch(
+            subscription, ok=False, error="The feed could not be parsed as iCalendar."
+        )
+        return []
+
+
+def busy_blocks(window_start, window_end, *, refresh=False):
+    """JSON-ready busy cells across all enabled subscriptions.
+
+    Each :class:`BusyEvent` is split into per-day cells (a multi-day event lands
+    on each day it touches) so the planning grid can drop a chip into every
+    affected ``td[data-date]``. Own (``bitgigs-``) UIDs are already filtered by
+    :func:`parse_calendar`.
+    """
+    from .models import CalendarSubscription
+
+    cells = []
+    for sub in CalendarSubscription.objects.enabled():
+        try:
+            for event in subscription_busy(sub, window_start, window_end, refresh=refresh):
+                cells.extend(_event_to_cells(event, sub.color, window_start, window_end))
+        except Exception:
+            # One bad subscription must never suppress the others. subscription_busy
+            # already fails soft for the ordinary cases (fetch/parse errors);
+            # this is the backstop for anything unexpected — an event that trips
+            # _event_to_cells, or a non-CalendarFetchError like a transient SQLite
+            # "database is locked" from _record_fetch under concurrent requests.
+            logger.exception("calendar_sync: subscription %s failed, skipping", sub.pk)
+            continue
+    cells.sort(key=lambda c: (c["date"], c["all_day"] is False, c.get("start_time", "")))
+    return cells
+
+
+def _event_to_cells(event, color, window_start, window_end):
+    """One busy event → a list of per-day cell dicts within the window."""
+    lo = window_start if isinstance(window_start, date) else window_start.date()
+    hi = window_end if isinstance(window_end, date) else window_end.date()
+
+    if event.all_day:
+        # DTEND is exclusive for all-day events; clamp to the window.
+        start_day = event.start
+        end_day = event.end if event.end > event.start else event.start + timedelta(days=1)
+        day = max(start_day, lo)
+        cells = []
+        while day < end_day and day <= hi:
+            cells.append({
+                "date": day.isoformat(), "all_day": True,
+                "summary": event.summary, "color": color,
+            })
+            day += timedelta(days=1)
+        return cells
+
+    start = timezone.localtime(event.start)
+    end = timezone.localtime(event.end)
+    if start.date() == end.date():
+        return [{
+            "date": start.date().isoformat(), "all_day": False,
+            "start_time": start.strftime("%H:%M"), "end_time": end.strftime("%H:%M"),
+            "summary": event.summary, "color": color,
+        }]
+
+    # A timed event spanning midnight: first day from its start to end-of-day,
+    # whole intermediate days as all-day busy, last day up to its end time.
+    cells = []
+    if start.date() >= lo:
+        cells.append({
+            "date": start.date().isoformat(), "all_day": False,
+            "start_time": start.strftime("%H:%M"), "end_time": "23:59",
+            "summary": event.summary, "color": color,
+        })
+    day = start.date() + timedelta(days=1)
+    while day < end.date() and day <= hi:
+        if day >= lo:
+            cells.append({
+                "date": day.isoformat(), "all_day": True,
+                "summary": event.summary, "color": color,
+            })
+        day += timedelta(days=1)
+    if end.date() <= hi and end.strftime("%H:%M") != "00:00":
+        cells.append({
+            "date": end.date().isoformat(), "all_day": False,
+            "start_time": "00:00", "end_time": end.strftime("%H:%M"),
+            "summary": event.summary, "color": color,
+        })
+    return cells
+
+
+def month_window(year: int, month: int, pad_days: int = 7):
+    """The (start, end) date window for a month's planning grid, padded so the
+    leading/trailing days of adjacent months shown in the grid are covered."""
+    start = date(year, month, 1) - timedelta(days=pad_days)
+    end = date(year, month, monthrange(year, month)[1]) + timedelta(days=pad_days)
+    return start, end

@@ -30,6 +30,7 @@ urlpatterns = [
     path("shifts/", include("shifts.urls")),
     path("payroll/", include("payroll.urls")),
     path("calendar/", include("calendar_view.urls")),
+    path("calendar-sync/", include("calendar_sync.urls")),
     path("data/", include("data_io.urls")),
     path("analytics/", include("analytics.urls")),
     path("help/", include("help.urls")),

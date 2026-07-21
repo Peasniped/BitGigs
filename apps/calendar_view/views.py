@@ -109,6 +109,7 @@ class PlanningCalendarView(View):
 
     def get(self, request):
         from payroll.services import PayrollPeriodService
+        from calendar_sync.models import CalendarSubscription
         from decimal import Decimal
 
         today = timezone.localdate()
@@ -212,6 +213,10 @@ class PlanningCalendarView(View):
                 "month_names_json": month_names,
                 "today": today,
                 "has_overlaps": has_overlaps,
+                # Direction 1 overlay: only offer the "Show my calendar(s)" toggle
+                # when there's at least one enabled subscription; the count drives
+                # the singular/plural wording of the button and legend.
+                "calendar_subscription_count": CalendarSubscription.objects.enabled().count(),
             },
         )
 

@@ -31,6 +31,15 @@
         {% include "calendar_view/_shift_legend_rows.html" %}
       </div>
       {% endif %}
+      {% if page_has_calendar %}
+      {% comment %}External-calendar overlay swatch — revealed by planning.js only
+      while the "Show my calendar(s)" overlay is active on the planning page.{% endcomment %}
+      <div class="help-legend mb-3 d-none" data-busy-legend>
+        <div class="shift-legend__row">
+          <span class="shift-legend__swatch busy-chip"></span>External calendar event
+        </div>
+      </div>
+      {% endif %}
       <div class="help-section-label">For this page</div>
       <div data-help-context><div class="help-empty text-body-secondary">Loading…</div></div>
     </div>

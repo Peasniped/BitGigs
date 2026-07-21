@@ -1467,6 +1467,128 @@
     saveDefaultShift(false);
   });
 
+  // ----- Direction 1: personal-calendar busy overlay -----
+  // Fetches read-only "busy" blocks from the calendar_sync busy endpoint and
+  // drops them into day cells. Each busy chip is marked .shift-chip (so the
+  // existing recheckOverlaps() counts it, flagging shift↔busy clashes) plus
+  // .busy-chip (muted, non-interactive styling). Toggle state is remembered in
+  // localStorage. Fails soft: any fetch/parse problem just shows no overlay.
+  var BUSY_URL = cfg.busyUrl;
+  var CAL_COUNT = parseInt(cfg.calendarCount || '1', 10) || 1;
+  var CAL_WORD = CAL_COUNT > 1 ? 'calendars' : 'calendar';
+  var CAL_ICON = '<i class="bi bi-calendar-heart me-1"></i>';
+  var SHOW_CALENDAR_KEY = 'bitgigs.planning.showCalendar';
+  var showCalendarBtn = document.getElementById('showCalendarToggle');
+  var busyLegend = document.querySelector('[data-busy-legend]');
+
+  function busyContainerFor(dateStr) {
+    return document.querySelector(
+      '.planning-calendar .planned-shifts-container[data-date="' + dateStr + '"]'
+    );
+  }
+
+  function renderBusyChip(cell) {
+    var chip = document.createElement('div');
+    chip.className = 'shift-chip busy-chip';
+    chip.style.setProperty('--busy-color', cell.color || 'var(--text-muted)');
+    // All-day blocks get a non-time label so recheckOverlaps() skips them (they
+    // shouldn't flag a timed shift as clashing); timed blocks use the HH:MM-HH:MM
+    // shape the overlap check parses.
+    var timeText = cell.all_day ? 'All day' : (cell.start_time + '-' + cell.end_time);
+    var label = cell.summary || 'Busy';
+    chip.title = 'Busy — ' + label + (cell.all_day ? ' (all day)' : ' ' + timeText);
+    chip.innerHTML =
+      '<i class="bi bi-calendar-heart busy-chip__icon"></i>' +
+      '<small class="shift-chip__time">' + escapeHtml(timeText) + '</small>' +
+      '<small class="busy-chip__label">' + escapeHtml(label) + '</small>';
+    return chip;
+  }
+
+  function removeBusyChips() {
+    document.querySelectorAll('.planning-calendar .busy-chip').forEach(function(c) {
+      c.remove();
+    });
+  }
+
+  function renderBusyOverlay(cells) {
+    removeBusyChips();
+    cells.forEach(function(cell) {
+      var container = busyContainerFor(cell.date);
+      if (!container) return;
+      container.insertBefore(renderBusyChip(cell), container.firstChild);
+    });
+    recheckOverlaps();
+  }
+
+  // Reveal (or hide) the "External calendar event" swatch in the help panel.
+  // Only shown while the overlay is active on the planning page.
+  function setBusyLegend(on) {
+    if (busyLegend) busyLegend.classList.toggle('d-none', !on);
+  }
+
+  // Button visuals mirror two existing idioms: the Power Edit toggle
+  // (btn-outline-primary at rest, filled btn-primary when active) and the
+  // Settings → Email Test button's busy look (a disabled btn-primary renders as
+  // the greyscale gradient, with a spinner + label) while feeds are polled.
+  // Label flips Show ↔ Hide and stays singular/plural with the calendar count.
+  function setBtnVisual(state) {
+    if (!showCalendarBtn) return;
+    showCalendarBtn.classList.toggle('btn-outline-primary', state === 'off');
+    showCalendarBtn.classList.toggle('btn-primary', state !== 'off');
+    if (state === 'loading') {
+      showCalendarBtn.disabled = true;
+      showCalendarBtn.innerHTML =
+        '<span class="spinner-border spinner-border-sm me-1"></span>Fetching ' + CAL_WORD + '…';
+    } else {
+      showCalendarBtn.disabled = false;
+      showCalendarBtn.innerHTML =
+        CAL_ICON + (state === 'on' ? 'Hide my ' : 'Show my ') + CAL_WORD;
+    }
+  }
+
+  function loadBusyOverlay(refresh) {
+    if (!BUSY_URL) return;
+    var url = BUSY_URL + '?year=' + CURRENT_YEAR + '&month=' + CURRENT_MONTH +
+              (refresh ? '&refresh=1' : '');
+    setBtnVisual('loading');
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function(r) { return r.ok ? r.json() : { busy: [] }; })
+      .then(function(data) { renderBusyOverlay(data.busy || []); })
+      .catch(function() { /* fail soft — no overlay */ })
+      .finally(function() { setBtnVisual('on'); });
+  }
+
+  var calendarOn = false;
+
+  // A deliberate button press pulls a *fresh* feed (refresh=1, busting the
+  // ~15 min cache) — pressing the button means "show my calendar now". Auto-
+  // restoring the toggle on page load / month change uses the cache instead, so
+  // passive reloads and month navigation don't re-hit the provider every time.
+  function setCalendarShown(on, opts) {
+    opts = opts || {};
+    calendarOn = on;
+    setBusyLegend(on);
+    if (on) {
+      loadBusyOverlay(opts.refresh);  // 'loading' → 'on'
+    } else {
+      setBtnVisual('off');
+      removeBusyChips();
+      recheckOverlaps();
+    }
+    if (opts.persist) {
+      try { localStorage.setItem(SHOW_CALENDAR_KEY, on ? '1' : '0'); } catch (e) {}
+    }
+  }
+
+  if (showCalendarBtn) {
+    showCalendarBtn.addEventListener('click', function() {
+      setCalendarShown(!calendarOn, { persist: true, refresh: !calendarOn });
+    });
+    var pref = '0';
+    try { pref = localStorage.getItem(SHOW_CALENDAR_KEY) || '0'; } catch (e) {}
+    if (pref === '1') setCalendarShown(true, { persist: false, refresh: false });
+  }
+
   // DOM is the single source of truth for the overlap warning: recompute on
   // load so the banner + amber highlights always match what's rendered.
   recheckOverlaps();

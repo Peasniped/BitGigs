@@ -878,6 +878,31 @@ a.navbar-brand:hover span { color: var(--primary); }
   outline: 1px solid rgba(var(--warning-rgb),.4);
 }
 
+/* Direction 1: read-only "busy" overlay chips from a personal calendar feed.
+   Also carry .shift-chip so recheckOverlaps() counts them; this styles them as
+   plainly non-interactive and tinted with the subscription's --busy-color. When
+   a planned shift clashes with one, .shift-chip--overlap's amber !important wins
+   over the hatch, so the collision still reads clearly. */
+.busy-chip {
+  cursor: default;
+  color: var(--text-muted);
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--busy-color, var(--text-muted)) 14%, transparent),
+    color-mix(in srgb, var(--busy-color, var(--text-muted)) 14%, transparent) 5px,
+    color-mix(in srgb, var(--busy-color, var(--text-muted)) 6%, transparent) 5px,
+    color-mix(in srgb, var(--busy-color, var(--text-muted)) 6%, transparent) 10px
+  );
+  border: 1px dashed color-mix(in srgb, var(--busy-color, var(--text-muted)) 55%, transparent);
+}
+.busy-chip__icon {
+  font-size: 0.6rem;
+  color: var(--busy-color, var(--text-muted));
+  flex-shrink: 0;
+}
+.busy-chip .shift-chip__time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.busy-chip__label { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
+
 /* Break indicator — a coffee cup on any chip whose shift has break time */
 .shift-chip__break {
   font-size: 0.6rem;
