@@ -37,22 +37,22 @@
   <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">
     <div class="stat-card">
       <div class="stat-card__label">Planned</div>
-      <div class="stat-card__value"><span id="stat-planned-gross">{{ total_planned_gross|dk:0 }}</span> <small class="stat-card__sub">DKK</small></div>
-      <div class="stat-card__sub">Net <span id="stat-planned-net">{{ total_planned_net|dk:0 }}</span> DKK</div>
+      <div class="stat-card__value"><span id="stat-planned-gross" class="money">{{ total_planned_gross|dk:0 }}</span> <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">Net <span id="stat-planned-net" class="money">{{ total_planned_net|dk:0 }}</span> DKK</div>
     </div>
   </div>
   <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">
     <div class="stat-card">
       <div class="stat-card__label">Earned</div>
-      <div class="stat-card__value"><span id="stat-earned-gross">{{ total_earned_gross|dk:0 }}</span> <small class="stat-card__sub">DKK</small></div>
-      <div class="stat-card__sub">Net <span id="stat-earned-net">{{ total_earned_net|dk:0 }}</span> DKK &middot; <span id="stat-earned-shift-count">{{ total_approved_shift_count }}</span> shift{{ total_approved_shift_count|pluralize }} approved</div>
+      <div class="stat-card__value"><span id="stat-earned-gross" class="money">{{ total_earned_gross|dk:0 }}</span> <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">Net <span id="stat-earned-net" class="money">{{ total_earned_net|dk:0 }}</span> DKK &middot; <span id="stat-earned-shift-count">{{ total_approved_shift_count }}</span> shift{{ total_approved_shift_count|pluralize }} approved</div>
     </div>
   </div>
   <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">
     <div class="stat-card">
       <div class="stat-card__label">Total</div>
-      <div class="stat-card__value"><span id="stat-combined-gross">{{ total_combined_gross|dk:0 }}</span> <small class="stat-card__sub">DKK</small></div>
-      <div class="stat-card__sub">Net <span id="stat-combined-net">{{ total_combined_net|dk:0 }}</span> DKK &middot; across {{ workplace_data|length }} workplace{{ workplace_data|length|pluralize }}</div>
+      <div class="stat-card__value"><span id="stat-combined-gross" class="money">{{ total_combined_gross|dk:0 }}</span> <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__sub">Net <span id="stat-combined-net" class="money">{{ total_combined_net|dk:0 }}</span> DKK &middot; across {{ workplace_data|length }} workplace{{ workplace_data|length|pluralize }}</div>
     </div>
   </div>
   {% if has_any_goal %}
@@ -176,7 +176,7 @@ the middle rather than hanging off to the left.{% endcomment %}
       </div>
       <div class="text-center">
         <small class="text-muted d-block" style="font-size:0.7rem;">Earned</small>
-        <span class="fw-semibold">{{ item.earned_gross|dk:0 }} DKK</span>
+        <span class="fw-semibold">{{ item.earned_gross|money }} DKK</span>
       </div>
     </div>
   </a>

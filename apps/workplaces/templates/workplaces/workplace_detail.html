@@ -84,7 +84,7 @@
   <div class="col-6 col-md">
     <div class="stat-card">
       <div class="stat-card__label">Gross Pay</div>
-      <div class="stat-card__value">{{ estimate.taxable_gross|dk:0 }} <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__value"><span class="money">{{ estimate.taxable_gross|dk:0 }}</span> <small class="stat-card__sub">DKK</small></div>
     </div>
   </div>
   <div class="col-6 col-md">
@@ -92,7 +92,7 @@
       <div class="stat-card__label">Net Pay</div>
       <div class="stat-card__value">
         {% if estimate.tax_breakdown %}
-          {{ estimate.tax_breakdown.net_pay|dk:0 }}
+          <span class="money">{{ estimate.tax_breakdown.net_pay|dk:0 }}</span>
         {% else %}
           .
         {% endif %}
@@ -105,7 +105,7 @@
       <div class="stat-card__label">Vacation</div>
       <div class="stat-card__value">
         {% if viewed_termset and viewed_termset.vacation_type == 'feriekonto' %}
-          {{ feriepenge_net|dk:0 }} <small class="stat-card__sub">DKK</small>
+          <span class="money">{{ feriepenge_net|dk:0 }}</span> <small class="stat-card__sub">DKK</small>
         {% else %}
           2,08 <small class="stat-card__sub">days/mo</small>
         {% endif %}
@@ -125,14 +125,14 @@
       <div class="card-header">Current Terms</div>
       <div class="card-body py-2" style="font-size:0.875rem;">
         {% if viewed_termset.employment_type == 'hourly' %}
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Base rate</span><span>{{ viewed_termset.hourly_rate|dk }} DKK/h</span></div>
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Effective rate</span><span class="fw-semibold">{{ viewed_termset.effective_hourly_rate|dk }} DKK/h</span></div>
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Total rate</span><span>{{ viewed_termset.total_hourly_rate|dk }} DKK/h</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Base rate</span><span><span class="money">{{ viewed_termset.hourly_rate|dk }}</span> DKK/h</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Effective rate</span><span class="fw-semibold"><span class="money">{{ viewed_termset.effective_hourly_rate|dk }}</span> DKK/h</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Total rate</span><span><span class="money">{{ viewed_termset.total_hourly_rate|dk }}</span> DKK/h</span></div>
         {% else %}
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Salary</span><span>{{ viewed_termset.monthly_salary|dk }} DKK/mo</span></div>
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Base rate</span><span>{{ viewed_termset.base_hourly_rate|dk }} DKK/h</span></div>
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Effective rate</span><span class="fw-semibold">{{ viewed_termset.effective_hourly_rate|dk }} DKK/h</span></div>
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Total rate</span><span>{{ viewed_termset.total_hourly_rate|dk }} DKK/h</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Salary</span><span><span class="money">{{ viewed_termset.monthly_salary|dk }}</span> DKK/mo</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Base rate</span><span><span class="money">{{ viewed_termset.base_hourly_rate|dk }}</span> DKK/h</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Effective rate</span><span class="fw-semibold"><span class="money">{{ viewed_termset.effective_hourly_rate|dk }}</span> DKK/h</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Total rate</span><span><span class="money">{{ viewed_termset.total_hourly_rate|dk }}</span> DKK/h</span></div>
         {% endif %}
         <div class="d-flex justify-content-between mb-1">
           <span class="text-muted">Weekly hours</span>
@@ -151,16 +151,16 @@
       <div class="card-body py-2">
         <div class="d-flex justify-content-between mb-1">
           <small class="text-muted">Your contribution ({{ viewed_termset.pension_employee_percent|dk }}%)</small>
-          <span>{{ pension_employee|dk }} DKK</span>
+          <span><span class="money">{{ pension_employee|dk }}</span> DKK</span>
         </div>
         <div class="d-flex justify-content-between mb-1">
           <small class="text-muted">Employer's ({{ viewed_termset.pension_employer_percent|dk }}%)</small>
-          <span>{{ pension_employer|dk }} DKK</span>
+          <span><span class="money">{{ pension_employer|dk }}</span> DKK</span>
         </div>
         <hr class="my-1">
         <div class="d-flex justify-content-between fw-semibold">
           <small>Total ({{ viewed_termset.pension_total_percent|dk }}%)</small>
-          <span>{{ pension_total|dk }} DKK</span>
+          <span><span class="money">{{ pension_total|dk }}</span> DKK</span>
         </div>
       </div>
     </div>
@@ -173,7 +173,7 @@
       <div class="card-body py-2">
         <div class="d-flex justify-content-between">
           <small class="text-muted">{{ viewed_termset.fritvalgskonto_percent|dk }}% of gross</small>
-          <span>{{ fritvalgskonto|dk }} DKK</span>
+          <span><span class="money">{{ fritvalgskonto|dk }}</span> DKK</span>
         </div>
       </div>
     </div>
@@ -190,20 +190,20 @@
         </div>
         <div class="d-flex justify-content-between mb-1">
           <small class="text-muted">Gross</small>
-          <span>{{ feriepenge_gross|dk }} DKK</span>
+          <span><span class="money">{{ feriepenge_gross|dk }}</span> DKK</span>
         </div>
         <div class="d-flex justify-content-between mb-1">
           <small class="text-muted">AM-bidrag</small>
-          <span>&minus;{{ feriepenge_am|dk }} DKK</span>
+          <span>&minus;<span class="money">{{ feriepenge_am|dk }}</span> DKK</span>
         </div>
         <div class="d-flex justify-content-between mb-1">
           <small class="text-muted">A-skat</small>
-          <span>&minus;{{ feriepenge_a_skat|dk }} DKK</span>
+          <span>&minus;<span class="money">{{ feriepenge_a_skat|dk }}</span> DKK</span>
         </div>
         <hr class="my-1">
         <div class="d-flex justify-content-between fw-semibold">
           <small>Net</small>
-          <span>{{ feriepenge_net|dk }} DKK</span>
+          <span><span class="money">{{ feriepenge_net|dk }}</span> DKK</span>
         </div>
       </div>
     </div>
@@ -333,9 +333,9 @@
                 <td class="text-nowrap">
                   {{ ts.get_employment_type_display }}
                   {% if ts.employment_type == 'hourly' %}
-                    <span class="text-muted">&mdash; {{ ts.hourly_rate|dk }} DKK/h</span>
+                    <span class="text-muted">&mdash; <span class="money">{{ ts.hourly_rate|dk }}</span> DKK/h</span>
                   {% else %}
-                    <span class="text-muted">&mdash; {{ ts.monthly_salary|dk }} DKK/mo</span>
+                    <span class="text-muted">&mdash; <span class="money">{{ ts.monthly_salary|dk }}</span> DKK/mo</span>
                   {% endif %}
                 </td>
                 <td class="text-nowrap">

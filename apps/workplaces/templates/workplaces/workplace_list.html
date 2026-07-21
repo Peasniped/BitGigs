@@ -39,7 +39,7 @@
             {% if ts.employment_type == 'hourly' %}Eff. rate{% else %}Salary{% endif %}
           </small>
           <span class="fw-semibold">
-            {% if ts.employment_type == 'hourly' %}{{ ts.effective_hourly_rate|dk }} DKK/h{% else %}{{ ts.monthly_salary|dk }} DKK{% endif %}
+            {% if ts.employment_type == 'hourly' %}<span class="money">{{ ts.effective_hourly_rate|dk }}</span> DKK/h{% else %}<span class="money">{{ ts.monthly_salary|dk }}</span> DKK{% endif %}
           </span>
         </div>
         <div class="text-center">

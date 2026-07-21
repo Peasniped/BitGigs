@@ -172,6 +172,28 @@ class UserSettings(models.Model):
                   "still open help when this is off.",
     )
 
+    MASK_MONEY_STYLE_CHOICES = [
+        ("dots", "Dots  • • •"),
+        ("asterisk", "Asterisks  ⁎ ⁎ ⁎"),
+        ("flower", "Flowers  ⁕ ⁕ ⁕"),
+        ("reference", "Reference marks  ※ ※ ※"),
+        ("hidden", "Hidden length  • • • • •  (also hides how many digits)"),
+    ]
+    mask_money = models.BooleanField(
+        default=False,
+        help_text="Hide every money amount across the app (dashboard, analytics, "
+                  "payslips, …) so you can demo or screenshot without exposing pay. "
+                  "Hours and dates stay visible.",
+    )
+    money_mask_style = models.CharField(
+        max_length=10,
+        choices=MASK_MONEY_STYLE_CHOICES,
+        default="dots",
+        help_text="How masked amounts are obscured. The per-glyph styles keep the "
+                  "length (so the magnitude is still hintable); “Hidden length” "
+                  "uses a fixed run so the number of digits can't be read off.",
+    )
+
     # Analytics projection
     projection_method = models.CharField(
         max_length=10,

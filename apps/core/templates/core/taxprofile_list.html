@@ -30,7 +30,7 @@
           <td>{{ p.tax_percent|dk }}%</td>
           <td>{{ p.am_bidrag_percent|dk }}%</td>
           <td>{{ p.church_tax_percent|dk }}%</td>
-          <td>{{ p.monthly_deduction|dk }} DKK</td>
+          <td><span class="money">{{ p.monthly_deduction|dk }}</span> DKK</td>
           <td class="text-end">
             <a href="{% url 'core:taxprofile-update' p.pk %}" class="btn btn-sm btn-outline-secondary">
               <i class="bi bi-pencil"></i>

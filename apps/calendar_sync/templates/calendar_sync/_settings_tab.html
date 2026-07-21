@@ -178,7 +178,33 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          {{ cal_sub_form|crispy }}
+          {{ cal_sub_form.label|as_crispy_field }}
+          {{ cal_sub_form.url|as_crispy_field }}
+          {% comment %}Colour: the same swatch/wheel/hex picker as Display →
+          Accent (minus the two brand colours). A new calendar auto-picks the
+          first unused swatch; the hidden #id_color input is what posts.{% endcomment %}
+          <div class="mb-3" data-cal-color-picker data-used-colors="{{ cal_used_colors_json }}">
+            <label class="form-label fw-medium">Colour</label>
+            <p class="form-text mt-0 mb-2">Colours this calendar's busy blocks on the planning grid.</p>
+            <div class="d-flex flex-wrap gap-1 align-items-center">
+              {% for hex in cal_color_choices %}
+                <button type="button"
+                        class="btn btn-sm border-0 color-swatch"
+                        data-color-option="{{ hex }}"
+                        style="width:28px;height:28px;padding:0;border-radius:50%;background:{{ hex }};"
+                        title="{{ hex }}"></button>
+              {% endfor %}
+              <input type="color" id="calColorWheel" class="form-control form-control-color ms-2"
+                     style="width:46px;height:32px;padding:2px;" title="Pick any colour">
+              <input type="text" id="calColorHex" class="form-control form-control-sm font-monospace"
+                     style="width:90px;" maxlength="7" spellcheck="false"
+                     aria-label="Calendar colour hex value">
+            </div>
+            <input type="hidden" name="color" id="id_color"
+                   value="{{ cal_sub_form.color.value|default:'' }}">
+            {% for err in cal_sub_form.color.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+          </div>
+          {{ cal_sub_form.enabled|as_crispy_field }}
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -192,29 +218,76 @@
 <script>
 (function () {
   var modal = document.getElementById('calSubModal');
-  if (modal) {
-    modal.addEventListener('show.bs.modal', function (event) {
-      var btn = event.relatedTarget;
-      if (!btn) return;  // programmatic open (error re-render) → keep bound values
-      var id = btn.getAttribute('data-sub-id') || '';
-      modal.querySelector('#calSubId').value = id;
-      modal.querySelector('#calSubModalTitle').textContent = id ? 'Edit calendar' : 'Add calendar';
-      var label = modal.querySelector('#id_label');
-      var color = modal.querySelector('#id_color');
-      var enabled = modal.querySelector('#id_enabled');
-      var url = modal.querySelector('#id_url');
-      if (label) label.value = btn.getAttribute('data-label') || '';
-      if (color) color.value = btn.getAttribute('data-color') || '#6c757d';
-      if (enabled) enabled.checked = id ? btn.getAttribute('data-enabled') === '1' : true;
-      if (url) {
-        url.value = '';
-        url.placeholder = id ? 'Keep the stored URL (leave blank)' : 'https://…/basic.ics';
-      }
+  if (!modal) return;
+
+  var HEX_RE = /^#[0-9a-f]{6}$/;
+  var picker = modal.querySelector('[data-cal-color-picker]');
+  var hidden = modal.querySelector('#id_color');
+  var wheel = modal.querySelector('#calColorWheel');
+  var hexInput = modal.querySelector('#calColorHex');
+  var swatches = picker ? picker.querySelectorAll('.color-swatch') : [];
+  var palette = Array.prototype.map.call(swatches, function (b) {
+    return b.dataset.colorOption.toLowerCase();
+  });
+
+  // Reflect a colour across the hidden input, the wheel, the hex box and the
+  // selected-swatch ring — mirrors settings.js's accent picker, minus the live
+  // page-theme preview (a calendar colour only tints its own busy chips).
+  function setColor(hex) {
+    if (!hex) return;
+    hex = hex.toLowerCase();
+    if (!HEX_RE.test(hex)) return;  // ignore partial hex-box input
+    if (hidden) hidden.value = hex;
+    if (wheel) wheel.value = hex;
+    if (hexInput && document.activeElement !== hexInput) hexInput.value = hex;
+    swatches.forEach(function (b) {
+      b.classList.toggle('ring-selected', b.dataset.colorOption.toLowerCase() === hex);
     });
   }
-  // Re-open the subscription modal after a validation error.
+
+  // First palette colour not already used by another calendar (so a new
+  // subscription lands on a distinct colour); falls back to cycling once the
+  // palette is exhausted.
+  function autoPickColor() {
+    var used = [];
+    try { used = JSON.parse(picker.dataset.usedColors || '[]'); } catch (e) {}
+    used = used.map(function (c) { return String(c).toLowerCase(); });
+    for (var i = 0; i < palette.length; i++) {
+      if (used.indexOf(palette[i]) === -1) return palette[i];
+    }
+    return palette[used.length % palette.length] || palette[0];
+  }
+
+  swatches.forEach(function (b) {
+    b.addEventListener('click', function () { setColor(b.dataset.colorOption); });
+  });
+  if (wheel) wheel.addEventListener('input', function () { setColor(wheel.value); });
+  if (hexInput) hexInput.addEventListener('input', function () { setColor(hexInput.value.trim()); });
+
+  modal.addEventListener('show.bs.modal', function (event) {
+    var btn = event.relatedTarget;
+    if (!btn) return;  // programmatic open (error re-render) → keep bound values
+    var id = btn.getAttribute('data-sub-id') || '';
+    modal.querySelector('#calSubId').value = id;
+    modal.querySelector('#calSubModalTitle').textContent = id ? 'Edit calendar' : 'Add calendar';
+    var label = modal.querySelector('#id_label');
+    var enabled = modal.querySelector('#id_enabled');
+    var url = modal.querySelector('#id_url');
+    if (label) label.value = btn.getAttribute('data-label') || '';
+    if (enabled) enabled.checked = id ? btn.getAttribute('data-enabled') === '1' : true;
+    if (url) {
+      url.value = '';
+      url.placeholder = id ? 'Keep the stored URL (leave blank)' : 'https://…/basic.ics';
+    }
+    // Edit keeps the stored colour; Add auto-picks an unused one.
+    setColor(id ? (btn.getAttribute('data-color') || palette[0]) : autoPickColor());
+  });
+
+  // Re-open the subscription modal after a validation error, restoring the
+  // submitted colour rather than re-picking.
   {% if cal_open_modal == 'subscription' %}
-  if (modal && window.bootstrap) new bootstrap.Modal(modal).show();
+  if (hidden && hidden.value) setColor(hidden.value);
+  if (window.bootstrap) new bootstrap.Modal(modal).show();
   {% endif %}
 })();
 </script>

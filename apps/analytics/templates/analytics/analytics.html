@@ -149,14 +149,14 @@
   <div class="col-6 col-md-3">
     <div class="stat-card">
       <div class="stat-card__label">Year gross</div>
-      <div class="stat-card__value">{{ projection.year_gross|dk:0 }} <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__value"><span class="money">{{ projection.year_gross|dk:0 }}</span> <small class="stat-card__sub">DKK</small></div>
       <div class="stat-card__sub">{{ year }}</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="stat-card">
       <div class="stat-card__label">Year net</div>
-      <div class="stat-card__value">{{ projection.year_net|dk:0 }} <small class="stat-card__sub">DKK</small></div>
+      <div class="stat-card__value"><span class="money">{{ projection.year_net|dk:0 }}</span> <small class="stat-card__sub">DKK</small></div>
       <div class="stat-card__sub">After tax</div>
     </div>
   </div>
@@ -185,7 +185,7 @@
     </div>
   </div>
   <div class="card-body">
-    <canvas id="monthlyChart" height="120"></canvas>
+    <canvas id="monthlyChart" class="money-chart" height="120"></canvas>
   </div>
 </div>
 
@@ -208,8 +208,8 @@
         </div>
       </div>
       <div class="text-end small">
-        <div>Year <strong>{{ wp.year_gross|dk:0 }}</strong> DKK</div>
-        <div class="text-muted">Net {{ wp.year_net|dk:0 }} DKK</div>
+        <div>Year <strong class="money">{{ wp.year_gross|dk:0 }}</strong> DKK</div>
+        <div class="text-muted">Net <span class="money">{{ wp.year_net|dk:0 }}</span> DKK</div>
       </div>
     </div>
     <div class="collapse{% if workplaces_view|length == 1 %} show{% endif %}" id="wpBody{{ forloop.counter }}">
@@ -251,8 +251,8 @@
                   {% else %}
                     <td class="text-end">{{ row.hours|dk:1 }}</td>
                   {% endif %}
-                  <td class="text-end">{{ row.gross|dk:0 }}</td>
-                  <td class="text-end">{{ row.net|dk:0 }}</td>
+                  <td class="text-end money">{{ row.gross|dk:0 }}</td>
+                  <td class="text-end money">{{ row.net|dk:0 }}</td>
                 {% else %}
                   <td colspan="{% if emp_type == 'salaried' %}4{% else %}3{% endif %}" class="text-muted">
                     <em>contract inactive</em>
@@ -450,6 +450,9 @@
         plugins: {
           legend: { display: isDist },
           tooltip: {
+            // Off while money is masked — the chart is blurred, so the tooltip
+            // would be the one place a value could still be read.
+            enabled: !document.body.hasAttribute('data-mask-money'),
             callbacks: {
               label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('da-DK') + ' DKK',
               afterLabel: ctx => {

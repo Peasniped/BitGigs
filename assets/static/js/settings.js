@@ -58,4 +58,22 @@
       resetBtn.addEventListener('click', function () { setColor(block.dataset.defaultAccent, null); });
     }
   });
+
+  /* Mask-money live preview: keep <body data-mask-money> in sync with the
+   * unsaved switch + style controls so the example (and any real amount on the
+   * page) previews the chosen masking immediately. Only Save persists. */
+  (function () {
+    var check = document.getElementById('id_mask_money');
+    var style = document.getElementById('id_money_mask_style');
+    var wrap = document.querySelector('[data-mask-style-wrap]');
+    if (!check || !style) return;
+    function apply() {
+      if (wrap) wrap.classList.toggle('d-none', !check.checked);
+      if (check.checked) document.body.setAttribute('data-mask-money', style.value);
+      else document.body.removeAttribute('data-mask-money');
+    }
+    check.addEventListener('change', apply);
+    style.addEventListener('change', apply);
+    apply();
+  })();
 })();

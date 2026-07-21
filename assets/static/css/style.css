@@ -896,7 +896,13 @@ a.navbar-brand:hover span { color: var(--primary); }
   border: 1px dashed color-mix(in srgb, var(--busy-color, var(--text-muted)) 55%, transparent);
 }
 .busy-chip__icon {
-  font-size: 0.6rem;
+  /* Match the shift chip's 16px avatar box so a busy chip stands exactly as
+     tall as a shift chip on the same day (it has no avatar of its own). */
+  width: 16px; height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
   color: var(--busy-color, var(--text-muted));
   flex-shrink: 0;
 }
@@ -907,6 +913,29 @@ a.navbar-brand:hover span { color: var(--primary); }
 .cal-color-dot {
   display: inline-block; width: 14px; height: 14px; border-radius: 50%;
   border: 1px solid var(--border); vertical-align: middle;
+}
+
+/* ── Mask money (Settings → Display) ──────────────────────────────────────
+   Every money amount carries .money (the `money`/`money_wrap` template filters,
+   or the class on a JS-updated stat span — always on a *leaf* element, since the
+   masker replaces its textContent). While masking is on, [data-mask-money] on
+   <body> obscures them: the character styles (dots/asterisk/flower/reference/
+   hidden) are applied by money_mask.js, which is why there are no per-style
+   rules here; this block only carries the shared affordance, the legacy "blur"
+   value (handled in CSS), and the chart blur. Hours/dates/percentages are never
+   marked .money, so they stay readable. */
+body[data-mask-money] .money {
+  user-select: none;
+  cursor: default;
+}
+body[data-mask-money="blur"] .money {
+  filter: blur(0.4em);
+}
+/* Charts paint money into a canvas, which a glyph mask can't touch, so a
+   money-bearing chart is blurred as a whole while masking is on (any style).
+   money_mask.js also disables the chart's value tooltip in this state. */
+body[data-mask-money] .money-chart {
+  filter: blur(10px);
 }
 
 /* Break indicator — a coffee cup on any chip whose shift has break time */

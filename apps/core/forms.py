@@ -220,7 +220,8 @@ class UserSettingsForm(forms.ModelForm):
 
     # Tab slug → the fields that tab owns. Order here is the render order.
     TABS = {
-        "display": ["show_shift_type_colors", "show_help_button", "week_start",
+        "display": ["show_shift_type_colors", "show_help_button",
+                    "mask_money", "money_mask_style", "week_start",
                     "theme", "accent_color", "secondary_color"],
         "analytics": ["projection_method", "projection_trailing_months",
                       "use_planned_shifts"],
@@ -235,6 +236,8 @@ class UserSettingsForm(forms.ModelForm):
             "week_start",
             "show_shift_type_colors",
             "show_help_button",
+            "mask_money",
+            "money_mask_style",
             "projection_method",
             "projection_trailing_months",
             "use_planned_shifts",
@@ -253,9 +256,18 @@ class UserSettingsForm(forms.ModelForm):
             for name in list(self.fields):
                 if name not in keep:
                     del self.fields[name]
+        # The masking style only matters while masking is on and always has a
+        # model default, so a POST that omits it (or leaves it blank) shouldn't
+        # fail the whole Display save — fall back to the default in clean().
+        if "money_mask_style" in self.fields:
+            self.fields["money_mask_style"].required = False
 
     def clean_accent_color(self):
         return self.cleaned_data["accent_color"].lower()
 
     def clean_secondary_color(self):
         return self.cleaned_data["secondary_color"].lower()
+
+    def clean_money_mask_style(self):
+        return (self.cleaned_data.get("money_mask_style")
+                or UserSettings._meta.get_field("money_mask_style").default)

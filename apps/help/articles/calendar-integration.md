@@ -50,8 +50,10 @@ calendar event") shows in the help panel while the overlay is on.
 
 Because the busy blocks use the same time shape as shifts, the planner's existing
 **overlap warning** picks them up: plan a shift over a busy block and both turn
-amber. Pressing the button always pulls a **fresh** copy; simply moving between
-months reuses a short-lived cache so your provider isn't hammered.
+amber. Turning the toggle **on** is the only thing that fetches a fresh copy from
+your provider: after that the events are cached for the rest of your browser
+session, so reloads (from editing a shift, say) and month navigation reuse them
+without re-fetching. Want the latest? Just toggle it **off and on again**.
 
 Your own emitted invites (see below) are filtered out of this overlay, so a shift
 you invited yourself to never reads as clashing with itself.

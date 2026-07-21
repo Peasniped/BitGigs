@@ -111,7 +111,7 @@
     <div class="collapse show" id="combinedRateBody">
       <div class="card-body pb-3">
         <div style="position:relative;height:280px;">
-          <canvas id="combinedRateChart"></canvas>
+          <canvas id="combinedRateChart" class="money-chart"></canvas>
         </div>
       </div>
     </div>
@@ -138,7 +138,7 @@
       {% if row.chart_points %}
         <div class="card-body pb-0">
           <div style="position:relative;height:200px;">
-            <canvas class="rate-chart"
+            <canvas class="rate-chart money-chart"
                     data-points="{{ row.chart_points_json|escape }}"
                     data-name="{{ row.workplace.name }}"
                     data-color="{{ row.avatar.accent_color|default:'' }}"
@@ -171,17 +171,17 @@
               <tr class="{% if forloop.last %}row-current{% else %}row-historic{% endif %}">
                 <td>{{ h.effective_from|date:"Y-m-d" }}</td>
                 {% if row.employment_type == 'hourly' %}
-                  <td class="text-end">{{ h.hourly_rate|dk:2|default:"—" }}</td>
-                  <td class="text-end">{{ h.effective_hourly|dk:2|default:"—" }}</td>
-                  <td class="text-end">{{ h.total_hourly|dk:2|default:"—" }}</td>
+                  <td class="text-end money">{{ h.hourly_rate|dk:2|default:"—" }}</td>
+                  <td class="text-end money">{{ h.effective_hourly|dk:2|default:"—" }}</td>
+                  <td class="text-end money">{{ h.total_hourly|dk:2|default:"—" }}</td>
                 {% else %}
-                  <td class="text-end">{{ h.monthly_salary|dk:0|default:"—" }}</td>
-                  <td class="text-end">{{ h.base_hourly|dk:2|default:"—" }}</td>
-                  <td class="text-end">{{ h.total_hourly|dk:2|default:"—" }}</td>
+                  <td class="text-end money">{{ h.monthly_salary|dk:0|default:"—" }}</td>
+                  <td class="text-end money">{{ h.base_hourly|dk:2|default:"—" }}</td>
+                  <td class="text-end money">{{ h.total_hourly|dk:2|default:"—" }}</td>
                 {% endif %}
-                <td class="text-end">{{ h.gross_monthly|dk:0 }}</td>
-                <td class="text-end">{{ h.net_monthly|dk:0 }}</td>
-                <td class="text-end fw-semibold">{{ h.net_hourly|dk:2 }}</td>
+                <td class="text-end money">{{ h.gross_monthly|dk:0 }}</td>
+                <td class="text-end money">{{ h.net_monthly|dk:0 }}</td>
+                <td class="text-end fw-semibold money">{{ h.net_hourly|dk:2 }}</td>
                 <td>
                   {% if forloop.last %}
                     <span class="badge text-bg-info-subtle text-info-emphasis">
@@ -336,6 +336,9 @@
           plugins: {
             legend: { position: 'bottom' },
             tooltip: {
+              // Off while money is masked — the chart is blurred, so the tooltip
+              // would be the one place a rate could still be read.
+              enabled: !document.body.hasAttribute('data-mask-money'),
               callbacks: {
                 label: ctx => ctx.dataset.label + ': '
                   + ctx.parsed.y.toLocaleString('da-DK', { maximumFractionDigits: 2 }),
@@ -412,6 +415,9 @@
         plugins: {
           legend: { position: 'bottom' },
           tooltip: {
+            // Off while money is masked — the chart is blurred, so the tooltip
+            // would be the one place a rate could still be read.
+            enabled: !document.body.hasAttribute('data-mask-money'),
             callbacks: {
               label: ctx => ctx.dataset.label + ': '
                 + (ctx.parsed.y == null

@@ -46,16 +46,16 @@
     <div class="card h-100">
       <div class="card-header">Salary Estimate</div>
       <div class="card-body py-2" style="font-size:0.875rem;">
-        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Base gross</span><span>{{ estimate.gross_pay|dk }} DKK</span></div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Base gross</span><span><span class="money">{{ estimate.gross_pay|dk }}</span> DKK</span></div>
         {% if estimate.fritvalgskonto %}
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Fritvalgskonto</span><span>{{ estimate.fritvalgskonto|dk }} DKK</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Fritvalgskonto</span><span><span class="money">{{ estimate.fritvalgskonto|dk }}</span> DKK</span></div>
         {% endif %}
-        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Gross (taxable)</span><span class="fw-semibold">{{ estimate.taxable_gross|dk }} DKK</span></div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Gross (taxable)</span><span class="fw-semibold"><span class="money">{{ estimate.taxable_gross|dk }}</span> DKK</span></div>
         {% if estimate.tax_breakdown %}
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">AM-bidrag</span><span>{{ estimate.tax_breakdown.am_bidrag|dk }} DKK</span></div>
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">A-skat</span><span>{{ estimate.tax_breakdown.a_skat|dk }} DKK</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">AM-bidrag</span><span><span class="money">{{ estimate.tax_breakdown.am_bidrag|dk }}</span> DKK</span></div>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">A-skat</span><span><span class="money">{{ estimate.tax_breakdown.a_skat|dk }}</span> DKK</span></div>
           <hr class="my-1">
-          <div class="d-flex justify-content-between"><span class="text-muted">Net (est.)</span><span class="fw-semibold" style="color:var(--primary);">{{ estimate.tax_breakdown.net_pay|dk }} DKK</span></div>
+          <div class="d-flex justify-content-between"><span class="text-muted">Net (est.)</span><span class="fw-semibold" style="color:var(--primary);"><span class="money">{{ estimate.tax_breakdown.net_pay|dk }}</span> DKK</span></div>
         {% endif %}
       </div>
     </div>
@@ -149,24 +149,24 @@
               {% if line.standard_line_key == 'pension_employee' or line.standard_line_key == 'am_bidrag' or line.standard_line_key == 'a_skat' or line.standard_line_key == 'ferietillaeg' or line.standard_line_key == 'fritvalgskonto' %}
                 {{ line.rate|dk }}%
               {% elif line.line_type == 'pre_tax_deduct' or line.line_type == 'post_tax_deduct' %}
-                −{{ line.rate|dk }}
+                −<span class="money">{{ line.rate|dk }}</span>
               {% else %}
-                {{ line.rate|dk }}
+                <span class="money">{{ line.rate|dk }}</span>
               {% endif %}
             {% endif %}
           </td>
           <td class="text-end">
             {% if line.line_type == 'pre_tax_deduct' or line.line_type == 'post_tax_deduct' %}
-              <span class="text-danger">−{{ line.amount|dk }}</span>
+              <span class="text-danger">−<span class="money">{{ line.amount|dk }}</span></span>
             {% elif line.standard_line_key == 'fradrag_used' %}
-              <span class="text-muted">({{ line.amount|dk }})</span>
+              <span class="text-muted">(<span class="money">{{ line.amount|dk }}</span>)</span>
             {% elif line.standard_line_key == 'net_pay' %}
-              <span class="text-success">{{ line.amount|dk }} DKK</span>
+              <span class="text-success"><span class="money">{{ line.amount|dk }}</span> DKK</span>
             {% else %}
-              {{ line.amount|dk }}
+              <span class="money">{{ line.amount|dk }}</span>
             {% endif %}
           </td>
-          <td class="text-end running-total-col text-muted small" style="display:none;">
+          <td class="text-end running-total-col text-muted small money" style="display:none;">
             {{ line.running_subtotal|dk }}
           </td>
           <td class="text-end">

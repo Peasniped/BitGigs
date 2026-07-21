@@ -1578,6 +1578,21 @@
     return dates.length ? { start: dates[0], end: dates[dates.length - 1] } : null;
   }
 
+  // Session cache of the last fetched busy cells. Turning the overlay on hits
+  // the network once; after that a passive reload (a shift edit re-rendering the
+  // page, month navigation, …) restores the chips from here without re-polling
+  // the provider. Cleared when the tab closes — sessionStorage, not localStorage.
+  var BUSY_CACHE_KEY = 'bitgigs.planning.busyCache';
+  function saveBusyCache(cells) {
+    try { sessionStorage.setItem(BUSY_CACHE_KEY, JSON.stringify(cells || [])); } catch (e) {}
+  }
+  function loadBusyCache() {
+    try {
+      var raw = sessionStorage.getItem(BUSY_CACHE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
   function loadBusyOverlay(refresh) {
     if (!BUSY_URL) return;
     var range = visibleDateRange();
@@ -1588,23 +1603,38 @@
     setBtnVisual('loading');
     fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function(r) { return r.ok ? r.json() : { busy: [] }; })
-      .then(function(data) { renderBusyOverlay(data.busy || []); })
+      .then(function(data) {
+        var cells = data.busy || [];
+        saveBusyCache(cells);
+        renderBusyOverlay(cells);
+      })
       .catch(function() { /* fail soft — no overlay */ })
       .finally(function() { setBtnVisual('on'); });
   }
 
   var calendarOn = false;
 
-  // A deliberate button press pulls a *fresh* feed (refresh=1, busting the
-  // ~15 min cache) — pressing the button means "show my calendar now". Auto-
-  // restoring the toggle on page load / month change uses the cache instead, so
-  // passive reloads and month navigation don't re-hit the provider every time.
+  // Turning the overlay on is the *only* thing that polls the provider (a fresh
+  // fetch, refresh=1 to bust the ~15 min server cache) — pressing the button
+  // means "show my calendar now". A passive restore on page load renders the
+  // session-cached cells instead, so reloads caused by editing a shift, or month
+  // navigation, never re-hit the feed. Re-poll = simply toggle off then on.
   function setCalendarShown(on, opts) {
     opts = opts || {};
     calendarOn = on;
     setBusyLegend(on);
     if (on) {
-      loadBusyOverlay(opts.refresh);  // 'loading' → 'on'
+      if (opts.refresh) {
+        loadBusyOverlay(true);  // deliberate turn-on → fresh poll, 'loading' → 'on'
+      } else {
+        var cached = loadBusyCache();
+        if (cached) {
+          renderBusyOverlay(cached);  // restore from this session's cache, no poll
+          setBtnVisual('on');
+        } else {
+          loadBusyOverlay(false);  // first time this session → populate the cache once
+        }
+      }
     } else {
       setBtnVisual('off');
       removeBusyChips();

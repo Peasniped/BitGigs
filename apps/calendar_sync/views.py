@@ -119,6 +119,9 @@ def calendar_settings_context(*, sub_form=None, invite_form=None, open_modal="",
     """State for the Calendar settings tab: subscriptions (Direction 1), the
     global invite settings + per-workplace configs (Direction 2), and whether
     mail is configured (invites ride the SMTP channel)."""
+    import json
+
+    from core.constants import APP_ACCENT_CHOICES
     from core.models import EmailSettings
     from workplaces.models import Workplace
 
@@ -130,6 +133,7 @@ def calendar_settings_context(*, sub_form=None, invite_form=None, open_modal="",
     from .models import CalendarInviteSettings, CalendarSubscription
 
     invite_settings = CalendarInviteSettings.load()
+    subscriptions = list(CalendarSubscription.objects.all())
     workplace_rows = [
         {
             "workplace": wp,
@@ -141,7 +145,7 @@ def calendar_settings_context(*, sub_form=None, invite_form=None, open_modal="",
         for wp in Workplace.objects.all().order_by("name")
     ]
     return {
-        "cal_subscriptions": list(CalendarSubscription.objects.all()),
+        "cal_subscriptions": subscriptions,
         "cal_sub_form": sub_form or CalendarSubscriptionForm(),
         "cal_invite_settings": invite_settings,
         "cal_invite_form": invite_form or CalendarInviteSettingsForm(instance=invite_settings),
@@ -149,6 +153,11 @@ def calendar_settings_context(*, sub_form=None, invite_form=None, open_modal="",
         "cal_mail_configured": EmailSettings.load().is_configured,
         "cal_open_modal": open_modal,
         "cal_sub_edit_id": sub_edit_id,
+        # Swatch picker (Direction 1 add/edit modal): the shared app accent
+        # family, already minus both brand colours, plus the colours already in
+        # use so a new calendar auto-picks a distinct one (see the modal script).
+        "cal_color_choices": APP_ACCENT_CHOICES,
+        "cal_used_colors_json": json.dumps([s.color.lower() for s in subscriptions]),
     }
 
 

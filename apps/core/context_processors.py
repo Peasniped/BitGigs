@@ -38,6 +38,8 @@ def display_settings(request):
     return {
         "show_shift_type_colors": settings.show_shift_type_colors,
         "show_help_button": settings.show_help_button,
+        "mask_money": settings.mask_money,
+        "money_mask_style": settings.money_mask_style,
         "theme": settings.theme,
         "accent_color": accent,
         "accent_color_rgb": hex_to_rgb_str(accent),

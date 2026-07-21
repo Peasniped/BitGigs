@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="{% static 'css/help.css' %}">
   {% block extra_css %}{% endblock %}
 </head>
-<body>
+<body{% if mask_money %} data-mask-money="{{ money_mask_style }}"{% endif %}>
   {% comment %}
     First onboarding step (account creation): no navbar at all.
     Later onboarding steps: navbar with a centered logo only, no links.
@@ -200,6 +200,7 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js" integrity="sha384-jrOgQzBlDeUNdmQn3rUt/PZD+pdcRBdWd/HWRqRo+n2OR2QtGyjSaJC0GiCeH+ir" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/air-datepicker@3.5.3/air-datepicker.js" integrity="sha384-K1aTGb0e2SnCOyrnr+BX23z7N8DHKN5oLkdG4v1cRFitBfc/qBzF6SYIO0yDmGwn" crossorigin="anonymous"></script>
   <script src="{% static 'js/app.js' %}"></script>
+  <script src="{% static 'js/money_mask.js' %}"></script>
   <script src="{% static 'js/help.js' %}"></script>
   {% block extra_js %}{% endblock %}
 </body>
