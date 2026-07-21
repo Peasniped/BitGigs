@@ -12,7 +12,7 @@ from django.views import View
 from django.utils import timezone
 
 from .constants import APP_ACCENT_CHOICES, DEFAULT_ACCENT, DEFAULT_SECONDARY
-from .models import EmailSettings, TaxProfile, UserSettings
+from .models import EmailLog, EmailSettings, TaxProfile, UserSettings
 from .forms import EmailSettingsForm, TaxProfileForm, UserSettingsForm
 from .utils import parse_int_param, prev_next_month
 from .dashboard_service import DashboardDataService, get_pending_shifts, get_todays_banner
@@ -115,6 +115,7 @@ class DashboardView(View):
                 "todays_banner": todays_banner,
                 "todays_shifts_json": todays_shifts_json,
                 "todays_banner_shifts_json": todays_banner_shifts_json,
+                "email_failures_unseen": EmailLog.objects.failures_unseen().exists(),
             },
         )
 
@@ -286,15 +287,22 @@ class BitGigsLoginView(LoginView):
         return context
 
 
-def email_context(form=None):
-    """Email-tab state: the configuration form plus the presets the fill buttons
-    offer. Built lazily so the other tabs never touch the EmailSettings row."""
+def email_context(form=None, form_invalid=False):
+    """Email-tab state: the saved configuration (shown as a read-only summary),
+    the edit form that lives in a modal, and the presets the fill buttons offer.
+    Built lazily so the other tabs never touch the EmailSettings row.
+
+    ``form_invalid`` is set when a save bounced on validation, so the template
+    re-opens the modal with the errors instead of hiding them behind a closed
+    dialog."""
     from .mail import PRESETS
     config = EmailSettings.load()
     return {
         "email_config": config,
         "email_form": form or EmailSettingsForm(instance=config),
         "email_presets": PRESETS,
+        "email_form_invalid": form_invalid,
+        "email_failures_unseen": EmailLog.objects.failures_unseen().exists(),
     }
 
 
@@ -315,8 +323,59 @@ class EmailSettingsView(View):
             "form": UserSettingsForm(instance=UserSettings.load(), tab="display"),
             "next_url": None,
             "active_tab": "email",
-            **email_context(form),
+            **email_context(form, form_invalid=True),
         })
+
+
+class EmailClearView(View):
+    """Reset the email configuration to a fresh, disabled state.
+
+    A one-click way out of a broken setup — clears the credentials and the from
+    address, drops the stored password, and forgets the last-test result. Behind
+    a JS confirm in the summary card since it discards data."""
+
+    def post(self, request):
+        from django.contrib import messages
+
+        config = EmailSettings.load()
+        config.enabled = False
+        config.host = ""
+        config.port = EmailSettings._meta.get_field("port").default
+        config.security = EmailSettings._meta.get_field("security").default
+        config.username = ""
+        config.password = ""
+        config.from_email = ""
+        config.from_name = EmailSettings._meta.get_field("from_name").default
+        config.timeout = EmailSettings._meta.get_field("timeout").default
+        config.last_test_at = None
+        config.last_test_ok = None
+        config.save()
+        messages.success(request, "Email configuration cleared.")
+        return redirect(f"{reverse('core:settings')}?tab=email")
+
+
+class EmailLogView(View):
+    """The email activity log: every send attempt, most recent first, with the
+    reason a failure failed. Read-only; the only mutation reachable from here is
+    the Dismiss control, which posts to ``EmailLogAckView``."""
+
+    def get(self, request):
+        entries = EmailLog.objects.all()[:EmailLog.PRUNE_KEEP]
+        return render(request, "core/email_log.html", {
+            "entries": entries,
+            "has_unseen_failures": EmailLog.objects.failures_unseen().exists(),
+        })
+
+
+class EmailLogAckView(View):
+    """Dismiss the outstanding failures — stamps ``acknowledged_at`` on every
+    unseen failure, which is what clears the dashboard banner. Reachable from
+    both the banner and the log page; honours a same-origin ``next``."""
+
+    def post(self, request):
+        EmailLog.objects.failures_unseen().update(acknowledged_at=timezone.now())
+        target = _safe_next(request, request.POST.get("next"))
+        return redirect(target or reverse("core:email-log"))
 
 
 class EmailTestView(View):
@@ -342,7 +401,12 @@ class EmailTestView(View):
                     {"error": f"'{send_to}' is not a valid email address."}, status=400
                 )
         result = run_and_record(send_to=send_to or None)
-        return JsonResponse(result.as_dict())
+        # Report the live unseen-failure state too, so the tab's "Email log"
+        # alert dot can flip the moment a test send fails, without a reload.
+        return JsonResponse({
+            **result.as_dict(),
+            "failures_unseen": EmailLog.objects.failures_unseen().exists(),
+        })
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -487,6 +551,7 @@ def sign_in_context(user):
     from django.contrib.auth.forms import SetPasswordForm
     from .forms import AccountDetailsForm
     linked = SocialAccount.objects.filter(user=user).first()
+    email_config = EmailSettings.load()
     return {
         "sso_account": linked,
         "sso_linked": linked is not None,
@@ -494,6 +559,10 @@ def sign_in_context(user):
         "set_password_form": SetPasswordForm(user),  # drives the set/change modal
         "account_details_form": AccountDetailsForm(instance=user),
         "password_reset_enabled": password_reset_available(),
+        # Split out so the Sign-in tab can mirror the Email tab's reset state
+        # precisely — "allowed but no mail server yet" reads differently from "off".
+        "password_reset_allowed": email_config.allow_password_reset,
+        "email_configured": email_config.is_configured,
     }
 
 

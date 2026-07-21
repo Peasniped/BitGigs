@@ -40,6 +40,9 @@ urlpatterns = [
     path("settings/theme/", views.SetThemeView.as_view(), name="set-theme"),
     path("settings/email/", views.EmailSettingsView.as_view(), name="email-settings"),
     path("settings/email/test/", views.EmailTestView.as_view(), name="email-test"),
+    path("settings/email/clear/", views.EmailClearView.as_view(), name="email-clear"),
+    path("settings/email/log/", views.EmailLogView.as_view(), name="email-log"),
+    path("settings/email/log/ack/", views.EmailLogAckView.as_view(), name="email-log-ack"),
     path("settings/sign-in/", views.PasswordSignInView.as_view(), name="password-signin"),
     path("settings/sign-in/link/", views.SSOLinkConfirmView.as_view(), name="sso-link-confirm"),
     # Set this as the application's Launch URL at the identity provider.

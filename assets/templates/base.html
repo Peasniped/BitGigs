@@ -155,7 +155,12 @@
         in a narrower centred column than the full container.
       {% endcomment %}
       <div class="row justify-content-center">
-        <div class="{% if onboarding %}col-12 col-md-10 col-lg-8{% else %}col-12{% endif %}">
+        {% comment %}
+          Pages with a narrowed content column (e.g. Settings) override
+          message_col so the notice lines up with their content instead of
+          overhanging it into the full container width.
+        {% endcomment %}
+        <div class="{% if onboarding %}col-12 col-md-10 col-lg-8{% else %}{% block message_col %}col-12{% endblock %}{% endif %}">
           {% for message in messages %}
             {% comment %}
               Success notices auto-dismiss via the countdown-ring control (app.js,

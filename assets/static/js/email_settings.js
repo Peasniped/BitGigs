@@ -9,6 +9,28 @@
   var root = document.querySelector('[data-email-settings]');
   if (!root) return;   // Another settings tab is rendered.
 
+  // ── Clear-configuration confirm ────────────────────────────────────────────
+  root.querySelectorAll('form[data-confirm]').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      if (!window.confirm(form.dataset.confirm)) event.preventDefault();
+    });
+  });
+
+  // ── Sender auto-fills from the username while it's blank ───────────────────
+  // Most providers require the from-address to equal the account you sign in as,
+  // so mirror the username into an empty From field as you type — but back off
+  // the moment the operator edits From themselves (a pre-filled value counts as
+  // already-theirs). Same "only while untouched" rule the help-editor slug uses.
+  var usernameInput = document.getElementById('id_username');
+  var fromInput = document.getElementById('id_from_email');
+  if (usernameInput && fromInput) {
+    var fromTouched = fromInput.value.trim() !== '';
+    fromInput.addEventListener('input', function () { fromTouched = true; });
+    usernameInput.addEventListener('input', function () {
+      if (!fromTouched) fromInput.value = usernameInput.value;
+    });
+  }
+
   // ── Provider presets ───────────────────────────────────────────────────────
   var noteBox = root.querySelector('[data-preset-note]');
 
@@ -81,8 +103,32 @@
     return row;
   }
 
+  // The "Last test passed/failed" badge on the summary card. run_and_record has
+  // already persisted this result server-side, so it survives a later reload —
+  // this just spares the operator a refresh to see the outcome flip. Re-queried
+  // on each call rather than cached at load, so it can't go stale.
+  function updateBadge(ok) {
+    var badge = document.getElementById('emailLastTestBadge');
+    if (!badge) return;
+    badge.classList.remove('d-none', 'status-pill--ok', 'status-pill--bad');
+    badge.classList.add(ok ? 'status-pill--ok' : 'status-pill--bad');
+    badge.innerHTML = '<i class="bi bi-' +
+      (ok ? 'check-circle-fill' : 'exclamation-triangle-fill') + '"></i>Last test ' +
+      (ok ? 'passed' : 'failed');
+  }
+
+  // The "Email log" button's red "!" dot. The server tells us the live unseen-
+  // failure state on every test, so this mirrors it whether the test passed or
+  // failed (a pass doesn't clear older, still-undismissed failures).
+  function updateLogAlert(hasFailures) {
+    var dot = document.getElementById('emailLogAlert');
+    if (dot) dot.classList.toggle('d-none', !hasFailures);
+  }
+
   function render(data) {
     results.textContent = '';
+    updateBadge(data.ok);
+    updateLogAlert(data.failures_unseen);
 
     var summary = document.createElement('div');
     summary.className = 'alert py-2 px-3 ' + (data.ok ? 'alert-success' : 'alert-danger');

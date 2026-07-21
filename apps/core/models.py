@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
+from django.utils import timezone
 
 
 class TaxProfile(models.Model):
@@ -330,6 +331,79 @@ class EmailSettings(models.Model):
     @property
     def is_configured(self):
         return bool(self.enabled and self.host and self.from_email)
+
+
+class EmailLogQuerySet(models.QuerySet):
+    def failures_unseen(self):
+        """Failed sends the operator has not yet dismissed — the dashboard
+        banner and the log's Dismiss control both key off this set."""
+        return self.filter(ok=False, acknowledged_at__isnull=True)
+
+
+class EmailLog(models.Model):
+    """One row per outgoing send attempt (test or real app mail), recording the
+    recipient, subject, outcome and — when it fails — why.
+
+    Every path that puts mail on the wire logs here: real app mail through
+    ``DbConfiguredEmailBackend.send_messages`` (this is the only choke point that
+    catches Django's own password-reset mail, which never touches
+    ``core.mail.send_mail``) and the diagnostic send in ``mail.run_and_record``.
+    Only metadata is stored — never the message body. The table is bounded: each
+    ``record`` prunes to the most recent ``PRUNE_KEEP`` rows.
+    """
+
+    PRUNE_KEEP = 200
+
+    KIND_TEST = "test"
+    KIND_SENT = "sent"
+    KIND_CHOICES = [
+        (KIND_TEST, "Test message"),
+        (KIND_SENT, "Sent"),
+    ]
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    to = models.CharField(max_length=254, blank=True)
+    subject = models.CharField(max_length=255, blank=True)
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=KIND_SENT)
+    ok = models.BooleanField(default=True)
+    error = models.TextField(blank=True)
+    # Set when the operator dismisses the dashboard failure banner. Only failures
+    # are ever unacknowledged; successes are recorded already-seen (see record()).
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+
+    objects = EmailLogQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        state = "ok" if self.ok else "failed"
+        return f"{self.get_kind_display()} to {self.to or '—'} ({state})"
+
+    @classmethod
+    def record(cls, to, subject, ok, kind=KIND_SENT, error=""):
+        """Create a log row and prune the table back to ``PRUNE_KEEP``.
+
+        Successes are stamped acknowledged immediately — the banner is only ever
+        about failures, so a success never needs dismissing.
+        """
+        entry = cls.objects.create(
+            to=(to or "")[:254],
+            subject=(subject or "")[:255],
+            ok=ok,
+            kind=kind,
+            error=error or "",
+            acknowledged_at=timezone.now() if ok else None,
+        )
+        cls._prune()
+        return entry
+
+    @classmethod
+    def _prune(cls):
+        keep_ids = list(
+            cls.objects.order_by("-created_at").values_list("id", flat=True)[: cls.PRUNE_KEEP]
+        )
+        cls.objects.exclude(id__in=keep_ids).delete()
 
 
 class OnboardingDraft(models.Model):

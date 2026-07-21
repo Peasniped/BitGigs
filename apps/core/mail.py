@@ -352,10 +352,36 @@ def diagnose(config=None, send_to=None):
 
 
 def run_and_record(config=None, send_to=None):
-    """``diagnose`` plus a record of the outcome on the settings row."""
+    """``diagnose`` plus a record of the outcome on the settings row.
+
+    When the run included a real test message (``send_to`` given) it is also
+    written to the ``EmailLog`` — the same trail real app mail leaves — so a
+    failed test surfaces in the log and the dashboard banner alongside a bounced
+    password-reset.
+    """
+    from .models import EmailLog
+
     config = config or EmailSettings.load()
     result = diagnose(config, send_to=send_to)
     config.last_test_at = timezone.now()
     config.last_test_ok = result.ok
     config.save(update_fields=["last_test_at", "last_test_ok", "updated_at"])
+
+    if send_to:
+        send_stage = next((s for s in result.stages if s.key == "send"), None)
+        ok = send_stage is not None and send_stage.status == OK
+        error = "" if ok else _first_failure_text(result)
+        EmailLog.record(
+            to=send_to, subject="BitGigs test message", ok=ok,
+            kind=EmailLog.KIND_TEST, error=error,
+        )
     return result
+
+
+def _first_failure_text(result):
+    """The failing stage's own words, for the email log's reason column."""
+    stage = next((s for s in result.stages if s.status == FAILED), None)
+    if stage is None:
+        return ""
+    parts = [p for p in (stage.detail, stage.hint) if p]
+    return " ".join(parts) or stage.label

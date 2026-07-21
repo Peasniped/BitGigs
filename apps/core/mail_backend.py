@@ -11,7 +11,7 @@ BitGigs — notably Django's own password-reset views — send mail correctly.
 from django.core.mail.backends.smtp import EmailBackend as SMTPEmailBackend
 
 from .mail import MailNotConfigured
-from .models import EmailSettings
+from .models import EmailLog, EmailSettings
 
 
 class DbConfiguredEmailBackend(SMTPEmailBackend):
@@ -46,4 +46,39 @@ class DbConfiguredEmailBackend(SMTPEmailBackend):
                      else config.security == EmailSettings.SECURITY_SSL),
             timeout=timeout if timeout is not None else config.timeout,
             **kwargs,
+        )
+
+    def send_messages(self, email_messages):
+        """Send, then record one EmailLog per message so the operator has a
+        trail of what actually left the server.
+
+        This backend is the app-wide ``EMAIL_BACKEND``, so it is the single point
+        every real send passes through — including Django's password-reset mail,
+        which does not go through ``core.mail.send_mail``. A raised error (relay
+        refused, auth lost between connect and send) is logged against every
+        message in the batch and then re-raised, unless ``fail_silently`` asked us
+        to swallow it.
+        """
+        messages = list(email_messages or [])
+        try:
+            sent = super().send_messages(messages)
+        except Exception as exc:
+            for message in messages:
+                self._log_message(message, ok=False, error=str(exc))
+            if self.fail_silently:
+                return 0
+            raise
+        for message in messages:
+            self._log_message(message, ok=True)
+        return sent
+
+    @staticmethod
+    def _log_message(message, ok, error=""):
+        recipients = ", ".join(getattr(message, "to", []) or [])
+        EmailLog.record(
+            to=recipients,
+            subject=getattr(message, "subject", "") or "",
+            ok=ok,
+            kind=EmailLog.KIND_SENT,
+            error=error,
         )

@@ -1,0 +1,85 @@
+{% load crispy_forms_tags %}
+{% comment %}
+  The email configuration form, in a modal opened from the Email tab's summary
+  card. Grouped into Server / Sign-in / Sender / Options and laid out two-column
+  so the password field is nowhere near the from-address (they used to sit one
+  under the other, which is how the password kept landing in from-email).
+
+  The `data-email-preset` buttons live inside the [data-email-settings] root
+  (the pane wrapper in settings.html), so email_settings.js still wires them.
+{% endcomment %}
+<div class="modal fade" id="emailSettingsModal" tabindex="-1" aria-labelledby="emailSettingsModalLabel"
+     data-bs-backdrop="static" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content app-modal">
+      <div class="modal-header">
+        <h5 class="modal-title" id="emailSettingsModalLabel">
+          <i class="bi bi-envelope-gear me-1"></i>Email settings
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <form method="post" action="{% url 'core:email-settings' %}" id="emailSettingsForm">
+        <div class="modal-body">
+          {% csrf_token %}
+
+          {% comment %}Host/port/security for the usual providers — one click
+          instead of three lookups. Credentials stay the operator's own.{% endcomment %}
+          <div class="mb-3">
+            <label class="form-label fw-medium">Quick setup</label>
+            <div class="d-flex flex-wrap gap-2">
+              {% for key, preset in email_presets.items %}
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        data-email-preset="{{ key }}"
+                        data-host="{{ preset.host }}" data-port="{{ preset.port }}"
+                        data-security="{{ preset.security }}" data-note="{{ preset.note }}">
+                  {{ preset.label }}
+                </button>
+              {% endfor %}
+            </div>
+            <div class="form-text mt-2 d-none" data-preset-note></div>
+          </div>
+
+          {{ email_form.enabled|as_crispy_field }}
+
+          <hr class="my-3">
+          <div class="fw-medium mb-2"><i class="bi bi-hdd-network me-1"></i>Server</div>
+          <div class="row">
+            <div class="col-sm-8">{{ email_form.host|as_crispy_field }}</div>
+            <div class="col-sm-4">{{ email_form.port|as_crispy_field }}</div>
+          </div>
+          {{ email_form.security|as_crispy_field }}
+
+          <hr class="my-3">
+          <div class="fw-medium mb-2"><i class="bi bi-person-lock me-1"></i>Sign-in</div>
+          <div class="row">
+            <div class="col-sm-6">{{ email_form.username|as_crispy_field }}</div>
+            <div class="col-sm-6">{{ email_form.password|as_crispy_field }}</div>
+          </div>
+          {% if email_form.clear_password %}{{ email_form.clear_password|as_crispy_field }}{% endif %}
+
+          <hr class="my-3">
+          <div class="fw-medium mb-2"><i class="bi bi-envelope-at me-1"></i>Sender</div>
+          <div class="row">
+            <div class="col-sm-6">{{ email_form.from_email|as_crispy_field }}</div>
+            <div class="col-sm-6">{{ email_form.from_name|as_crispy_field }}</div>
+          </div>
+
+          <hr class="my-3">
+          <div class="fw-medium mb-2"><i class="bi bi-sliders me-1"></i>Options</div>
+          <div class="row">
+            <div class="col-sm-6">{{ email_form.timeout|as_crispy_field }}</div>
+          </div>
+          {{ email_form.allow_password_reset|as_crispy_field }}
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg me-1"></i>Save
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

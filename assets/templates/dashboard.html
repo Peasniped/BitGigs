@@ -12,6 +12,26 @@
   </p>
 </div>
 
+{% if email_failures_unseen %}
+<!-- ===== Email failure banner ===== -->
+{% comment %}
+  A send failed and hasn't been dismissed. Stays until the operator explicitly
+  dismisses it (posts to email-log-ack) — viewing the log alone doesn't clear it.
+{% endcomment %}
+<div class="alert alert-danger d-flex flex-wrap align-items-center gap-2 mb-4">
+  <i class="bi bi-exclamation-octagon-fill"></i>
+  <span class="me-auto">An email failed to send. Check the log to see what went wrong.</span>
+  <a href="{% url 'core:email-log' %}" class="btn btn-sm btn-danger">
+    <i class="bi bi-list-ul me-1"></i>View email log
+  </a>
+  <form method="post" action="{% url 'core:email-log-ack' %}" class="d-inline">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{% url 'core:dashboard' %}">
+    <button type="submit" class="btn btn-sm btn-outline-danger">Dismiss</button>
+  </form>
+</div>
+{% endif %}
+
 <!-- ===== Pay stat counters ===== -->
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-{% if has_any_goal %}3{% else %}4{% endif %}">

@@ -275,20 +275,34 @@ main.container { flex: 1; }
 h1,h2,h3,h4,h5,h6 { font-weight: 600; color: var(--text); }
 
 /* ---- Navbar ---- */
-/* Merges into the page canvas — no seam, shadow or border of its own; the
-   nav links and the More button carry their own pill chrome instead. */
-/* Shares the body's fixed canvas gradient so the sticky bar is an invisible
-   continuation of the page rather than a band sitting on top of it — both are
-   background-attachment: fixed, so the two slices line up exactly. */
+/* No bar at all: the navbar paints nothing. The brand, the centre nav pill and
+   the More menu float directly over the page canvas (and over content once it
+   scrolls under them), each carrying its own pill/shadow chrome. */
 .navbar {
-  background-image: var(--canvas-gradient);
-  background-attachment: fixed;
-  background-size: cover;
+  background: transparent;
   /* Holds the breathing room that used to sit on .nav-pill's margin-top —
      applied to the bar, so the brand and both pills all move together and stay
      vertically aligned with each other. */
   --bs-navbar-padding-y: 0.75rem;
 }
+/* With no bar, the sticky strip is empty space — it must not swallow clicks
+   meant for the content scrolling beneath it, so the strip itself passes the
+   pointer through and only the actual interactive chips catch it. */
+.navbar.sticky-top { pointer-events: none; }
+.navbar.sticky-top .navbar-brand,
+.navbar.sticky-top .nav-pill,
+.navbar.sticky-top .navbar-toggler,
+.navbar.sticky-top .onboarding-userbar { pointer-events: auto; }
+/* The brand has no pill of its own — a chip would only mis-place the hover glow,
+   which is anchored to the un-padded brand. Instead its logo drop-shadow and
+   text-shadow are its "halo", lifting it off whatever scrolls behind. */
+.navbar-brand .brand-logo { filter: drop-shadow(0 2px 6px rgba(var(--shadow-rgb), .5)); }
+.navbar-brand span { text-shadow: 0 1px 5px rgba(var(--shadow-rgb), .5); }
+
+/* The disabled/busy look comes from the shared .btn-primary:disabled rule above.
+   This only pins the width so the label swapping between "Run test" and
+   "Testing…" doesn't make the button change size. */
+#emailTestRun { min-width: 8.5rem; }
 /* Three equal-weight columns so the centre pill is centred on the *page*.
    Left as flex, the pill only centres within whatever space is left beside the
    brand, which pushes it right. The 1fr outer tracks balance each other, so the
@@ -406,7 +420,9 @@ a.navbar-brand:hover span { color: var(--primary); }
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 0.25rem;
-  box-shadow: var(--card-shadow);
+  /* A soft lifted shadow so the pill separates from content it floats over —
+     there is no bar behind it any more to do that job. */
+  box-shadow: 0 6px 18px -8px rgba(var(--shadow-rgb), .45), var(--card-shadow);
 }
 /* Fully round the links themselves so their hover/active fill reads as one
    shape with the pill that contains them, not a small square peeking out of
@@ -430,7 +446,9 @@ a.navbar-brand:hover span { color: var(--primary); }
   background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%);
   border: 0;
   padding: calc(0.25rem + 1px);
-  box-shadow: 0 4px 14px -4px rgba(var(--primary-rgb), .45);
+  /* A coloured glow so it lifts off content it floats over (no bar behind). */
+  box-shadow: 0 7px 22px -6px rgba(var(--primary-rgb), .6),
+              0 3px 10px -4px rgba(var(--shadow-rgb), .4);
 }
 /* The secondary end is the logo's pale blue, so white labels need their own
    contrast rather than a darker pill — the shadow buys it without muddying
@@ -1018,6 +1036,26 @@ a.navbar-brand:hover span { color: var(--primary); }
   box-shadow: 0 6px 24px -4px rgba(var(--primary-rgb), .65),
               0 0 28px color-mix(in srgb, var(--secondary) 45%, transparent);
 }
+/* Locked / disabled state for the gradient primary button — the connection test
+   while it runs, the onboarding "Finish setup" until setup is complete, and any
+   other .btn-primary that gets disabled. Desaturate the accent gradient in place
+   (same gradient, no hue) rather than flat-filling it, so a locked button still
+   reads as the same button; opacity:1 undoes Bootstrap's fade. grayscale keeps
+   luminance, but the *chromatic* contrast that made the white label legible on
+   the pale end of the live gradient is gone once it's grey — so add the same
+   dark text-shadow the accent nav-pill uses for white-on-pale, which restores
+   the readability without darkening the fill. */
+.btn-primary:disabled,
+.btn-primary.disabled {
+  filter: grayscale(1);
+  opacity: 1;
+  /* Force the label white: .btn-primary sets no colour of its own, so the
+     disabled state otherwise falls through to Bootstrap's grey
+     --bs-btn-disabled-color and the text goes grey — which grayscale can't undo
+     because the greying is in the colour, not the fill. */
+  color: var(--on-accent) !important;
+  text-shadow: 0 1px 3px rgba(var(--shadow-rgb), .7);
+}
 /* The outline variant fills with the same travelling gradient rather than a
    flat colour — planning's Power Edit toggle is this in its inactive state and
    .btn-primary once armed, so it behaves the same either way. */
@@ -1123,6 +1161,34 @@ a.navbar-brand:hover span { color: var(--primary); }
   background: var(--bg-lighter);
   color: var(--text-muted);
   border: 1px solid var(--border);
+}
+
+/* Soft tinted status pill (e.g. the email "Last test passed/failed" chip): the
+   whole pill carries the status colour rather than just the text, so it reads at
+   a glance. Variants tint background + border + text from the status families,
+   which re-resolve per theme. */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.status-pill .bi { font-size: 0.95em; }
+.status-pill--ok {
+  background: var(--success-tint);
+  border-color: color-mix(in srgb, var(--success) 32%, transparent);
+  color: var(--success-strong);
+}
+.status-pill--bad {
+  background: var(--danger-tint);
+  border-color: color-mix(in srgb, var(--danger) 32%, transparent);
+  color: var(--danger-strong);
 }
 
 /* ---- Theme-safe calendar cell washes (month + payroll-period grids) ---- */

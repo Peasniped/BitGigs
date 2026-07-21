@@ -6,7 +6,7 @@ parent: settings-and-sign-in
 audience: everyone
 order: 75
 published: true
-keywords: [email, smtp, mail, gmail, outlook, password reset, forgot password, app password, starttls, port 587, port 465, test connection]
+keywords: [email, smtp, mail, gmail, outlook, password reset, forgot password, app password, starttls, port 587, port 465, test connection, email log, failed email, clear configuration]
 pages: [core:settings]
 ---
 BitGigs can send mail through a mail server **you** choose. It is entirely
@@ -26,10 +26,18 @@ run it yourself — if you use Gmail, your reset emails pass through Google. Tha
 your call to make about your own mail account, which is exactly why this is
 opt-in and why BitGigs never picks a provider for you.
 
+The Email tab shows your **saved settings** as a read-only summary. Press
+**Edit settings** to change them in a dialog, and **Save** when you're done.
+There's also a **Clear** button that wipes the whole configuration back to a
+fresh, disabled state — handy when a setup has gone wrong and you'd rather start
+over.
+
 ## Connecting a server
 
-Use **Quick setup** to fill in the server address, port and encryption for a
-common provider, then add your own credentials:
+Press **Edit settings**. Use **Quick setup** to fill in the server address, port
+and encryption for a common provider, then add your own credentials. The dialog
+groups the fields — **Server**, **Sign-in**, **Sender** — so the password and the
+from-address stay well apart.
 
 | Provider | Server | Port | Encryption |
 |---|---|---|---|
@@ -54,8 +62,9 @@ read and BitGigs will ask you to enter it again.
 
 ## Testing it
 
-Save your settings, then press **Run test**. The test walks through the same
-steps a real send does and reports each one, so the first ✗ tells you which
+The test always runs against your **saved** settings — the summary you see on
+the tab — so save any edits first, then press **Run test**. It walks through the
+same steps a real send does and reports each one, so the first ✗ tells you which
 setting is wrong:
 
 1. **Configuration** — are the required fields filled in at all
@@ -79,6 +88,27 @@ Common results:
   app password is required. The server's own explanation is shown too.
 - **"The server refused the from address"** — set the from address to match the
   account you authenticate as.
+
+## The email log
+
+Every message BitGigs tries to send — test messages and real mail alike — is
+recorded in the **Email log** (the button is on the Email tab). Each row shows
+when it was sent, to whom, the subject, and the outcome; a failure also shows
+**why**. Only this metadata is kept, never the contents of the message. The log
+holds the most recent 200 attempts.
+
+A result of **Accepted** means the mail server took the message for delivery —
+it is *not* proof it landed in the inbox. Mail works in relays: the server can
+accept a message and only later discover the address doesn't exist, at which
+point a "delivery failed" notice bounces back to your own inbox a few minutes
+later. There is no reliable way for BitGigs to know that at send time, so
+"Accepted" is as far as the log can honestly go. If in doubt, send yourself a
+test message and check it actually arrives.
+
+If a send **fails**, a red banner appears on your **dashboard** with a link
+straight to the log. It stays until you press **Dismiss** — just opening the log
+doesn't clear it — so a failure that happened while you weren't looking (a reset
+link that never arrived, say) can't slip by unnoticed.
 
 ## Resetting a forgotten password
 

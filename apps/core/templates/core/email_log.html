@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Email log &middot; BitGigs{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <h2 class="mb-0">Email log</h2>
+    <p class="form-text mb-0">
+      Every message BitGigs tried to send &mdash; test messages and real mail
+      alike. Only the recipient, subject and outcome are kept, never the body.
+      <strong>Accepted</strong> means the mail server took the message for
+      delivery; it is not proof it reached the inbox &mdash; a bad address can
+      still bounce back to you a few minutes later.
+    </p>
+  </div>
+  <a href="{% url 'core:settings' %}?tab=email" class="btn btn-outline-secondary flex-shrink-0">
+    <i class="bi bi-arrow-left me-1"></i>Back to email settings
+  </a>
+</div>
+
+{% if has_unseen_failures %}
+  {% comment %} The explicit dismiss — clears the dashboard banner. Its own banner
+  so it never competes with the back button for the header row. {% endcomment %}
+  <div class="alert alert-danger d-flex flex-wrap align-items-center gap-2">
+    <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+    <span class="me-auto">Some recent emails failed to send. Dismiss to clear the dashboard warning.</span>
+    <form method="post" action="{% url 'core:email-log-ack' %}" class="m-0">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'core:email-log' %}">
+      <button type="submit" class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-check2-all me-1"></i>Dismiss failures
+      </button>
+    </form>
+  </div>
+{% endif %}
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Type</th>
+          <th>To</th>
+          <th>Subject</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td class="text-nowrap">{{ e.created_at|date:"j M Y, H:i" }}</td>
+          <td><span class="badge-soft">{{ e.get_kind_display }}</span></td>
+          <td>{{ e.to|default:"—" }}</td>
+          <td>{{ e.subject|default:"—" }}</td>
+          <td>
+            {% if e.ok %}
+              <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Accepted</span>
+            {% else %}
+              <div class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>Failed</div>
+              {% if e.error %}<div class="form-text mt-0">{{ e.error }}</div>{% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-muted text-center py-4">No mail has been sent yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

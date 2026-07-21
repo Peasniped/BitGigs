@@ -13,7 +13,8 @@ from django.urls import reverse
 
 from core import mail as core_mail
 from core.crypto import decrypt_secret, encrypt_secret
-from core.models import EmailSettings, UserSettings
+from core.mail_backend import DbConfiguredEmailBackend
+from core.models import EmailLog, EmailSettings, UserSettings
 from core.mail import FAILED, OK, SKIPPED
 
 
@@ -272,6 +273,12 @@ class EmailSettingsViewTests(TestCase):
         response = self.client.post(reverse("core:email-test"))
         self.assertEqual(response.status_code, 302)
 
+    def test_test_endpoint_reports_unseen_failure_flag(self):
+        make_config(host="")  # fails at the config stage, nothing sent → no failure logged
+        payload = self.client.post(reverse("core:email-test")).json()
+        self.assertIn("failures_unseen", payload)
+        self.assertFalse(payload["failures_unseen"])
+
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class PasswordResetTests(TestCase):
@@ -345,3 +352,123 @@ class PasswordResetTests(TestCase):
         self.client.post("/accounts/password_reset/", {"email": "owner@example.com"})
         self.assertEqual(len(mail.outbox), 5)
         cache.clear()
+
+
+class EmailLogModelTests(TestCase):
+    def test_record_marks_success_seen_and_failure_unseen(self):
+        ok_row = EmailLog.record("a@b.com", "Hi", ok=True)
+        fail_row = EmailLog.record("a@b.com", "Hi", ok=False, error="nope")
+        self.assertIsNotNone(ok_row.acknowledged_at)   # successes never need dismissing
+        self.assertIsNone(fail_row.acknowledged_at)
+        self.assertQuerySetEqual(EmailLog.objects.failures_unseen(), [fail_row])
+
+    def test_record_prunes_to_the_cap(self):
+        with mock.patch.object(EmailLog, "PRUNE_KEEP", 3):
+            for i in range(6):
+                EmailLog.record("a@b.com", f"msg {i}", ok=True)
+        self.assertEqual(EmailLog.objects.count(), 3)
+        # The most recent survive.
+        self.assertEqual(EmailLog.objects.first().subject, "msg 5")
+
+    def test_backend_logs_a_successful_send(self):
+        make_config()
+        with mock.patch(
+            "django.core.mail.backends.smtp.EmailBackend.send_messages", return_value=1
+        ):
+            backend = DbConfiguredEmailBackend()
+            backend.send_messages([mail.EmailMessage(subject="Welcome", to=["you@x.com"])])
+        row = EmailLog.objects.get()
+        self.assertTrue(row.ok)
+        self.assertEqual(row.subject, "Welcome")
+        self.assertEqual(row.to, "you@x.com")
+        self.assertEqual(row.kind, EmailLog.KIND_SENT)
+
+    def test_backend_logs_a_failed_send_and_reraises(self):
+        make_config()
+        with mock.patch(
+            "django.core.mail.backends.smtp.EmailBackend.send_messages",
+            side_effect=smtplib.SMTPServerDisconnected("gone"),
+        ):
+            backend = DbConfiguredEmailBackend()
+            with self.assertRaises(smtplib.SMTPServerDisconnected):
+                backend.send_messages([mail.EmailMessage(subject="Nope", to=["you@x.com"])])
+        row = EmailLog.objects.get()
+        self.assertFalse(row.ok)
+        self.assertIn("gone", row.error)
+
+    @mock.patch("core.mail.smtplib.SMTP")
+    @mock.patch("core.mail.socket.create_connection")
+    @mock.patch("core.mail.socket.getaddrinfo", return_value=[(2, 1, 6, "", ("10.0.0.1", 587))])
+    def test_run_and_record_logs_a_test_send(self, _r, _c, smtp):
+        make_config()
+        core_mail.run_and_record(send_to="you@example.com")
+        row = EmailLog.objects.get()
+        self.assertTrue(row.ok)
+        self.assertEqual(row.kind, EmailLog.KIND_TEST)
+        self.assertEqual(row.to, "you@example.com")
+
+    @mock.patch("core.mail.smtplib.SMTP")
+    @mock.patch("core.mail.socket.create_connection")
+    @mock.patch("core.mail.socket.getaddrinfo", return_value=[(2, 1, 6, "", ("10.0.0.1", 587))])
+    def test_run_and_record_logs_a_failed_test_send_with_reason(self, _r, _c, smtp):
+        smtp.return_value.send_message.side_effect = smtplib.SMTPSenderRefused(
+            553, b"5.7.1 Sender address rejected", "me@example.com"
+        )
+        make_config()
+        core_mail.run_and_record(send_to="you@example.com")
+        row = EmailLog.objects.get()
+        self.assertFalse(row.ok)
+        self.assertIn("Sender address rejected", row.error)
+
+    def test_connection_only_test_writes_no_log(self):
+        make_config(host="")   # fails at config stage, no send requested
+        core_mail.run_and_record()
+        self.assertEqual(EmailLog.objects.count(), 0)
+
+
+class EmailLogViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("owner@example.com", password="pw")
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["onboarding_complete"] = True
+        session.save()
+
+    def test_log_page_renders_entries(self):
+        EmailLog.record("a@b.com", "A subject", ok=False, error="it broke")
+        response = self.client.get(reverse("core:email-log"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "A subject")
+        self.assertContains(response, "it broke")
+
+    def test_ack_clears_unseen_failures(self):
+        EmailLog.record("a@b.com", "A", ok=False, error="x")
+        self.assertTrue(EmailLog.objects.failures_unseen().exists())
+        response = self.client.post(reverse("core:email-log-ack"))
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(EmailLog.objects.failures_unseen().exists())
+
+    def test_ack_honours_a_same_origin_next(self):
+        EmailLog.record("a@b.com", "A", ok=False, error="x")
+        response = self.client.post(
+            reverse("core:email-log-ack"), {"next": reverse("core:dashboard")}
+        )
+        self.assertRedirects(response, reverse("core:dashboard"), fetch_redirect_response=False)
+
+    def test_dashboard_banner_reflects_unseen_failures(self):
+        response = self.client.get(reverse("core:dashboard"))
+        self.assertFalse(response.context["email_failures_unseen"])
+        EmailLog.record("a@b.com", "A", ok=False, error="x")
+        response = self.client.get(reverse("core:dashboard"))
+        self.assertTrue(response.context["email_failures_unseen"])
+
+    def test_clear_resets_the_configuration(self):
+        make_config()
+        response = self.client.post(reverse("core:email-clear"))
+        self.assertEqual(response.status_code, 302)
+        config = EmailSettings.load()
+        self.assertFalse(config.enabled)
+        self.assertEqual(config.host, "")
+        self.assertEqual(config.from_email, "")
+        self.assertEqual(config.password, "")
+        self.assertIsNone(config.last_test_at)
