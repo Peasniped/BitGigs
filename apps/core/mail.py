@@ -14,6 +14,7 @@ import smtplib
 import socket
 import ssl
 from dataclasses import dataclass, field
+from email.utils import make_msgid, parseaddr
 
 from django.core.mail import EmailMultiAlternatives, get_connection
 from django.utils import timezone
@@ -87,6 +88,27 @@ def from_address(config=None):
     return config.from_email
 
 
+def stamp_message_id(message):
+    """Give an outgoing message a Message-ID whose domain matches its From.
+
+    Django otherwise fills Message-ID from the server hostname, which inside a
+    container is the random container id (e.g. ``@174dbd9fde6e``). A Message-ID
+    whose domain matches neither the From address nor the DMARC domain is a spam
+    signal, so derive it from the message's own From instead. A caller that
+    already set an explicit Message-ID keeps it, and a From we can't parse a
+    domain out of falls back to Django's hostname default (``domain=None``).
+
+    Applied at every send path — ``send_mail`` (stock backend), the
+    ``DbConfiguredEmailBackend`` (Django's own mail, e.g. password resets), and
+    the diagnostic test send — since none share a single message chokepoint.
+    """
+    if any(k.lower() == "message-id" for k in message.extra_headers):
+        return
+    _, address = parseaddr(message.from_email or "")
+    domain = address.rpartition("@")[2] or None
+    message.extra_headers["Message-ID"] = make_msgid(domain=domain)
+
+
 def send_mail(subject, body, to, html_body=None, config=None, connection=None):
     """Send one message. The single send path for the whole app.
 
@@ -103,6 +125,7 @@ def send_mail(subject, body, to, html_body=None, config=None, connection=None):
         to=[to] if isinstance(to, str) else list(to),
         connection=connection,
     )
+    stamp_message_id(message)
     if html_body:
         message.attach_alternative(html_body, "text/html")
     return message.send()
@@ -325,6 +348,7 @@ def diagnose(config=None, send_to=None):
                     from_email=from_address(config),
                     to=[send_to],
                 )
+                stamp_message_id(message)
                 server.send_message(message.message())
                 passed("send", "Message accepted by the server")
             except smtplib.SMTPSenderRefused as exc:

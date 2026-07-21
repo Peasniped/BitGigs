@@ -10,7 +10,7 @@ BitGigs — notably Django's own password-reset views — send mail correctly.
 """
 from django.core.mail.backends.smtp import EmailBackend as SMTPEmailBackend
 
-from .mail import MailNotConfigured
+from .mail import MailNotConfigured, stamp_message_id
 from .models import EmailLog, EmailSettings
 
 
@@ -60,6 +60,8 @@ class DbConfiguredEmailBackend(SMTPEmailBackend):
         to swallow it.
         """
         messages = list(email_messages or [])
+        for message in messages:
+            stamp_message_id(message)
         try:
             sent = super().send_messages(messages)
         except Exception as exc:

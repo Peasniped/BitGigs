@@ -472,3 +472,58 @@ class EmailLogViewTests(TestCase):
         self.assertEqual(config.from_email, "")
         self.assertEqual(config.password, "")
         self.assertIsNone(config.last_test_at)
+
+
+class MessageIdTests(TestCase):
+    """A Message-ID whose domain is the container hostname reads as spam, so
+    every send path derives it from the From address instead."""
+
+    def _stamped(self, from_email):
+        message = mail.EmailMultiAlternatives(from_email=from_email)
+        core_mail.stamp_message_id(message)
+        return message.extra_headers["Message-ID"]
+
+    def test_helper_uses_the_from_domain(self):
+        self.assertTrue(self._stamped("robot@zink.nu").endswith("@zink.nu>"))
+
+    def test_helper_reads_the_domain_out_of_a_display_name_form(self):
+        self.assertTrue(self._stamped("BitGigs <robot@zink.nu>").endswith("@zink.nu>"))
+
+    def test_helper_keeps_an_explicit_message_id(self):
+        message = mail.EmailMultiAlternatives(from_email="robot@zink.nu")
+        message.extra_headers["Message-ID"] = "<kept@elsewhere>"
+        core_mail.stamp_message_id(message)
+        self.assertEqual(message.extra_headers["Message-ID"], "<kept@elsewhere>")
+
+    def test_send_mail_stamps_the_from_domain(self):
+        connection = mail.get_connection(
+            "django.core.mail.backends.locmem.EmailBackend"
+        )
+        core_mail.send_mail("Subj", "Body", "to@example.com",
+                            config=make_config(from_email="robot@zink.nu"),
+                            connection=connection)
+        self.assertTrue(mail.outbox[0].message()["Message-ID"].endswith("@zink.nu>"))
+
+    @mock.patch("core.mail.smtplib.SMTP")
+    @mock.patch("core.mail.socket.create_connection")
+    @mock.patch("core.mail.socket.getaddrinfo",
+                return_value=[(2, 1, 6, "", ("10.0.0.1", 587))])
+    def test_diagnostic_test_send_stamps_the_from_domain(self, _r, _c, smtp):
+        core_mail.diagnose(make_config(from_email="robot@zink.nu"),
+                           send_to="dest@example.com")
+        sent = smtp.return_value.send_message.call_args.args[0]
+        self.assertTrue(sent["Message-ID"].endswith("@zink.nu>"))
+
+    def test_db_backend_stamps_django_mail(self):
+        make_config(from_email="robot@zink.nu")
+        with mock.patch.object(
+            DbConfiguredEmailBackend, "_log_message"
+        ), mock.patch(
+            "django.core.mail.backends.smtp.EmailBackend.send_messages",
+            return_value=1,
+        ):
+            message = mail.EmailMessage(
+                "Subj", "Body", "robot@zink.nu", ["to@example.com"],
+            )
+            DbConfiguredEmailBackend().send_messages([message])
+        self.assertTrue(message.extra_headers["Message-ID"].endswith("@zink.nu>"))
