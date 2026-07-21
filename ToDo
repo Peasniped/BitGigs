@@ -1,6 +1,48 @@
 
 # NU     --------------------------------------------------------
 
+- Calendar integration
+
+*** Calendar Integration ***
+
+
+Phase 2 -- Write shifts out + invite the work calendar (absorbs the old SMTP section):
+- Emit iCalendar (.ics, METHOD:REQUEST) invites through the EXISTING SMTP channel; an edit re-sends with a bumped SEQUENCE, a removal sends METHOD:CANCEL. Reuses sanctioned mail -- no new integration.
+- Optional + disableable; its own calendar settings surface (reuse the Email tab / test-button pattern).
+- Per-workplace default event config:
+- - Custom title, default "På arbejde hos [workplace name]" on-site / "Arbejder hjemme, [workplace name]" remote
+- - Which email(s) are recipients (the work address to invite so colleagues see it)
+- - The on-site / remote address (global default remote address; per-workplace optional address field, prompted when creating/editing the workplace)
+- The system ignores replies / RSVPs to events.
+- (Dropped from the old note: "verify location against a free api" -- that's an external call, against the constraint.)
+
+
+
+- Calendar settings - INGOING
+- - See each configured calendar
+- - Set/create name, color and see import status
+- - Test / poll button
+- - Still show the last updated datetime
+
+- Calendar settings - OUTGOING
+- - Name pattern setup for shifts across workplaces and shift types
+- - Need to put settings with which addresses to invite somewhere, is it better in the workplace/contract/term set settings or in the email settings? it may be crowded if many workplaces are added.
+- - Need a button to invite myself and an input for my email address (it might not be the same as the user address)
+- - Test button
+- - Redirect to email settings if anything needs to be changed
+
+
+- Make the external calendar events the same size as shifts (currently they are slightly less tall)
+- make a bit more spacing between items on the calendar, currently I have two overlapping events and the extra amber border makes them almost touch, making it look kind of strange.
+- - It is the same when you hover over a workplace and it shows the green highlight showing which days belong to the payroll period. The borders of neighboring green days almost merge together. Maybe this highlight can be inset ever so slightly into the day cell so the borders do not (or do not almost) overlap.
+- When show my calendar is already active, and the page is reloaded because of a change on the page (eg updated/removed shift etc.) the calendar re-polls which is annoying. Just have it only poll when the user turns it on (easy re-poll by turning off and on)
+- Make sure to make help articles for the settings page and for the planning calendar reading "Show external calendar events" or something
+- It seems that the about page lines could use some padding. The section headers have a nice padding to the left div/canvas edge, but the text is only a few px from the edge.
+- Add a button under display settings to mask all money amounts, for if you want to show off your app to others without exposing financial information
+
+- Maybe add the possibility to have multiple SMTP-setups, where you can select one or multiple roles for each setup (only one setup per role ofc) if eg. you want system mails (pw reset etc) to come from a noreply and calendar invites to come from your own email.
+
+
 lav en base hjemmeside, så andre Bit-apps kan laves med et lignende visuelt udtryk. Gem denne til D:\Github\BitBase\
 --> Er det muligt at have den som en slags main som de andre er forks af, så ved opdatering af main template, så opdateres undersiderne også?
 
@@ -58,8 +100,6 @@ lav en base hjemmeside, så andre Bit-apps kan laves med et lignende visuelt udt
 - Custom lines default placement: New deduction lines are placed after subtotal(after tax), addition lines are placed just under gross pay
 - Automatic recalculation after each change (when creating/removing or moving a custom line.) -- remove the manual recalculate button.
 
-- In the navbar, color the page you are currently on, to help with navigation / knowing where you are
-
 - Implementation question: I don't understand the payroll / generate period page. The payslip editor was created in order to adjust for additions/deductions on the payslip that would change the net amount. This would also help with singular month bonusses or variable bonusses, but I do not understand the payroll page.
 
 *** Changes to workplace calendar: ***
@@ -75,19 +115,6 @@ lav en base hjemmeside, så andre Bit-apps kan laves med et lignende visuelt udt
 -- Break time is paid
 -- Break time is static (ie you can only enter yes/no in the work shift configuration, and the break numbers are static)
 -- Break time is variable and should be entered manually every time (like it is now)
-
-*** SMTP Implementation ***
-Allow the system to send out calender invites to my work emails and add to my Google Calendar.
-- IMPORTANT: This whole system should be optional and disableable.
-- Add a calendar/SMTP settings page.
-- Basic calendar event with title, time, location(verify this against a free api?)
-- Configure a default event configuration for each workplace:
-- - Change the custom title which is ("På arbejde hos [workplace name]" for on-site and "Arbejder hjemme, [workplace name]" for remote)
-- - Change which emails are recipients
-- - Change the address for on-site / remote (the default remote address is set globally) --> maybe you are prompted to enter the address already when creating/editing the workplace (optional field in the form)
-- Change settings for the connector with easy configuration for cloud providers (just start with gmail)
-- - There should be a test button that checks: is the connection ok and without errors
-- The system should not care about replies to the events or anything.
 
 *** Planning Calendar ***
 
@@ -148,9 +175,3 @@ A page that lets me configure studieaktivitet for each month in the year, and th
 -- 2 (SU fravalgt eller Orlov/Lønnet praktik/studieinaktiv)
 -- 3 (Ikke er indskrevet, ikke flere SU klip).
 - The amounts for each level are changed every year and should thus be easily configurable like with ATP. The current rates are 1: 20.749 kr. per måned, 2: 23.598 kr. per måned, 3: 45.420 kr. per måned. If you have kids under 18, the yearly limit is increased by 34.129 kr. per child in 2026. -- so amount of children should also be configurable on the SU page. 
-
-*** UX Fixes ***
-- Onboarding Flow
-- - Data should be saved (but not submitted), so that they user can disconnect from the onboarding flow without losing data
-- - If going back to a previous page, the step number should be yellow to indicate that the user has started filling the step.
-- Move Workplaces and Payroll under ... more
