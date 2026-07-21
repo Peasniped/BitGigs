@@ -1,23 +1,13 @@
 
 # NU     --------------------------------------------------------
 
-*** API-system ***
-- Security: User must create an API key that can only be viewed once
-- - API key can be named with nickname and given an expiration date
-- - Granular access: Configurable which (or all) API endpoints the key has access to
-- - Present user with a sample api request in python (ie show the expected data/parameters to access a given endpoint)
-- BitGigs API:
-- - Gross/net income for a given month/range of months for all workplaces
-- - write an API test script/client that I can run
-
-
-- Reset migrations
-- One last pass: Kindly ask Claude Fable 5 to look the entire codebase through and check if everything is in good working order, secure / best practices, and that no dead/repeated code exists in the codebase.
-
---> Efter refactor, lav en base hjemmeside, så andre Bit-apps kan laves med et lignende visuelt udtryk. Gem denne til D:\Github\BitBase\
-----> Er det muligt at have den som en slags main som de andre er forks af, så ved opdatering af main template, så opdateres undersiderne også?
+lav en base hjemmeside, så andre Bit-apps kan laves med et lignende visuelt udtryk. Gem denne til D:\Github\BitBase\
+--> Er det muligt at have den som en slags main som de andre er forks af, så ved opdatering af main template, så opdateres undersiderne også?
 
 # SENERE --------------------------------------------------------
+
+- Make sure only one term set can use the hovedkort at any one time
+- Add possibility to have 6. ferieuge / Feriefridage 
 
 *** Analytics Page: ***
 - On the rate history you should be able to click the records, which would expand showing the extra things that are counted in the total rate (such as company pension contrib, fritvalgskonto etc.+)
