@@ -1624,6 +1624,46 @@
     if (pref === '1') setCalendarShown(true, { persist: false, refresh: false });
   }
 
+  // ----- Direction 2: send calendar invites for the shown planned shifts -----
+  // Emails real invites, so it's confirmed first. On success we reload, letting
+  // the server re-render chips with the invited marker. Uses the same greyscale-
+  // gradient busy look as the other buttons while the batch sends.
+  var SEND_INVITES_URL = cfg.sendInvitesUrl;
+  var sendInvitesBtn = document.getElementById('sendInvitesBtn');
+  if (sendInvitesBtn && SEND_INVITES_URL) {
+    sendInvitesBtn.addEventListener('click', function() {
+      if (!window.confirm(
+        'Send calendar invites for the planned shifts shown?\n\n' +
+        'Each invite-enabled workplace’s recipients (and your own calendar) ' +
+        'will be emailed. Already-synced shifts are skipped.'
+      )) return;
+
+      var range = visibleDateRange();
+      var url = SEND_INVITES_URL + (range
+        ? '?start=' + range.start + '&end=' + range.end
+        : '?year=' + CURRENT_YEAR + '&month=' + CURRENT_MONTH);
+
+      sendInvitesBtn.disabled = true;
+      sendInvitesBtn.classList.remove('btn-outline-primary');
+      sendInvitesBtn.classList.add('btn-primary');
+      sendInvitesBtn.innerHTML =
+        '<span class="spinner-border spinner-border-sm me-1"></span>Sending…';
+
+      fetch(url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+      })
+        .then(function(r) { return r.ok ? r.json() : { activated: 0 }; })
+        .then(function() { window.location.reload(); })
+        .catch(function() {
+          sendInvitesBtn.disabled = false;
+          sendInvitesBtn.classList.add('btn-outline-primary');
+          sendInvitesBtn.classList.remove('btn-primary');
+          sendInvitesBtn.innerHTML = '<i class="bi bi-envelope-paper me-1"></i>Send invites';
+        });
+    });
+  }
+
   // DOM is the single source of truth for the overlap warning: recompute on
   // load so the banner + amber highlights always match what's rendered.
   recheckOverlaps();

@@ -903,10 +903,28 @@ a.navbar-brand:hover span { color: var(--primary); }
 .busy-chip .shift-chip__time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .busy-chip__label { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
 
+/* Settings → Calendar: the colour swatch beside each subscription row. */
+.cal-color-dot {
+  display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+  border: 1px solid var(--border); vertical-align: middle;
+}
+
 /* Break indicator — a coffee cup on any chip whose shift has break time */
 .shift-chip__break {
   font-size: 0.6rem;
   color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Direction 2: a planned shift with an active calendar invite. An envelope
+   marker + a soft blue ring set it apart from an un-synced planned chip; the
+   amber overlap ring still wins when both apply (it uses !important). */
+.shift-chip--invited {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--info) 55%, transparent);
+}
+.shift-chip__invited {
+  font-size: 0.6rem;
+  color: var(--info);
   flex-shrink: 0;
 }
 

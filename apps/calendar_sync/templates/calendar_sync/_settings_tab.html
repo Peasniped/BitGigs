@@ -1,0 +1,220 @@
+{% comment %}
+  Settings → Calendar pane. Included by core/settings.html; context comes from
+  calendar_sync.views.calendar_settings_context. Two directions:
+    • Subscriptions (Direction 1) — read personal calendars into the overlay.
+    • Invites (Direction 2) — email shifts out over the SMTP channel.
+  Each form posts to its own endpoint (they can't nest in the settings form).
+{% endcomment %}
+{% load crispy_forms_tags %}
+
+{# ── Direction 1: Subscriptions ─────────────────────────────────────────── #}
+<div class="card settings-pane mb-3" data-calendar-settings>
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+      <div>
+        <div class="fw-medium"><i class="bi bi-arrow-down-circle me-1"></i>Calendars you read</div>
+        <p class="form-text mb-0">
+          Overlay a personal calendar's busy times on the planning grid to catch
+          clashes. Paste the private <strong>iCal (.ics)</strong> URL your provider
+          gives you — it's fetched on the server, stored encrypted, and never
+          shared. Toggle it per browser with “Show my calendar” on the planning page.
+        </p>
+      </div>
+      <button type="button" class="btn btn-primary btn-sm flex-shrink-0" data-bs-toggle="modal"
+              data-bs-target="#calSubModal" data-sub-id="">
+        <i class="bi bi-plus-lg me-1"></i>Add
+      </button>
+    </div>
+
+    {% if cal_subscriptions %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th></th><th>Calendar</th><th>Status</th><th>Last checked</th><th class="text-end"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sub in cal_subscriptions %}
+          <tr>
+            <td><span class="cal-color-dot" style="background:{{ sub.color }};"></span></td>
+            <td>
+              <span class="fw-medium">{{ sub.label }}</span>
+              {% if not sub.enabled %}<span class="badge-soft ms-1">Off</span>{% endif %}
+            </td>
+            <td class="small">
+              {% if sub.last_fetch_ok %}
+                <span class="badge text-bg-success">OK</span>
+              {% elif sub.last_fetch_ok is False %}
+                <span class="badge text-bg-danger" title="{{ sub.last_error }}">Error</span>
+              {% else %}
+                <span class="badge-soft">Not checked yet</span>
+              {% endif %}
+            </td>
+            <td class="small text-body-secondary">
+              {% if sub.last_fetch_at %}{{ sub.last_fetch_at }}{% else %}—{% endif %}
+            </td>
+            <td class="text-end text-nowrap">
+              <form method="post" action="{% url 'calendar_sync:subscription-test' %}" class="d-inline">
+                {% csrf_token %}<input type="hidden" name="id" value="{{ sub.pk }}">
+                <button class="btn btn-outline-secondary btn-sm" title="Fetch now">
+                  <i class="bi bi-arrow-repeat"></i>
+                </button>
+              </form>
+              <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal"
+                      data-bs-target="#calSubModal" title="Edit"
+                      data-sub-id="{{ sub.pk }}" data-label="{{ sub.label }}"
+                      data-color="{{ sub.color }}" data-enabled="{{ sub.enabled|yesno:'1,0' }}">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <form method="post" action="{% url 'calendar_sync:subscription-delete' %}" class="d-inline"
+                    data-confirm="Remove “{{ sub.label }}”?">
+                {% csrf_token %}<input type="hidden" name="id" value="{{ sub.pk }}">
+                <button class="btn btn-outline-danger btn-sm" title="Remove"><i class="bi bi-trash"></i></button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="form-text mb-0">No calendars yet. Add one to overlay its busy times while planning.</p>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Direction 2: Invites ───────────────────────────────────────────────── #}
+<div class="card settings-pane" data-calendar-invites>
+  <div class="card-body">
+    <div class="fw-medium"><i class="bi bi-arrow-up-circle me-1"></i>Invites you send</div>
+    <p class="form-text">
+      Email a calendar invite for each on-site / remote shift, so colleagues and
+      your own calendar stay in sync. Invites are delivered through your
+      <a href="?tab=email">Email settings</a>; edits re-send automatically and a
+      deletion cancels the event.
+    </p>
+
+    {% if not cal_mail_configured %}
+    <div class="alert alert-warning py-2 d-flex align-items-center gap-2" role="alert">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <span>Mail isn't configured yet, so invites can't be sent. Set it up on the
+        <a href="?tab=email">Email tab</a> first.</span>
+    </div>
+    {% endif %}
+
+    {# Global invite settings #}
+    <form method="post" action="{% url 'calendar_sync:invite-settings' %}" class="mb-2">
+      {% csrf_token %}
+      {{ cal_invite_form|crispy }}
+      <div class="d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary btn-sm">
+          <i class="bi bi-check-lg me-1"></i>Save invite settings
+        </button>
+      </div>
+    </form>
+    <form method="post" action="{% url 'calendar_sync:invite-test' %}" class="mb-4">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-primary btn-sm"
+              {% if not cal_mail_configured %}disabled{% endif %}
+              title="Send a test invite to your own address">
+        <i class="bi bi-send me-1"></i>Send myself a test invite
+      </button>
+    </form>
+
+    {# Per-workplace configuration #}
+    <div class="fw-medium mb-1">Per workplace</div>
+    <p class="form-text mb-2">
+      Turn invites on for a workplace and set who to invite. Titles accept
+      <code>{workplace}</code>, <code>{date}</code>, <code>{start}</code> and
+      <code>{end}</code>.
+    </p>
+    {% if cal_workplace_rows %}
+    <div class="accordion" id="calWpAccordion">
+      {% for row in cal_workplace_rows %}
+      <div class="accordion-item">
+        <h2 class="accordion-header">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                  data-bs-target="#calWp-{{ row.workplace.pk }}">
+            <span class="me-2">{{ row.workplace.name }}</span>
+            {% if row.config.send_invites %}
+              <span class="badge text-bg-success">On</span>
+            {% else %}
+              <span class="badge-soft">Off</span>
+            {% endif %}
+          </button>
+        </h2>
+        <div id="calWp-{{ row.workplace.pk }}" class="accordion-collapse collapse"
+             data-bs-parent="#calWpAccordion">
+          <div class="accordion-body">
+            <form method="post" action="{% url 'calendar_sync:workplace-config' %}">
+              {% csrf_token %}
+              <input type="hidden" name="workplace_id" value="{{ row.workplace.pk }}">
+              {{ row.form|crispy }}
+              <button type="submit" class="btn btn-primary btn-sm">
+                <i class="bi bi-check-lg me-1"></i>Save {{ row.workplace.name }}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="form-text mb-0">Add a workplace first, then configure its invites here.</p>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Subscription add/edit modal (reused) ───────────────────────────────── #}
+<div class="modal fade" id="calSubModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content app-modal">
+      <form method="post" action="{% url 'calendar_sync:subscription-save' %}">
+        {% csrf_token %}
+        <input type="hidden" name="id" id="calSubId" value="{{ cal_sub_edit_id }}">
+        <div class="modal-header">
+          <h6 class="modal-title"><i class="bi bi-calendar-plus me-2"></i><span id="calSubModalTitle">Add calendar</span></h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          {{ cal_sub_form|crispy }}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal = document.getElementById('calSubModal');
+  if (modal) {
+    modal.addEventListener('show.bs.modal', function (event) {
+      var btn = event.relatedTarget;
+      if (!btn) return;  // programmatic open (error re-render) → keep bound values
+      var id = btn.getAttribute('data-sub-id') || '';
+      modal.querySelector('#calSubId').value = id;
+      modal.querySelector('#calSubModalTitle').textContent = id ? 'Edit calendar' : 'Add calendar';
+      var label = modal.querySelector('#id_label');
+      var color = modal.querySelector('#id_color');
+      var enabled = modal.querySelector('#id_enabled');
+      var url = modal.querySelector('#id_url');
+      if (label) label.value = btn.getAttribute('data-label') || '';
+      if (color) color.value = btn.getAttribute('data-color') || '#6c757d';
+      if (enabled) enabled.checked = id ? btn.getAttribute('data-enabled') === '1' : true;
+      if (url) {
+        url.value = '';
+        url.placeholder = id ? 'Keep the stored URL (leave blank)' : 'https://…/basic.ics';
+      }
+    });
+  }
+  // Re-open the subscription modal after a validation error.
+  {% if cal_open_modal == 'subscription' %}
+  if (modal && window.bootstrap) new bootstrap.Modal(modal).show();
+  {% endif %}
+})();
+</script>

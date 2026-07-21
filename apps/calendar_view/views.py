@@ -109,7 +109,11 @@ class PlanningCalendarView(View):
 
     def get(self, request):
         from payroll.services import PayrollPeriodService
-        from calendar_sync.models import CalendarSubscription
+        from calendar_sync.models import (
+            CalendarInviteSettings, CalendarSubscription, ShiftInvite,
+            WorkplaceCalendarConfig,
+        )
+        from core.models import EmailSettings
         from decimal import Decimal
 
         today = timezone.localdate()
@@ -118,6 +122,25 @@ class PlanningCalendarView(View):
 
         grid = CalendarService.planning_calendar(year, month)
         has_overlaps = grid.annotate_overlaps()
+
+        # Direction 2: flag each shift chip whose invite is active, and decide
+        # whether to offer the "Send invites" button at all.
+        grid_shifts = [
+            s for week in grid.weeks for day in week.days for s in day.sorted_shifts
+        ]
+        wanted = {s.invite_uid for s in grid_shifts if getattr(s, "invite_uid", None)}
+        active_invite_uids = set(
+            ShiftInvite.objects.filter(
+                invite_uid__in=wanted, status=ShiftInvite.STATUS_ACTIVE
+            ).values_list("invite_uid", flat=True)
+        ) if wanted else set()
+        for s in grid_shifts:
+            s.has_active_invite = getattr(s, "invite_uid", None) in active_invite_uids
+        can_send_invites = (
+            CalendarInviteSettings.load().enabled
+            and EmailSettings.load().is_configured
+            and WorkplaceCalendarConfig.objects.filter(send_invites=True).exists()
+        )
 
         # Navigation
         prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
@@ -217,6 +240,8 @@ class PlanningCalendarView(View):
                 # when there's at least one enabled subscription; the count drives
                 # the singular/plural wording of the button and legend.
                 "calendar_subscription_count": CalendarSubscription.objects.enabled().count(),
+                # Direction 2: offer the "Send invites" button when invites are on.
+                "can_send_invites": can_send_invites,
             },
         )
 

@@ -202,7 +202,7 @@ class UserSettingsView(View):
     give deep-linking and a working back button for free."""
 
     def _context(self, request, form, next_url, tab):
-        return {
+        ctx = {
             "form": form, "next_url": next_url, "active_tab": tab,
             "accent_choices": APP_ACCENT_CHOICES, "default_accent": DEFAULT_ACCENT,
             "secondary_choices": APP_ACCENT_CHOICES, "default_secondary": DEFAULT_SECONDARY,
@@ -212,6 +212,10 @@ class UserSettingsView(View):
             **(api_settings_context(request) if tab == "api" else {}),
             **(about_context(request) if tab == "about" else {}),
         }
+        if tab == "calendar":
+            from calendar_sync.views import calendar_settings_context
+            ctx.update(calendar_settings_context())
+        return ctx
 
     def get(self, request):
         settings = UserSettings.load()
@@ -254,7 +258,7 @@ class SetThemeView(View):
 # set is wider than UserSettingsForm.TABS. Sign-in is offered even without an IdP
 # configured — that is where the password lives, and where we explain how to turn
 # SSO on.
-SETTINGS_TABS = ("display", "analytics", "email", "api", "signin", "about")
+SETTINGS_TABS = ("display", "analytics", "email", "calendar", "api", "signin", "about")
 
 
 def active_settings_tab(raw):

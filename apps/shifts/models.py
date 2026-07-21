@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from decimal import Decimal
 
@@ -89,6 +90,10 @@ class Shift(ShiftTimeMixin):
         related_name="shifts",
         help_text="Employment terms active when this shift was worked.",
     )
+    # Stable identity for a calendar invite (Direction 2). Null until invites are
+    # activated for this shift; copied from the PlannedShift on approval so the
+    # emitted event survives the conversion instead of being orphaned/duplicated.
+    invite_uid = models.UUIDField(null=True, blank=True, db_index=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -138,6 +143,9 @@ class PlannedShift(ShiftTimeMixin):
         default=False,
         help_text="Whether the user has confirmed/updated their arrival time.",
     )
+    # See Shift.invite_uid. Set when invites are activated for this planned shift;
+    # moved to the Shift on approval (cleared here) so exactly one live row owns it.
+    invite_uid = models.UUIDField(null=True, blank=True, db_index=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -161,7 +169,12 @@ class PlannedShift(ShiftTimeMixin):
         )
 
     def approve(self) -> "Shift":
-        """Convert this planned shift into an approved Shift."""
+        """Convert this planned shift into an approved Shift.
+
+        A calendar invite's stable ``invite_uid`` is carried onto the new Shift
+        and cleared here, so the emitted event follows the approval (an update,
+        not a duplicate) and exactly one live row owns the identity afterwards.
+        """
         terms = self.workplace.active_termset_on(self.date)
         shift = Shift.objects.create(
             workplace=self.workplace,
@@ -172,7 +185,10 @@ class PlannedShift(ShiftTimeMixin):
             shift_type=self.shift_type,
             notes=self.notes,
             terms=terms,
+            invite_uid=self.invite_uid,
         )
         self.status = self.Status.APPROVED
+        if self.invite_uid:
+            self.invite_uid = None  # ownership moves to the Shift
         self.save()
         return shift

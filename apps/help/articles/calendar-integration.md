@@ -1,0 +1,105 @@
+---
+title: Calendar integration
+slug: calendar-integration
+summary: Overlay a personal calendar on the planning grid, and email shifts out as calendar invites.
+parent: settings-and-sign-in
+audience: everyone
+order: 78
+published: true
+keywords: [calendar, ical, ics, subscription, overlay, busy, invite, invitation, invites, colleagues, sync, planning clash, feed, webcal, method request, sequence, cancel, test invite, encrypted url]
+pages: [core:settings, calendar_view:planning]
+---
+BitGigs talks to calendars in two independent directions, and each is optional
+and **off until you set it up** under **[Settings → Calendar](/settings/?tab=calendar)**.
+
+- **Reading in** — overlay a personal calendar's busy times on the planning
+  grid, so you never plan a shift on top of something you already have on.
+- **Sending out** — email a calendar invite for each shift, so colleagues (and
+  your own calendar) stay in sync.
+
+Neither one sends your BitGigs data anywhere except where you explicitly point
+it: reading in only *fetches* a URL you paste, and sending out rides the same
+mail server you configured on the [Email tab](/settings/?tab=email).
+
+## Reading a calendar into planning
+
+Add a calendar under **Settings → Calendar → Calendars you read**. You need its
+private **iCal (`.ics`) URL** — most providers expose one:
+
+- **Google Calendar**: Settings → *your calendar* → **Secret address in iCal
+  format**.
+- **Fastmail**, **iCloud**, **Outlook** and others have an equivalent "subscribe"
+  or "secret" `.ics` link.
+
+Give it a **name** and a **colour**, paste the URL, and save. The URL is a
+secret — treat it like a password — so BitGigs fetches it **on the server** (your
+browser can't, and it never leaves the server) and stores it **encrypted**. You
+can add several calendars (yourself, a partner, …); each gets its own colour.
+
+Press the **↻** button on a row to fetch it right now and see how many events it
+found, or the error if something's wrong. The row shows when it was **last
+checked** and whether that succeeded.
+
+### Seeing it while planning
+
+On the **[planning calendar](/calendar/planning/)**, a **Show my calendar**
+button appears once you've added at least one calendar. Turn it on and your busy
+times appear as muted, striped **read-only** chips in the day cells — you can't
+drag or edit them, they're just there for context. A legend swatch ("External
+calendar event") shows in the help panel while the overlay is on.
+
+Because the busy blocks use the same time shape as shifts, the planner's existing
+**overlap warning** picks them up: plan a shift over a busy block and both turn
+amber. Pressing the button always pulls a **fresh** copy; simply moving between
+months reuses a short-lived cache so your provider isn't hammered.
+
+Your own emitted invites (see below) are filtered out of this overlay, so a shift
+you invited yourself to never reads as clashing with itself.
+
+## Sending shifts as invites
+
+This uses your **Email** connection, so set that up first — the Calendar tab
+warns you and links across if it isn't ready. Then, under **Invites you send**:
+
+1. Turn on **Send calendar invites** (the master switch).
+2. Set **Invite my own calendar** to the address where you want every shift to
+   land. This can differ from your sign-in email.
+3. Optionally set a **default remote location** for work-from-home shifts.
+4. Press **Send myself a test invite** to prove the whole path works end to end.
+
+Then, **per workplace**, turn invites on and choose who to invite (the work
+email address that should see the event). You can template the event **title**
+per shift type — placeholders `{workplace}`, `{date}`, `{start}` and `{end}` are
+filled in — and set on-site / remote **locations**. Only **on-site** and
+**remote** shifts generate invites; sick leave, vacation and paid absence don't.
+
+### Activating and keeping them current
+
+Invites aren't sent automatically the moment you plan a shift — you send them
+deliberately. On the planning calendar, press **Send invites** to email invites
+for the planned shifts on screen. Shifts that already have an invite are skipped,
+and an invited shift shows a small **envelope marker** with a blue ring.
+
+Once a shift has an invite, BitGigs keeps it current for you:
+
+- **Edit** the shift (time, type, from any screen) → an updated invite is
+  re-sent automatically.
+- **Approve** a planned shift → the same event carries over to the approved
+  shift; it's updated, not duplicated.
+- **Delete** the shift → a cancellation is sent and the event is withdrawn.
+
+If a send ever fails, it's caught and logged — it will **never** block you from
+saving, approving or deleting a shift. BitGigs ignores any replies or RSVPs to
+the invites.
+
+## "Accepted" is not "delivered"
+
+Every invite is recorded in the **Email log** (Email tab) just like any other
+message, and a failed send raises the red banner on your dashboard. But bear in
+mind the same caveat that applies to all mail: a result of **Accepted** means
+the mail server *took* the message — it is **not** proof it reached anyone's
+inbox. A wrong address can bounce back minutes later. If a colleague says they
+never got an invite, check the address and re-send by editing the shift.
+
+Recovery and console notes for the underlying mail connection live in
+[Email & password reset](/help/email-and-password-reset/).
