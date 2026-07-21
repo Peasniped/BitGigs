@@ -213,3 +213,34 @@ class BusyEndpointTests(TestCase):
         CalendarSubscription.objects.all().delete()
         resp = self.client.get("/calendar-sync/busy/?year=2026&month=3")
         self.assertEqual(resp.json()["busy"], [])
+
+    def test_explicit_range_covers_offset_period_days(self):
+        # An offset payroll period makes the August planning grid start on
+        # 20 Jul; the padded month window would miss it, but an explicit range
+        # (what the grid actually shows) includes it.
+        feed = _feed(build_event(
+            uid="early@x", summary="Early",
+            start=_aware(2026, 7, 20, 9, 0), end=_aware(2026, 7, 20, 10, 0),
+        ))
+        with mock.patch("calendar_sync.services.fetch_ical", return_value=feed):
+            resp = self.client.get("/calendar-sync/busy/?start=2026-07-20&end=2026-09-06")
+        self.assertEqual(resp.status_code, 200)
+        busy = resp.json()["busy"]
+        self.assertEqual(len(busy), 1)
+        self.assertEqual(busy[0]["date"], "2026-07-20")
+
+    def test_end_before_start_is_400(self):
+        resp = self.client.get("/calendar-sync/busy/?start=2026-08-10&end=2026-08-01")
+        self.assertEqual(resp.status_code, 400)
+
+    def test_overwide_range_is_clamped(self):
+        # A 2-year span is clamped to MAX_WINDOW_DAYS; an event past the clamp is
+        # excluded rather than the request being refused.
+        feed = _feed(build_event(
+            uid="far@x", summary="Far",
+            start=_aware(2027, 1, 1, 9, 0), end=_aware(2027, 1, 1, 10, 0),
+        ))
+        with mock.patch("calendar_sync.services.fetch_ical", return_value=feed):
+            resp = self.client.get("/calendar-sync/busy/?start=2026-01-01&end=2028-01-01")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["busy"], [])

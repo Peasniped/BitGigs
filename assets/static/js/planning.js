@@ -484,6 +484,20 @@
     container.insertBefore(chip, ref || null);
   }
 
+  // Which overlapping pair warrants the amber warning. Two real shifts always
+  // do (this matches the server's annotate_overlaps). A busy (external calendar)
+  // chip only clashes with a shift that belongs to the *selected* month — a
+  // faded prior-period shift shown only for context, or another busy block, is
+  // ignored, so the overlay never warns about a shift managed in another month.
+  function flagsOverlap(a, b) {
+    if (a.busy && b.busy) return false;
+    if (a.busy || b.busy) {
+      var shift = a.busy ? b : a;
+      return !shift.prior;
+    }
+    return true;
+  }
+
   // Re-detect overlaps client-side and update chip styling + banner visibility.
   // Counts every chip on a day (including faded prior-period and approved
   // chips) so the warning matches the server's annotate_overlaps.
@@ -503,13 +517,20 @@
         if (!el) return null;
         var parts = el.textContent.trim().split('-');
         if (parts.length !== 2) return null;
-        return { el: c, start: toMinutes(parts[0]), end: toMinutes(parts[1]) };
+        return {
+          el: c,
+          start: toMinutes(parts[0]),
+          end: toMinutes(parts[1]),
+          busy: c.classList.contains('busy-chip'),
+          prior: c.classList.contains('shift-chip--prior-period'),
+        };
       }).filter(Boolean);
 
       var overlapping = new Set();
       for (var i = 0; i < items.length; i++) {
         for (var j = i + 1; j < items.length; j++) {
-          if (items[i].start < items[j].end && items[j].start < items[i].end) {
+          if (items[i].start < items[j].end && items[j].start < items[i].end &&
+              flagsOverlap(items[i], items[j])) {
             overlapping.add(i);
             overlapping.add(j);
           }
@@ -1546,10 +1567,24 @@
     }
   }
 
+  // The visible planning grid can reach well past the selected month when a
+  // workplace has an offset payroll period (e.g. JKF's 20th→21st), so ask the
+  // server for the exact span of rendered day cells rather than the month —
+  // otherwise the leading/trailing days show no busy blocks.
+  function visibleDateRange() {
+    var dates = Array.from(
+      document.querySelectorAll('.planning-calendar td[data-date]')
+    ).map(function(td) { return td.dataset.date; }).filter(Boolean).sort();
+    return dates.length ? { start: dates[0], end: dates[dates.length - 1] } : null;
+  }
+
   function loadBusyOverlay(refresh) {
     if (!BUSY_URL) return;
-    var url = BUSY_URL + '?year=' + CURRENT_YEAR + '&month=' + CURRENT_MONTH +
-              (refresh ? '&refresh=1' : '');
+    var range = visibleDateRange();
+    var url = BUSY_URL + (range
+      ? '?start=' + range.start + '&end=' + range.end
+      : '?year=' + CURRENT_YEAR + '&month=' + CURRENT_MONTH) +
+      (refresh ? '&refresh=1' : '');
     setBtnVisual('loading');
     fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function(r) { return r.ok ? r.json() : { busy: [] }; })
