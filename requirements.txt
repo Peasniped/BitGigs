@@ -18,3 +18,10 @@ cryptography>=42
 # pymdown-extensions adds task lists, strikethrough and smarter emphasis.
 markdown>=3.6
 pymdown-extensions>=10
+# Calendar integration (apps/calendar_sync): parses inbound iCal feeds for the
+# planning overlay (Direction 1) and builds RFC 5545 METHOD:REQUEST invites for
+# the SMTP channel (Direction 2). Both need real iCalendar correctness (escaping,
+# VTIMEZONE, SEQUENCE, RRULE expansion), which is why this is a justified dep
+# rather than a hand-rolled VEVENT. RRULE expansion uses python-dateutil, already
+# present transitively. All parsing is on-server — no external calendar API.
+icalendar>=6.0

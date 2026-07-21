@@ -87,6 +87,7 @@ INSTALLED_APPS = [
     "shifts.apps.ShiftsConfig",
     "payroll.apps.PayrollConfig",
     "calendar_view.apps.CalendarViewConfig",
+    "calendar_sync.apps.CalendarSyncConfig",
     "data_io.apps.DataIoConfig",
     "analytics.apps.AnalyticsConfig",
     "help.apps.HelpConfig",
