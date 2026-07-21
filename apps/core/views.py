@@ -17,6 +17,7 @@ from .forms import EmailSettingsForm, TaxProfileForm, UserSettingsForm
 from .utils import parse_int_param, prev_next_month
 from .dashboard_service import DashboardDataService, get_pending_shifts, get_todays_banner
 from . import onboarding as ob
+from .about import about_context, slogan
 from api.views import api_settings_context
 
 
@@ -209,6 +210,7 @@ class UserSettingsView(View):
             # Only the Email tab touches the EmailSettings row.
             **(email_context() if tab == "email" else {}),
             **(api_settings_context(request) if tab == "api" else {}),
+            **(about_context(request) if tab == "about" else {}),
         }
 
     def get(self, request):
@@ -252,7 +254,7 @@ class SetThemeView(View):
 # set is wider than UserSettingsForm.TABS. Sign-in is offered even without an IdP
 # configured — that is where the password lives, and where we explain how to turn
 # SSO on.
-SETTINGS_TABS = ("display", "analytics", "email", "api", "signin")
+SETTINGS_TABS = ("display", "analytics", "email", "api", "signin", "about")
 
 
 def active_settings_tab(raw):
@@ -817,6 +819,7 @@ class _AccountStepView(View):
             "onboarding": True,
             "onboarding_first_step": True,
             "steps": ob.steps_for(request, "account"),
+            "app_slogan": slogan(),
             **extra,
         }
 

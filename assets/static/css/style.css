@@ -1861,6 +1861,54 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
 }
 .settings-env code { color: inherit; }
 
+/* About tab — read-only deployment facts, styled to feel like a product page
+   rather than a form. The hero echoes the brand: gradient wordmark, a lifted
+   logo, an accent-tinted version pill. */
+.about-hero .about-logo {
+  width: 112px; height: 112px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 18px rgba(var(--shadow-rgb), .45));
+}
+.about-name {
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--primary);  /* fallback where background-clip:text is unsupported */
+}
+.about-version-badge {
+  background: var(--primary-tint);
+  color: var(--primary);
+  border: 1px solid var(--primary-border);
+  font-weight: 600;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+}
+/* Small section headers above each fact group. */
+.about-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-subtle);
+  margin-bottom: 0.6rem;
+}
+/* The fact grid: hairline-separated rows, muted labels, values that stand out. */
+.about-grid dt {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.about-grid dd { color: var(--text); }
+.about-grid dt, .about-grid dd {
+  padding: 0.45rem 0;
+  margin-bottom: 0;
+  border-top: 1px solid var(--border);
+}
+.about-grid > dt:first-of-type,
+.about-grid > dt:first-of-type + dd { border-top: 0; }
+
 /* Disabled buttons read as unavailable, not merely dimmed. Bootstrap only drops
    opacity, so a disabled primary stays recognisably blue — on the onboarding
    Review step that made "Finish setup" look pressable while gaps remained. */

@@ -44,6 +44,12 @@
           <i class="bi bi-shield-check me-1"></i>Sign-in
         </a>
       </li>
+      <li class="nav-item">
+        <a class="nav-link{% if active_tab == 'about' %} active{% endif %}"
+           href="?tab=about{% if next_url %}&next={{ next_url|urlencode }}{% endif %}">
+          <i class="bi bi-info-circle me-1"></i>About
+        </a>
+      </li>
     </ul>
 
     {% if active_tab == 'signin' %}
@@ -410,6 +416,106 @@ OIDC_CLIENT_SECRET=</code></pre>
 
     {% elif active_tab == 'api' %}
     {% include "api/_settings_tab.html" %}
+
+    {% elif active_tab == 'about' %}
+    {% comment %}
+      Read-only deployment facts — version, build stamp, how it's served, what
+      it's talking to. All gathered on-server by core.about; nothing here posts.
+    {% endcomment %}
+    <div class="card settings-pane about-pane">
+      <div class="card-body">
+
+        {% comment %} Hero: the logo, the name, and the version badge. {% endcomment %}
+        <div class="about-hero text-center py-3">
+          <img src="{% static 'graphics/App_Main_Logo_192.png' %}" alt="BitGigs"
+               class="about-logo mb-3" width="112" height="112">
+          <h2 class="about-name mb-1">BitGigs</h2>
+          <p class="text-body-secondary fst-italic mb-3">{{ about_slogan }}</p>
+          <span class="badge about-version-badge">
+            <i class="bi bi-tag-fill me-1"></i>Version {{ about_version }}
+          </span>
+        </div>
+
+        <hr class="my-4">
+
+        <div class="about-section-label">
+          <i class="bi bi-box-seam me-1"></i>Release
+        </div>
+        <dl class="about-grid row mb-0">
+          <dt class="col-5 col-sm-4">Version</dt>
+          <dd class="col-7 col-sm-8 font-monospace">{{ about_version }}</dd>
+
+          <dt class="col-5 col-sm-4">Build</dt>
+          <dd class="col-7 col-sm-8">
+            {% if about_commit %}<span class="font-monospace">{{ about_commit }}</span>
+            {% else %}<span class="text-muted">Unknown</span>{% endif %}
+          </dd>
+
+          <dt class="col-5 col-sm-4">Build date</dt>
+          <dd class="col-7 col-sm-8">
+            {% if about_build_date %}{{ about_build_date }}
+            {% else %}<span class="text-muted">Unknown</span>{% endif %}
+          </dd>
+        </dl>
+
+        <div class="about-section-label mt-4">
+          <i class="bi bi-hdd-stack me-1"></i>Runtime
+        </div>
+        <dl class="about-grid row mb-0">
+          <dt class="col-5 col-sm-4">Deployment</dt>
+          <dd class="col-7 col-sm-8">
+            <i class="bi {{ about_deployment_icon }} me-1"></i>{{ about_deployment }}
+            {% if about_server %}<span class="text-muted">&middot; {{ about_server }}</span>{% endif %}
+          </dd>
+
+          <dt class="col-5 col-sm-4">Database</dt>
+          <dd class="col-7 col-sm-8">
+            <i class="bi {{ about_database_icon }} me-1"></i>{{ about_database }}
+          </dd>
+
+          <dt class="col-5 col-sm-4">Python</dt>
+          <dd class="col-7 col-sm-8 font-monospace">{{ about_python }}</dd>
+
+          <dt class="col-5 col-sm-4">Django</dt>
+          <dd class="col-7 col-sm-8 font-monospace">{{ about_django }}</dd>
+
+          <dt class="col-5 col-sm-4">Debug mode</dt>
+          <dd class="col-7 col-sm-8">
+            {% if about_debug %}
+              <span class="badge text-bg-warning">On</span>
+            {% else %}
+              <span class="badge text-bg-success">Off</span>
+            {% endif %}
+          </dd>
+        </dl>
+
+        <div class="about-section-label mt-4">
+          <i class="bi bi-globe2 me-1"></i>Environment
+        </div>
+        <dl class="about-grid row mb-0">
+          {% if about_host %}
+          <dt class="col-5 col-sm-4">Host</dt>
+          <dd class="col-7 col-sm-8 font-monospace">{{ about_host }}</dd>
+          {% endif %}
+
+          <dt class="col-5 col-sm-4">Time zone</dt>
+          <dd class="col-7 col-sm-8">{{ about_timezone }}</dd>
+
+          <dt class="col-5 col-sm-4">Server time</dt>
+          <dd class="col-7 col-sm-8">{{ about_server_time|date:"Y-m-d H:i" }}</dd>
+
+          <dt class="col-5 col-sm-4">Single sign-on</dt>
+          <dd class="col-7 col-sm-8">
+            {% if about_sso_enabled %}
+              <span class="text-success"><i class="bi bi-shield-check me-1"></i>Configured</span>
+            {% else %}
+              <span class="text-muted"><i class="bi bi-shield-slash me-1"></i>Not configured</span>
+            {% endif %}
+          </dd>
+        </dl>
+
+      </div>
+    </div>
 
     {% else %}
     <div class="card settings-pane">

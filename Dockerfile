@@ -7,6 +7,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DJANGO_SETTINGS_MODULE=bitgigs.settings.production
 
+# Build metadata for Settings → About. .git is excluded from the build context,
+# so the app can't read it at runtime — pass these in at build time instead:
+#   docker build \
+#     --build-arg BITGIGS_GIT_COMMIT=$(git rev-parse --short HEAD) \
+#     --build-arg BITGIGS_BUILD_DATE=$(date -u +%Y-%m-%d) -t … .
+ARG BITGIGS_GIT_COMMIT=""
+ARG BITGIGS_BUILD_DATE=""
+ENV BITGIGS_DEPLOYMENT=docker \
+    BITGIGS_GIT_COMMIT=$BITGIGS_GIT_COMMIT \
+    BITGIGS_BUILD_DATE=$BITGIGS_BUILD_DATE
+
 WORKDIR /app
 
 # Dependencies first so code edits don't bust the pip cache layer.
