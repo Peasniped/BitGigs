@@ -322,9 +322,19 @@ class EmailSettingsView(View):
         config = EmailSettings.load()
         form = EmailSettingsForm(request.POST, instance=config)
         if form.is_valid():
-            form.save()
+            config = form.save()
+            # A changed configuration invalidates the stored test result: it was
+            # run against the old server, so stop claiming "Last test passed".
+            if form.has_changed():
+                config.last_test_at = None
+                config.last_test_ok = None
+                config.save(update_fields=["last_test_at", "last_test_ok", "updated_at"])
             messages.success(request, "Email settings saved.")
-            return redirect(f"{reverse('core:settings')}?tab=email")
+            target = f"{reverse('core:settings')}?tab=email"
+            if request.POST.get("run_test"):
+                # "Save & test": the reloaded tab auto-runs the staged test.
+                target += "&test=1"
+            return redirect(target)
         return render(request, "core/settings.html", {
             "form": UserSettingsForm(instance=UserSettings.load(), tab="display"),
             "next_url": None,
@@ -413,6 +423,43 @@ class EmailTestView(View):
             **result.as_dict(),
             "failures_unseen": EmailLog.objects.failures_unseen().exists(),
         })
+
+
+class EmailProbeView(View):
+    """Live host/port check for the Email settings modal.
+
+    Fired (debounced) as the operator types the server hostname: it resolves the
+    host and — when a port is given — checks that something is listening. It is
+    the fast, field-level half of the full staged test, sharing its helpers so
+    the words match; like EmailTestView it reaches out to an arbitrary host:port,
+    so it is POST-only behind the login gate. It sends nothing and holds no
+    connection open.
+    """
+
+    def post(self, request):
+        from core.utils import parse_int_param
+
+        from .mail import check_port, resolve_host
+
+        host = (request.POST.get("host") or "").strip()
+        port = parse_int_param(request.POST.get("port"))
+        if not (port and 1 <= port <= 65535):
+            port = None
+
+        if not host:
+            return JsonResponse({"host": None, "port": None})
+
+        dns = resolve_host(host, port)
+        result = {"host": {"status": "ok" if dns.ok else "failed",
+                           "detail": dns.detail, "hint": dns.hint},
+                  "port": None}
+        if dns.ok and port:
+            # Cap the wait low — this is interactive, not the full test.
+            timeout = min(EmailSettings.load().timeout or 10, 5)
+            tcp = check_port(host, port, timeout)
+            result["port"] = {"status": "ok" if tcp.ok else "failed",
+                              "detail": tcp.detail, "hint": tcp.hint, "port": port}
+        return JsonResponse(result)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

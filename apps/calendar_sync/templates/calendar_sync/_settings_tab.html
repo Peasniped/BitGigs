@@ -8,7 +8,8 @@
 {% load crispy_forms_tags %}
 
 {# ── Direction 1: Subscriptions ─────────────────────────────────────────── #}
-<div class="card settings-pane mb-3" data-calendar-settings>
+<div class="card settings-pane mb-3" data-calendar-settings
+     data-check-url="{% url 'calendar_sync:subscription-check' %}">
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
       <div>
@@ -36,13 +37,17 @@
         </thead>
         <tbody>
           {% for sub in cal_subscriptions %}
-          <tr>
+          {% comment %}data-checked=0 means never fetched — the auto-check script
+          fetches exactly those on load (300ms in), so a just-added calendar is
+          verified without a click.{% endcomment %}
+          <tr data-cal-sub-row data-sub-id="{{ sub.pk }}"
+              data-checked="{{ sub.last_fetch_ok|yesno:'1,1,0' }}">
             <td><span class="cal-color-dot" style="background:{{ sub.color }};"></span></td>
             <td>
               <span class="fw-medium">{{ sub.label }}</span>
               {% if not sub.enabled %}<span class="badge-soft ms-1">Off</span>{% endif %}
             </td>
-            <td class="small">
+            <td class="small" data-sub-status>
               {% if sub.last_fetch_ok %}
                 <span class="badge text-bg-success">OK</span>
               {% elif sub.last_fetch_ok is False %}
@@ -51,7 +56,7 @@
                 <span class="badge-soft">Not checked yet</span>
               {% endif %}
             </td>
-            <td class="small text-body-secondary">
+            <td class="small text-body-secondary" data-sub-checked>
               {% if sub.last_fetch_at %}{{ sub.last_fetch_at }}{% else %}—{% endif %}
             </td>
             <td class="text-end text-nowrap">
@@ -289,5 +294,67 @@
   if (hidden && hidden.value) setColor(hidden.value);
   if (window.bootstrap) new bootstrap.Modal(modal).show();
   {% endif %}
+})();
+
+// Auto-check never-fetched calendars shortly after the tab loads, so a just-
+// added one shows OK/Error on its own. Only data-checked="0" rows are touched —
+// already-known calendars aren't re-fetched on every settings visit (that would
+// hammer the operator's providers). The manual "Fetch now" button still works
+// for the rest.
+(function () {
+  var root = document.querySelector('[data-calendar-settings]');
+  if (!root || !root.dataset.checkUrl) return;
+  var pending = Array.prototype.filter.call(
+    root.querySelectorAll('[data-cal-sub-row]'),
+    function (row) { return row.dataset.checked === '0'; }
+  );
+  if (!pending.length) return;
+
+  function badge(cls, text, title) {
+    var el = document.createElement('span');
+    el.className = 'badge ' + cls;
+    el.textContent = text;
+    if (title) el.title = title;
+    return el;
+  }
+
+  function checkRow(row) {
+    var statusCell = row.querySelector('[data-sub-status]');
+    var checkedCell = row.querySelector('[data-sub-checked]');
+    if (statusCell) {
+      statusCell.innerHTML =
+        '<span class="d-inline-flex align-items-center gap-1 text-body-secondary">' +
+        '<span class="spinner-border spinner-border-sm"></span>Checking…</span>';
+    }
+    var body = new URLSearchParams();
+    body.set('id', row.dataset.subId);
+    fetch(root.dataset.checkUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': getCsrfToken()
+      },
+      body: body.toString()
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (statusCell) {
+          statusCell.textContent = '';
+          statusCell.appendChild(d.ok
+            ? badge('text-bg-success', 'OK', d.count + ' event(s) in the next month')
+            : badge('text-bg-danger', 'Error', d.error || ''));
+        }
+        if (checkedCell && d.last_checked) checkedCell.textContent = d.last_checked;
+        row.dataset.checked = '1';
+      })
+      .catch(function () {
+        if (statusCell) {
+          statusCell.textContent = '';
+          statusCell.appendChild(badge('badge-soft', 'Not checked yet', ''));
+        }
+      });
+  }
+
+  setTimeout(function () { pending.forEach(checkRow); }, 300);
 })();
 </script>

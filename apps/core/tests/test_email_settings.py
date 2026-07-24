@@ -10,6 +10,7 @@ from django.contrib.auth.models import User
 from django.core import mail
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from core import mail as core_mail
 from core.crypto import decrypt_secret, encrypt_secret
@@ -226,6 +227,38 @@ class EmailSettingsViewTests(TestCase):
         config = EmailSettings.load()
         self.assertEqual(config.password, "hunter2")
         self.assertNotIn("hunter2", config.password_encrypted)
+
+    def test_changing_the_config_clears_the_stored_test_result(self):
+        make_config(last_test_ok=True, last_test_at=timezone.now())
+        self.client.post(reverse("core:email-settings"), {
+            "enabled": "on", "host": "smtp.changed.com", "port": "587",
+            "security": "starttls", "username": "me@example.com",
+            "password": "", "from_email": "me@example.com",
+            "from_name": "BitGigs", "timeout": "10", "allow_password_reset": "on",
+        })
+        config = EmailSettings.load()
+        self.assertEqual(config.host, "smtp.changed.com")
+        self.assertIsNone(config.last_test_ok)
+        self.assertIsNone(config.last_test_at)
+
+    def test_save_and_test_redirects_with_the_test_flag(self):
+        response = self.client.post(reverse("core:email-settings"), {
+            "enabled": "on", "host": "smtp.example.com", "port": "587",
+            "security": "starttls", "username": "me@example.com",
+            "password": "hunter2", "from_email": "me@example.com",
+            "from_name": "BitGigs", "timeout": "10", "allow_password_reset": "on",
+            "run_test": "1",
+        })
+        self.assertIn("test=1", response["Location"])
+
+    def test_plain_save_carries_no_test_flag(self):
+        response = self.client.post(reverse("core:email-settings"), {
+            "enabled": "on", "host": "smtp.example.com", "port": "587",
+            "security": "starttls", "username": "me@example.com",
+            "password": "hunter2", "from_email": "me@example.com",
+            "from_name": "BitGigs", "timeout": "10", "allow_password_reset": "on",
+        })
+        self.assertNotIn("test=1", response["Location"])
 
     def test_blank_password_keeps_the_stored_one(self):
         make_config()

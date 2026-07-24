@@ -40,6 +40,7 @@ urlpatterns = [
     path("settings/theme/", views.SetThemeView.as_view(), name="set-theme"),
     path("settings/email/", views.EmailSettingsView.as_view(), name="email-settings"),
     path("settings/email/test/", views.EmailTestView.as_view(), name="email-test"),
+    path("settings/email/probe/", views.EmailProbeView.as_view(), name="email-probe"),
     path("settings/email/clear/", views.EmailClearView.as_view(), name="email-clear"),
     path("settings/email/log/", views.EmailLogView.as_view(), name="email-log"),
     path("settings/email/log/ack/", views.EmailLogAckView.as_view(), name="email-log-ack"),

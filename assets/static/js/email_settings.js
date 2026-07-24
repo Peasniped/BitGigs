@@ -50,8 +50,116 @@
         noteBox.textContent = btn.dataset.note || '';
         noteBox.classList.toggle('d-none', !btn.dataset.note);
       }
+      // A preset fills host/port by assignment, which fires no 'input' event —
+      // nudge the probe so the freshly-picked server is checked straight away.
+      if (host) host.dispatchEvent(new Event('input'));
     });
   });
+
+  // ── Live host / port probe ─────────────────────────────────────────────────
+  // A beat after the operator stops typing the server hostname, resolve it on
+  // the server (the browser can't do DNS) and, when a port is set, check that
+  // something is listening. The fast, field-level cousin of the staged test
+  // below; it sends no mail and holds no socket open. The verdict shows as a
+  // spinner → check/error icon inside each field's right edge, the full detail
+  // on hover; also run once when the modal opens so a saved server is verified
+  // without a keystroke.
+  var emailForm = document.getElementById('emailSettingsForm');
+  var hostInput = document.getElementById('id_host');
+  var portInput = document.getElementById('id_port');
+  if (emailForm && emailForm.dataset.probeUrl && hostInput) {
+    var probeTimer = null;
+    var probeToken = 0;   // guards against out-of-order replies from fast typing
+
+    // Wrap an input so an absolutely-positioned status icon can sit at its right
+    // edge; return the icon holder.
+    function attachStatus(input) {
+      var wrap = document.createElement('span');
+      wrap.className = 'field-status-wrap';
+      input.parentNode.insertBefore(wrap, input);
+      wrap.appendChild(input);
+      input.classList.add('has-field-status');
+      var slot = document.createElement('span');
+      slot.className = 'field-status';
+      wrap.appendChild(slot);
+      return slot;
+    }
+
+    var hostStatus = attachStatus(hostInput);
+    var portStatus = portInput ? attachStatus(portInput) : null;
+
+    function tipFor(part) {
+      return part.hint ? part.detail + ' — ' + part.hint : (part.detail || '');
+    }
+
+    // state: 'pending' | 'ok' | 'failed' | 'clear'
+    function setStatus(slot, state, tip) {
+      if (!slot) return;
+      slot.textContent = '';
+      slot.title = tip || '';
+      if (state === 'pending') {
+        slot.className = 'field-status is-active';
+        var sp = document.createElement('span');
+        sp.className = 'spinner-border spinner-border-sm text-muted';
+        slot.appendChild(sp);
+      } else if (state === 'ok' || state === 'failed') {
+        slot.className = 'field-status is-active';
+        var icon = document.createElement('i');
+        icon.className = 'bi ' + (state === 'ok'
+          ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger');
+        slot.appendChild(icon);
+      } else {
+        slot.className = 'field-status';   // hidden
+      }
+    }
+
+    function runProbe() {
+      var value = hostInput.value.trim();
+      if (!value) { setStatus(hostStatus, 'clear'); setStatus(portStatus, 'clear'); return; }
+      var token = ++probeToken;
+      var hasPort = portInput && portInput.value.trim();
+      setStatus(hostStatus, 'pending');
+      setStatus(portStatus, hasPort ? 'pending' : 'clear');
+
+      var body = new URLSearchParams();
+      body.set('host', value);
+      if (hasPort) body.set('port', portInput.value.trim());
+
+      fetch(emailForm.dataset.probeUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-CSRFToken': getCsrfToken()
+        },
+        body: body.toString()
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (token !== probeToken) return;   // a newer keystroke superseded us
+          if (data.host) setStatus(hostStatus, data.host.status, tipFor(data.host));
+          else setStatus(hostStatus, 'clear');
+          if (data.port) setStatus(portStatus, data.port.status, tipFor(data.port));
+          else setStatus(portStatus, 'clear');
+        })
+        .catch(function () {
+          if (token !== probeToken) return;
+          setStatus(hostStatus, 'clear');
+          setStatus(portStatus, 'clear');
+        });
+    }
+
+    function scheduleProbe() {
+      if (probeTimer) clearTimeout(probeTimer);
+      probeTimer = setTimeout(runProbe, 300);
+    }
+
+    hostInput.addEventListener('input', scheduleProbe);
+    if (portInput) portInput.addEventListener('input', scheduleProbe);
+
+    // Verify the saved server the moment the modal is shown, no keystroke needed.
+    var modalEl = document.getElementById('emailSettingsModal');
+    if (modalEl) modalEl.addEventListener('shown.bs.modal', runProbe);
+  }
 
   // ── Connection test ────────────────────────────────────────────────────────
   var runBtn = document.getElementById('emailTestRun');
@@ -180,4 +288,16 @@
         runBtn.innerHTML = original;
       });
   });
+
+  // "Save & test" redirects back here with ?test=1 — run the connection test
+  // once the saved page has loaded, then strip the flag so a refresh doesn't
+  // repeat it. No address is set, so this is connection-only and sends no mail.
+  try {
+    var url = new URL(window.location.href);
+    if (url.searchParams.get('test') === '1') {
+      url.searchParams.delete('test');
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+      runBtn.click();
+    }
+  } catch (e) { /* no URL/history support — skip the auto-run */ }
 })();

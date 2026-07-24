@@ -235,6 +235,32 @@ class CalendarSubscriptionTestView(View):
         return _calendar_redirect()
 
 
+class CalendarSubscriptionCheckView(View):
+    """AJAX sibling of ``subscription-test``: fetch a subscription now and report
+    the result as JSON. Drives the Calendar tab's on-load auto-check of calendars
+    that have never been fetched (a freshly added one), so a bad URL surfaces
+    without the operator pressing anything or the page reloading."""
+
+    def post(self, request):
+        from django.utils import formats
+
+        from .models import CalendarSubscription
+
+        sub = get_object_or_404(CalendarSubscription, pk=request.POST.get("id"))
+        today = timezone.localdate()
+        events = services.subscription_busy(
+            sub, today, today + timedelta(days=31), refresh=True
+        )
+        sub.refresh_from_db()
+        last = timezone.localtime(sub.last_fetch_at) if sub.last_fetch_at else None
+        return JsonResponse({
+            "ok": bool(sub.last_fetch_ok),
+            "count": len(events),
+            "error": sub.last_error or "",
+            "last_checked": formats.date_format(last, "DATETIME_FORMAT") if last else "",
+        })
+
+
 class CalendarInviteSettingsSaveView(View):
     """Save the global invite settings (Direction 2)."""
 

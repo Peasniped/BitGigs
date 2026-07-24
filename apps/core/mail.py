@@ -185,6 +185,58 @@ def _server_reply(exc):
     return " ".join(text.split())
 
 
+@dataclass
+class ProbeResult:
+    """A single reachability check (DNS or TCP) with the same words the staged
+    diagnosis uses. Shared so the live host/port field probe and the full test
+    can never drift in what they report."""
+    ok: bool
+    detail: str = ""
+    hint: str = ""
+    addresses: list = field(default_factory=list)
+
+
+def resolve_host(host, port=None):
+    """DNS-resolve *host*. On success ``addresses`` holds the resolved IPs."""
+    try:
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as exc:
+        return ProbeResult(
+            False,
+            f"'{host}' could not be resolved ({exc.strerror or exc}).",
+            "Check the hostname for typos. It should be the mail server's "
+            "address (like smtp.gmail.com), not your email domain.",
+        )
+    resolved = sorted({a[4][0] for a in infos})
+    return ProbeResult(True, f"Resolved to {', '.join(resolved[:3])}", "", resolved)
+
+
+def check_port(host, port, timeout):
+    """Open (and immediately drop) a bare TCP connection to *host:port*. Done as
+    a raw socket so a closed or filtered port reads as exactly that, instead of
+    surfacing later as a confusing TLS error."""
+    try:
+        with socket.create_connection((host, port), timeout):
+            pass
+    except ConnectionRefusedError:
+        return ProbeResult(
+            False,
+            f"Nothing is accepting connections on port {port}.",
+            "The port is probably wrong for this security mode — 587 for "
+            "STARTTLS, 465 for implicit TLS, 25 for unencrypted.",
+        )
+    except (socket.timeout, TimeoutError):
+        return ProbeResult(
+            False,
+            f"Timed out after {timeout}s.",
+            "Something is silently dropping the connection — usually a firewall, "
+            "or an ISP blocking outbound mail ports.",
+        )
+    except OSError as exc:
+        return ProbeResult(False, f"Could not connect: {exc}.")
+    return ProbeResult(True, "Port is open")
+
+
 def diagnose(config=None, send_to=None):
     """Run the staged connection test.
 
@@ -235,40 +287,16 @@ def diagnose(config=None, send_to=None):
     passed("config", f"{config.host}:{config.port}, {config.get_security_display()}")
 
     # ── Stage 2: DNS ─────────────────────────────────────────────────────────
-    try:
-        addresses = socket.getaddrinfo(
-            config.host, config.port, proto=socket.IPPROTO_TCP
-        )
-    except socket.gaierror as exc:
-        return fail(
-            "dns", f"'{config.host}' could not be resolved ({exc.strerror or exc}).",
-            "Check the hostname for typos. It should be the mail server's "
-            "address (like smtp.gmail.com), not your email domain.",
-        )
-    resolved = sorted({a[4][0] for a in addresses})
-    passed("dns", f"Resolved to {', '.join(resolved[:3])}")
+    dns = resolve_host(config.host, config.port)
+    if not dns.ok:
+        return fail("dns", dns.detail, dns.hint)
+    passed("dns", dns.detail)
 
     # ── Stage 3: TCP ─────────────────────────────────────────────────────────
-    # Done as a bare socket first so a closed or filtered port is reported as
-    # exactly that, instead of surfacing later as a confusing TLS error.
-    try:
-        with socket.create_connection((config.host, config.port), config.timeout):
-            pass
-    except ConnectionRefusedError:
-        return fail(
-            "connect", f"Nothing is accepting connections on port {config.port}.",
-            "The port is probably wrong for this security mode — 587 for "
-            "STARTTLS, 465 for implicit TLS, 25 for unencrypted.",
-        )
-    except (socket.timeout, TimeoutError):
-        return fail(
-            "connect", f"Timed out after {config.timeout}s.",
-            "Something is silently dropping the connection — usually a firewall, "
-            "or an ISP blocking outbound mail ports.",
-        )
-    except OSError as exc:
-        return fail("connect", f"Could not connect: {exc}.")
-    passed("connect", "Port is open")
+    tcp = check_port(config.host, config.port, config.timeout)
+    if not tcp.ok:
+        return fail("connect", tcp.detail, tcp.hint)
+    passed("connect", tcp.detail)
 
     # ── Stages 4 & 5: TLS and AUTH share one live session ────────────────────
     server = None

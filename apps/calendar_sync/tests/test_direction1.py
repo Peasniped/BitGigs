@@ -244,3 +244,53 @@ class BusyEndpointTests(TestCase):
             resp = self.client.get("/calendar-sync/busy/?start=2026-01-01&end=2028-01-01")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["busy"], [])
+
+
+class SubscriptionCheckViewTests(TestCase):
+    """The JSON auto-check endpoint the Calendar tab hits on load."""
+
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user("checker", password="pw")
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["onboarding_complete"] = True
+        session.save()
+        self.sub = CalendarSubscription.objects.create(label="Personal", color="#ff0000")
+        self.sub.url = "https://cal.example.com/a.ics"
+        self.sub.save()
+
+    def test_successful_fetch_reports_ok_and_count(self):
+        feed = _feed(build_event(
+            uid="foreign@x", summary="Dentist",
+            start=_aware(2026, 3, 15, 9, 0), end=_aware(2026, 3, 15, 10, 30),
+        ))
+        with mock.patch("calendar_sync.services.fetch_ical", return_value=feed):
+            resp = self.client.post(
+                "/calendar-sync/subscriptions/check/", {"id": self.sub.pk}
+            )
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["error"], "")
+        self.assertTrue(data["last_checked"])
+        self.sub.refresh_from_db()
+        self.assertTrue(self.sub.last_fetch_ok)
+
+    def test_failed_fetch_reports_the_error(self):
+        with mock.patch(
+            "calendar_sync.services.fetch_ical",
+            side_effect=CalendarFetchError("host unreachable"),
+        ):
+            resp = self.client.post(
+                "/calendar-sync/subscriptions/check/", {"id": self.sub.pk}
+            )
+        data = resp.json()
+        self.assertFalse(data["ok"])
+        self.assertTrue(data["error"])
+
+    def test_requires_login(self):
+        self.client.logout()
+        resp = self.client.post(
+            "/calendar-sync/subscriptions/check/", {"id": self.sub.pk}
+        )
+        self.assertEqual(resp.status_code, 302)

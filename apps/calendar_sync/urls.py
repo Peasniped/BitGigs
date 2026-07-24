@@ -14,6 +14,8 @@ urlpatterns = [
          name="subscription-delete"),
     path("subscriptions/test/", views.CalendarSubscriptionTestView.as_view(),
          name="subscription-test"),
+    path("subscriptions/check/", views.CalendarSubscriptionCheckView.as_view(),
+         name="subscription-check"),
     path("invites/settings/", views.CalendarInviteSettingsSaveView.as_view(),
          name="invite-settings"),
     path("invites/workplace/", views.WorkplaceInviteConfigSaveView.as_view(),

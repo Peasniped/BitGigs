@@ -2043,6 +2043,22 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
 .pw-reveal__btn:hover { color: var(--text); }
 .pw-reveal__btn:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 
+/* Live reachability icon at a field's right edge (email host/port probe, added
+   by email_settings.js). Spinner while polling, then a check/error whose full
+   detail shows on hover; hidden until there's something to say. */
+.field-status-wrap { position: relative; display: block; }
+.field-status-wrap .form-control.has-field-status { padding-right: 2.25rem; }
+.field-status {
+  position: absolute;
+  top: 0;
+  right: 0.6rem;
+  height: 100%;
+  display: none;
+  align-items: center;
+  line-height: 1;
+}
+.field-status.is-active { display: inline-flex; }
+
 /* Goal-bar hover chip: an inverted surface, so it reads as an overlay rather
    than part of the card. Both colours must come from tokens that flip together
    — it used to pair --text (which flips) with --on-accent (which does not,
