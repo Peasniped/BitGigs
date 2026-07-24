@@ -1,94 +1,34 @@
 
 # NU     --------------------------------------------------------
 
-- BUG: When testing the "send myself a test invite-button i get this:
-"""
-    [21/Jul/2026 20:23:14] "GET /settings/?tab=calendar HTTP/1.1" 200 36337
-    calendar invite: test send failed
-    Traceback (most recent call last):
-    File "D:\Github\BitGigs\apps\calendar_sync\invites.py", line 263, in send_test_invite
-        _send_mail(
-        ~~~~~~~~~~^
-            "BitGigs test invite",
-            ^^^^^^^^^^^^^^^^^^^^^^
-            "This is a test calendar invite from BitGigs. Replies are not monitored.",
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-            [to_address], ics, "REQUEST",
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        )
-        ^
-    File "D:\Github\BitGigs\apps\calendar_sync\invites.py", line 167, in _send_mail
-        message.send()  # default EMAIL_BACKEND = DbConfiguredEmailBackend → EmailLog
-        ~~~~~~~~~~~~^^
-    File "D:\Github\BitGigs\.venv\Lib\site-packages\django\core\mail\message.py", line 358, in send
-        return self.get_connection(fail_silently).send_messages([self])
-            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
-    File "D:\Github\BitGigs\apps\core\mail_backend.py", line 66, in send_messages
-        sent = super().send_messages(messages)
-    File "D:\Github\BitGigs\.venv\Lib\site-packages\django\core\mail\backends\smtp.py", line 148, in send_messages
-        new_conn_created = self.open()
-    File "D:\Github\BitGigs\.venv\Lib\site-packages\django\core\mail\backends\smtp.py", line 94, in open
-        self._partial_connection = self.connection_class(
-                                ~~~~~~~~~~~~~~~~~~~~~^
-            self.host, self.port, **connection_params
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        )
-        ^
-    File "C:\Users\MZSTA\AppData\Local\Programs\Python\Python313\Lib\smtplib.py", line 1022, in __init__
-        SMTP.__init__(self, host, port, local_hostname, timeout,
-        ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                    source_address)
-                    ^^^^^^^^^^^^^^^
-    File "C:\Users\MZSTA\AppData\Local\Programs\Python\Python313\Lib\smtplib.py", line 255, in __init__
-        (code, msg) = self.connect(host, port)
-                    ~~~~~~~~~~~~^^^^^^^^^^^^
-    File "C:\Users\MZSTA\AppData\Local\Programs\Python\Python313\Lib\smtplib.py", line 341, in connect
-        self.sock = self._get_socket(host, port, self.timeout)
-                    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
-    File "C:\Users\MZSTA\AppData\Local\Programs\Python\Python313\Lib\smtplib.py", line 1028, in _get_socket
-        new_socket = super()._get_socket(host, port, timeout)
-    File "C:\Users\MZSTA\AppData\Local\Programs\Python\Python313\Lib\smtplib.py", line 312, in _get_socket
-        return socket.create_connection((host, port), timeout,
-            ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-                                        self.source_address)
-                                        ^^^^^^^^^^^^^^^^^^^^
-    File "C:\Users\MZSTA\AppData\Local\Programs\Python\Python313\Lib\socket.py", line 840, in create_connection
-        for res in getaddrinfo(host, port, 0, SOCK_STREAM):
-                ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    File "C:\Users\MZSTA\AppData\Local\Programs\Python\Python313\Lib\socket.py", line 977, in getaddrinfo
-        for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
-                ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    socket.gaierror: [Errno 11001] getaddrinfo failed
-    [21/Jul/2026 20:23:17] "POST /calendar-sync/invites/test/ HTTP/1.1" 302 0
-    [21/Jul/2026 20:23:17] "GET /settings/?tab=calendar HTTP/1.1" 200 36330
-"""
-- Automatically test/poll a calendar when it is added (maybe wait 300ms after the settings>Calendar page is loaded)
 
-- remove the different options for money masking and just keep the dots with fixed length
-- All the fields that are now in the per workplace settings should have a global setting (except for onsite address, as that SHOULD be filled per workplace)
-- each of the workplace specific settings that overwrite global settings should have an on - input / off selector, so it is really clear when a setting is overwritten.
+## Bigger / functional
+
 - Probably during onboarding/contract creation/edit it should prompt the user if they want the calendar invites.
 - - on the settings>calendar page, keep the per workplace info and uncollapse functionality about calendar config as read-only, then have a button to edit contract if the user wants to change, that opens the edit modal directly.
-- Invite my own calendar should be an on - input / off switch. Default value should be the username/email used for the account. Also rename to "Send invites to personal calendar".
-- Default remote location -- you should probably make the subtext a bit better, writing it could be an address or named location.
-- Change this text a bit: "Send calendar invites -- master switch for sending calendar invites. While off, no invites are sent regardless of per-workplace settings." Write it like Calendar invite master arm, and then a shorter but better subtext. Have it sound more cool and military like "Calendar Invite Master Arm"
-- I think only one recipient email is needed (replace the multi-line input)
-- It seems like the calendar events are not colored in the planning calendar
 - Add functionality right on the planning page to enable/disable individual calendars.
+- In Settings>Display and Analytics, add some space between the save button and the last setting on the page.
 
-- Can you look at my configured calendar "Google". I have used the "Secret address in iCal format: Use this address to access this calendar from other applications without making it public.
-Warning: You should not give the secret address to other people. Learn more
-You can reset this address and make the current one invalid." so it should work, but BitGigs fails when trying to use it. If I open the link in my browser, I am offered to download an ics file.
-
-- In settings>calendar, there is a weird space between the sections for ingoing and outgoing calendar. I think it should just be a horizontal line
 - Maybe add the possibility to have multiple SMTP-setups, where you can select one or multiple roles for each setup (only one setup per role ofc) if eg. you want system mails (pw reset etc) to come from a noreply and calendar invites to come from your own email.
-- Check and remove stale/unused workplace icons
+- Check and remove stale/unused workplace icons in media>workplace_icons
+
+## Polish
+- When editing a workplace contract from Settings>Calendar, it should return you back there, when clicking save or cancel.
+- Add a bit more space between Send invites to personal calendar and the email input field, and change the input field border to primary accent.
+- In settings>calendar, there is a weird space between the sections for ingoing and outgoing calendar. I think it should just be a horizontal line
+- Can you show the color coding/iconography of shift types when creating/editing/approving a planned/approved shift?
+- Add a bit more padding to all the settings-page.
+- It seems on the about page that the info lines could use some padding. The section headers have a nice padding to the left div/canvas edge, but the text is only a few px from the edge.
 - make a bit more spacing between items on the calendar, currently I have two overlapping events and the extra amber border makes them almost touch, making it look kind of strange.
 - - It is the same when you hover over a workplace and it shows the green highlight showing which days belong to the payroll period. The borders of neighboring green days almost merge together. Maybe this highlight can be inset ever so slightly into the day cell so the borders do not (or do not almost) overlap.
-- It seems that the about page lines could use some padding. The section headers have a nice padding to the left div/canvas edge, but the text is only a few px from the edge.
 
+
+
+## Philosophize
 - What happens if I have sent out a bunch of invites to one email, then change either the workplace or the personal email. Then the old address will have a bunch of orphaned calendar events, and the new address will not have any events?
 - - Maybe have a small system for changing the email that sends out cancellations to the old address and sends the events to the new address?
+- - This can also be used for the planning calendar "Send Invites" to make sure events for each event is only sent out once.
+- - Maybe it would be nice to have an overview/list on the planning page that shows which planned shifts have not had invites sent out.
 
 - Go through help articles and make them shorter and more concise. A lot of articles could use with being split up into two or more articles. keep redundant information as short as possible and to a minimum and just cite to articles with the information.
 
