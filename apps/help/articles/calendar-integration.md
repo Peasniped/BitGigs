@@ -63,7 +63,7 @@ you invited yourself to never reads as clashing with itself.
 This uses your **Email** connection, so set that up first — the Calendar tab
 warns you and links across if it isn't ready. Then, under **Invites you send**:
 
-1. Turn on **Send calendar invites** (the master switch).
+1. Turn on **Enable calendar invites** (the master switch).
 2. Keep **Send invites to personal calendar** on to also drop every shift in your
    own calendar. It uses your account email unless you set a different
    **personal calendar address**.
@@ -76,7 +76,7 @@ warns you and links across if it isn't ready. Then, under **Invites you send**:
 Invites are then configured **per contract**, where you set up the job: open a
 contract (Workplaces → a workplace → **Edit** a contract, or the **Edit** button
 on the Calendar tab's per-contract overview) and, under **Calendar invites**,
-turn on **Send calendar invites for this contract**. That reveals the fields: a
+turn on **Enable calendar invites for this contract**. That reveals the fields: a
 **work e-mail address** and an **on-site location** (both required), then three
 **override** toggles for the on-site title, remote title and remote location —
 each shows an input inline only when you turn it on, otherwise it uses your

@@ -76,7 +76,7 @@ class CalendarInviteSettingsForm(forms.ModelForm):
             "default_remote_address",
         ]
         labels = {
-            "enabled": "Send calendar invites",
+            "enabled": "Enable calendar invites",
             "send_to_personal": "Send invites to personal calendar",
             "owner_address": "Personal calendar address",
             "default_title_onsite": "Default on-site event title",
@@ -130,7 +130,7 @@ class ContractCalendarConfigForm(forms.ModelForm):
             "override_address_remote", "address_remote",
         ]
         labels = {
-            "send_invites": "Send calendar invites for this contract",
+            "send_invites": "Enable calendar invites for this contract",
             "recipient": "Work e-mail address",
             "address_onsite": "On-site location",
             "override_title_onsite": "Override default on-site title",
