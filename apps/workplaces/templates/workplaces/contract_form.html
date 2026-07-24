@@ -51,6 +51,98 @@
             {% for err in form.name.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
           </div>
 
+          {# ── Calendar invites (per-contract, items 7 & 8) ──────────────── #}
+          <hr class="my-4">
+          <div class="fw-medium mb-1"><i class="bi bi-calendar-plus me-1"></i>Calendar invites</div>
+          <p class="form-text mt-0 mb-3">
+            Email a calendar invite for each on-site / remote shift on this contract.
+            Anything you don't set here uses your global defaults on
+            <a href="{% url 'core:settings' %}?tab=calendar">Settings → Calendar</a>.
+          </p>
+
+          {% if cal_form.non_field_errors %}
+            <div class="alert alert-danger py-2">
+              {% for err in cal_form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+            </div>
+          {% endif %}
+
+          <div class="form-check form-switch mb-3">
+            <input type="checkbox" class="form-check-input" role="switch"
+                   name="send_invites" id="id_send_invites" data-cal-reveal="calInviteFields"
+                   {% if cal_form.send_invites.value %}checked{% endif %}>
+            <label class="form-check-label" for="id_send_invites">Send calendar invites for this contract</label>
+          </div>
+
+          {# Everything below is hidden until invites are enabled for this contract. #}
+          <div id="calInviteFields" class="ps-1{% if not cal_form.send_invites.value %} d-none{% endif %}">
+
+            {# Required when invites are on: who to invite + where on-site shifts are. #}
+            <div class="mb-3">
+              <label for="id_recipient" class="form-label fw-medium mb-1">Work e-mail address</label>
+              <input type="email" name="recipient" id="id_recipient"
+                     value="{{ cal_form.recipient.value|default_if_none:'' }}"
+                     class="form-control form-control-sm {% if cal_form.recipient.errors %}is-invalid{% endif %}"
+                     placeholder="name@work.example">
+              {% for err in cal_form.recipient.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+            </div>
+
+            <div class="mb-3">
+              <label for="id_address_onsite" class="form-label fw-medium mb-1">On-site location</label>
+              <input type="text" name="address_onsite" id="id_address_onsite"
+                     value="{{ cal_form.address_onsite.value|default_if_none:'' }}"
+                     class="form-control form-control-sm {% if cal_form.address_onsite.errors %}is-invalid{% endif %}"
+                     placeholder="e.g. {{ workplace.name }}, Main St 1">
+              {% for err in cal_form.address_onsite.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+            </div>
+
+            {# Overrides: a toggle whose value field appears inline only when on. #}
+            {% comment %}data-cal-reveal = the wrapper id revealed when the toggle is on.{% endcomment %}
+            <div class="cal-override d-flex align-items-center gap-2 mb-2 flex-wrap">
+              <div class="form-check form-switch mb-0" style="min-width:16rem;">
+                <input type="checkbox" class="form-check-input" role="switch"
+                       name="override_title_onsite" id="id_override_title_onsite" data-cal-reveal="wrap_title_onsite"
+                       {% if cal_form.override_title_onsite.value %}checked{% endif %}>
+                <label class="form-check-label" for="id_override_title_onsite">Override default on-site title</label>
+              </div>
+              <div class="cal-inline flex-grow-1{% if not cal_form.override_title_onsite.value %} d-none{% endif %}"
+                   id="wrap_title_onsite">
+                <input type="text" name="title_onsite" id="id_title_onsite"
+                       value="{{ cal_form.title_onsite.value|default_if_none:'' }}"
+                       class="form-control form-control-sm" placeholder="e.g. På arbejde hos {workplace}">
+              </div>
+            </div>
+
+            <div class="cal-override d-flex align-items-center gap-2 mb-2 flex-wrap">
+              <div class="form-check form-switch mb-0" style="min-width:16rem;">
+                <input type="checkbox" class="form-check-input" role="switch"
+                       name="override_title_remote" id="id_override_title_remote" data-cal-reveal="wrap_title_remote"
+                       {% if cal_form.override_title_remote.value %}checked{% endif %}>
+                <label class="form-check-label" for="id_override_title_remote">Override default remote title</label>
+              </div>
+              <div class="cal-inline flex-grow-1{% if not cal_form.override_title_remote.value %} d-none{% endif %}"
+                   id="wrap_title_remote">
+                <input type="text" name="title_remote" id="id_title_remote"
+                       value="{{ cal_form.title_remote.value|default_if_none:'' }}"
+                       class="form-control form-control-sm" placeholder="e.g. Arbejder hjemme, {workplace}">
+              </div>
+            </div>
+
+            <div class="cal-override d-flex align-items-center gap-2 mb-2 flex-wrap">
+              <div class="form-check form-switch mb-0" style="min-width:16rem;">
+                <input type="checkbox" class="form-check-input" role="switch"
+                       name="override_address_remote" id="id_override_address_remote" data-cal-reveal="wrap_address_remote"
+                       {% if cal_form.override_address_remote.value %}checked{% endif %}>
+                <label class="form-check-label" for="id_override_address_remote">Override default remote location</label>
+              </div>
+              <div class="cal-inline flex-grow-1{% if not cal_form.override_address_remote.value %} d-none{% endif %}"
+                   id="wrap_address_remote">
+                <input type="text" name="address_remote" id="id_address_remote"
+                       value="{{ cal_form.address_remote.value|default_if_none:'' }}"
+                       class="form-control form-control-sm" placeholder="e.g. Home office">
+              </div>
+            </div>
+          </div>
+
           <div class="d-flex gap-2 mt-4">
             <button type="submit" class="btn btn-primary flex-fill">
               <i class="bi bi-check-lg me-1"></i>{% if contract %}Save{% else %}Create &amp; add terms{% endif %}
@@ -63,4 +155,20 @@
 
   </div>
 </div>
+
+<script>
+// Each on-off toggle reveals its target block only while on: the "send invites"
+// switch reveals the whole invite section, and each override switch reveals its
+// value field inline beside it. A hidden field stays in the DOM (so its value is
+// kept across toggles) and the server ignores an override whose value is blank.
+(function () {
+  document.querySelectorAll('[data-cal-reveal]').forEach(function (cb) {
+    var target = document.getElementById(cb.getAttribute('data-cal-reveal'));
+    if (!target) return;
+    function sync() { target.classList.toggle('d-none', !cb.checked); }
+    cb.addEventListener('change', sync);
+    sync();
+  });
+})();
+</script>
 {% endblock %}

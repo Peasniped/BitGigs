@@ -112,7 +112,46 @@
     {# Global invite settings #}
     <form method="post" action="{% url 'calendar_sync:invite-settings' %}" class="mb-2">
       {% csrf_token %}
-      {{ cal_invite_form|crispy }}
+      {% if cal_invite_form.non_field_errors %}
+        <div class="alert alert-danger py-2">
+          {% for e in cal_invite_form.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+        </div>
+      {% endif %}
+
+      {# Master switch — highlighted, since it arms everything below it. #}
+      <div class="cal-master-arm mb-3">
+        <div class="form-check form-switch mb-0">
+          <input type="checkbox" class="form-check-input" role="switch"
+                 name="enabled" id="id_enabled" {% if cal_invite_form.enabled.value %}checked{% endif %}>
+          <label class="form-check-label fw-medium" for="id_enabled">Send calendar invites</label>
+        </div>
+        <p class="form-text mt-1 mb-0">{{ cal_invite_form.enabled.help_text }}</p>
+      </div>
+
+      {# Personal calendar: toggle + inline address revealed only when on #}
+      <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+        <div class="form-check form-switch mb-0" style="min-width:16rem;">
+          <input type="checkbox" class="form-check-input" role="switch"
+                 name="send_to_personal" id="id_send_to_personal" data-cal-reveal="wrap_owner_address"
+                 {% if cal_invite_form.send_to_personal.value %}checked{% endif %}>
+          <label class="form-check-label" for="id_send_to_personal">Send invites to personal calendar</label>
+        </div>
+        <div class="flex-grow-1{% if not cal_invite_form.send_to_personal.value %} d-none{% endif %}"
+             id="wrap_owner_address" style="min-width:14rem;">
+          <input type="email" name="owner_address" id="id_owner_address"
+                 value="{{ cal_invite_form.owner_address.value|default_if_none:'' }}"
+                 class="form-control form-control-sm {% if cal_invite_form.owner_address.errors %}is-invalid{% endif %}"
+                 placeholder="{{ cal_invite_form.owner_address.field.widget.attrs.placeholder|default:'' }}">
+          {% for e in cal_invite_form.owner_address.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+        </div>
+      </div>
+      <p class="form-text mt-0 mb-3">{{ cal_invite_form.owner_address.help_text }}</p>
+
+      {# Operator-level defaults (plain fields) #}
+      {{ cal_invite_form.default_title_onsite|as_crispy_field }}
+      {{ cal_invite_form.default_title_remote|as_crispy_field }}
+      {{ cal_invite_form.default_remote_address|as_crispy_field }}
+
       <div class="d-flex flex-wrap gap-2">
         <button type="submit" class="btn btn-primary btn-sm">
           <i class="bi bi-check-lg me-1"></i>Save invite settings
@@ -128,46 +167,66 @@
       </button>
     </form>
 
-    {# Per-workplace configuration #}
-    <div class="fw-medium mb-1">Per workplace</div>
+    {# Per-contract overview (read-only — edited on the contract page, item 9) #}
+    <div class="fw-medium mb-1">Per contract</div>
     <p class="form-text mb-2">
-      Turn invites on for a workplace and set who to invite. Titles accept
-      <code>{workplace}</code>, <code>{date}</code>, <code>{start}</code> and
-      <code>{end}</code>.
+      Invites are configured <strong>per contract</strong>, where you set up the
+      job. This is a read-only overview — press <strong>Edit</strong> on a contract
+      to change its invites. Anything a contract doesn't override uses the defaults
+      above.
     </p>
     {% if cal_workplace_rows %}
-    <div class="accordion" id="calWpAccordion">
-      {% for row in cal_workplace_rows %}
-      <div class="accordion-item">
-        <h2 class="accordion-header">
-          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
-                  data-bs-target="#calWp-{{ row.workplace.pk }}">
-            <span class="me-2">{{ row.workplace.name }}</span>
-            {% if row.config.send_invites %}
-              <span class="badge text-bg-success">On</span>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr class="small text-body-secondary">
+            <th>Workplace</th><th>Contract</th><th>Invites</th><th>Recipient</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in cal_workplace_rows %}
+            {% if row.contracts %}
+              {% for c in row.contracts %}
+              <tr>
+                <td class="text-nowrap">
+                  {% if forloop.first %}<span class="fw-medium">{{ row.workplace.name }}</span>{% endif %}
+                </td>
+                <td>
+                  <span class="fw-medium">{% if c.contract.name %}{{ c.contract.name }}{% else %}Contract{% endif %}</span>
+                  {% if c.contract.start_date %}<span class="text-body-secondary small ms-2 d-none d-md-inline">{{ c.contract.start_date }}{% if c.contract.end_date %} – {{ c.contract.end_date }}{% else %} – present{% endif %}</span>{% endif %}
+                </td>
+                <td class="text-nowrap">
+                  {% if c.config and c.config.send_invites %}
+                    <span class="badge text-bg-success">On</span>
+                  {% else %}
+                    <span class="badge-soft">Off</span>
+                  {% endif %}
+                </td>
+                <td class="small text-body-secondary">{% if c.recipient %}{{ c.recipient }}{% else %}—{% endif %}</td>
+                <td class="text-end">
+                  <a href="{% url 'workplaces:contract-update' row.workplace.slug c.contract.pk %}"
+                     class="btn btn-outline-secondary btn-sm" title="Edit this contract's invites">
+                    <i class="bi bi-pencil me-1"></i>Edit
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
             {% else %}
-              <span class="badge-soft">Off</span>
+              <tr>
+                <td class="text-nowrap"><span class="fw-medium">{{ row.workplace.name }}</span></td>
+                <td colspan="4" class="small text-body-secondary">
+                  No contracts yet.
+                  <a href="{% url 'workplaces:contract-create' row.workplace.slug %}">Add one</a>
+                  to configure invites.
+                </td>
+              </tr>
             {% endif %}
-          </button>
-        </h2>
-        <div id="calWp-{{ row.workplace.pk }}" class="accordion-collapse collapse"
-             data-bs-parent="#calWpAccordion">
-          <div class="accordion-body">
-            <form method="post" action="{% url 'calendar_sync:workplace-config' %}">
-              {% csrf_token %}
-              <input type="hidden" name="workplace_id" value="{{ row.workplace.pk }}">
-              {{ row.form|crispy }}
-              <button type="submit" class="btn btn-primary btn-sm">
-                <i class="bi bi-check-lg me-1"></i>Save {{ row.workplace.name }}
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
     {% else %}
-    <p class="form-text mb-0">Add a workplace first, then configure its invites here.</p>
+    <p class="form-text mb-0">Add a workplace first, then configure its invites on the contract page.</p>
     {% endif %}
   </div>
 </div>
@@ -404,5 +463,17 @@
   }
 
   setTimeout(function () { pending.forEach(checkRow); }, 300);
+})();
+
+// Personal-calendar toggle reveals its address field inline only while on
+// (mirrors the per-contract override toggles on the contract page).
+(function () {
+  document.querySelectorAll('[data-calendar-invites] [data-cal-reveal]').forEach(function (cb) {
+    var target = document.getElementById(cb.getAttribute('data-cal-reveal'));
+    if (!target) return;
+    function sync() { target.classList.toggle('d-none', !cb.checked); }
+    cb.addEventListener('change', sync);
+    sync();
+  });
 })();
 </script>

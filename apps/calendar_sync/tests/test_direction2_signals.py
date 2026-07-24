@@ -10,8 +10,8 @@ from django.test import TestCase, override_settings
 from calendar_sync import invites
 from calendar_sync.models import (
     CalendarInviteSettings,
+    ContractCalendarConfig,
     ShiftInvite,
-    WorkplaceCalendarConfig,
 )
 from core.models import EmailSettings
 from shifts.models import PlannedShift, Shift
@@ -23,7 +23,7 @@ def _configure():
     es.enabled, es.host, es.from_email = True, "smtp.zink.nu", "robot@zink.nu"
     es.save()
     s = CalendarInviteSettings.load()
-    s.enabled, s.owner_address = True, "me@home.example"
+    s.enabled, s.send_to_personal, s.owner_address = True, True, "me@home.example"
     s.save()
 
 
@@ -34,10 +34,14 @@ def _workplace():
         contract=contract, effective_from=date(2026, 1, 1),
         employment_type=ContractTermSet.EmploymentType.HOURLY, hourly_rate=Decimal("200"),
     )
-    WorkplaceCalendarConfig.objects.create(
-        workplace=wp, send_invites=True, recipients="boss@work.example",
+    ContractCalendarConfig.objects.create(
+        contract=contract, send_invites=True, recipient="boss@work.example",
     )
     return wp
+
+
+def _cfg(wp):
+    return wp.contracts.first().calendar_config
 
 
 def _last_ics():
@@ -104,8 +108,7 @@ class SignalSyncTests(TestCase):
         self.assertEqual(len(mail.outbox), n + 1)
 
     def test_uninvited_shift_triggers_no_mail(self):
-        self.wp.calendar_config.send_invites = False
-        self.wp.calendar_config.save()
+        cfg = _cfg(self.wp); cfg.send_invites = False; cfg.save()
         planned = self._planned()
         planned.end_time = time(19, 0)
         planned.save()

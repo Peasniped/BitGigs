@@ -1,0 +1,16 @@
+{% comment %}
+  Render a form BooleanField as an accent on/off switch — the reusable "custom
+  on-off" for boolean *settings* (not selection checkboxes). Usage:
+    {% include "_switch_field.html" with field=form.some_bool %}
+  The input keeps the form's own id/name, so page JS keyed on `id_<name>` still
+  works. Pass `wrapper_class` to override the default spacing.
+{% endcomment %}
+<div class="form-check form-switch {{ wrapper_class|default:'mb-3' }}">
+  <input type="checkbox" class="form-check-input" role="switch"
+         name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+         {% if field.value %}checked{% endif %}
+         {% if field.field.disabled %}disabled{% endif %}>
+  <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+  {% if field.help_text %}<div class="form-text mt-0">{{ field.help_text }}</div>{% endif %}
+  {% for err in field.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+</div>

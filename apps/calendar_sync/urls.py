@@ -18,7 +18,5 @@ urlpatterns = [
          name="subscription-check"),
     path("invites/settings/", views.CalendarInviteSettingsSaveView.as_view(),
          name="invite-settings"),
-    path("invites/workplace/", views.WorkplaceInviteConfigSaveView.as_view(),
-         name="workplace-config"),
     path("invites/test/", views.InviteTestView.as_view(), name="invite-test"),
 ]

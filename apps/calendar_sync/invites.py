@@ -26,7 +26,7 @@ from django.utils import timezone
 
 from core.models import EmailSettings
 
-from .models import CalendarInviteSettings, ShiftInvite, WorkplaceCalendarConfig
+from .models import CalendarInviteSettings, ContractCalendarConfig, ShiftInvite
 from .services import build_calendar, build_event, own_uid
 
 logger = logging.getLogger(__name__)
@@ -63,13 +63,22 @@ def invite_domain():
 # ── eligibility + recipients ─────────────────────────────────────────────────
 
 def _config(shift):
-    return getattr(shift.workplace, "calendar_config", None)
+    """Invite config for the contract active on the shift's date, or ``None``.
+
+    Config is per-contract, and a shift maps to a contract by date, so a shift
+    dated outside every contract's span (or at a workplace with no config) yields
+    ``None`` → not eligible.
+    """
+    contract = shift.workplace.active_contract_on(shift.date)
+    if contract is None:
+        return None
+    return getattr(contract, "calendar_config", None)
 
 
 def eligible(shift) -> bool:
     """Whether *shift* should generate an invite at all.
 
-    Requires the global master switch, the workplace's own ``send_invites``, an
+    Requires the global master switch, the contract's own ``send_invites``, an
     invite-able shift type (on-site / remote), and working mail.
     """
     if not CalendarInviteSettings.load().enabled:
@@ -77,21 +86,24 @@ def eligible(shift) -> bool:
     config = _config(shift)
     if config is None or not config.send_invites:
         return False
-    if shift.shift_type not in WorkplaceCalendarConfig.INVITEABLE_TYPES:
+    if shift.shift_type not in ContractCalendarConfig.INVITEABLE_TYPES:
         return False
     return EmailSettings.load().is_configured
 
 
 def recipients_for(shift):
-    """Attendees = the workplace's work recipients + the owner's own address
-    (so each shift also lands in the personal calendar), de-duplicated."""
+    """Attendees = the contract's resolved work recipient + (when enabled) the
+    owner's own address (so each shift also lands in the personal calendar),
+    de-duplicated."""
     from .models import parse_addresses
 
+    settings = CalendarInviteSettings.load()
     config = _config(shift)
-    recips = list(config.recipient_list()) if config else []
-    owner_address = CalendarInviteSettings.load().owner_address
-    if owner_address:
-        recips.append(owner_address)
+    recips = list(config.recipient_list(settings)) if config else []
+    if settings.send_to_personal:
+        personal = settings.personal_address()
+        if personal:
+            recips.append(personal)
     return parse_addresses("\n".join(recips))
 
 
@@ -117,7 +129,7 @@ def build_invite_calendar(shift, invite, *, method, status):
         "start": shift.start_time.strftime("%H:%M"),
         "end": shift.end_time.strftime("%H:%M"),
     }
-    title = config.title_for(shift_type, context) if config else shift.workplace.name
+    title = config.title_for(shift_type, context, settings) if config else shift.workplace.name
     location = config.location_for(shift_type, settings) if config else shift.workplace.name
 
     hours = shift.net_hours

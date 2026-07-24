@@ -8,8 +8,8 @@ from django.test import TestCase, override_settings
 
 from calendar_sync.models import (
     CalendarInviteSettings,
+    ContractCalendarConfig,
     ShiftInvite,
-    WorkplaceCalendarConfig,
 )
 from core.models import EmailSettings
 from shifts.models import PlannedShift
@@ -30,7 +30,7 @@ class SendInvitesEndpointTests(TestCase):
         es.enabled, es.host, es.from_email = True, "smtp.zink.nu", "robot@zink.nu"
         es.save()
         s = CalendarInviteSettings.load()
-        s.enabled, s.owner_address = True, "me@home.example"
+        s.enabled, s.send_to_personal, s.owner_address = True, True, "me@home.example"
         s.save()
 
         self.wp = Workplace.objects.create(name="JKF", slug="jkf")
@@ -39,8 +39,8 @@ class SendInvitesEndpointTests(TestCase):
             contract=contract, effective_from=date(2026, 1, 1),
             employment_type=ContractTermSet.EmploymentType.HOURLY, hourly_rate=Decimal("200"),
         )
-        WorkplaceCalendarConfig.objects.create(
-            workplace=self.wp, send_invites=True, recipients="boss@work.example",
+        ContractCalendarConfig.objects.create(
+            contract=contract, send_invites=True, recipient="boss@work.example",
         )
 
     def _planned(self, day=15):
@@ -74,9 +74,10 @@ class SendInvitesEndpointTests(TestCase):
         self.assertEqual(resp2.json()["activated"], 0)
         self.assertEqual(len(mail.outbox), 1)
 
-    def test_disabled_workplace_activates_nothing(self):
-        self.wp.calendar_config.send_invites = False
-        self.wp.calendar_config.save()
+    def test_disabled_contract_activates_nothing(self):
+        cfg = self.wp.contracts.first().calendar_config
+        cfg.send_invites = False
+        cfg.save()
         self._planned()
         resp = self._post()
         self.assertEqual(resp.json()["activated"], 0)

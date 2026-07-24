@@ -95,7 +95,8 @@ class SendInvitesView(View):
             PlannedShift.objects.filter(
                 status=PlannedShift.Status.PLANNED, date__gte=start, date__lte=end,
             )
-            .select_related("workplace", "workplace__calendar_config")
+            .select_related("workplace")
+            .prefetch_related("workplace__contracts__calendar_config")
         )
 
         activated = 0
@@ -128,22 +129,30 @@ def calendar_settings_context(*, sub_form=None, invite_form=None, open_modal="",
     from .forms import (
         CalendarInviteSettingsForm,
         CalendarSubscriptionForm,
-        WorkplaceCalendarConfigForm,
     )
     from .models import CalendarInviteSettings, CalendarSubscription
 
     invite_settings = CalendarInviteSettings.load()
     subscriptions = list(CalendarSubscription.objects.all())
-    workplace_rows = [
-        {
-            "workplace": wp,
-            "config": getattr(wp, "calendar_config", None),
-            "form": WorkplaceCalendarConfigForm(
-                instance=getattr(wp, "calendar_config", None)
-            ),
-        }
-        for wp in Workplace.objects.all().order_by("name")
-    ]
+
+    # Read-only overview grouped workplace → contract (item 9). Editing lives on
+    # the contract page, so each contract row links there rather than embedding a
+    # form here.
+    workplaces = (
+        Workplace.objects.all().order_by("name")
+        .prefetch_related("contracts__calendar_config", "contracts__term_sets")
+    )
+    workplace_rows = []
+    for wp in workplaces:
+        contracts = []
+        for contract in wp.contracts.all():
+            config = getattr(contract, "calendar_config", None)
+            contracts.append({
+                "contract": contract,
+                "config": config,
+                "recipient": config.resolved_recipient(invite_settings) if config else "",
+            })
+        workplace_rows.append({"workplace": wp, "contracts": contracts})
     return {
         "cal_subscriptions": subscriptions,
         "cal_sub_form": sub_form or CalendarSubscriptionForm(),
@@ -277,26 +286,6 @@ class CalendarInviteSettingsSaveView(View):
         return _render_calendar(request, invite_form=form)
 
 
-class WorkplaceInviteConfigSaveView(View):
-    """Save one workplace's invite configuration (Direction 2)."""
-
-    def post(self, request):
-        from workplaces.models import Workplace
-
-        from .forms import WorkplaceCalendarConfigForm
-        from .models import WorkplaceCalendarConfig
-
-        wp = get_object_or_404(Workplace, pk=request.POST.get("workplace_id"))
-        config, _ = WorkplaceCalendarConfig.objects.get_or_create(workplace=wp)
-        form = WorkplaceCalendarConfigForm(request.POST, instance=config)
-        if form.is_valid():
-            form.save()
-            messages.success(request, f"Saved invite settings for {wp.name}.")
-            return _calendar_redirect()
-        messages.error(request, f"Please fix the settings for {wp.name}.")
-        return _render_calendar(request, open_modal=f"wp-{wp.pk}")
-
-
 class InviteTestView(View):
     """Send a one-off test invite to the owner address (the "invite myself" button)."""
 
@@ -306,7 +295,7 @@ class InviteTestView(View):
 
         to_address = (
             request.POST.get("to")
-            or CalendarInviteSettings.load().owner_address
+            or CalendarInviteSettings.load().personal_address()
         )
         if not to_address:
             messages.error(request, "Set an address to invite first.")

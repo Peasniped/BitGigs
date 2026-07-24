@@ -1221,6 +1221,35 @@ body[data-mask-money] .money-chart {
   border: 1px solid color-mix(in srgb, var(--wp-accent) 28%, transparent);
 }
 
+/* ---- On/off switches & checkboxes ----
+   Follow the app accent (not Bootstrap's blue) everywhere; per-workplace accent
+   forms override this via .accent-form above. */
+.form-check-input:checked {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+.form-check-input:focus {
+  border-color: color-mix(in srgb, var(--primary) 55%, transparent);
+  box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--primary) 20%, transparent);
+}
+.form-switch .form-check-input,
+.form-switch .form-check-label { cursor: pointer; }
+
+/* Inline reveal field beside an override toggle (contract editor + Calendar
+   settings): a soft accent-tinted pill so it reads as the override's value. */
+.cal-inline .form-control {
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 25%, var(--border));
+}
+
+/* Highlighted master-arm box around "Send calendar invites". */
+.cal-master-arm {
+  padding: .75rem 1rem;
+  border-radius: .6rem;
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+}
+
 /* ---- Badges ---- */
 .badge { font-weight: 500; }
 /* Soft neutral chip (replaces Bootstrap's bg-light/text-bg-light badges, which

@@ -110,8 +110,8 @@ class PlanningCalendarView(View):
     def get(self, request):
         from payroll.services import PayrollPeriodService
         from calendar_sync.models import (
-            CalendarInviteSettings, CalendarSubscription, ShiftInvite,
-            WorkplaceCalendarConfig,
+            CalendarInviteSettings, CalendarSubscription, ContractCalendarConfig,
+            ShiftInvite,
         )
         from calendar_sync import services as calendar_sync_services
         from core.models import EmailSettings
@@ -140,7 +140,7 @@ class PlanningCalendarView(View):
         can_send_invites = (
             CalendarInviteSettings.load().enabled
             and EmailSettings.load().is_configured
-            and WorkplaceCalendarConfig.objects.filter(send_invites=True).exists()
+            and ContractCalendarConfig.objects.filter(send_invites=True).exists()
         )
 
         # Navigation

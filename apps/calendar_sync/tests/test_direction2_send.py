@@ -10,8 +10,8 @@ from django.test import TestCase, override_settings
 from calendar_sync import invites
 from calendar_sync.models import (
     CalendarInviteSettings,
+    ContractCalendarConfig,
     ShiftInvite,
-    WorkplaceCalendarConfig,
 )
 from core.models import EmailLog, EmailSettings
 from shifts.models import Shift
@@ -31,22 +31,28 @@ def _configure_mail():
 def _configure_invites(owner="me@home.example"):
     s = CalendarInviteSettings.load()
     s.enabled = True
+    s.send_to_personal = True
     s.owner_address = owner
     s.save()
     return s
 
 
-def _workplace_with_config(send_invites=True, recipients="boss@work.example"):
+def _workplace_with_config(send_invites=True, recipient="boss@work.example"):
     wp = Workplace.objects.create(name="JKF", slug="jkf")
     contract = WorkplaceContract.objects.create(workplace=wp)
     ContractTermSet.objects.create(
         contract=contract, effective_from=date(2026, 1, 1),
         employment_type=ContractTermSet.EmploymentType.HOURLY, hourly_rate=Decimal("200"),
     )
-    WorkplaceCalendarConfig.objects.create(
-        workplace=wp, send_invites=send_invites, recipients=recipients,
+    ContractCalendarConfig.objects.create(
+        contract=contract, send_invites=send_invites, recipient=recipient,
     )
     return wp
+
+
+def _cfg(wp):
+    """The invite config on the workplace's (single) contract."""
+    return wp.contracts.first().calendar_config
 
 
 def _shift(wp, shift_type="on_site"):
@@ -69,9 +75,8 @@ class EligibilityTests(TestCase):
         s = CalendarInviteSettings.load(); s.enabled = False; s.save()
         self.assertFalse(invites.eligible(_shift(self.wp)))
 
-    def test_blocked_by_workplace_switch(self):
-        self.wp.calendar_config.send_invites = False
-        self.wp.calendar_config.save()
+    def test_blocked_by_contract_switch(self):
+        cfg = _cfg(self.wp); cfg.send_invites = False; cfg.save()
         self.assertFalse(invites.eligible(_shift(self.wp)))
 
     def test_blocked_for_non_inviteable_type(self):
@@ -86,12 +91,21 @@ class EligibilityTests(TestCase):
         # owner duplicates the work address → one entry
         self.assertEqual(invites.recipients_for(_shift(self.wp)), ["boss@work.example"])
 
+    def test_no_work_recipient_and_personal_off_invites_nobody(self):
+        cfg = _cfg(self.wp)
+        cfg.recipient = ""
+        cfg.save()
+        s = CalendarInviteSettings.load()
+        s.send_to_personal = False
+        s.save()
+        self.assertEqual(invites.recipients_for(_shift(self.wp)), [])
+
 
 class BuildInviteTests(TestCase):
     def setUp(self):
         _configure_mail()
         _configure_invites(owner="me@home.example")
-        self.wp = _workplace_with_config(recipients="boss@work.example")
+        self.wp = _workplace_with_config(recipient="boss@work.example")
 
     def _ics(self, shift_type="on_site", method="REQUEST", status="CONFIRMED", seq=0):
         shift = _shift(self.wp, shift_type)
@@ -137,7 +151,7 @@ class ActivateSendTests(TestCase):
         mail.outbox = []
         _configure_mail()
         _configure_invites(owner="me@home.example")
-        self.wp = _workplace_with_config(recipients="boss@work.example")
+        self.wp = _workplace_with_config(recipient="boss@work.example")
 
     def test_activate_sends_message_with_ics(self):
         shift = _shift(self.wp)
@@ -158,8 +172,7 @@ class ActivateSendTests(TestCase):
         self.assertTrue(any(name == "invite.ics" for name, _, _ in msg.attachments))
 
     def test_ineligible_shift_sends_nothing(self):
-        self.wp.calendar_config.send_invites = False
-        self.wp.calendar_config.save()
+        cfg = _cfg(self.wp); cfg.send_invites = False; cfg.save()
         self.assertIsNone(invites.activate(_shift(self.wp)))
         self.assertEqual(len(mail.outbox), 0)
 

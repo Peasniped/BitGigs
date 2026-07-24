@@ -391,6 +391,25 @@ class WorkplaceCustomizeView(View):
 # WorkplaceContract CRUD
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _contract_calendar_form(contract, data=None):
+    """The per-contract invite config form, bound to the contract's config row
+    (an unsaved one when none exists yet, so viewing doesn't create rows)."""
+    from calendar_sync.forms import ContractCalendarConfigForm
+    from calendar_sync.models import ContractCalendarConfig
+
+    config = getattr(contract, "calendar_config", None) if contract.pk else None
+    if config is None:
+        config = ContractCalendarConfig(contract=contract if contract.pk else None)
+    return ContractCalendarConfigForm(data, instance=config)
+
+
+def _save_contract_calendar(contract, cal_form):
+    """Persist the invite config for *contract* from a validated config form."""
+    config = cal_form.save(commit=False)
+    config.contract = contract
+    config.save()
+
+
 class ContractCreateView(View):
     """Create a new contract for a workplace, then redirect to add the first termset."""
 
@@ -398,53 +417,58 @@ class ContractCreateView(View):
         workplace = get_object_or_404(Workplace, slug=slug)
         form = WorkplaceContractForm(workplace=workplace)
         return render(request, "workplaces/contract_form.html", {
-            "form": form, "workplace": workplace,
+            "form": form, "cal_form": _contract_calendar_form(WorkplaceContract()),
+            "workplace": workplace,
             "is_first": not workplace.contracts.exists(),
         })
 
     def post(self, request, slug):
         workplace = get_object_or_404(Workplace, slug=slug)
         form = WorkplaceContractForm(request.POST, workplace=workplace)
-        if form.is_valid():
+        cal_form = _contract_calendar_form(WorkplaceContract(), request.POST)
+        if form.is_valid() and cal_form.is_valid():
             contract = form.save(commit=False)
             contract.workplace = workplace
             contract.save()
+            _save_contract_calendar(contract, cal_form)
             return redirect(f"/workplaces/{slug}/contracts/{contract.pk}/terms/add/")
         return render(request, "workplaces/contract_form.html", {
-            "form": form, "workplace": workplace,
+            "form": form, "cal_form": cal_form, "workplace": workplace,
+            "is_first": not workplace.contracts.exists(),
         })
 
 
 class ContractUpdateView(View):
-    """Edit a contract's label. Its active dates come from its term sets."""
+    """Edit a contract's label and its calendar-invite config. Its active dates
+    come from its term sets."""
 
     def get(self, request, slug, cpk):
         workplace = get_object_or_404(Workplace, slug=slug)
         contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
         form = WorkplaceContractForm(instance=contract, workplace=workplace)
         return render(request, "workplaces/contract_form.html", {
-            "form": form, "workplace": workplace, "contract": contract,
+            "form": form, "cal_form": _contract_calendar_form(contract),
+            "workplace": workplace, "contract": contract,
         })
 
     def post(self, request, slug, cpk):
         workplace = get_object_or_404(Workplace, slug=slug)
         contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
         form = WorkplaceContractForm(request.POST, instance=contract, workplace=workplace)
-        if form.is_valid():
+        cal_form = _contract_calendar_form(contract, request.POST)
+        ctx = {"form": form, "cal_form": cal_form, "workplace": workplace, "contract": contract}
+        if form.is_valid() and cal_form.is_valid():
             updated = form.save(commit=False)
             try:
                 updated.full_clean()
             except ValidationError as e:
                 for msg in e.messages:
                     form.add_error(None, msg)
-                return render(request, "workplaces/contract_form.html", {
-                    "form": form, "workplace": workplace, "contract": contract,
-                })
+                return render(request, "workplaces/contract_form.html", ctx)
             updated.save()
+            _save_contract_calendar(updated, cal_form)
             return redirect("workplaces:workplace-detail", slug=slug)
-        return render(request, "workplaces/contract_form.html", {
-            "form": form, "workplace": workplace, "contract": contract,
-        })
+        return render(request, "workplaces/contract_form.html", ctx)
 
 
 class ContractDeleteView(View):

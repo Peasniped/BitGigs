@@ -543,13 +543,13 @@ OIDC_CLIENT_SECRET=</code></pre>
             the colour pickers can sit where they belong: everyday toggles
             first, then the theme/colour section.
           {% endcomment %}
-          {{ form.show_shift_type_colors|as_crispy_field }}
-          {{ form.show_help_button|as_crispy_field }}
+          {% include "_switch_field.html" with field=form.show_shift_type_colors %}
+          {% include "_switch_field.html" with field=form.show_help_button %}
           {% comment %}Mask money: a demo/screenshot switch that hides every
           amount app-wide behind a fixed-length run of dots. The live example
           preview reveals only while the switch is on (money_mask.js on this page).{% endcomment %}
           <div data-mask-money-setting>
-            {{ form.mask_money|as_crispy_field }}
+            {% include "_switch_field.html" with field=form.mask_money %}
             <div class="ms-4 mb-3{% if not form.mask_money.value %} d-none{% endif %}" data-mask-style-wrap>
               <p class="form-text mt-0 mb-1">Preview (a real amount stays hidden like this):</p>
               <div class="p-2 rounded" style="background:var(--surface-2, var(--surface));display:inline-block;">
@@ -639,7 +639,10 @@ OIDC_CLIENT_SECRET=</code></pre>
           {{ form.accent_color }}
           {{ form.secondary_color }}
           {% else %}
-          {{ form|crispy }}
+          {# Analytics tab: the boolean renders as an on/off switch too. #}
+          {{ form.projection_method|as_crispy_field }}
+          {{ form.projection_trailing_months|as_crispy_field }}
+          {% include "_switch_field.html" with field=form.use_planned_shifts %}
           {% endif %}
           <div class="d-flex gap-2 mt-3">
             <button type="submit" class="btn btn-primary">

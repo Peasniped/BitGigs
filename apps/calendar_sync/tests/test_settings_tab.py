@@ -12,7 +12,7 @@ from django.utils import timezone
 from calendar_sync.models import (
     CalendarInviteSettings,
     CalendarSubscription,
-    WorkplaceCalendarConfig,
+    ContractCalendarConfig,
 )
 from calendar_sync.services import build_calendar, build_event
 from core.models import EmailSettings
@@ -107,18 +107,41 @@ class InviteConfigTests(CalendarTabBase):
         self.assertEqual(resp.status_code, 200)  # errors shown, no redirect
         self.assertFalse(CalendarInviteSettings.load().enabled)
 
-    def test_save_workplace_config_creates_row(self):
+    def test_contract_page_saves_calendar_config(self):
+        # Per-contract config now lives on the contract edit page.
         wp = Workplace.objects.create(name="JKF", slug="jkf")
-        resp = self.client.post("/calendar-sync/invites/workplace/", {
-            "workplace_id": wp.pk, "send_invites": "on",
-            "recipients": "boss@work.example",
-            "title_onsite": "", "title_remote": "",  # blank → defaults
-            "address_onsite": "", "address_remote": "",
-        })
+        contract = WorkplaceContract.objects.create(workplace=wp)
+        resp = self.client.post(
+            f"/workplaces/{wp.slug}/contracts/{contract.pk}/edit/",
+            {
+                "name": "", "send_invites": "on",
+                "recipient": "boss@work.example", "address_onsite": "Main St 1",
+            },
+        )
         self.assertEqual(resp.status_code, 302)
-        cfg = WorkplaceCalendarConfig.objects.get(workplace=wp)
+        cfg = ContractCalendarConfig.objects.get(contract=contract)
         self.assertTrue(cfg.send_invites)
-        self.assertEqual(cfg.title_onsite, WorkplaceCalendarConfig.TITLE_ONSITE_DEFAULT)
+        self.assertEqual(cfg.recipient, "boss@work.example")
+        self.assertEqual(cfg.address_onsite, "Main St 1")
+
+    def test_contract_page_requires_recipient_when_invites_on(self):
+        wp = Workplace.objects.create(name="JKF", slug="jkf")
+        contract = WorkplaceContract.objects.create(workplace=wp)
+        resp = self.client.post(
+            f"/workplaces/{wp.slug}/contracts/{contract.pk}/edit/",
+            {"name": "", "send_invites": "on"},  # no recipient / on-site location
+        )
+        self.assertEqual(resp.status_code, 200)  # re-render with errors, no redirect
+        self.assertFalse(ContractCalendarConfig.objects.filter(contract=contract).exists())
+
+    def test_calendar_overview_lists_contracts_readonly(self):
+        wp = Workplace.objects.create(name="JKF", slug="jkf")
+        WorkplaceContract.objects.create(workplace=wp, name="Weekday")
+        resp = self.client.get("/settings/?tab=calendar")
+        self.assertContains(resp, "Per contract")
+        self.assertContains(resp, "Weekday")
+        # Edit links point at the contract page, not an inline form.
+        self.assertContains(resp, f"/workplaces/{wp.slug}/contracts/")
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")

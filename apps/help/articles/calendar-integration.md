@@ -64,16 +64,24 @@ This uses your **Email** connection, so set that up first — the Calendar tab
 warns you and links across if it isn't ready. Then, under **Invites you send**:
 
 1. Turn on **Send calendar invites** (the master switch).
-2. Set **Invite my own calendar** to the address where you want every shift to
-   land. This can differ from your sign-in email.
-3. Optionally set a **default remote location** for work-from-home shifts.
+2. Keep **Send invites to personal calendar** on to also drop every shift in your
+   own calendar. It uses your account email unless you set a different
+   **personal calendar address**.
+3. Set the operator-level **defaults** every contract inherits — the on-site /
+   remote event **titles** (placeholders `{workplace}`, `{date}`, `{start}`,
+   `{end}` are filled in) and a **default remote location** for work-from-home
+   shifts.
 4. Press **Send myself a test invite** to prove the whole path works end to end.
 
-Then, **per workplace**, turn invites on and choose who to invite (the work
-email address that should see the event). You can template the event **title**
-per shift type — placeholders `{workplace}`, `{date}`, `{start}` and `{end}` are
-filled in — and set on-site / remote **locations**. Only **on-site** and
-**remote** shifts generate invites; sick leave, vacation and paid absence don't.
+Invites are then configured **per contract**, where you set up the job: open a
+contract (Workplaces → a workplace → **Edit** a contract, or the **Edit** button
+on the Calendar tab's per-contract overview) and, under **Calendar invites**,
+turn on **Send calendar invites for this contract**. That reveals the fields: a
+**work e-mail address** and an **on-site location** (both required), then three
+**override** toggles for the on-site title, remote title and remote location —
+each shows an input inline only when you turn it on, otherwise it uses your
+global default. Only **on-site** and **remote** shifts generate invites; sick
+leave, vacation and paid absence don't.
 
 ### Activating and keeping them current
 

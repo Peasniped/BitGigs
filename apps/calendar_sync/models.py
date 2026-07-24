@@ -114,27 +114,53 @@ class CalendarSubscription(models.Model):
 # Direction 2 — outgoing invites
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Default event titles, shared by the global settings (operator-level defaults)
+# and each contract's optional override. {workplace}, {date}, {start}, {end}
+# are substituted per shift.
+TITLE_ONSITE_DEFAULT = "På arbejde hos {workplace}"
+TITLE_REMOTE_DEFAULT = "Arbejder hjemme, {workplace}"
+
+
 class CalendarInviteSettings(models.Model):
     """Singleton global config for outgoing calendar invites (Direction 2).
 
-    Invites ride the **existing** SMTP channel (Settings → Email); this row only
-    holds the calendar-specific choices. Off unless the operator turns it on, and
-    even then a workplace sends nothing until its own ``send_invites`` is set.
+    Holds the master arm plus the operator-level **defaults** every contract
+    inherits unless it overrides them (see :class:`ContractCalendarConfig`).
+    Invites ride the **existing** SMTP channel (Settings → Email); off unless the
+    operator turns it on, and even then a contract sends nothing until its own
+    ``send_invites`` is set.
     """
 
     enabled = models.BooleanField(
         default=False,
         help_text="Master switch for sending calendar invites. While off, no "
-                  "invites are sent regardless of per-workplace settings.",
+                  "invites are sent regardless of per-contract settings.",
+    )
+    send_to_personal = models.BooleanField(
+        default=True,
+        help_text="Also add your own address to every invite, so each shift lands "
+                  "in your personal calendar too.",
     )
     owner_address = models.EmailField(
         blank=True,
-        help_text="Your own address, added to every invite so each shift also "
-                  "lands in your personal calendar. May differ from your login email.",
+        help_text="Your own address for that personal-calendar copy. Leave blank "
+                  "to use your account email.",
+    )
+
+    # ── operator-level defaults every contract inherits unless it overrides ──
+    default_title_onsite = models.CharField(
+        max_length=200, default=TITLE_ONSITE_DEFAULT,
+        help_text="Default event title for on-site shifts. {workplace}, {date}, "
+                  "{start}, {end} are substituted.",
+    )
+    default_title_remote = models.CharField(
+        max_length=200, default=TITLE_REMOTE_DEFAULT,
+        help_text="Default event title for remote shifts. Same placeholders as "
+                  "on-site.",
     )
     default_remote_address = models.CharField(
         max_length=255, blank=True,
-        help_text="Default location for remote shifts when a workplace sets none.",
+        help_text="Default location for remote shifts when a contract sets none.",
     )
 
     last_test_at = models.DateTimeField(null=True, blank=True)
@@ -159,65 +185,108 @@ class CalendarInviteSettings(models.Model):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
 
+    def personal_address(self):
+        """Address for the personal-calendar copy: the explicit ``owner_address``,
+        else the single owner account's email (the account login *is* the email)."""
+        if self.owner_address:
+            return self.owner_address
+        from django.contrib.auth.models import User
 
-class WorkplaceCalendarConfig(models.Model):
-    """Per-workplace invite configuration (Direction 2).
+        owner = (
+            User.objects.filter(is_superuser=True).order_by("pk").first()
+            or User.objects.order_by("pk").first()
+        )
+        if not owner:
+            return ""
+        return owner.email or owner.username
 
-    A workplace with ``send_invites`` on and at least one recipient (or the global
-    owner address) emits a calendar invite per on-site/remote shift once activated
-    from the planning page. Title and location are templated by shift type.
+
+class ContractCalendarConfig(models.Model):
+    """Per-contract invite configuration (Direction 2).
+
+    A contract with ``send_invites`` on emits a calendar invite per on-site /
+    remote shift once activated from the planning page. Every field except
+    ``address_onsite`` (the item-6 exception) has an operator-level default on
+    :class:`CalendarInviteSettings`; an ``override_*`` flag decides whether this
+    contract uses its own value or inherits that default — see the ``resolved_*``
+    helpers.
     """
 
-    TITLE_ONSITE_DEFAULT = "På arbejde hos {workplace}"
-    TITLE_REMOTE_DEFAULT = "Arbejder hjemme, {workplace}"
-
-    workplace = models.OneToOneField(
-        "workplaces.Workplace",
+    contract = models.OneToOneField(
+        "workplaces.WorkplaceContract",
         on_delete=models.CASCADE,
         related_name="calendar_config",
     )
     send_invites = models.BooleanField(
         default=False,
-        help_text="Send calendar invites for this workplace's shifts.",
+        help_text="Send calendar invites for this contract's shifts.",
     )
-    recipients = models.TextField(
+
+    # Recipient (single work address) — required by the form when invites are on.
+    recipient = models.EmailField(
         blank=True,
-        help_text="Work email(s) to invite, one per line or comma-separated.",
+        help_text="Work address to invite for this contract.",
     )
-    title_onsite = models.CharField(
-        max_length=200, default=TITLE_ONSITE_DEFAULT,
-        help_text="Event title for on-site shifts. {workplace}, {date}, "
-                  "{start}, {end} are substituted.",
-    )
-    title_remote = models.CharField(
-        max_length=200, default=TITLE_REMOTE_DEFAULT,
-        help_text="Event title for remote shifts. Same placeholders as on-site.",
-    )
+
+    # Titles — inherit the global defaults unless overridden.
+    override_title_onsite = models.BooleanField(default=False)
+    title_onsite = models.CharField(max_length=200, blank=True)
+    override_title_remote = models.BooleanField(default=False)
+    title_remote = models.CharField(max_length=200, blank=True)
+
+    # Remote location — inherits default_remote_address unless overridden.
+    override_address_remote = models.BooleanField(default=False)
+    address_remote = models.CharField(max_length=255, blank=True)
+
+    # On-site location has no global default — always per contract, falling back
+    # to the workplace name.
     address_onsite = models.CharField(
         max_length=255, blank=True,
         help_text="Location for on-site shifts. Defaults to the workplace name.",
-    )
-    address_remote = models.CharField(
-        max_length=255, blank=True,
-        help_text="Location for remote shifts. Falls back to the global default "
-                  "remote address.",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self):
-        return f"Invite config for {self.workplace.name}"
-
-    def recipient_list(self):
-        return parse_addresses(self.recipients)
-
     # Only on-site / remote shifts generate invites — inviting colleagues to
     # sick leave or vacation makes no sense.
     INVITEABLE_TYPES = ("on_site", "remote")
 
-    def title_for(self, shift_type, context):
-        template = self.title_remote if shift_type == "remote" else self.title_onsite
+    def __str__(self):
+        return f"Invite config for {self.contract}"
+
+    @property
+    def workplace(self):
+        return self.contract.workplace
+
+    # ── inheritance-aware resolution ─────────────────────────────────────────
+    def _settings(self, invite_settings=None):
+        return invite_settings if invite_settings is not None else CalendarInviteSettings.load()
+
+    def resolved_recipient(self, invite_settings=None):
+        # A plain per-contract field (no global default); the form requires it
+        # whenever invites are on for the contract.
+        return self.recipient
+
+    def resolved_title_onsite(self, invite_settings=None):
+        if self.override_title_onsite and self.title_onsite:
+            return self.title_onsite
+        return self._settings(invite_settings).default_title_onsite or TITLE_ONSITE_DEFAULT
+
+    def resolved_title_remote(self, invite_settings=None):
+        if self.override_title_remote and self.title_remote:
+            return self.title_remote
+        return self._settings(invite_settings).default_title_remote or TITLE_REMOTE_DEFAULT
+
+    def recipient_list(self, invite_settings=None):
+        recip = self.resolved_recipient(invite_settings)
+        return [recip] if recip else []
+
+    def title_for(self, shift_type, context, invite_settings=None):
+        template = (
+            self.resolved_title_remote(invite_settings) if shift_type == "remote"
+            else self.resolved_title_onsite(invite_settings)
+        )
         try:
             return template.format(**context)
         except (KeyError, IndexError, ValueError):
@@ -225,10 +294,11 @@ class WorkplaceCalendarConfig(models.Model):
             return template
 
     def location_for(self, shift_type, invite_settings=None):
+        settings = self._settings(invite_settings)
         if shift_type == "remote":
-            if self.address_remote:
+            if self.override_address_remote and self.address_remote:
                 return self.address_remote
-            return invite_settings.default_remote_address if invite_settings else ""
+            return settings.default_remote_address
         return self.address_onsite or self.workplace.name
 
 
