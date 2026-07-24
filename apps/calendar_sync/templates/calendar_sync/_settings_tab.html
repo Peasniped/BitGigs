@@ -51,7 +51,8 @@
               {% if sub.last_fetch_ok %}
                 <span class="badge text-bg-success">OK</span>
               {% elif sub.last_fetch_ok is False %}
-                <span class="badge text-bg-danger" title="{{ sub.last_error }}">Error</span>
+                <button type="button" class="badge text-bg-danger border-0" data-cal-error="{{ sub.last_error }}"
+                        title="Show what went wrong">Error <i class="bi bi-info-circle ms-1"></i></button>
               {% else %}
                 <span class="badge-soft">Not checked yet</span>
               {% endif %}
@@ -168,6 +169,26 @@
     {% else %}
     <p class="form-text mb-0">Add a workplace first, then configure its invites here.</p>
     {% endif %}
+  </div>
+</div>
+
+{# ── Subscription fetch-error modal (clickable "Error" chip) ─────────────── #}
+<div class="modal fade" id="calSubErrorModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content app-modal">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>Couldn't read this calendar</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="form-text mt-0">The last fetch failed with:</p>
+        <pre id="calSubErrorText" class="mb-0 small p-2 rounded"
+             style="white-space:pre-wrap;word-break:break-word;background:var(--surface-2, var(--surface));"></pre>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -296,6 +317,21 @@
   {% endif %}
 })();
 
+// Clickable "Error" chip → show the full fetch error in a modal. Delegated on
+// document so it also catches chips the on-load auto-check adds dynamically.
+(function () {
+  var errModal = document.getElementById('calSubErrorModal');
+  var errText = document.getElementById('calSubErrorText');
+  if (!errModal || !errText || !window.bootstrap) return;
+  var bsModal = new bootstrap.Modal(errModal);
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-cal-error]');
+    if (!btn) return;
+    errText.textContent = btn.getAttribute('data-cal-error') || 'No details were reported.';
+    bsModal.show();
+  });
+})();
+
 // Auto-check never-fetched calendars shortly after the tab loads, so a just-
 // added one shows OK/Error on its own. Only data-checked="0" rows are touched —
 // already-known calendars aren't re-fetched on every settings visit (that would
@@ -315,6 +351,18 @@
     el.className = 'badge ' + cls;
     el.textContent = text;
     if (title) el.title = title;
+    return el;
+  }
+
+  // A clickable Error chip (mirrors the server-rendered one): opens the shared
+  // error modal via the delegated [data-cal-error] handler above.
+  function errorBadge(error) {
+    var el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'badge text-bg-danger border-0';
+    el.setAttribute('data-cal-error', error || '');
+    el.title = 'Show what went wrong';
+    el.innerHTML = 'Error <i class="bi bi-info-circle ms-1"></i>';
     return el;
   }
 
@@ -342,7 +390,7 @@
           statusCell.textContent = '';
           statusCell.appendChild(d.ok
             ? badge('text-bg-success', 'OK', d.count + ' event(s) in the next month')
-            : badge('text-bg-danger', 'Error', d.error || ''));
+            : errorBadge(d.error || ''));
         }
         if (checkedCell && d.last_checked) checkedCell.textContent = d.last_checked;
         row.dataset.checked = '1';

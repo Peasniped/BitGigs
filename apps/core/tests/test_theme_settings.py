@@ -101,7 +101,6 @@ class SettingsFormTest(LoggedInTestCase):
         "tab": "display", "theme": "dark", "accent_color": "#EC4899",
         "secondary_color": "#9FD6FB",
         "week_start": "0", "show_shift_type_colors": "on", "show_help_button": "on",
-        "money_mask_style": "dots",
     }
 
     def test_display_tab_saves_theme_and_accent(self):

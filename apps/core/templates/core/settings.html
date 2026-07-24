@@ -546,12 +546,11 @@ OIDC_CLIENT_SECRET=</code></pre>
           {{ form.show_shift_type_colors|as_crispy_field }}
           {{ form.show_help_button|as_crispy_field }}
           {% comment %}Mask money: a demo/screenshot switch that hides every
-          amount app-wide. The style select + live example preview live below it
-          and reveal only while the switch is on (money_mask.js on this page).{% endcomment %}
+          amount app-wide behind a fixed-length run of dots. The live example
+          preview reveals only while the switch is on (money_mask.js on this page).{% endcomment %}
           <div data-mask-money-setting>
             {{ form.mask_money|as_crispy_field }}
             <div class="ms-4 mb-3{% if not form.mask_money.value %} d-none{% endif %}" data-mask-style-wrap>
-              {{ form.money_mask_style|as_crispy_field }}
               <p class="form-text mt-0 mb-1">Preview (a real amount stays hidden like this):</p>
               <div class="p-2 rounded" style="background:var(--surface-2, var(--surface));display:inline-block;">
                 <span class="money">1.234.567</span> <small class="text-body-secondary">DKK</small>

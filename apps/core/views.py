@@ -226,6 +226,8 @@ class UserSettingsView(View):
                       self._context(request, form, next_url, tab))
 
     def post(self, request):
+        from django.contrib import messages
+
         settings = UserSettings.load()
         # The tab is what scopes the form, so trust the POST's own marker — a
         # tab's Save must only ever write that tab's fields.
@@ -234,6 +236,8 @@ class UserSettingsView(View):
         next_url = _safe_next(request, request.POST.get("next"))
         if form.is_valid():
             form.save()
+            label = {"display": "Display", "analytics": "Analytics"}.get(tab, "Settings")
+            messages.success(request, f"{label} settings saved.")
             return redirect(next_url or f"{reverse('core:settings')}?tab={tab}")
         return render(request, "core/settings.html",
                       self._context(request, form, next_url, tab))

@@ -57,6 +57,11 @@ class CalendarInviteSettingsForm(forms.ModelForm):
             "owner_address": "Invite my own calendar",
             "default_remote_address": "Default remote location",
         }
+        help_texts = {
+            "default_remote_address": "Used for remote shifts when a workplace sets "
+                                      "no location of its own — an address or a named "
+                                      "place (e.g. “Home” or a street address).",
+        }
 
 
 class WorkplaceCalendarConfigForm(forms.ModelForm):

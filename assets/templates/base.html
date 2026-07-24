@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="{% static 'css/help.css' %}">
   {% block extra_css %}{% endblock %}
 </head>
-<body{% if mask_money %} data-mask-money="{{ money_mask_style }}"{% endif %}>
+<body{% if mask_money %} data-mask-money="on"{% endif %}>
   {% comment %}
     First onboarding step (account creation): no navbar at all.
     Later onboarding steps: navbar with a centered logo only, no links.

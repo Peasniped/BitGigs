@@ -2,38 +2,29 @@
  *
  * Every money amount in the app carries the `.money` class (the `money`/
  * `money_wrap` template filters, or the class placed directly on a JS-updated
- * stat span). When <body data-mask-money="<style>"> is set, this replaces each
- * `.money` element's text with a run of glyphs:
- *
- *   - the per-glyph styles (dots/asterisk/flower/reference) keep the length —
- *     one glyph per character — so the shape/magnitude is still hintable;
- *   - "hidden" uses a fixed run, so the number of digits (and thus the
- *     magnitude) can't be read off at all.
+ * stat span). When <body data-mask-money> is set, this replaces each `.money`
+ * element's text with a *fixed-length* run of dots — so neither the value nor
+ * the number of digits (and thus the magnitude) can be read off.
  *
  * The original text is stashed in data-money-real and restored when masking
  * turns off, so nothing is lost, and values updated live by other scripts (e.g.
  * the dashboard stat cards) re-mask automatically via a MutationObserver.
  *
- * "blur" is handled purely in CSS (style.css), so this module leaves that value
- * — and the empty/off state — alone. It requires `.money` to sit on a *leaf*
- * element (text only, no child tags), since it rewrites textContent.
+ * It requires `.money` to sit on a *leaf* element (text only, no child tags),
+ * since it rewrites textContent.
  */
 (function () {
   'use strict';
 
-  var GLYPHS = { dots: '•', asterisk: '⁎', flower: '⁕', reference: '※', hash: '#' };
-  var HIDDEN_RUN = '•••••';  // fixed length → hides digit count
+  var MASK_RUN = '•••••';  // fixed length → hides both value and digit count
 
   function styleNow() {
     return document.body.getAttribute('data-mask-money') || '';
   }
-  // Everything except "blur"/"" is a JS glyph mask; blur is done in CSS.
-  function jsMasking(style) { return !!style && style !== 'blur'; }
+  function jsMasking(style) { return !!style; }
 
   function maskString(text, style) {
-    if (style === 'hidden') return HIDDEN_RUN;
-    var g = GLYPHS[style] || GLYPHS.dots;
-    return text.replace(/\S/g, g);  // every non-space char → the glyph
+    return MASK_RUN;
   }
 
   var subtreeObserver = null;

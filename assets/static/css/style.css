@@ -919,17 +919,13 @@ a.navbar-brand:hover span { color: var(--primary); }
    Every money amount carries .money (the `money`/`money_wrap` template filters,
    or the class on a JS-updated stat span — always on a *leaf* element, since the
    masker replaces its textContent). While masking is on, [data-mask-money] on
-   <body> obscures them: the character styles (dots/asterisk/flower/reference/
-   hidden) are applied by money_mask.js, which is why there are no per-style
-   rules here; this block only carries the shared affordance, the legacy "blur"
-   value (handled in CSS), and the chart blur. Hours/dates/percentages are never
-   marked .money, so they stay readable. */
+   <body> obscures them: each amount is swapped for a fixed-length run of dots by
+   money_mask.js, which is why there are no per-style rules here; this block only
+   carries the shared affordance and the chart blur. Hours/dates/percentages are
+   never marked .money, so they stay readable. */
 body[data-mask-money] .money {
   user-select: none;
   cursor: default;
-}
-body[data-mask-money="blur"] .money {
-  filter: blur(0.4em);
 }
 /* Charts paint money into a canvas, which a glyph mask can't touch, so a
    money-bearing chart is blurred as a whole while masking is on (any style).
