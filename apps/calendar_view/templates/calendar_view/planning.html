@@ -246,6 +246,7 @@
      data-busy-url="{% url 'calendar_sync:busy' %}"
      data-send-invites-url="{% url 'calendar_sync:send-invites' %}"
      data-calendar-count="{{ calendar_subscription_count }}"
+     data-busy-token="{{ busy_config_token }}"
      data-show-type-colors="{% if show_shift_type_colors %}1{% else %}0{% endif %}"></div>
 <script src="{% static 'js/planning.js' %}"></script>
 {% endblock %}

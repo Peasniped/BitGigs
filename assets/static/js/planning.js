@@ -1583,13 +1583,29 @@
   // page, month navigation, …) restores the chips from here without re-polling
   // the provider. Cleared when the tab closes — sessionStorage, not localStorage.
   var BUSY_CACHE_KEY = 'bitgigs.planning.busyCache';
+  // Fingerprint of the calendars' colour/enabled state (server-computed). Stored
+  // with the cache so a colour change (which bumps the token) invalidates the
+  // stale cached chips and triggers a re-fetch — see loadBusyCache.
+  var BUSY_TOKEN = cfg.busyToken || '';
   function saveBusyCache(cells) {
-    try { sessionStorage.setItem(BUSY_CACHE_KEY, JSON.stringify(cells || [])); } catch (e) {}
+    try {
+      sessionStorage.setItem(
+        BUSY_CACHE_KEY, JSON.stringify({ token: BUSY_TOKEN, cells: cells || [] })
+      );
+    } catch (e) {}
   }
   function loadBusyCache() {
+    // Return the cached cells only when they were stored under the *current*
+    // config token. A calendar colour or enabled-state edit bumps the token, so
+    // stale chips are ignored and setCalendarShown re-fetches (from the server's
+    // ~15 min feed cache, so no external poll). An old bare-array cache from
+    // before this format has no token → treated as a miss, self-healing.
     try {
       var raw = sessionStorage.getItem(BUSY_CACHE_KEY);
-      return raw ? JSON.parse(raw) : null;
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      if (!parsed || parsed.token !== BUSY_TOKEN) return null;
+      return parsed.cells || null;
     } catch (e) { return null; }
   }
 

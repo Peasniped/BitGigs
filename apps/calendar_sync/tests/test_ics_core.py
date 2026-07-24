@@ -122,6 +122,29 @@ class RruleWindowTests(TestCase):
         days = sorted(timezone.localtime(e.start).day for e in busy)
         self.assertEqual(days, [6, 13, 20, 27])
 
+    def test_all_day_series_with_utc_until_expands(self):
+        # Google emits an all-day recurring series as a naive DATE DTSTART but a
+        # UTC-datetime UNTIL (…Z). dateutil rejects that awareness mismatch, which
+        # used to raise and abort the whole feed's parse (the calendar read as
+        # "failing"). It must expand instead. Weekly on Mondays from 2026-03-02.
+        ics = (
+            "BEGIN:VCALENDAR\r\n"
+            "VERSION:2.0\r\n"
+            "PRODID:-//Google Inc//Google Calendar 70.9054//EN\r\n"
+            "BEGIN:VEVENT\r\n"
+            "UID:allday-until-z@example.com\r\n"
+            "SUMMARY:Payday\r\n"
+            "DTSTART;VALUE=DATE:20260302\r\n"
+            "DTEND;VALUE=DATE:20260303\r\n"
+            "RRULE:FREQ=WEEKLY;UNTIL=20260331T220000Z;BYDAY=MO;WKST=MO\r\n"
+            "END:VEVENT\r\n"
+            "END:VCALENDAR\r\n"
+        ).encode("utf-8")
+        busy = services.parse_calendar(ics, date(2026, 3, 1), date(2026, 3, 31))
+        self.assertTrue(all(e.all_day for e in busy))
+        days = sorted(e.start.day for e in busy)
+        self.assertEqual(days, [2, 9, 16, 23, 30])
+
 
 class OwnUidFilterTests(TestCase):
     def _own_calendar(self):

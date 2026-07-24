@@ -238,21 +238,25 @@ def _event_duration(comp, dtstart, all_day) -> timedelta:
 
 
 def _expand_rrule(dtstart, rrule, win_start, win_end, all_day):
-    """Occurrence start instants of a recurring event within the window."""
+    """Occurrence start instants of a recurring event within the window.
+
+    dateutil refuses to build an rrule whose DTSTART and UNTIL disagree on
+    timezone-awareness, and real feeds routinely disagree: Google emits an
+    all-day series (a naive ``DATE`` DTSTART) with a **UTC-datetime** UNTIL
+    (``…Z``, aware) — the exact mismatch that used to raise, abort the whole
+    feed's parse, and make the calendar read as broken. So we expand entirely in
+    naive **local wall time**: the anchor forced naive-local and UNTIL's zone
+    dropped via ``ignoretz`` can never mismatch. Occurrences are re-localised by
+    :func:`_present`, so downstream awareness is unchanged.
+    """
     rule_text = rrule.to_ical()
     if isinstance(rule_text, bytes):
         rule_text = rule_text.decode("utf-8")
 
-    # dateutil needs datetimes; use midnight for all-day series, and keep the
-    # window bounds in the same awareness as dtstart so `.between` can compare.
-    anchor = _to_datetime(dtstart)
-    lo, hi = win_start, win_end
-    if timezone.is_aware(anchor):
-        lo, hi = _ensure_aware(lo), _ensure_aware(hi)
-    else:
-        lo, hi = _ensure_naive(lo), _ensure_naive(hi)
+    anchor = _ensure_naive(_to_datetime(dtstart))
+    lo, hi = _ensure_naive(win_start), _ensure_naive(win_end)
 
-    rule = rrulestr(rule_text, dtstart=anchor)
+    rule = rrulestr(rule_text, dtstart=anchor, ignoretz=True)
     occurrences = rule.between(lo, hi, inc=True)[:_MAX_OCCURRENCES]
     if all_day:
         return [occ.date() for occ in occurrences]
@@ -402,6 +406,28 @@ def fetch_ical(url: str, *, timeout=FETCH_TIMEOUT, max_bytes=MAX_FEED_BYTES) -> 
             f"Feed is larger than the {max_bytes // 1_000_000} MB limit."
         )
     return data
+
+
+def busy_config_token() -> str:
+    """A short fingerprint of the subscription state that affects the overlay's
+    *appearance* — which calendars are enabled and their colours.
+
+    The planning overlay caches its rendered busy chips in ``sessionStorage`` to
+    avoid re-polling the provider on every passive reload. That cache bakes each
+    chip's colour in, so editing a calendar's colour used to show stale colours
+    until a manual re-pull. The page carries this token; the overlay stores it
+    alongside the cache and, when it no longer matches, re-fetches once — a fetch
+    that reuses the ~15 min server-side feed cache, so the colour refresh costs no
+    external poll.
+    """
+    from hashlib import md5
+
+    from .models import CalendarSubscription
+
+    rows = list(
+        CalendarSubscription.objects.enabled().order_by("pk").values_list("pk", "color")
+    )
+    return md5(repr(rows).encode("utf-8")).hexdigest()[:12]
 
 
 def _cache_key(subscription) -> str:

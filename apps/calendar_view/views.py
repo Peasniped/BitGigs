@@ -113,6 +113,7 @@ class PlanningCalendarView(View):
             CalendarInviteSettings, CalendarSubscription, ShiftInvite,
             WorkplaceCalendarConfig,
         )
+        from calendar_sync import services as calendar_sync_services
         from core.models import EmailSettings
         from decimal import Decimal
 
@@ -240,6 +241,10 @@ class PlanningCalendarView(View):
                 # when there's at least one enabled subscription; the count drives
                 # the singular/plural wording of the button and legend.
                 "calendar_subscription_count": CalendarSubscription.objects.enabled().count(),
+                # Fingerprint of the overlay's colour/enabled state: the client
+                # discards its session-cached chips and re-fetches when it changes,
+                # so a calendar colour edit shows without a manual re-pull.
+                "busy_config_token": calendar_sync_services.busy_config_token(),
                 # Direction 2: offer the "Send invites" button when invites are on.
                 "can_send_invites": can_send_invites,
             },
