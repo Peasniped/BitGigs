@@ -403,6 +403,18 @@ def _contract_calendar_form(contract, data=None):
     return ContractCalendarConfigForm(data, instance=config)
 
 
+def _calendar_readiness():
+    """Flags the contract form uses to warn that invites won't actually send yet:
+    a working SMTP server and the global master arm are both required (see
+    ``calendar_sync.invites.eligible``)."""
+    from core.models import EmailSettings
+    from calendar_sync.models import CalendarInviteSettings
+    return {
+        "email_configured": EmailSettings.load().is_configured,
+        "invites_master_on": CalendarInviteSettings.load().enabled,
+    }
+
+
 def _save_contract_calendar(contract, cal_form):
     """Persist the invite config for *contract* from a validated config form."""
     config = cal_form.save(commit=False)
@@ -420,6 +432,7 @@ class ContractCreateView(View):
             "form": form, "cal_form": _contract_calendar_form(WorkplaceContract()),
             "workplace": workplace,
             "is_first": not workplace.contracts.exists(),
+            **_calendar_readiness(),
         })
 
     def post(self, request, slug):
@@ -435,6 +448,7 @@ class ContractCreateView(View):
         return render(request, "workplaces/contract_form.html", {
             "form": form, "cal_form": cal_form, "workplace": workplace,
             "is_first": not workplace.contracts.exists(),
+            **_calendar_readiness(),
         })
 
 
@@ -449,6 +463,7 @@ class ContractUpdateView(View):
         return render(request, "workplaces/contract_form.html", {
             "form": form, "cal_form": _contract_calendar_form(contract),
             "workplace": workplace, "contract": contract,
+            **_calendar_readiness(),
         })
 
     def post(self, request, slug, cpk):
@@ -456,7 +471,8 @@ class ContractUpdateView(View):
         contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
         form = WorkplaceContractForm(request.POST, instance=contract, workplace=workplace)
         cal_form = _contract_calendar_form(contract, request.POST)
-        ctx = {"form": form, "cal_form": cal_form, "workplace": workplace, "contract": contract}
+        ctx = {"form": form, "cal_form": cal_form, "workplace": workplace,
+               "contract": contract, **_calendar_readiness()}
         if form.is_valid() and cal_form.is_valid():
             updated = form.save(commit=False)
             try:

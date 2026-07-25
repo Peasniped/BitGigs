@@ -56,8 +56,6 @@
           <div class="fw-medium mb-1"><i class="bi bi-calendar-plus me-1"></i>Calendar invites</div>
           <p class="form-text mt-0 mb-3">
             Email a calendar invite for each on-site / remote shift on this contract.
-            Anything you don't set here uses your global defaults on
-            <a href="{% url 'core:settings' %}?tab=calendar">Settings → Calendar</a>.
           </p>
 
           {% if cal_form.non_field_errors %}
@@ -66,15 +64,59 @@
             </div>
           {% endif %}
 
-          <div class="form-check form-switch mb-3">
-            <input type="checkbox" class="form-check-input" role="switch"
-                   name="send_invites" id="id_send_invites" data-cal-reveal="calInviteFields"
-                   {% if cal_form.send_invites.value %}checked{% endif %}>
-            <label class="form-check-label" for="id_send_invites">Enable calendar invites for this contract</label>
+          {% comment %}One centered segmented toggle for both create and edit. On a
+             fresh create form nothing is pre-selected, forcing a conscious choice;
+             on edit (or a re-render after an error) it reflects the saved/submitted
+             value. Both buttons share the same neutral skeleton-outline style
+             (accent-btn-group), gradient-filled when selected, so neither reads as
+             the "good" option.{% endcomment %}
+          <div class="mb-3 text-center" id="calChoice">
+            <div class="fw-medium mb-2">Activate calendar invites for shifts on this contract?</div>
+            <div class="btn-group choice-group" role="group" aria-label="Activate calendar invites">
+              <input type="radio" class="btn-check" name="send_invites" value="true" required
+                     autocomplete="off" id="id_send_invites_yes" data-cal-choice
+                     {% if contract or cal_form.is_bound %}{% if cal_form.send_invites.value %}checked{% endif %}{% endif %}>
+              <label class="btn btn-sm btn-outline-primary px-4" for="id_send_invites_yes">
+                <i class="bi bi-check-lg me-1"></i>Yes
+              </label>
+              <input type="radio" class="btn-check" name="send_invites" value="" required
+                     autocomplete="off" id="id_send_invites_no" data-cal-choice
+                     {% if contract or cal_form.is_bound %}{% if not cal_form.send_invites.value %}checked{% endif %}{% endif %}>
+              <label class="btn btn-sm btn-outline-primary px-4" for="id_send_invites_no">
+                <i class="bi bi-x-lg me-1"></i>No
+              </label>
+            </div>
+            {% if not contract %}
+            <div class="form-text mt-2">You can turn this on later on the contract page.</div>
+            {% endif %}
           </div>
 
           {# Everything below is hidden until invites are enabled for this contract. #}
           <div id="calInviteFields" class="ps-1{% if not cal_form.send_invites.value %} d-none{% endif %}">
+
+            {% comment %}Invites won't actually send until a working mail server and the
+               global master switch are both in place — say so, without blocking.{% endcomment %}
+            {% if not email_configured %}
+            <div class="alert alert-warning d-flex align-items-start gap-2 py-2 mb-3">
+              <i class="bi bi-envelope-exclamation mt-1 flex-shrink-0"></i>
+              <div>
+                Calendar invites need a working e-mail server, which isn't set up yet.
+                Set it up under
+                <a href="{% url 'core:settings' %}?tab=email" target="_blank" rel="noopener">
+                  Settings &rarr; Email <i class="bi bi-box-arrow-up-right small"></i></a>
+                &mdash; you can finish this contract first and come back.
+              </div>
+            </div>
+            {% elif not invites_master_on %}
+            <div class="alert alert-warning d-flex align-items-start gap-2 py-2 mb-3">
+              <i class="bi bi-exclamation-triangle mt-1 flex-shrink-0"></i>
+              <div>
+                Calendar invites are turned off globally, so nothing will send yet.
+                <a href="{% url 'core:settings' %}?tab=calendar">Enable calendar invites</a>
+                on Settings &rarr; Calendar to switch them on.
+              </div>
+            </div>
+            {% endif %}
 
             {# Required when invites are on: who to invite + where on-site shifts are. #}
             <div class="mb-3">
@@ -95,8 +137,15 @@
               {% for err in cal_form.address_onsite.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
             </div>
 
-            {# Overrides: a toggle whose value field appears inline only when on. #}
-            {% comment %}data-cal-reveal = the wrapper id revealed when the toggle is on.{% endcomment %}
+            {% comment %}Overrides subsection: each toggle's value field appears inline
+               only when on (data-cal-reveal = the wrapper id revealed).{% endcomment %}
+            <hr class="my-3">
+            <div class="fw-medium mb-1">Overrides</div>
+            <p class="form-text mt-0 mb-2">
+              Anything you don't set here uses your global defaults on
+              <a href="{% url 'core:settings' %}?tab=calendar">Settings → Calendar</a>.
+            </p>
+
             <div class="cal-override d-flex align-items-center gap-2 mb-2 flex-wrap">
               <div class="form-check form-switch mb-0" style="min-width:16rem;">
                 <input type="checkbox" class="form-check-input" role="switch"
@@ -169,6 +218,18 @@
     cb.addEventListener('change', sync);
     sync();
   });
+
+  // The joined Yes/No segmented toggle reveals the invite fields when Yes is
+  // selected; the selected half's gradient fill is handled in CSS (.choice-group).
+  var calYes = document.getElementById('id_send_invites_yes');
+  var calFields = document.getElementById('calInviteFields');
+  if (calYes && calFields) {
+    function syncChoice() { calFields.classList.toggle('d-none', !calYes.checked); }
+    document.querySelectorAll('[data-cal-choice]').forEach(function (r) {
+      r.addEventListener('change', syncChoice);
+    });
+    syncChoice();
+  }
 })();
 </script>
 {% endblock %}

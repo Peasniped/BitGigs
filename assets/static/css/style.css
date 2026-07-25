@@ -1184,6 +1184,24 @@ body[data-mask-money] .money-chart {
   .btn-outline-primary::after { transition: none; opacity: 0; }
 }
 
+/* Joined Yes/No toggle (e.g. the contract form's calendar-invite choice): a
+   segmented .btn-group whose selected half fills with the same travelling brand
+   gradient as .btn-primary — richer than .accent-btn-group's faded wash — while
+   keeping its border, so both halves stay the exact same height when joined. */
+.choice-group .btn-check:checked + .btn-outline-primary {
+  background-image: linear-gradient(135deg,
+                    var(--primary) 0%, var(--secondary) 50%, var(--primary) 100%) !important;
+  border-color: var(--primary) !important;
+  color: var(--on-accent) !important;
+}
+/* Bootstrap's `.btn-check + .btn:hover` (specificity 0,3,0) resets a toggle
+   label's colour to its base so hover ≠ selected — which leaves dark text on the
+   hover gradient our .btn-outline-primary:hover still paints. Restore the white
+   text the plain (non-btn-check) buttons get on hover. */
+.choice-group .btn-check + .btn-outline-primary:hover {
+  color: var(--on-accent) !important;
+}
+
 /* ---- Forms ---- */
 .form-control:focus, .form-select:focus {
   border-color: var(--primary-border);
