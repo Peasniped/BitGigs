@@ -341,6 +341,26 @@ class EmailSettings(models.Model):
     def is_configured(self):
         return bool(self.enabled and self.host and self.from_email)
 
+    def reset_to_fresh(self, *, save=True):
+        """Return this singleton to a clean, disabled state — clears the
+        credentials, sender and stored test result, and drops the password.
+        Shared by the Email tab's Clear button and onboarding Start-over (which
+        must undo the mail server the hidden email step wrote as it went)."""
+        field = self._meta.get_field
+        self.enabled = False
+        self.host = ""
+        self.port = field("port").default
+        self.security = field("security").default
+        self.username = ""
+        self.password = ""
+        self.from_email = ""
+        self.from_name = field("from_name").default
+        self.timeout = field("timeout").default
+        self.last_test_at = None
+        self.last_test_ok = None
+        if save:
+            self.save()
+
 
 class EmailLogQuerySet(models.QuerySet):
     def failures_unseen(self):

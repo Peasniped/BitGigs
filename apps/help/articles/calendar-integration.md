@@ -86,9 +86,11 @@ your global default. Only **on-site** and **remote** shifts generate invites; si
 leave, vacation and paid absence don't.
 
 Invites won't actually send until your **Email** connection is set up and the
-master switch is on, so the form tells you when something's still missing. During
-onboarding that's just a heads-up — you set up email afterwards, and your choices
-here are saved either way.
+master switch is on, so the form tells you when something's still missing. If you
+turn invites **on during onboarding**, the wizard offers an **email-setup step**
+right after your workplace — set your mail server up there (with the same live
+connection test as Settings → Email), or **skip** it and do it later. Either way
+your invite choices are saved.
 
 ### Activating and keeping them current
 

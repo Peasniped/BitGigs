@@ -13,6 +13,11 @@ urlpatterns = [
     path("onboarding/start/", views.OnboardingStartView.as_view(), name="onboarding-start"),
     path("onboarding/tax/", views.OnboardingTaxView.as_view(), name="onboarding-tax"),
     path("onboarding/workplace/", views.OnboardingWorkplaceView.as_view(), name="onboarding-workplace"),
+    # Hidden email step slotted between Workplace and Pay Terms when the user opts
+    # into calendar invites — routed under /onboarding/ so the funnel exempts it.
+    path("onboarding/email/", views.OnboardingEmailView.as_view(), name="onboarding-email"),
+    path("onboarding/email/test/", views.OnboardingEmailTestView.as_view(), name="onboarding-email-test"),
+    path("onboarding/email/probe/", views.OnboardingEmailProbeView.as_view(), name="onboarding-email-probe"),
     path("onboarding/terms/", views.OnboardingTermsView.as_view(), name="onboarding-terms"),
     path("onboarding/review/", views.OnboardingReviewView.as_view(), name="onboarding-review"),
     path("onboarding/start-over/", views.OnboardingResetView.as_view(), name="onboarding-reset"),

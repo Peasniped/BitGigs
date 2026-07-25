@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Set up email &middot; BitGigs{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-10 col-lg-8">
+
+    {% include "core/_onboarding_steps.html" %}
+
+    <div class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-envelope-gear me-1"></i>Set up email for your invites
+        <a href="{% url 'core:onboarding-terms' %}" class="btn btn-sm btn-outline-secondary ms-auto">
+          Skip for now <i class="bi bi-arrow-right ms-1"></i>
+        </a>
+      </div>
+      <div class="card-body">
+
+        <div class="alert alert-info d-flex align-items-start gap-2 py-2 mb-3">
+          <i class="bi bi-info-circle-fill mt-1 flex-shrink-0"></i>
+          <div>
+            You turned on calendar invites, which are sent over your own mail server.
+            Set it up here to start sending them, or <strong>skip</strong> and do it
+            later on Settings &rarr; Email — your invite choices are already saved
+            either way.
+          </div>
+        </div>
+
+        <div data-email-settings>
+          {% comment %}data-test-values tells email_settings.js to test the values
+          currently typed into this form (a dry run, nothing saved) rather than the
+          saved config the Settings tab tests.{% endcomment %}
+          <form method="post" action="{% url 'core:onboarding-email' %}" id="emailSettingsForm"
+                data-probe-url="{% url 'core:onboarding-email-probe' %}" data-test-values="1">
+            {% csrf_token %}
+            {% include "core/_email_form_body.html" %}
+
+            <hr class="my-4">
+            <div class="fw-medium mb-1"><i class="bi bi-plug me-1"></i>Test connection</div>
+            <p class="form-text mt-0">
+              Checks the details above step by step, <strong>without saving</strong>.
+              Add an address to also send a real message and confirm it arrives.
+            </p>
+            <div class="input-group mb-2">
+              <input type="email" class="form-control" id="emailTestTo"
+                     placeholder="Optional: send a test message to…"
+                     value="{{ user.email }}" autocomplete="off">
+              <button type="button" class="btn btn-outline-primary" id="emailTestRun"
+                      data-url="{% url 'core:onboarding-email-test' %}">
+                <i class="bi bi-play-fill me-1"></i>Test connection
+              </button>
+            </div>
+            <div id="emailTestResults" class="mt-3 mb-4"></div>
+
+            <div class="d-flex gap-2">
+              <a href="{% url 'core:onboarding-workplace' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back
+              </a>
+              <button type="submit" class="btn btn-primary flex-fill">
+                <i class="bi bi-check-lg me-1"></i>Save &amp; continue
+              </button>
+            </div>
+          </form>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/email_settings.js' %}"></script>
+{% endblock %}

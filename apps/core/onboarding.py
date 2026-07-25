@@ -159,6 +159,21 @@ def calendar_readiness():
     }
 
 
+def invites_opted_in(request):
+    """Did the stored Workplace step switch calendar invites on? Reads the raw
+    ``send_invites`` value the Yes/No toggle submitted."""
+    wp = draft_data(request).get("workplace") or {}
+    return str(wp.get("send_invites", "")).strip().lower() in ("true", "on", "1")
+
+
+def wants_email_step(request):
+    """Whether the hidden email step should be slotted in after the Workplace step:
+    invites were opted into **and** no working mail server is configured yet (once
+    it is, there's nothing to set up, so skip straight to Pay Terms)."""
+    from core.models import EmailSettings
+    return invites_opted_in(request) and not EmailSettings.load().is_configured
+
+
 def apply_calendar_config(contract, payload):
     """Best-effort: create *contract*'s invite config from a stored Workplace-step
     payload. Writes a row only when invites were switched on **and** the form

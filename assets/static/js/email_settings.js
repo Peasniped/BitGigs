@@ -260,6 +260,12 @@
 
   runBtn.addEventListener('click', function () {
     var body = new URLSearchParams();
+    // Onboarding sets data-test-values: test the values currently typed into the
+    // form (a dry run against an unsaved config) rather than the saved config the
+    // Settings tab tests. Everything else about the request/render is identical.
+    if (emailForm && emailForm.dataset.testValues) {
+      new FormData(emailForm).forEach(function (v, k) { body.set(k, v); });
+    }
     if (toInput && toInput.value.trim()) body.set('send_to', toInput.value.trim());
 
     runBtn.disabled = true;

@@ -1,0 +1,61 @@
+{% load crispy_forms_tags %}
+{% comment %}
+  The email configuration fields (everything between the form's csrf token and its
+  buttons), grouped Server / Sign-in / Sender / Options and laid out two-column so
+  the password is nowhere near the from-address. Shared by the Settings → Email
+  modal (_email_settings_modal.html) and the onboarding email step
+  (core/onboarding_email.html) so both stay in sync. The including form supplies
+  the <form> wrapper (with id="emailSettingsForm" + data-probe-url), the csrf
+  token and the buttons; email_settings.js wires the presets/probe from here.
+{% endcomment %}
+{% comment %}Host/port/security for the usual providers — one click instead of
+three lookups. Credentials stay the operator's own.{% endcomment %}
+<div class="mb-3">
+  <label class="form-label fw-medium">Quick setup</label>
+  <div class="d-flex flex-wrap gap-2">
+    {% for key, preset in email_presets.items %}
+      <button type="button" class="btn btn-outline-secondary btn-sm"
+              data-email-preset="{{ key }}"
+              data-host="{{ preset.host }}" data-port="{{ preset.port }}"
+              data-security="{{ preset.security }}" data-note="{{ preset.note }}">
+        {{ preset.label }}
+      </button>
+    {% endfor %}
+  </div>
+  <div class="form-text mt-2 d-none" data-preset-note></div>
+</div>
+
+{{ email_form.enabled|as_crispy_field }}
+
+<hr class="my-3">
+<div class="fw-medium mb-2"><i class="bi bi-hdd-network me-1"></i>Server</div>
+{% comment %}Host/port carry a live status icon at their right edge (spinner →
+check/error), wired by email_settings.js: it asks the probe endpoint to resolve
+the host and check the port, since the browser can do neither itself.{% endcomment %}
+<div class="row">
+  <div class="col-sm-8">{{ email_form.host|as_crispy_field }}</div>
+  <div class="col-sm-4">{{ email_form.port|as_crispy_field }}</div>
+</div>
+{{ email_form.security|as_crispy_field }}
+
+<hr class="my-3">
+<div class="fw-medium mb-2"><i class="bi bi-person-lock me-1"></i>Sign-in</div>
+<div class="row">
+  <div class="col-sm-6">{{ email_form.username|as_crispy_field }}</div>
+  <div class="col-sm-6">{{ email_form.password|as_crispy_field }}</div>
+</div>
+{% if email_form.clear_password %}{{ email_form.clear_password|as_crispy_field }}{% endif %}
+
+<hr class="my-3">
+<div class="fw-medium mb-2"><i class="bi bi-envelope-at me-1"></i>Sender</div>
+<div class="row">
+  <div class="col-sm-6">{{ email_form.from_email|as_crispy_field }}</div>
+  <div class="col-sm-6">{{ email_form.from_name|as_crispy_field }}</div>
+</div>
+
+<hr class="my-3">
+<div class="fw-medium mb-2"><i class="bi bi-sliders me-1"></i>Options</div>
+<div class="row">
+  <div class="col-sm-6">{{ email_form.timeout|as_crispy_field }}</div>
+</div>
+{{ email_form.allow_password_reset|as_crispy_field }}

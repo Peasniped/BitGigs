@@ -357,19 +357,7 @@ class EmailClearView(View):
     def post(self, request):
         from django.contrib import messages
 
-        config = EmailSettings.load()
-        config.enabled = False
-        config.host = ""
-        config.port = EmailSettings._meta.get_field("port").default
-        config.security = EmailSettings._meta.get_field("security").default
-        config.username = ""
-        config.password = ""
-        config.from_email = ""
-        config.from_name = EmailSettings._meta.get_field("from_name").default
-        config.timeout = EmailSettings._meta.get_field("timeout").default
-        config.last_test_at = None
-        config.last_test_ok = None
-        config.save()
+        EmailSettings.load().reset_to_fresh()
         messages.success(request, "Email configuration cleared.")
         return redirect(f"{reverse('core:settings')}?tab=email")
 
@@ -1070,7 +1058,89 @@ class OnboardingWorkplaceView(View):
 
     def post(self, request):
         ob.store_step(request, "workplace", request.POST)
+        # When advancing to the next step and the user opted into calendar invites
+        # without a mail server yet, detour through the hidden email step first.
+        # An explicit jump (onboarding_goto=<step>) is honoured as-is.
+        if request.POST.get("onboarding_goto", "next") == "next" and ob.wants_email_step(request):
+            return redirect("core:onboarding-email")
         return redirect(ob.resolve_goto(request, "workplace"))
+
+
+class OnboardingEmailView(View):
+    """Hidden step slotted between Workplace and Pay Terms when the user opts into
+    calendar invites without a mail server yet. Routed under /onboarding/ so the
+    funnel exempts it, and reuses Settings → Email's form, presets, live probe and
+    staged test verbatim (via the shared `_email_form_body.html`). Always skippable
+    — email can be finished later on Settings → Email; invites just won't send
+    until it is."""
+
+    def _context(self, request, form=None, form_invalid=False):
+        return {
+            "onboarding": True,
+            # A hidden step, so the indicator keeps Workplace as the active context.
+            "steps": ob.steps_for(request, "workplace"),
+            **email_context(form, form_invalid=form_invalid),
+        }
+
+    def get(self, request):
+        # Only meaningful as part of the invite opt-in; otherwise fall through.
+        if not ob.invites_opted_in(request):
+            return redirect("core:onboarding-terms")
+        return render(request, "core/onboarding_email.html", self._context(request))
+
+    def post(self, request):
+        from django.contrib import messages
+
+        config = EmailSettings.load()
+        form = EmailSettingsForm(request.POST, instance=config)
+        if not form.is_valid():
+            return render(request, "core/onboarding_email.html",
+                          self._context(request, form, form_invalid=True))
+        config = form.save()
+        # A changed configuration invalidates the stored test result (it ran
+        # against the old server) — mirror EmailSettingsView.
+        if form.has_changed():
+            config.last_test_at = None
+            config.last_test_ok = None
+            config.save(update_fields=["last_test_at", "last_test_ok", "updated_at"])
+        messages.success(request, "Email settings saved.")
+        return redirect("core:onboarding-terms")
+
+
+class OnboardingEmailTestView(View):
+    """Dry-run staged test against the **typed** values, without saving them — so
+    the user can verify the server before committing, with no reload. Builds a
+    transient EmailSettings from the posted form and runs the same staged
+    diagnosis; nothing is persisted (no config write, no EmailLog row). Under
+    /onboarding/ so the AJAX escapes the funnel."""
+
+    def post(self, request):
+        from django.core.validators import validate_email
+        from django.core.exceptions import ValidationError
+
+        from .mail import diagnose
+
+        form = EmailSettingsForm(request.POST, instance=EmailSettings())
+        if not form.is_valid():
+            return JsonResponse(
+                {"error": "Fill in the server details above before testing."}, status=400
+            )
+        config = form.save(commit=False)  # transient — never persisted
+
+        send_to = (request.POST.get("send_to") or "").strip()
+        if send_to:
+            try:
+                validate_email(send_to)
+            except ValidationError:
+                return JsonResponse(
+                    {"error": f"'{send_to}' is not a valid email address."}, status=400
+                )
+        return JsonResponse(diagnose(config, send_to=send_to or None).as_dict())
+
+
+class OnboardingEmailProbeView(EmailProbeView):
+    """The live host/port probe, under /onboarding/ so it's reachable mid-wizard
+    (the /settings/ endpoint is behind the onboarding funnel)."""
 
 
 class OnboardingTermsView(View):
@@ -1147,7 +1217,7 @@ class OnboardingResetView(View):
     def post(self, request):
         from django.contrib import messages
         from django.db import transaction as db_transaction
-        from core.models import TaxProfile
+        from core.models import EmailSettings, TaxProfile
         from shifts.models import PlannedShift, Shift
         from workplaces.models import Workplace
 
@@ -1165,6 +1235,9 @@ class OnboardingResetView(View):
             PlannedShift.objects.all().delete()
             Workplace.objects.all().delete()   # cascades contracts + term sets
             TaxProfile.objects.all().delete()
+            # The hidden email step writes the mail server as it goes (like the
+            # import path), so a genuine restart has to clear it too.
+            EmailSettings.load().reset_to_fresh()
             ob.clear_draft(request)
 
         request.session.pop("import_data", None)
