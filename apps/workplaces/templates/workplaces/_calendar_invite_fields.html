@@ -1,0 +1,190 @@
+{% comment %}
+  Per-contract calendar-invite fields, shared by the contract form
+  (create/edit) and the onboarding Workplace step. Context:
+    cal_form           - ContractCalendarConfigForm (bound or unbound)
+    workplace          - Workplace (may be unsaved/absent in onboarding)
+    email_configured   - bool, SMTP ready
+    invites_master_on  - bool, global master arm on
+    contract           - present only when editing an existing contract
+    onboarding         - bool, softens the "set up e-mail" notice (Settings is
+                         unreachable mid-wizard, so it's informational only)
+  Field names are unprefixed and don't collide with the workplace/contract
+  fields, so the same names work whether this posts on its own page or rides
+  along on the Workplace step's single POST.
+{% endcomment %}
+<hr class="my-4">
+<div class="fw-medium mb-1"><i class="bi bi-calendar-plus me-1"></i>Calendar invites</div>
+<p class="form-text mt-0 mb-3">
+  Email a calendar invite for each on-site / remote shift on this contract.
+</p>
+
+{% if cal_form.non_field_errors %}
+  <div class="alert alert-danger py-2">
+    {% for err in cal_form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+  </div>
+{% endif %}
+
+{% comment %}One centered segmented toggle. On a fresh form nothing is pre-selected,
+   forcing a conscious choice; on edit (or a re-render after an error) it reflects
+   the saved/submitted value. Both halves share one neutral outline style,
+   gradient-filled when selected (.choice-group), so neither reads as "good".{% endcomment %}
+<div class="mb-3 text-center" id="calChoice">
+  <div class="fw-medium mb-2">Activate calendar invites for shifts on this contract?</div>
+  <div class="btn-group choice-group" role="group" aria-label="Activate calendar invites">
+    <input type="radio" class="btn-check" name="send_invites" value="true" required
+           autocomplete="off" id="id_send_invites_yes" data-cal-choice
+           {% if contract or cal_form.is_bound %}{% if cal_form.send_invites.value %}checked{% endif %}{% endif %}>
+    <label class="btn btn-sm btn-outline-primary px-4" for="id_send_invites_yes">
+      <i class="bi bi-check-lg me-1"></i>Yes
+    </label>
+    <input type="radio" class="btn-check" name="send_invites" value="" required
+           autocomplete="off" id="id_send_invites_no" data-cal-choice
+           {% if contract or cal_form.is_bound %}{% if not cal_form.send_invites.value %}checked{% endif %}{% endif %}>
+    <label class="btn btn-sm btn-outline-primary px-4" for="id_send_invites_no">
+      <i class="bi bi-x-lg me-1"></i>No
+    </label>
+  </div>
+  {% if not contract %}
+  <div class="form-text mt-2">You can turn this on later on the contract page.</div>
+  {% endif %}
+</div>
+
+{% comment %}Everything below is hidden until invites are enabled for this contract.{% endcomment %}
+<div id="calInviteFields" class="ps-1{% if not cal_form.send_invites.value %} d-none{% endif %}">
+
+  {% comment %}Invites won't actually send until a working mail server and the global
+     master switch are both in place — say so, without blocking.{% endcomment %}
+  {% if not email_configured %}
+    {% if onboarding %}
+    <div class="alert alert-info d-flex align-items-start gap-2 py-2 mb-3">
+      <i class="bi bi-info-circle-fill mt-1 flex-shrink-0"></i>
+      <div>
+        Calendar invites need a working e-mail server. You'll set one up after
+        finishing setup, under <strong>Settings &rarr; Email</strong> &mdash; your
+        choices here are saved.
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning d-flex align-items-start gap-2 py-2 mb-3">
+      <i class="bi bi-envelope-exclamation mt-1 flex-shrink-0"></i>
+      <div>
+        Calendar invites need a working e-mail server, which isn't set up yet.
+        Set it up under
+        <a href="{% url 'core:settings' %}?tab=email" target="_blank" rel="noopener">
+          Settings &rarr; Email <i class="bi bi-box-arrow-up-right small"></i></a>
+        &mdash; you can finish this contract first and come back.
+      </div>
+    </div>
+    {% endif %}
+  {% elif not invites_master_on %}
+  <div class="alert alert-warning d-flex align-items-start gap-2 py-2 mb-3">
+    <i class="bi bi-exclamation-triangle mt-1 flex-shrink-0"></i>
+    <div>
+      Calendar invites are turned off globally, so nothing will send yet.
+      <a href="{% url 'core:settings' %}?tab=calendar">Enable calendar invites</a>
+      on Settings &rarr; Calendar to switch them on.
+    </div>
+  </div>
+  {% endif %}
+
+  {% comment %}Required when invites are on: who to invite + where on-site shifts are.{% endcomment %}
+  <div class="mb-3">
+    <label for="id_recipient" class="form-label fw-medium mb-1">Work e-mail address</label>
+    <input type="email" name="recipient" id="id_recipient"
+           value="{{ cal_form.recipient.value|default_if_none:'' }}"
+           class="form-control form-control-sm {% if cal_form.recipient.errors %}is-invalid{% endif %}"
+           placeholder="name@work.example">
+    {% for err in cal_form.recipient.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+  </div>
+
+  <div class="mb-3">
+    <label for="id_address_onsite" class="form-label fw-medium mb-1">On-site location</label>
+    <input type="text" name="address_onsite" id="id_address_onsite"
+           value="{{ cal_form.address_onsite.value|default_if_none:'' }}"
+           class="form-control form-control-sm {% if cal_form.address_onsite.errors %}is-invalid{% endif %}"
+           placeholder="e.g. {{ workplace.name|default:'Main office' }}, Main St 1">
+    {% for err in cal_form.address_onsite.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+  </div>
+
+  {% comment %}Overrides subsection: each toggle's value field appears inline only
+     when on (data-cal-reveal = the wrapper id revealed).{% endcomment %}
+  <hr class="my-3">
+  <div class="fw-medium mb-1">Overrides</div>
+  <p class="form-text mt-0 mb-2">
+    Anything you don't set here uses your global defaults on
+    <a href="{% url 'core:settings' %}?tab=calendar">Settings → Calendar</a>.
+  </p>
+
+  <div class="cal-override d-flex align-items-center gap-2 mb-2 flex-wrap">
+    <div class="form-check form-switch mb-0" style="min-width:16rem;">
+      <input type="checkbox" class="form-check-input" role="switch"
+             name="override_title_onsite" id="id_override_title_onsite" data-cal-reveal="wrap_title_onsite"
+             {% if cal_form.override_title_onsite.value %}checked{% endif %}>
+      <label class="form-check-label" for="id_override_title_onsite">Override default on-site title</label>
+    </div>
+    <div class="cal-inline flex-grow-1{% if not cal_form.override_title_onsite.value %} d-none{% endif %}"
+         id="wrap_title_onsite">
+      <input type="text" name="title_onsite" id="id_title_onsite"
+             value="{{ cal_form.title_onsite.value|default_if_none:'' }}"
+             class="form-control form-control-sm" placeholder="e.g. På arbejde hos {workplace}">
+    </div>
+  </div>
+
+  <div class="cal-override d-flex align-items-center gap-2 mb-2 flex-wrap">
+    <div class="form-check form-switch mb-0" style="min-width:16rem;">
+      <input type="checkbox" class="form-check-input" role="switch"
+             name="override_title_remote" id="id_override_title_remote" data-cal-reveal="wrap_title_remote"
+             {% if cal_form.override_title_remote.value %}checked{% endif %}>
+      <label class="form-check-label" for="id_override_title_remote">Override default remote title</label>
+    </div>
+    <div class="cal-inline flex-grow-1{% if not cal_form.override_title_remote.value %} d-none{% endif %}"
+         id="wrap_title_remote">
+      <input type="text" name="title_remote" id="id_title_remote"
+             value="{{ cal_form.title_remote.value|default_if_none:'' }}"
+             class="form-control form-control-sm" placeholder="e.g. Arbejder hjemme, {workplace}">
+    </div>
+  </div>
+
+  <div class="cal-override d-flex align-items-center gap-2 mb-2 flex-wrap">
+    <div class="form-check form-switch mb-0" style="min-width:16rem;">
+      <input type="checkbox" class="form-check-input" role="switch"
+             name="override_address_remote" id="id_override_address_remote" data-cal-reveal="wrap_address_remote"
+             {% if cal_form.override_address_remote.value %}checked{% endif %}>
+      <label class="form-check-label" for="id_override_address_remote">Override default remote location</label>
+    </div>
+    <div class="cal-inline flex-grow-1{% if not cal_form.override_address_remote.value %} d-none{% endif %}"
+         id="wrap_address_remote">
+      <input type="text" name="address_remote" id="id_address_remote"
+             value="{{ cal_form.address_remote.value|default_if_none:'' }}"
+             class="form-control form-control-sm" placeholder="e.g. Home office">
+    </div>
+  </div>
+</div>
+
+<script>
+// Each on-off toggle reveals its target block only while on: the Yes/No choice
+// reveals the whole invite section, and each override switch reveals its value
+// field inline. A hidden field stays in the DOM (value kept across toggles) and
+// the server ignores an override whose value is blank.
+(function () {
+  document.querySelectorAll('[data-cal-reveal]').forEach(function (cb) {
+    var target = document.getElementById(cb.getAttribute('data-cal-reveal'));
+    if (!target) return;
+    function sync() { target.classList.toggle('d-none', !cb.checked); }
+    cb.addEventListener('change', sync);
+    sync();
+  });
+
+  // The joined Yes/No segmented toggle reveals the invite fields when Yes is
+  // selected; the selected half's gradient fill is handled in CSS (.choice-group).
+  var calYes = document.getElementById('id_send_invites_yes');
+  var calFields = document.getElementById('calInviteFields');
+  if (calYes && calFields) {
+    function syncChoice() { calFields.classList.toggle('d-none', !calYes.checked); }
+    document.querySelectorAll('[data-cal-choice]').forEach(function (r) {
+      r.addEventListener('change', syncChoice);
+    });
+    syncChoice();
+  }
+})();
+</script>

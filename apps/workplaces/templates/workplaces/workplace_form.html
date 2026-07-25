@@ -45,6 +45,8 @@
               <div class="form-text">A short label if you have several contracts at the same workplace.</div>
               {% for err in contract_form.name.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
             </div>
+
+            {% include "workplaces/_calendar_invite_fields.html" %}
           </div>
           {% endif %}
 

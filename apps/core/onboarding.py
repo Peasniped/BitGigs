@@ -136,6 +136,44 @@ def _build_contract_form(payload=None):
     return WorkplaceContractForm(data=payload, prefix="contract")
 
 
+def _build_calendar_config_form(payload=None):
+    """The per-contract invite config also rides along on the Workplace step, so a
+    fresh install can opt in during setup. Field names are unprefixed — they don't
+    collide with the workplace's or contract's own fields."""
+    from calendar_sync.forms import ContractCalendarConfigForm
+    from calendar_sync.models import ContractCalendarConfig
+    instance = ContractCalendarConfig()
+    if payload is None:
+        return ContractCalendarConfigForm(instance=instance)
+    return ContractCalendarConfigForm(data=payload, instance=instance)
+
+
+def calendar_readiness():
+    """Flags for the invite block's "won't send yet" notice — mirrors
+    ``workplaces.views._calendar_readiness``."""
+    from core.models import EmailSettings
+    from calendar_sync.models import CalendarInviteSettings
+    return {
+        "email_configured": EmailSettings.load().is_configured,
+        "invites_master_on": CalendarInviteSettings.load().enabled,
+    }
+
+
+def apply_calendar_config(contract, payload):
+    """Best-effort: create *contract*'s invite config from a stored Workplace-step
+    payload. Writes a row only when invites were switched on **and** the form
+    validates; when off (or on but incomplete) nothing is written, matching the
+    "off by default" state. Never blocks Finish — invites are optional and remain
+    editable on the contract page afterwards."""
+    if not payload:
+        return
+    form = _build_calendar_config_form(payload)
+    if form.is_valid() and form.cleaned_data.get("send_invites"):
+        config = form.save(commit=False)
+        config.contract = contract
+        config.save()
+
+
 # ─── Navigation and the step indicator ───────────────────────────────────────
 
 STEP_TITLES = {
@@ -466,6 +504,9 @@ def commit_setup(request):
                     contract = contract_form.save(commit=False)
                     contract.workplace = workplace
                     contract.save()
+                    # Opt-in calendar invites captured on the Workplace step ride in
+                    # the same draft payload — best-effort, never blocks Finish.
+                    apply_calendar_config(contract, data["workplace"])
                 # Re-bind to the real contract so dates/overlap validate against it.
                 terms_form = ContractTermSetForm(data=data["terms"], contract=contract)
                 if not terms_form.is_valid():

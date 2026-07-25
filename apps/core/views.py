@@ -1049,12 +1049,14 @@ class OnboardingWorkplaceView(View):
     """Onboarding step 3 — the workplace, plus the contract's optional label as a
     field that the page reveals once the workplace is named."""
 
-    def _context(self, request, form, contract_form):
+    def _context(self, request, form, contract_form, cal_form):
         return {
             "form": form,
             "contract_form": contract_form,
+            "cal_form": cal_form,
             "onboarding": True,
             "steps": ob.steps_for(request, "workplace"),
+            **ob.calendar_readiness(),
         }
 
     def get(self, request):
@@ -1062,7 +1064,9 @@ class OnboardingWorkplaceView(View):
         stored = ob.draft_data(request).get("workplace")
         form = WorkplaceForm(data=stored) if stored else WorkplaceForm()
         contract_form = ob._build_contract_form(stored)
-        return render(request, "workplaces/workplace_form.html", self._context(request, form, contract_form))
+        cal_form = ob._build_calendar_config_form(stored)
+        return render(request, "workplaces/workplace_form.html",
+                      self._context(request, form, contract_form, cal_form))
 
     def post(self, request):
         ob.store_step(request, "workplace", request.POST)

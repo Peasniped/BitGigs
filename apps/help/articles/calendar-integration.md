@@ -73,15 +73,22 @@ warns you and links across if it isn't ready. Then, under **Invites you send**:
    shifts.
 4. Press **Send myself a test invite** to prove the whole path works end to end.
 
-Invites are then configured **per contract**, where you set up the job: open a
-contract (Workplaces → a workplace → **Edit** a contract, or the **Edit** button
-on the Calendar tab's per-contract overview) and, under **Calendar invites**,
-turn on **Enable calendar invites for this contract**. That reveals the fields: a
-**work e-mail address** and an **on-site location** (both required), then three
-**override** toggles for the on-site title, remote title and remote location —
-each shows an input inline only when you turn it on, otherwise it uses your
-global default. Only **on-site** and **remote** shifts generate invites; sick
+Invites are then configured **per contract**, where you set up the job. When you
+**create a contract** — or set up your first workplace during onboarding — you're
+asked **Activate calendar invites for shifts on this contract?** and must pick
+**Yes** or **No** (you can always change it later). Picking **Yes**, or opening an
+existing contract to **Edit** it (Workplaces → a workplace → **Edit** a contract,
+or the **Edit** button on the Calendar tab's per-contract overview), reveals the
+fields: a **work e-mail address** and an **on-site location** (both required),
+then three **override** toggles for the on-site title, remote title and remote
+location — each shows an input inline only when you turn it on, otherwise it uses
+your global default. Only **on-site** and **remote** shifts generate invites; sick
 leave, vacation and paid absence don't.
+
+Invites won't actually send until your **Email** connection is set up and the
+master switch is on, so the form tells you when something's still missing. During
+onboarding that's just a heads-up — you set up email afterwards, and your choices
+here are saved either way.
 
 ### Activating and keeping them current
 
