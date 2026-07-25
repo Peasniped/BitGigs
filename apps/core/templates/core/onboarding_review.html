@@ -131,14 +131,33 @@
           <h6 class="fw-semibold mb-2">Workplaces</h6>
           <ul class="list-group mb-4">
             {% for wp in cov.workplaces %}
-              <li class="list-group-item d-flex align-items-center gap-3">
+              <li class="list-group-item d-flex align-items-center gap-3 flex-wrap">
                 {% if wp.ready %}
                   <i class="bi bi-check-circle-fill text-success"></i>
                 {% else %}
                   <i class="bi bi-exclamation-circle-fill text-warning"></i>
                 {% endif %}
-                <span class="flex-grow-1">{{ wp.name }}</span>
+                <div class="flex-grow-1">
+                  <div class="fw-medium">
+                    {{ wp.name }}
+                    {% if not wp.contract_named %}<small class="text-muted fw-normal">(unnamed contract)</small>{% endif %}
+                  </div>
+                  {% if not wp.contract_named or not wp.invites_set %}
+                  <small class="text-muted">
+                    You can name this contract and set its calendar invites.
+                    <a href="#" role="button" data-help-open="calendar-integration"
+                       class="text-decoration-none" aria-label="About contracts and calendar invites">
+                      <i class="bi bi-question-circle"></i></a>
+                  </small>
+                  {% endif %}
+                </div>
                 <small class="text-muted">{% if wp.ready %}Pay terms set{% else %}Needs pay terms{% endif %}</small>
+                {% if wp.contract_pk %}
+                  <a href="{% url 'core:onboarding-contract' wp.contract_pk %}"
+                     class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-pencil me-1"></i>Edit contract
+                  </a>
+                {% endif %}
               </li>
             {% endfor %}
           </ul>

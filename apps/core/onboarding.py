@@ -385,6 +385,24 @@ class Coverage:
         return gaps
 
 
+def _workplace_review_info(wp, stub_names):
+    """One Review "Workplaces" row: name + pay-terms-ready flag, plus the primary
+    contract's pk and whether it still wants a label / calendar invites, so Review
+    can offer an "Edit contract" button and a soft nudge."""
+    contract = wp.contracts.all().first()
+    return {
+        "name": wp.name,
+        "ready": wp.name not in stub_names and wp.contracts.filter(
+            term_sets__isnull=False).exists(),
+        "contract_pk": contract.pk if contract else None,
+        "contract_named": bool(contract and contract.name),
+        # getattr default works because a missing reverse one-to-one raises an
+        # AttributeError subclass (same idiom as calendar_sync.invites._config).
+        "invites_set": bool(contract and getattr(contract, "calendar_config", None)
+                            and contract.calendar_config.send_invites),
+    }
+
+
 def coverage(request):
     from core.models import TaxProfile
     from shifts.models import PlannedShift, Shift
@@ -409,11 +427,12 @@ def coverage(request):
     stub_names = {name for _, name in placeholders}
 
     # What Review lists under "Workplaces": every one that exists so far, each
-    # flagged with whether its pay is actually set up.
+    # flagged with whether its pay is set up, plus its primary contract's pk and a
+    # nudge flag so Review can offer "Edit contract" (label + calendar invites).
     workplaces = tuple(
-        {"name": wp.name, "ready": wp.name not in stub_names and wp.contracts.filter(
-            term_sets__isnull=False).exists()}
-        for wp in Workplace.objects.order_by("name").prefetch_related("contracts")
+        _workplace_review_info(wp, stub_names)
+        for wp in Workplace.objects.order_by("name").prefetch_related(
+            "contracts__term_sets", "contracts__calendar_config")
     )
 
     return Coverage(

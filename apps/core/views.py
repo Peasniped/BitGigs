@@ -1143,6 +1143,57 @@ class OnboardingEmailProbeView(EmailProbeView):
     (the /settings/ endpoint is behind the onboarding funnel)."""
 
 
+class OnboardingContractEditView(View):
+    """Edit an already-created contract's **label + calendar invites** from the
+    Review screen. Every workplace Review lists is a real DB row (an import made
+    it — defined or blank), so its contract can be edited here directly; the
+    from-scratch workplace isn't listed (it's edited on the Workplace step). Saves
+    immediately — like the placeholder-terms repair — and returns to Review. Reuses
+    the contract form + shared invite partial with an ``onboarding`` flag. Pay
+    terms keep their own repair flow; this touches only label + invites.
+    Funnel-exempt via the /onboarding/ prefix."""
+
+    def _get_contract(self, cpk):
+        from django.shortcuts import get_object_or_404
+        from workplaces.models import WorkplaceContract
+        return get_object_or_404(WorkplaceContract, pk=cpk)
+
+    def _forms(self, contract, data=None):
+        from workplaces.forms import WorkplaceContractForm
+        from workplaces.views import _contract_calendar_form
+        form = WorkplaceContractForm(data, instance=contract, workplace=contract.workplace)
+        return form, _contract_calendar_form(contract, data)
+
+    def _context(self, request, contract, form, cal_form):
+        from workplaces.views import _calendar_readiness
+        return {
+            "form": form, "cal_form": cal_form,
+            "workplace": contract.workplace, "contract": contract,
+            "onboarding": True,
+            "steps": ob.steps_for(request, "review"),
+            **_calendar_readiness(),
+        }
+
+    def get(self, request, cpk):
+        contract = self._get_contract(cpk)
+        form, cal_form = self._forms(contract)
+        return render(request, "workplaces/contract_form.html",
+                      self._context(request, contract, form, cal_form))
+
+    def post(self, request, cpk):
+        from workplaces.views import _save_contract_calendar
+        contract = self._get_contract(cpk)
+        form, cal_form = self._forms(contract, request.POST)
+        if form.is_valid() and cal_form.is_valid():
+            updated = form.save(commit=False)
+            updated.workplace = contract.workplace
+            updated.save()
+            _save_contract_calendar(updated, cal_form)
+            return redirect("core:onboarding-review")
+        return render(request, "workplaces/contract_form.html",
+                      self._context(request, contract, form, cal_form))
+
+
 class OnboardingTermsView(View):
     """Onboarding step 5 — how the workplace pays.
 

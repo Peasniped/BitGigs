@@ -19,6 +19,10 @@ urlpatterns = [
     path("onboarding/email/test/", views.OnboardingEmailTestView.as_view(), name="onboarding-email-test"),
     path("onboarding/email/probe/", views.OnboardingEmailProbeView.as_view(), name="onboarding-email-probe"),
     path("onboarding/terms/", views.OnboardingTermsView.as_view(), name="onboarding-terms"),
+    # Edit an already-created contract's label + calendar invites from Review
+    # (imported/blank workplaces have a real contract row). Funnel-exempt.
+    path("onboarding/contract/<int:cpk>/", views.OnboardingContractEditView.as_view(),
+         name="onboarding-contract"),
     path("onboarding/review/", views.OnboardingReviewView.as_view(), name="onboarding-review"),
     path("onboarding/start-over/", views.OnboardingResetView.as_view(), name="onboarding-reset"),
     # Entered from the Start step, and again from Review to top up a partial file.

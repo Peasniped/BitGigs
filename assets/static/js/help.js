@@ -67,6 +67,24 @@
       }
     });
 
+    // A [data-help-open="slug"] element anywhere on the page (the in-panel handler
+    // on `root` covers ones inside the popup) opens the popup straight to that
+    // article — used by the onboarding Review "?" nudges. When the panel is shut
+    // we open it, then load the article once it's shown (the shown handler resets
+    // to the context view first; ours runs after and wins).
+    document.addEventListener("click", function (e) {
+      var opener = e.target.closest("[data-help-open]");
+      if (!opener || root.contains(opener)) return;
+      e.preventDefault();
+      var slug = opener.getAttribute("data-help-open");
+      if (root.classList.contains("show")) { openArticle(slug); return; }
+      root.addEventListener("shown.bs.offcanvas", function once() {
+        root.removeEventListener("shown.bs.offcanvas", once);
+        openArticle(slug);
+      });
+      getOffcanvas().show();
+    });
+
     // A Bootstrap modal traps focus inside itself; while help is open over one,
     // pause that trap so the search box is typeable, then restore it.
     root.addEventListener("show.bs.offcanvas", function () {

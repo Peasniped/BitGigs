@@ -71,7 +71,7 @@ class OnboardingWorkplaceRenderTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.content.decode()
         self.assertIn('id="id_send_invites_yes"', html)
-        # Informational onboarding copy pointing at the next step, not the
+        # Informational onboarding copy (points at the email step), not the
         # contract page's new-tab "Set it up under Settings → Email" link.
-        self.assertIn("next step", html)
+        self.assertIn("email step", html)
         self.assertNotIn('target="_blank"', html)
