@@ -257,6 +257,28 @@ class CalendarSubscriptionTestView(View):
         return _calendar_redirect()
 
 
+class CalendarSubscriptionToggleView(View):
+    """AJAX enable/disable of one subscription (Direction 1).
+
+    Drives the planning page's per-calendar sliders: flipping one writes
+    ``CalendarSubscription.enabled`` — a **permanent** change, the same switch as
+    Settings → Calendar — and returns the fresh ``busy_config_token`` so the
+    overlay's session cache stays coherent.
+    """
+
+    def post(self, request):
+        from .models import CalendarSubscription
+
+        sub = get_object_or_404(CalendarSubscription, pk=request.POST.get("id"))
+        sub.enabled = request.POST.get("enabled") == "1"
+        sub.save(update_fields=["enabled", "updated_at"])
+        return JsonResponse({
+            "ok": True,
+            "enabled": sub.enabled,
+            "token": services.busy_config_token(),
+        })
+
+
 class CalendarSubscriptionCheckView(View):
     """AJAX sibling of ``subscription-test``: fetch a subscription now and report
     the result as JSON. Drives the Calendar tab's on-load auto-check of calendars

@@ -59,6 +59,25 @@ class SubscriptionModelTests(TestCase):
         self.assertFalse(sub.is_usable)
 
 
+class BusyConfigTokenTests(TestCase):
+    """The overlay cache token fingerprints colours only, so toggling a calendar
+    on/off reuses the client cache while a colour edit invalidates it."""
+
+    def test_token_stable_across_enabled_toggle(self):
+        sub = CalendarSubscription.objects.create(label="A", color="#ff0000")
+        before = services.busy_config_token()
+        sub.enabled = not sub.enabled
+        sub.save(update_fields=["enabled"])
+        self.assertEqual(before, services.busy_config_token())
+
+    def test_token_changes_on_colour_edit(self):
+        sub = CalendarSubscription.objects.create(label="A", color="#ff0000")
+        before = services.busy_config_token()
+        sub.color = "#00ff00"
+        sub.save(update_fields=["color"])
+        self.assertNotEqual(before, services.busy_config_token())
+
+
 class SsrfGuardTests(TestCase):
     def test_rejects_non_http_schemes(self):
         for url in ("file:///etc/passwd", "ftp://host/x", "gopher://h/", "not-a-url"):
@@ -204,6 +223,8 @@ class BusyEndpointTests(TestCase):
         self.assertEqual(len(busy), 1)
         self.assertEqual(busy[0]["summary"], "Dentist")
         self.assertEqual(busy[0]["color"], "#ff0000")
+        # sub_id lets the planning overlay cache/filter per calendar.
+        self.assertEqual(busy[0]["sub_id"], self.sub.pk)
 
     def test_bad_month_is_400(self):
         resp = self.client.get("/calendar-sync/busy/?year=2026&month=13")
@@ -292,5 +313,65 @@ class SubscriptionCheckViewTests(TestCase):
         self.client.logout()
         resp = self.client.post(
             "/calendar-sync/subscriptions/check/", {"id": self.sub.pk}
+        )
+        self.assertEqual(resp.status_code, 302)
+
+
+class SubscriptionToggleViewTests(TestCase):
+    """The planning page's per-calendar sliders persist CalendarSubscription.enabled."""
+
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user("toggler", password="pw")
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["onboarding_complete"] = True
+        session.save()
+        self.sub = CalendarSubscription.objects.create(
+            label="Personal", color="#ff0000", enabled=True
+        )
+
+    def test_disable_persists_and_returns_token(self):
+        resp = self.client.post(
+            "/calendar-sync/subscriptions/toggle/", {"id": self.sub.pk, "enabled": "0"}
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        self.assertFalse(data["enabled"])
+        self.assertIn("token", data)
+        self.sub.refresh_from_db()
+        self.assertFalse(self.sub.enabled)
+
+    def test_enable_persists(self):
+        self.sub.enabled = False
+        self.sub.save(update_fields=["enabled"])
+        resp = self.client.post(
+            "/calendar-sync/subscriptions/toggle/", {"id": self.sub.pk, "enabled": "1"}
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["enabled"])
+        self.sub.refresh_from_db()
+        self.assertTrue(self.sub.enabled)
+
+    def test_token_stable_when_enabled_state_changes(self):
+        # The overlay filters calendars client-side, so a toggle must NOT bump the
+        # cache token (else the client would re-pull on every toggle).
+        before = services.busy_config_token()
+        self.client.post(
+            "/calendar-sync/subscriptions/toggle/", {"id": self.sub.pk, "enabled": "0"}
+        )
+        self.assertEqual(before, services.busy_config_token())
+
+    def test_unknown_subscription_is_404(self):
+        resp = self.client.post(
+            "/calendar-sync/subscriptions/toggle/", {"id": 9999, "enabled": "0"}
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_requires_login(self):
+        self.client.logout()
+        resp = self.client.post(
+            "/calendar-sync/subscriptions/toggle/", {"id": self.sub.pk, "enabled": "0"}
         )
         self.assertEqual(resp.status_code, 302)

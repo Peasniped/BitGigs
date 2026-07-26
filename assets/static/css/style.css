@@ -952,6 +952,12 @@ body[data-mask-money] .money-chart {
   color: var(--info);
   flex-shrink: 0;
 }
+/* On the dark planned-chip surface plain --info (#3b82f6) all but disappears —
+   use the brighter --info-strong (#93c5fd in dark) and firm up the ring. */
+[data-bs-theme="dark"] .shift-chip__invited { color: var(--info-strong); }
+[data-bs-theme="dark"] .shift-chip--invited {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--info) 75%, transparent);
+}
 
 /* Optional shift-type visualization (on by default; toggle in Settings) — a
    solid colour band on the right edge of the chip, coloured by a per-type var. */

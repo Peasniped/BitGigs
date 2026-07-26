@@ -12,16 +12,45 @@
   <h2 class="mb-0"><i class="bi bi-calendar2-week me-2"></i>Planning Mode</h2>
   <div class="d-flex align-items-center gap-2">
     {% if can_send_invites %}
-    <button type="button" class="btn btn-sm btn-outline-primary" id="sendInvitesBtn"
-            title="Email calendar invites for the planned shifts shown, to each workplace's recipients and your own calendar">
-      <i class="bi bi-envelope-paper me-1"></i>Send invites
-    </button>
+      {% if invite_pending_count %}
+      <button type="button" class="btn btn-sm btn-outline-primary" id="sendInvitesBtn"
+              title="Email calendar invites for the planned shifts shown, to each workplace's recipients and your own calendar">
+        <i class="bi bi-envelope-paper me-1"></i>Send invites
+      </button>
+      {% else %}
+      <button type="button" class="btn btn-sm btn-outline-secondary disabled" id="sendInvitesBtn" disabled
+              title="Every eligible planned shift shown already has an invite out.">
+        <i class="bi bi-check2-all me-1"></i>All invites sent
+      </button>
+      {% endif %}
     {% endif %}
-    {% if calendar_subscription_count %}
-    <button type="button" class="btn btn-sm btn-outline-primary" id="showCalendarToggle"
-            title="Overlay your personal calendar's busy times to catch clashes while planning">
-      <i class="bi bi-calendar-heart me-1"></i>Show my calendar{{ calendar_subscription_count|pluralize }}
-    </button>
+    {% if has_calendar_subscriptions %}
+    <div class="calendar-dropdown btn-group">
+      <button type="button" class="btn btn-sm btn-outline-primary calendar-toggle-main" id="showCalendarToggle"
+              title="Overlay your personal calendar's busy times to catch clashes while planning">
+        <i class="bi bi-calendar-heart me-1"></i>Show my calendar{{ calendar_subscription_count|pluralize }}
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-primary calendar-caret" id="calendarPanelToggle"
+              aria-expanded="false" aria-label="Choose which calendars to show"
+              title="Choose which calendars to show">
+        <i class="bi bi-chevron-down"></i>
+      </button>
+      {# Per-calendar sliders — drop out of the button; the caret opens/closes them. #}
+      <div id="calendarPanel" class="calendar-panel d-none">
+        <div class="calendar-panel__title">Calendars shown</div>
+        {% for c in calendar_subscriptions %}
+        <div class="calendar-panel__row">
+          <span class="calendar-panel__swatch" style="background:{{ c.color }};"></span>
+          <span class="calendar-panel__label">{{ c.label }}</span>
+          <div class="form-check form-switch mb-0">
+            <input type="checkbox" class="form-check-input" role="switch"
+                   data-cal-toggle="{{ c.id }}"{% if c.enabled %} checked{% endif %}
+                   aria-label="Show {{ c.label }}">
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
     {% endif %}
     <button type="button" class="btn btn-sm btn-outline-primary" id="powerEditToggle">
       <i class="bi bi-lightning-charge-fill me-1"></i>Power Edit
@@ -245,6 +274,7 @@
      data-current-year="{{ year }}"
      data-current-month="{{ month }}"
      data-busy-url="{% url 'calendar_sync:busy' %}"
+     data-subscription-toggle-url="{% url 'calendar_sync:subscription-toggle' %}"
      data-send-invites-url="{% url 'calendar_sync:send-invites' %}"
      data-calendar-count="{{ calendar_subscription_count }}"
      data-busy-token="{{ busy_config_token }}"

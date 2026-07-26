@@ -409,23 +409,26 @@ def fetch_ical(url: str, *, timeout=FETCH_TIMEOUT, max_bytes=MAX_FEED_BYTES) -> 
 
 
 def busy_config_token() -> str:
-    """A short fingerprint of the subscription state that affects the overlay's
-    *appearance* — which calendars are enabled and their colours.
+    """A short fingerprint of the subscription **colours** (all calendars, enabled
+    or not) — the only stored state that makes cached busy chips render *wrong*.
 
-    The planning overlay caches its rendered busy chips in ``sessionStorage`` to
-    avoid re-polling the provider on every passive reload. That cache bakes each
-    chip's colour in, so editing a calendar's colour used to show stale colours
-    until a manual re-pull. The page carries this token; the overlay stores it
-    alongside the cache and, when it no longer matches, re-fetches once — a fetch
-    that reuses the ~15 min server-side feed cache, so the colour refresh costs no
-    external poll.
+    The planning overlay caches fetched busy cells per-month, per-calendar in
+    ``sessionStorage``. Each cell bakes its calendar's colour in, so editing a
+    colour must invalidate that cache — the page carries this token, the overlay
+    stores it alongside the cache and drops everything when it no longer matches
+    (re-fetching once, reusing the ~15 min server feed cache, so no external poll).
+
+    Enabled-state is deliberately **excluded**: toggling a calendar on/off only
+    changes which cached cells are *shown*, not their data, so the overlay filters
+    client-side and a toggle must not bust the cache (else it would re-pull every
+    time). A colour change is the only edit that survives here.
     """
     from hashlib import md5
 
     from .models import CalendarSubscription
 
     rows = list(
-        CalendarSubscription.objects.enabled().order_by("pk").values_list("pk", "color")
+        CalendarSubscription.objects.order_by("pk").values_list("pk", "color")
     )
     return md5(repr(rows).encode("utf-8")).hexdigest()[:12]
 
@@ -505,7 +508,11 @@ def busy_blocks(window_start, window_end, *, refresh=False):
     for sub in CalendarSubscription.objects.enabled():
         try:
             for event in subscription_busy(sub, window_start, window_end, refresh=refresh):
-                cells.extend(_event_to_cells(event, sub.color, window_start, window_end))
+                for cell in _event_to_cells(event, sub.color, window_start, window_end):
+                    # sub_id lets the planning overlay cache per-calendar and filter
+                    # client-side when a calendar is toggled (no re-fetch).
+                    cell["sub_id"] = sub.pk
+                    cells.append(cell)
         except Exception:
             # One bad subscription must never suppress the others. subscription_busy
             # already fails soft for the ordinary cases (fetch/parse errors);

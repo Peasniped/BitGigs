@@ -48,6 +48,12 @@ times appear as muted, striped **read-only** chips in the day cells — you can'
 drag or edit them, they're just there for context. A legend swatch ("External
 calendar event") shows in the help panel while the overlay is on.
 
+Turning the overlay on also **uncollapses a list of sliders** under the button,
+one per calendar. Flip a slider to show or hide that calendar's busy blocks — this
+is the **same on/off switch as Settings → Calendar**, so the change is permanent
+(a hidden calendar stays hidden everywhere until you turn it back on). This is the
+handy way to plan against just one calendar without leaving the page.
+
 Because the busy blocks use the same time shape as shifts, the planner's existing
 **overlap warning** picks them up: plan a shift over a busy block and both turn
 amber. Turning the toggle **on** is the only thing that fetches a fresh copy from

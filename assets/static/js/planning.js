@@ -353,27 +353,54 @@
     });
   }
 
+  // Serial delete queue: only one DELETE is in flight at a time. Rapid Delete-mode
+  // clicks used to fire concurrent DELETEs, whose synchronous invite-cancel SMTP +
+  // SQLite writes collided → "database is locked". Serialising them removes the
+  // contention entirely; the chip is pulled from the DOM up front (optimistic) so
+  // it still feels instant while the queue drains behind the scenes.
+  var delQueue = [];
+  var delBusy = false;
+  function enqueueDelete(task) { delQueue.push(task); drainDelete(); }
+  function drainDelete() {
+    if (delBusy) return;
+    var task = delQueue.shift();
+    if (!task) return;
+    delBusy = true;
+    task().finally(function() { delBusy = false; drainDelete(); });
+  }
+
   function deleteShiftImmediate(chip) {
     var shiftId = parseInt(chip.dataset.shiftId);
     var wpId = parseInt(chip.dataset.workplaceId);
     if (!shiftId) return;
+
+    // Optimistic removal — remember where it was so a failed delete can restore it.
+    var td = chip.closest('td[data-date]');
+    var container = chip.parentNode;
+    var nextSibling = chip.nextSibling;
+    if (container) container.removeChild(chip);
+    if (td) updateDayHourBadge(td);
+    updateWpCardProgress(wpId);
+    recheckOverlaps();
+
     var url = cfg.shiftUpdateUrl.replace('/0/', '/' + shiftId + '/');
-    fetch(url, {
-      method: 'DELETE',
-      headers: { 'X-CSRFToken': CSRF },
-    }).then(function(r) { return r.json(); }).then(function(data) {
-      if (data.ok) {
-        var td = chip.closest('td[data-date]');
-        chip.style.transition = 'opacity 0.2s, transform 0.2s';
-        chip.style.opacity = '0';
-        chip.style.transform = 'scale(0.8)';
-        setTimeout(function() {
-          chip.remove();
+    enqueueDelete(function() {
+      return fetch(url, { method: 'DELETE', headers: { 'X-CSRFToken': CSRF } })
+        .then(function(r) { return r.json(); })
+        .then(function(data) { if (!data.ok) throw new Error('delete failed'); })
+        .catch(function() {
+          // Roll back: re-insert the chip where it was; it keeps its handlers.
+          if (container) {
+            if (nextSibling && nextSibling.parentNode === container) {
+              container.insertBefore(chip, nextSibling);
+            } else {
+              container.appendChild(chip);
+            }
+          }
           if (td) updateDayHourBadge(td);
           updateWpCardProgress(wpId);
           recheckOverlaps();
-        }, 200);
-      }
+        });
     });
   }
 
@@ -486,14 +513,16 @@
 
   // Which overlapping pair warrants the amber warning. Two real shifts always
   // do (this matches the server's annotate_overlaps). A busy (external calendar)
-  // chip only clashes with a shift that belongs to the *selected* month — a
-  // faded prior-period shift shown only for context, or another busy block, is
-  // ignored, so the overlay never warns about a shift managed in another month.
+  // chip only clashes with a shift that is (a) in the *selected* month and (b)
+  // still planned. A faded prior-period shift, another busy block, or an
+  // already-approved shift is ignored: an approved shift is cleared, so a manual
+  // calendar event colliding with it is just noise — you'd have to go delete old
+  // events to silence it, which isn't worth doing.
   function flagsOverlap(a, b) {
     if (a.busy && b.busy) return false;
     if (a.busy || b.busy) {
       var shift = a.busy ? b : a;
-      return !shift.prior;
+      return !shift.prior && !shift.approved;
     }
     return true;
   }
@@ -523,6 +552,7 @@
           end: toMinutes(parts[1]),
           busy: c.classList.contains('busy-chip'),
           prior: c.classList.contains('shift-chip--prior-period'),
+          approved: c.classList.contains('shift-chip--approved'),
         };
       }).filter(Boolean);
 
@@ -1572,6 +1602,10 @@
   var SHOW_CALENDAR_KEY = 'bitgigs.planning.showCalendar';
   var showCalendarBtn = document.getElementById('showCalendarToggle');
   var busyLegend = document.querySelector('[data-busy-legend]');
+  var SUB_TOGGLE_URL = cfg.subscriptionToggleUrl;
+  var calendarPanel = document.getElementById('calendarPanel');
+  var calendarPanelToggle = document.getElementById('calendarPanelToggle');
+  var calendarDropdown = calendarPanel ? calendarPanel.closest('.calendar-dropdown') : null;
 
   function busyContainerFor(dateStr) {
     return document.querySelector(
@@ -1653,47 +1687,109 @@
   // the network once; after that a passive reload (a shift edit re-rendering the
   // page, month navigation, …) restores the chips from here without re-polling
   // the provider. Cleared when the tab closes — sessionStorage, not localStorage.
+  // Per-month, per-subscription busy cache (sessionStorage). Fetching a month
+  // buckets its cells by calendar id + timestamp, so: navigating to an uncached
+  // month fetches it once; a cached fresh month renders with no network; toggling
+  // a calendar filters client-side (no re-fetch) and re-enabling reuses cached
+  // cells while they're fresh. A colour edit bumps BUSY_TOKEN and drops the cache.
   var BUSY_CACHE_KEY = 'bitgigs.planning.busyCache';
-  // Fingerprint of the calendars' colour/enabled state (server-computed). Stored
-  // with the cache so a colour change (which bumps the token) invalidates the
-  // stale cached chips and triggers a re-fetch — see loadBusyCache.
   var BUSY_TOKEN = cfg.busyToken || '';
-  function saveBusyCache(cells) {
-    try {
-      sessionStorage.setItem(
-        BUSY_CACHE_KEY, JSON.stringify({ token: BUSY_TOKEN, cells: cells || [] })
-      );
-    } catch (e) {}
-  }
-  function loadBusyCache() {
-    // Return the cached cells only when they were stored under the *current*
-    // config token. A calendar colour or enabled-state edit bumps the token, so
-    // stale chips are ignored and setCalendarShown re-fetches (from the server's
-    // ~15 min feed cache, so no external poll). An old bare-array cache from
-    // before this format has no token → treated as a miss, self-healing.
-    try {
-      var raw = sessionStorage.getItem(BUSY_CACHE_KEY);
-      if (!raw) return null;
-      var parsed = JSON.parse(raw);
-      if (!parsed || parsed.token !== BUSY_TOKEN) return null;
-      return parsed.cells || null;
-    } catch (e) { return null; }
+  var BUSY_TTL_MS = 3600e3;      // a month's data stays "fresh" for 1 hour
+  var BUSY_KEEP_MONTHS = 6;      // cap the cached-month count
+
+  function monthKey() { return CURRENT_YEAR + '-' + CURRENT_MONTH; }
+
+  // Which calendars are currently shown — seeded from the sliders, kept in step by
+  // the toggle handler. Ids are strings (they key the cache buckets too).
+  var enabledSubs = new Set();
+  if (calendarPanel) {
+    calendarPanel.querySelectorAll('[data-cal-toggle]').forEach(function(input) {
+      if (input.checked) enabledSubs.add(String(input.dataset.calToggle));
+    });
   }
 
-  function loadBusyOverlay(refresh) {
+  function readCache() {
+    try {
+      var parsed = JSON.parse(sessionStorage.getItem(BUSY_CACHE_KEY));
+      // A colour edit bumps the token → treat the whole cache as empty (re-fetch).
+      if (!parsed || parsed.token !== BUSY_TOKEN || !parsed.months) return null;
+      return parsed;
+    } catch (e) { return null; }
+  }
+  function writeCache(store) {
+    // Keep only the most-recently-touched months so the cache can't grow forever.
+    var keys = Object.keys(store.months);
+    if (keys.length > BUSY_KEEP_MONTHS) {
+      keys.map(function(k) {
+        var subs = store.months[k].subs || {};
+        var newest = Object.keys(subs).reduce(function(m, s) {
+          return Math.max(m, subs[s].at || 0);
+        }, 0);
+        return { k: k, at: newest };
+      }).sort(function(a, b) { return a.at - b.at; })
+        .slice(0, keys.length - BUSY_KEEP_MONTHS)
+        .forEach(function(o) { delete store.months[o.k]; });
+    }
+    try { sessionStorage.setItem(BUSY_CACHE_KEY, JSON.stringify(store)); } catch (e) {}
+  }
+  function currentMonthSubs() {
+    var store = readCache();
+    var m = store && store.months[monthKey()];
+    return (m && m.subs) || {};
+  }
+  function isFresh(entry) {
+    return entry && (Date.now() - (entry.at || 0)) < BUSY_TTL_MS;
+  }
+
+  // Cells to paint for the current month = every enabled calendar's cached cells.
+  function renderCurrentMonth() {
+    var subs = currentMonthSubs();
+    var cells = [];
+    enabledSubs.forEach(function(id) {
+      var entry = subs[id];
+      if (entry && entry.cells) cells = cells.concat(entry.cells);
+    });
+    renderBusyOverlay(cells);
+  }
+
+  // Fetch the current month when forced, or when an enabled calendar's data is
+  // missing/stale; otherwise paint straight from cache. `force` also busts the
+  // server's ~15 min feed cache (a real provider re-poll — the Hide→Show gesture).
+  function ensureCurrentMonth(force) {
     if (!BUSY_URL) return;
+    var subs = currentMonthSubs();
+    var stale = !!force;
+    if (!stale) {
+      enabledSubs.forEach(function(id) { if (!isFresh(subs[id])) stale = true; });
+    }
+    if (!stale) { renderCurrentMonth(); setBtnVisual('on'); return; }
+
     var range = visibleDateRange();
     var url = BUSY_URL + (range
       ? '?start=' + range.start + '&end=' + range.end
       : '?year=' + CURRENT_YEAR + '&month=' + CURRENT_MONTH) +
-      (refresh ? '&refresh=1' : '');
+      (force ? '&refresh=1' : '');
     setBtnVisual('loading');
     fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function(r) { return r.ok ? r.json() : { busy: [] }; })
       .then(function(data) {
         var cells = data.busy || [];
-        saveBusyCache(cells);
-        renderBusyOverlay(cells);
+        // Bucket by calendar; stamp every enabled calendar (even empty ones, so a
+        // calendar with no events isn't re-fetched next time).
+        var buckets = {};
+        enabledSubs.forEach(function(id) { buckets[id] = []; });
+        cells.forEach(function(c) {
+          var id = String(c.sub_id);
+          (buckets[id] = buckets[id] || []).push(c);
+        });
+        var store = readCache() || { token: BUSY_TOKEN, months: {} };
+        var now = Date.now();
+        var month = (store.months[monthKey()] = store.months[monthKey()] || { subs: {} });
+        Object.keys(buckets).forEach(function(id) {
+          month.subs[id] = { at: now, cells: buckets[id] };
+        });
+        writeCache(store);
+        renderCurrentMonth();
       })
       .catch(function() { /* fail soft — no overlay */ })
       .finally(function() { setBtnVisual('on'); });
@@ -1711,17 +1807,9 @@
     calendarOn = on;
     setBusyLegend(on);
     if (on) {
-      if (opts.refresh) {
-        loadBusyOverlay(true);  // deliberate turn-on → fresh poll, 'loading' → 'on'
-      } else {
-        var cached = loadBusyCache();
-        if (cached) {
-          renderBusyOverlay(cached);  // restore from this session's cache, no poll
-          setBtnVisual('on');
-        } else {
-          loadBusyOverlay(false);  // first time this session → populate the cache once
-        }
-      }
+      // refresh (Hide→Show) forces a provider re-pull of the current month; a
+      // passive restore (page load, month nav) fetches only what isn't cached/fresh.
+      ensureCurrentMonth(!!opts.refresh);
     } else {
       setBtnVisual('off');
       removeBusyChips();
@@ -1739,6 +1827,70 @@
     var pref = '0';
     try { pref = localStorage.getItem(SHOW_CALENDAR_KEY) || '0'; } catch (e) {}
     if (pref === '1') setCalendarShown(true, { persist: false, refresh: false });
+  }
+
+  // Per-calendar sliders: flip one → persist CalendarSubscription.enabled (a
+  // permanent change, same switch as Settings → Calendar), then repaint the overlay
+  // from cache — disabling hides a calendar's chips with no network; enabling shows
+  // them, reusing cached cells while they're fresh and only fetching otherwise.
+  // Failure reverts the switch and leaves the overlay untouched.
+  if (SUB_TOGGLE_URL && calendarPanel) {
+    calendarPanel.querySelectorAll('[data-cal-toggle]').forEach(function(input) {
+      input.addEventListener('change', function() {
+        var wanted = input.checked;
+        var id = String(input.dataset.calToggle);
+        input.disabled = true;
+        var body = new URLSearchParams();
+        body.set('id', id);
+        body.set('enabled', wanted ? '1' : '0');
+        fetch(SUB_TOGGLE_URL, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+          body: body,
+        })
+          .then(function(r) { return r.ok ? r.json() : Promise.reject(); })
+          .then(function(data) {
+            if (!data.ok) return Promise.reject();
+            if (wanted) enabledSubs.add(id); else enabledSubs.delete(id);
+            if (calendarOn) {
+              if (wanted) ensureCurrentMonth(false);  // cache-if-fresh, else fetch
+              else renderCurrentMonth();               // hide — no fetch
+            }
+          })
+          .catch(function() { input.checked = !wanted; })
+          .finally(function() { input.disabled = false; });
+      });
+    });
+  }
+
+  // The caret beside "Show my calendar" opens/closes the calendar list, independent
+  // of whether the busy overlay itself is on — the sliders persist a calendar's
+  // enabled state regardless. Clicking outside the group closes it.
+  function setPanelOpen(open) {
+    if (!calendarPanel) return;
+    calendarPanel.classList.toggle('d-none', !open);
+    if (calendarDropdown) calendarDropdown.classList.toggle('is-open', open);
+    if (calendarPanelToggle) {
+      calendarPanelToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      // Filled (gradient) only while the list is open; otherwise outline like the
+      // other buttons.
+      calendarPanelToggle.classList.toggle('btn-primary', open);
+      calendarPanelToggle.classList.toggle('btn-outline-primary', !open);
+      var caretIcon = calendarPanelToggle.querySelector('i');
+      if (caretIcon) {
+        caretIcon.classList.toggle('bi-chevron-up', open);
+        caretIcon.classList.toggle('bi-chevron-down', !open);
+      }
+    }
+  }
+  if (calendarPanelToggle && calendarPanel) {
+    calendarPanelToggle.addEventListener('click', function(e) {
+      e.stopPropagation();
+      setPanelOpen(calendarPanel.classList.contains('d-none'));
+    });
+    document.addEventListener('click', function(e) {
+      if (calendarDropdown && !calendarDropdown.contains(e.target)) setPanelOpen(false);
+    });
   }
 
   // ----- Direction 2: send calendar invites for the shown planned shifts -----

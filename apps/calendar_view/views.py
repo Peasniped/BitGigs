@@ -143,6 +143,23 @@ class PlanningCalendarView(View):
             and ContractCalendarConfig.objects.filter(send_invites=True).exists()
         )
 
+        # Data-driven "Send invites" button: how many planned shifts shown are
+        # eligible for an invite but don't have an active one yet. Zero → the button
+        # reads "All invites sent" (disabled) instead of offering a send that would
+        # do nothing. Only computed when the feature is armed (master + mail + a
+        # contract that sends). has_active_invite is already set on each shift above.
+        invite_pending_count = 0
+        if can_send_invites:
+            from calendar_sync import invites as _invites
+
+            for s in grid_shifts:
+                if (
+                    getattr(s, "is_planned", False)
+                    and not getattr(s, "has_active_invite", False)
+                    and _invites.eligible(s)
+                ):
+                    invite_pending_count += 1
+
         # Navigation
         prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
 
@@ -237,16 +254,28 @@ class PlanningCalendarView(View):
                 "month_names_json": month_names,
                 "today": today,
                 "has_overlaps": has_overlaps,
-                # Direction 1 overlay: only offer the "Show my calendar(s)" toggle
-                # when there's at least one enabled subscription; the count drives
-                # the singular/plural wording of the button and legend.
+                # Direction 1 overlay: offer the "Show my calendar(s)" toggle
+                # whenever at least one subscription *exists* (even if all are
+                # currently disabled — the per-calendar sliders let you turn one
+                # back on right here). The enabled count drives the singular/plural
+                # wording of the button and legend.
                 "calendar_subscription_count": CalendarSubscription.objects.enabled().count(),
+                "has_calendar_subscriptions": CalendarSubscription.objects.exists(),
+                # Per-calendar sliders that uncollapse under the button: id / label
+                # / colour / enabled for every subscription, toggled permanently via
+                # calendar_sync:subscription-toggle.
+                "calendar_subscriptions": [
+                    {"id": s.pk, "label": s.label, "color": s.color, "enabled": s.enabled}
+                    for s in CalendarSubscription.objects.all()
+                ],
                 # Fingerprint of the overlay's colour/enabled state: the client
                 # discards its session-cached chips and re-fetches when it changes,
                 # so a calendar colour edit shows without a manual re-pull.
                 "busy_config_token": calendar_sync_services.busy_config_token(),
-                # Direction 2: offer the "Send invites" button when invites are on.
+                # Direction 2: offer the "Send invites" button when invites are on;
+                # its label/state is driven by how many shown shifts still need one.
                 "can_send_invites": can_send_invites,
+                "invite_pending_count": invite_pending_count,
             },
         )
 
