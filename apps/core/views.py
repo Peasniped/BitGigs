@@ -51,6 +51,10 @@ class DashboardView(View):
 
     def get(self, request):
         from calendar_view.services import CalendarService
+        from workplaces.services import maybe_prune_orphan_icons
+
+        # Housekeeping: sweep orphaned workplace-icon files at most once a day.
+        maybe_prune_orphan_icons()
 
         today = timezone.localdate()
         year = parse_int_param(request.GET.get("year"), today.year)

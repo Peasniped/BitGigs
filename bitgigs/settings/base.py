@@ -182,6 +182,19 @@ LOGOUT_REDIRECT_URL = "/accounts/login/"
 # exists. See core/setup_key.py and `manage.py setup_key`.
 SETUP_KEY_PATH = BASE_DIR / "instance" / "setup_key.txt"
 
+# Marker file whose mtime records the last run of the orphaned-workplace-icon
+# prune. The prune is opportunistic (at most once every ICON_PRUNE_INTERVAL, on a
+# normal request) — no cron needed. See workplaces.services.maybe_prune_orphan_icons.
+ICON_PRUNE_MARKER_PATH = BASE_DIR / "instance" / "last_icon_prune"
+
+# Whether the once-a-day *automatic* icon prune runs. The prune treats the active
+# database as the sole authority on which icons are in use — true in production
+# (one DB, one media dir), but false in dev, where a spare db.sqlite3.bak shares
+# the same media/ directory and references icons this DB has never seen. So the
+# auto-sweep is on here and turned OFF in local.py; `manage.py prune_workplace_icons`
+# stays available everywhere as a deliberate, explicit action.
+ICON_PRUNE_AUTO = True
+
 # ─── Outbound mail (optional, configured in-app) ─────────────────────────────
 # BitGigs keeps its SMTP configuration in the database (the EmailSettings
 # singleton) so the operator can set it up and *test* it from Settings → Email

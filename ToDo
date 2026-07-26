@@ -2,12 +2,6 @@
 # NU     --------------------------------------------------------
 
 
-## Bigger / functional
-
-- [DONE v0.9.0] Multiple SMTP connections + a "Used for" role map — system mail (pw reset) and calendar invites can each send from a different connection (e.g. no-reply vs your own address). Settings → Email.
-
-- System that checks and remove stale/unused workplace icons in media>workplace_icons, maybe once per day?
-
 ## Philosophize about an invite management system, if you will
 - What happens if I have sent out a bunch of invites to one email, then change either the workplace or the personal email. Then the old address will have a bunch of orphaned calendar events, and the new address will not have any events?
 - - Maybe have a small system for changing the email that sends out cancellations to the old address and sends the events to the new address?
@@ -29,7 +23,12 @@
 - - It is the same when you hover over a workplace and it shows the green highlight showing which days belong to the payroll period. The borders of neighboring green days almost merge together. Maybe this highlight can be inset ever so slightly into the day cell so the borders do not (or do not almost) overlap.
 - In Settings>Display and Analytics, add some space between the save button and the last setting on the page.
 - It seems that on the Add Pay Terms-page, the workplace accent is used to color employment type and working time selectors, while the save button uses the app accent color (most probably because of the gradient). Can you try to make the button use the company colors as well? I know you need two colors, and the workplace accent only has one color.
-
+- UX Pass in settings
+- - Make all boolean switches a custom slider (please note this in claude.md under conventions)
+- - Make all settings (that are not forms/modals) save on change, and remove the save buttons.
+- - make sure settings formatting and styling are contiguous
+- - ASK before you remove anything. 
+- mirror Email>Allow password reset on the sign-in page so it can be changed/set both places. (If an email server is not setup, show warning on sign-in page)
 
 
 

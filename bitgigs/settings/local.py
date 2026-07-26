@@ -13,6 +13,12 @@ from .base import postgres_database
 DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
+# A dev checkout often keeps a db.sqlite3.bak with real data pointed at the same
+# media/ directory, so icons that DB references would look orphaned to this one.
+# Never auto-delete them in dev; run `manage.py prune_workplace_icons` by hand if
+# you actually want a sweep.
+ICON_PRUNE_AUTO = False
+
 if os.environ.get("DJANGO_DB", "").lower() == "postgres":
     DATABASES = {"default": postgres_database()}
 else:
