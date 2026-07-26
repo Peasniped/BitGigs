@@ -90,6 +90,20 @@ Params: title, icon, save_label.
             <label class="form-label small">Notes</label>
             <textarea id="shiftNotes" class="form-control form-control-sm" rows="2"></textarea>
           </div>
+
+          {% comment %}Per-shift calendar-invite control (planned shifts only —
+          revealed by planning.js). Invites send once; this is where you re-send
+          after an edit. Ships hidden like the other extras.{% endcomment %}
+          <div id="shiftInviteBlock" class="d-none mb-2 p-2 rounded"
+               style="background:var(--bg-light);">
+            <div class="d-flex align-items-center justify-content-between gap-2">
+              <span class="small" id="shiftInviteStatus"></span>
+              <button type="button" class="btn btn-outline-primary btn-sm" id="shiftInviteBtn">
+                <i class="bi bi-envelope-paper me-1"></i><span id="shiftInviteBtnLabel">Send invite</span>
+              </button>
+            </div>
+          </div>
+
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary btn-sm flex-fill">
               <i class="bi bi-check-lg me-1"></i><span id="shiftSaveLabel">{{ save_label|default:"Save Shift" }}</span>

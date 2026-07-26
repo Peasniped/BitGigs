@@ -46,14 +46,15 @@ class SendInvitesEndpointTests(TestCase):
         )
 
     def _planned(self, day=15):
+        # Future month — invites are future-only (eligible() rejects past shifts).
         return PlannedShift.objects.create(
-            workplace=self.wp, date=date(2026, 3, day),
+            workplace=self.wp, date=date(2035, 3, day),
             start_time=time(9, 0), end_time=time(17, 0),
         )
 
     def _post(self):
         return self.client.post(
-            "/calendar-sync/invites/send/?start=2026-03-01&end=2026-03-31"
+            "/calendar-sync/invites/send/?start=2035-03-01&end=2035-03-31"
         )
 
     def test_activates_planned_shifts_and_is_idempotent(self):
@@ -87,6 +88,54 @@ class SendInvitesEndpointTests(TestCase):
 
     def test_end_before_start_is_400(self):
         resp = self.client.post(
-            "/calendar-sync/invites/send/?start=2026-03-31&end=2026-03-01"
+            "/calendar-sync/invites/send/?start=2035-03-31&end=2035-03-01"
         )
         self.assertEqual(resp.status_code, 400)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class ShiftInviteEndpointTests(SendInvitesEndpointTests):
+    """The per-shift Send / Re-send endpoint behind the edit-modal control."""
+
+    def _invite(self, shift):
+        return self.client.post(f"/calendar-sync/invites/shift/{shift.pk}/")
+
+    def test_first_post_sends_and_second_resends(self):
+        shift = self._planned()
+
+        resp = self._invite(shift)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["action"], "sent")
+        self.assertEqual(len(mail.outbox), 1)
+        shift.refresh_from_db()
+        invite = ShiftInvite.objects.get(invite_uid=shift.invite_uid)
+        self.assertEqual(invite.sequence, 0)
+
+        # Editing sends nothing on its own; re-sending is explicit.
+        shift.end_time = time(18, 0)
+        shift.save()
+        self.assertEqual(len(mail.outbox), 1)
+
+        resp2 = self._invite(shift)
+        self.assertEqual(resp2.json()["action"], "resent")
+        self.assertEqual(len(mail.outbox), 2)
+        invite.refresh_from_db()
+        self.assertEqual(invite.sequence, 1)  # bumped
+
+    def test_ineligible_shift_is_400(self):
+        cfg = self.wp.contracts.first().calendar_config
+        cfg.send_invites = False
+        cfg.save()
+        shift = self._planned()
+        resp = self._invite(shift)
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_past_shift_is_400(self):
+        past = PlannedShift.objects.create(
+            workplace=self.wp, date=date(2020, 3, 15),
+            start_time=time(9, 0), end_time=time(17, 0),
+        )
+        resp = self._invite(past)
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(len(mail.outbox), 0)

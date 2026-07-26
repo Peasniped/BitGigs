@@ -1100,6 +1100,74 @@
     startEl.setSelectionRange(0, 2);
   });
 
+  // ----- Per-shift calendar-invite control (planned shifts only) -----
+  // Invites are sent once and re-sent only on request; this is that request.
+  var INVITE_URL = cfg.shiftInviteUrl || '';
+  var inviteBlock = document.getElementById('shiftInviteBlock');
+  var inviteBtn = document.getElementById('shiftInviteBtn');
+  var inviteStatus = document.getElementById('shiftInviteStatus');
+  var inviteLabel = document.getElementById('shiftInviteBtnLabel');
+  var inviteShiftId = null;
+  var inviteReloadOnClose = false;
+
+  function hideInviteBlock() {
+    if (inviteBlock) inviteBlock.classList.add('d-none');
+    inviteShiftId = null;
+  }
+
+  // Reveal + label from the shift's invite state (only for planned shifts).
+  function setupInviteBlock(shift) {
+    if (!inviteBlock || !INVITE_URL) return;
+    if (shift.invite_past) { hideInviteBlock(); return; }  // past → out of scope
+    inviteShiftId = shift.id;
+    inviteBtn.disabled = false;
+    if (shift.has_active_invite) {
+      inviteBlock.classList.remove('d-none');
+      inviteStatus.innerHTML = '<i class="bi bi-envelope-check me-1" style="color:var(--info);"></i>Calendar invite sent';
+      inviteLabel.textContent = 'Re-send invite';
+    } else if (shift.invite_eligible) {
+      inviteBlock.classList.remove('d-none');
+      inviteStatus.textContent = 'No invite sent yet';
+      inviteLabel.textContent = 'Send invite';
+    } else {
+      hideInviteBlock();
+    }
+  }
+
+  if (inviteBtn) {
+    inviteBtn.addEventListener('click', function () {
+      if (!inviteShiftId || !INVITE_URL) return;
+      var url = INVITE_URL.replace('/0/', '/' + inviteShiftId + '/');
+      var orig = inviteLabel.textContent;
+      inviteBtn.disabled = true;
+      inviteLabel.textContent = 'Sending…';
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({}),
+      }).then(function (r) { return r.json(); }).then(function (data) {
+        if (!data.ok) {
+          inviteStatus.textContent = data.error || 'Could not send invite.';
+          inviteBtn.disabled = false;
+          inviteLabel.textContent = orig;
+          return;
+        }
+        inviteReloadOnClose = true;  // refresh chips on close to show the marker
+        inviteStatus.innerHTML = '<i class="bi bi-check-circle-fill me-1" style="color:var(--success);"></i>' + (data.message || 'Invite sent.');
+        inviteLabel.textContent = 'Re-send invite';
+        inviteBtn.disabled = false;
+      }).catch(function () {
+        inviteStatus.textContent = 'Could not send invite.';
+        inviteBtn.disabled = false;
+        inviteLabel.textContent = orig;
+      });
+    });
+  }
+
+  document.getElementById('shiftModal').addEventListener('hidden.bs.modal', function () {
+    if (inviteReloadOnClose) { inviteReloadOnClose = false; location.reload(); }
+  });
+
   function openNewShiftModal(workplaceId, dateStr, showFastCreateWarn) {
     var wp = wpMap[workplaceId];
     if (!wp) return;
@@ -1124,6 +1192,7 @@
     document.getElementById('shiftTimeRow').style.outline = '';
     var fcWarn = document.getElementById('shiftModalFastCreateWarn');
     if (showFastCreateWarn) { fcWarn.classList.remove('d-none'); } else { fcWarn.classList.add('d-none'); }
+    hideInviteBlock();
     updateModalBanner(wp);
     calcShiftDuration();
     checkOverlapsLive();
@@ -1158,6 +1227,7 @@
       document.getElementById('shiftModalOverlap').classList.add('d-none');
       document.getElementById('shiftApprovedBanner').classList.add('d-none');
       document.getElementById('shiftTimeRow').style.outline = '';
+      setupInviteBlock(s);
       if (wp) updateModalBanner(wp);
       calcShiftDuration();
       checkOverlapsLive();
@@ -1187,6 +1257,7 @@
       document.getElementById('shiftModalOverlap').classList.add('d-none');
       document.getElementById('shiftTimeRow').style.outline = '';
       document.getElementById('shiftApprovedBanner').classList.remove('d-none');
+      hideInviteBlock();  // invite control is planned-shifts only
       if (wp) updateModalBanner(wp);
       calcShiftDuration();
       checkOverlapsLive();

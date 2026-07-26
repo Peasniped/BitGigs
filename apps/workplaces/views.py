@@ -417,11 +417,28 @@ def _calendar_readiness():
     }
 
 
-def _save_contract_calendar(contract, cal_form):
-    """Persist the invite config for *contract* from a validated config form."""
+def _save_contract_calendar(contract, cal_form, request=None):
+    """Persist the invite config for *contract* from a validated config form.
+
+    When *request* is given, nudge if the change left active invites addressed to
+    an old mailbox — they don't move on their own (explicit sync on Settings →
+    Calendar). A brand-new contract has no prior invites, so this is a no-op there.
+    """
     config = cal_form.save(commit=False)
     config.contract = contract
     config.save()
+    if request is not None:
+        from django.contrib import messages
+        from calendar_sync import reconcile
+
+        n = reconcile.contract_drift_count(contract)
+        if n:
+            messages.info(
+                request,
+                f"{n} calendar invite{'' if n == 1 else 's'} for this contract "
+                f"still point{'s' if n == 1 else ''} at the previous address — "
+                "sync them on Settings → Calendar.",
+            )
 
 
 class ContractCreateView(View):
@@ -445,7 +462,7 @@ class ContractCreateView(View):
             contract = form.save(commit=False)
             contract.workplace = workplace
             contract.save()
-            _save_contract_calendar(contract, cal_form)
+            _save_contract_calendar(contract, cal_form, request)
             return redirect(f"/workplaces/{slug}/contracts/{contract.pk}/terms/add/")
         return render(request, "workplaces/contract_form.html", {
             "form": form, "cal_form": cal_form, "workplace": workplace,
@@ -484,7 +501,7 @@ class ContractUpdateView(View):
                     form.add_error(None, msg)
                 return render(request, "workplaces/contract_form.html", ctx)
             updated.save()
-            _save_contract_calendar(updated, cal_form)
+            _save_contract_calendar(updated, cal_form, request)
             return redirect("workplaces:workplace-detail", slug=slug)
         return render(request, "workplaces/contract_form.html", ctx)
 

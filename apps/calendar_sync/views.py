@@ -132,8 +132,11 @@ def calendar_settings_context(*, sub_form=None, invite_form=None, open_modal="",
     )
     from .models import CalendarInviteSettings, CalendarSubscription
 
+    from . import reconcile
+
     invite_settings = CalendarInviteSettings.load()
     subscriptions = list(CalendarSubscription.objects.all())
+    drift_items = reconcile.drift_details()
 
     # Read-only overview grouped workplace → contract (item 9). Editing lives on
     # the contract page, so each contract row links there rather than embedding a
@@ -162,6 +165,14 @@ def calendar_settings_context(*, sub_form=None, invite_form=None, open_modal="",
         "cal_mail_configured": EmailSettings.load().is_configured_for(
             EmailSettings.ROLE_CALENDAR
         ),
+        # Explicit-sync banner + review modal: active invites whose recipients
+        # drifted from what they were last sent to (e.g. after a work/personal
+        # e-mail change). ``items`` are grouped by change; ``count`` stays the
+        # number of affected invites (shifts) for the banner text.
+        "cal_invite_drift": {
+            "items": drift_items,
+            "count": sum(g["count"] for g in drift_items),
+        },
         "cal_open_modal": open_modal,
         "cal_sub_edit_id": sub_edit_id,
         # Swatch picker (Direction 1 add/edit modal): the shared app accent
@@ -304,7 +315,92 @@ class InviteTestView(View):
             return _calendar_redirect()
         ok, error = invites.send_test_invite(to_address)
         if ok:
-            messages.success(request, f"Test invite sent to {to_address}.")
+            messages.success(
+                request,
+                f"Test invite sent to {to_address} — it withdraws itself right "
+                "away, so you don't need to respond.",
+            )
         else:
             messages.error(request, f"Test invite failed: {error}")
         return _calendar_redirect()
+
+
+class InviteSyncView(View):
+    """The explicit "Sync now" — reconcile active invites to their current
+    recipients: withdraw dropped addresses, re-request the current set. Runs the
+    whole active set (each in-sync invite is a cheap no-op)."""
+
+    def post(self, request):
+        from django.utils.http import url_has_allowed_host_and_scheme
+
+        from . import reconcile
+
+        counts = reconcile.sync_all()
+        moved, withdrew, failed = (
+            counts["moved"], counts["withdrawn"], counts["failed"]
+        )
+
+        # The review modal drives this over fetch and renders its own live status,
+        # so answer JSON there instead of a redirect + flash it would never show.
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JsonResponse(
+                {"moved": moved, "withdrawn": withdrew, "failed": failed}
+            )
+
+        if moved or withdrew:
+            messages.success(
+                request,
+                f"Synced calendar invites — moved {moved} to the current "
+                f"address, withdrew {withdrew}.",
+            )
+        else:
+            messages.info(request, "Calendar invites are already up to date.")
+
+        nxt = request.POST.get("next") or request.GET.get("next")
+        if nxt and url_has_allowed_host_and_scheme(
+            nxt, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+        ):
+            return redirect(nxt)
+        return _calendar_redirect()
+
+
+class ShiftInviteView(View):
+    """Send (or re-send) the invite for a single planned shift — the explicit
+    per-shift control in the edit-shift modal. Invites are sent once and only
+    re-sent on request, so this is the one place an edited shift's invite gets
+    refreshed. Best-effort JSON; never raises."""
+
+    def post(self, request, pk):
+        from shifts.models import PlannedShift
+
+        from . import invites
+
+        shift = get_object_or_404(
+            PlannedShift, pk=pk, status=PlannedShift.Status.PLANNED
+        )
+        if invites._is_past(shift):
+            return JsonResponse(
+                {"ok": False, "error": "This shift has already happened."}, status=400
+            )
+        # An active invite already exists → re-send (bumped SEQUENCE); otherwise
+        # this is the first send.
+        if invites._active_invite(shift) is not None:
+            invites.resync(shift)
+            action = "resent"
+        elif invites.eligible(shift) and invites.recipients_for(shift):
+            invites.activate(shift)
+            action = "sent"
+        else:
+            return JsonResponse(
+                {"ok": False, "error": "This shift can't be invited."}, status=400
+            )
+
+        active = invites._active_invite(shift) is not None
+        return JsonResponse({
+            "ok": True,
+            "active": active,
+            "action": action,
+            "message": (
+                "Invite re-sent." if action == "resent" else "Invite sent."
+            ),
+        })

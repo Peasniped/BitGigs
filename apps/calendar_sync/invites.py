@@ -73,6 +73,14 @@ def invite_domain():
 
 # ── eligibility + recipients ─────────────────────────────────────────────────
 
+def _is_past(shift) -> bool:
+    """True once *shift*'s day has passed — the invite system stops caring about
+    it (no first send, no re-send, no cancellation). ``None`` date = treat as
+    not-past so an odd row is never silently skipped."""
+    day = getattr(shift, "date", None)
+    return day is not None and day < timezone.localdate()
+
+
 def _config(shift):
     """Invite config for the contract active on the shift's date, or ``None``.
 
@@ -89,9 +97,12 @@ def _config(shift):
 def eligible(shift) -> bool:
     """Whether *shift* should generate an invite at all.
 
-    Requires the global master switch, the contract's own ``send_invites``, an
-    invite-able shift type (on-site / remote), and working mail.
+    Requires the shift to be **today or later** (a finished shift is never
+    invited — see ``_is_past``), the global master switch, the contract's own
+    ``send_invites``, an invite-able shift type (on-site / remote), and mail.
     """
+    if _is_past(shift):
+        return False
     if not CalendarInviteSettings.load().enabled:
         return False
     config = _config(shift)
@@ -128,8 +139,13 @@ def _as_utc(shift_date, shift_time):
     return local.astimezone(dt_timezone.utc)
 
 
-def build_invite_calendar(shift, invite, *, method, status):
-    """Serialise the VCALENDAR for one invite send (REQUEST or CANCEL)."""
+def build_invite_calendar(shift, invite, *, method, status, recipients=None):
+    """Serialise the VCALENDAR for one invite send (REQUEST or CANCEL).
+
+    *recipients* pins the attendee list (used by reconciliation, which withdraws
+    from / re-requests a specific subset); when omitted the usual per-method
+    resolution applies.
+    """
     config = _config(shift)
     settings = CalendarInviteSettings.load()
     shift_type = shift.shift_type
@@ -154,7 +170,10 @@ def build_invite_calendar(shift, invite, *, method, status):
         description=description,
         location=location,
         organizer=_organizer(),
-        attendees=_recipients_for_send(shift, invite, method),
+        attendees=(
+            recipients if recipients is not None
+            else _recipients_for_send(shift, invite, method)
+        ),
         status=status,
         sequence=invite.sequence,
     )
@@ -194,18 +213,28 @@ def _send_mail(subject, body, recipients, ics_bytes, method):
     message.send()  # default EMAIL_BACKEND = DbConfiguredEmailBackend → EmailLog
 
 
-def _dispatch(shift, invite, *, method, status):
-    """Build + send one invite message and stamp the invite row."""
-    recipients = _recipients_for_send(shift, invite, method)
+def _dispatch(shift, invite, *, method, status, recipients=None, remember=True):
+    """Build + send one invite message and stamp the invite row.
+
+    *recipients* overrides the computed address list (reconciliation targets a
+    specific subset — the dropped addresses to CANCEL, or the current set to
+    re-REQUEST). *remember* controls whether a REQUEST rewrites
+    ``last_recipients``; a targeted CANCEL to a removed subset must not, so it
+    passes ``remember=False``.
+    """
+    if recipients is None:
+        recipients = _recipients_for_send(shift, invite, method)
     if not recipients:
         return
-    ics = build_invite_calendar(shift, invite, method=method, status=status)
+    ics = build_invite_calendar(
+        shift, invite, method=method, status=status, recipients=recipients
+    )
     verb = "Cancelled" if method == "CANCEL" else "Invitation"
     subject = f"{verb}: {_subject_title(shift, invite)}"
     body = _plain_body(shift, method)
     _send_mail(subject, body, recipients, ics, method)
     invite.sent_at = timezone.now()
-    if method != "CANCEL":
+    if remember and method != "CANCEL":
         invite.last_recipients = ", ".join(recipients)
     invite.save()
 
@@ -273,28 +302,50 @@ def send_test_invite(to_address):
 
     settings = CalendarInviteSettings.load()
     day = timezone.localdate() + timedelta(days=1)
-    event = build_event(
-        uid=own_uid("test", uuid.uuid4(), invite_domain()),
-        summary="BitGigs test invite",
-        start=_as_utc(day, time(12, 0)),
-        end=_as_utc(day, time(13, 0)),
-        description="If this lands in your calendar, calendar invites are working.",
-        organizer=_organizer(),
-        attendees=[to_address],
-        status="CONFIRMED",
-        sequence=0,
-    )
-    ics = build_calendar(event, method="REQUEST")
+    uid = own_uid("test", uuid.uuid4(), invite_domain())
+
+    def _test_ics(*, method, status, sequence):
+        event = build_event(
+            uid=uid,
+            summary="BitGigs test invite",
+            start=_as_utc(day, time(12, 0)),
+            end=_as_utc(day, time(13, 0)),
+            description="If this lands in your calendar, calendar invites are working.",
+            organizer=_organizer(),
+            attendees=[to_address],
+            status=status,
+            sequence=sequence,
+        )
+        return build_calendar(event, method=method)
+
     ok, error = True, ""
     try:
         _send_mail(
             "BitGigs test invite",
-            "This is a test calendar invite from BitGigs. Replies are not monitored.",
-            [to_address], ics, "REQUEST",
+            "This is a test calendar invite from BitGigs. It withdraws itself "
+            "right away, so you don't need to respond. Replies are not monitored.",
+            [to_address], _test_ics(method="REQUEST", status="CONFIRMED", sequence=0),
+            "REQUEST",
         )
     except Exception as exc:  # noqa: BLE001 — surfaced to the user, not swallowed
         logger.exception("calendar invite: test send failed")
         ok, error = False, str(exc)
+
+    # Immediately withdraw the test event so it doesn't linger as an unanswered
+    # invitation — same UID, bumped SEQUENCE, sent back-to-back over the same SMTP
+    # connection (no scheduler). Best-effort: a failed withdraw is logged but does
+    # not change the reported result, which reflects whether the REQUEST went out.
+    if ok:
+        try:
+            _send_mail(
+                "Cancelled: BitGigs test invite",
+                "This withdraws the BitGigs test invite just sent.",
+                [to_address], _test_ics(method="CANCEL", status="CANCELLED", sequence=1),
+                "CANCEL",
+            )
+        except Exception:
+            logger.exception("calendar invite: test withdraw failed")
+
     settings.last_test_at = timezone.now()
     settings.last_test_ok = ok
     settings.save(update_fields=["last_test_at", "last_test_ok", "updated_at"])
@@ -311,8 +362,10 @@ def _active_invite(shift):
 
 
 def resync(shift):
-    """A synced shift was edited: re-send a SEQUENCE-bumped REQUEST. No-op when
-    the shift has no active invite. Never raises."""
+    """Re-send a SEQUENCE-bumped REQUEST (the explicit "Re-send invite"). No-op
+    when the shift has no active invite or its day has passed. Never raises."""
+    if _is_past(shift):
+        return
     invite = _active_invite(shift)
     if invite is None:
         return
@@ -325,7 +378,12 @@ def resync(shift):
 
 def cancel(shift):
     """A synced shift is going away: send METHOD:CANCEL and mark the invite
-    cancelled. No-op when there's no active invite. Never raises."""
+    cancelled. No-op when there's no active invite. Never raises.
+
+    A **past** shift is left alone — there's no point withdrawing an event for a
+    day that already happened (and no point spending the send)."""
+    if _is_past(shift):
+        return
     invite = _active_invite(shift)
     if invite is None:
         return

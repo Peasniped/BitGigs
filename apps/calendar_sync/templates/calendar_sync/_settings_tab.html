@@ -109,6 +109,27 @@
     </div>
     {% endif %}
 
+    {% comment %}
+      Drift notice — active invites still addressed to an old mailbox (after a
+      work/personal e-mail change). Explicit sync: withdraw the old, re-send the
+      new. Hidden (count is 0) while invites are paused or mail is unconfigured.
+    {% endcomment %}
+    {% if cal_invite_drift.count %}
+    <div class="alert alert-warning py-2 d-flex align-items-center justify-content-between gap-2 flex-wrap"
+         role="alert">
+      <span class="d-flex align-items-center gap-2">
+        <i class="bi bi-arrow-repeat"></i>
+        {% if cal_invite_drift.count == 1 %}1 calendar invite still points at an old address.
+        {% else %}{{ cal_invite_drift.count }} calendar invites still point at an old address.{% endif %}
+      </span>
+      <button type="button" class="btn btn-warning btn-sm"
+              data-bs-toggle="modal" data-bs-target="#inviteSyncModal"
+              title="Review what will change, then sync">
+        <i class="bi bi-arrow-repeat me-1"></i>Review &amp; sync
+      </button>
+    </div>
+    {% endif %}
+
     {# Global invite settings #}
     <form method="post" action="{% url 'calendar_sync:invite-settings' %}" class="mb-2">
       {% csrf_token %}
@@ -299,6 +320,131 @@
     </div>
   </div>
 </div>
+
+{% if cal_invite_drift.count %}
+{# ── Invite sync review modal (explicit "review & sync") ─────────────────── #}
+<div class="modal fade" id="inviteSyncModal" tabindex="-1" aria-hidden="true"
+     data-sync-url="{% url 'calendar_sync:invite-sync' %}">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content app-modal">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-arrow-repeat me-2"></i>Sync calendar invites</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="form-text mt-0">
+          Some invites you've already sent are addressed to an e-mail that has
+          since changed. Pressing <strong>Sync now</strong> will:
+        </p>
+        <ul class="form-text mt-0 mb-3">
+          <li>send a <strong>cancellation</strong> to each old address, so the
+            event leaves that calendar, and</li>
+          <li>re-send the event to the <strong>current</strong> address.</li>
+        </ul>
+        <p class="form-text mt-0">
+          Only invites whose recipients actually changed are touched — anything
+          already correct is left alone. A contract whose invites you've turned
+          off has its events withdrawn. You can re-sync at any time; nothing is
+          sent until you press the button.
+        </p>
+
+        <div class="fw-medium small mb-1">
+          The {{ cal_invite_drift.count }} change{{ cal_invite_drift.count|pluralize }},
+          grouped:
+        </div>
+        <ul class="list-unstyled small mb-0 border rounded">
+          {% for g in cal_invite_drift.items %}
+          <li class="p-2 {% if not forloop.last %}border-bottom{% endif %}">
+            <div>
+              <span class="fw-medium">{{ g.workplace|default:"(removed shift)" }}</span>
+              <span class="text-body-secondary ms-1">· {{ g.count }} shift{{ g.count|pluralize }}</span>
+            </div>
+            {% if g.withdraw %}
+              <div class="text-body-secondary"><i class="bi bi-x-circle me-1"></i>Events will be cancelled.</div>
+            {% else %}
+              {% if g.removed %}<div class="text-danger"><i class="bi bi-x-circle me-1"></i>Withdraw from: {{ g.removed|join:", " }}</div>{% endif %}
+              {% if g.added %}<div class="text-success"><i class="bi bi-check-circle me-1"></i>Send to: {{ g.added|join:", " }}</div>{% endif %}
+            {% endif %}
+            {% if g.dates %}
+            <details class="mt-1">
+              <summary class="text-body-secondary" style="cursor:pointer;">Show dates</summary>
+              <div class="mt-1 d-flex flex-wrap gap-1">
+                {% for d in g.dates %}<span class="badge-soft">{{ d }}</span>{% endfor %}
+              </div>
+            </details>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+
+        <div id="inviteSyncStatus" class="small mt-3" role="status" aria-live="polite"></div>
+      </div>
+      <div class="modal-footer">
+        <form method="post" action="{% url 'calendar_sync:invite-sync' %}" id="inviteSyncForm"
+              class="d-flex gap-2 m-0">
+          {% csrf_token %}
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warning" id="inviteSyncRun">
+            <i class="bi bi-arrow-repeat me-1"></i>Sync now
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal = document.getElementById('inviteSyncModal');
+  if (!modal) return;
+  var form = document.getElementById('inviteSyncForm');
+  var runBtn = document.getElementById('inviteSyncRun');
+  var statusEl = document.getElementById('inviteSyncStatus');
+  var url = modal.getAttribute('data-sync-url');
+  var done = false;
+
+  function reload() { window.location.reload(); }
+
+  // JS present → drive the sync over fetch so the modal can show a live status
+  // (no-JS falls back to the form's plain POST → redirect + flash message).
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (done) { reload(); return; }  // second press = refresh
+
+    runBtn.disabled = true;
+    runBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Syncing…';
+    statusEl.className = 'small mt-3 text-body-secondary';
+    statusEl.textContent = 'Contacting the mail server and updating each invite…';
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        done = true;
+        var moved = d.moved || 0, withdrew = d.withdrawn || 0, failed = d.failed || 0;
+        statusEl.className = 'small mt-3 ' + (failed ? 'text-warning' : 'text-success');
+        statusEl.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Moved ' +
+          moved + ' invite' + (moved === 1 ? '' : 's') + ' to the current address; withdrew ' +
+          withdrew + '.' + (failed ? ' ' + failed + ' could not be sent — check the Email log.' : '');
+        runBtn.className = 'btn btn-primary';
+        runBtn.disabled = false;
+        runBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Done — refresh';
+      })
+      .catch(function () {
+        statusEl.className = 'small mt-3 text-danger';
+        statusEl.textContent = 'Something went wrong. Reload the page and try again.';
+        runBtn.disabled = false;
+        runBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Retry';
+      });
+  });
+
+  // Closing after a successful sync refreshes so the banner and list clear.
+  modal.addEventListener('hidden.bs.modal', function () { if (done) reload(); });
+})();
+</script>
+{% endif %}
 
 <script>
 (function () {

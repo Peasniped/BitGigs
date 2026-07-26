@@ -6,7 +6,7 @@ parent: settings-and-sign-in
 audience: everyone
 order: 78
 published: true
-keywords: [calendar, ical, ics, subscription, overlay, busy, invite, invitation, invites, colleagues, sync, planning clash, feed, webcal, method request, sequence, cancel, test invite, encrypted url]
+keywords: [calendar, ical, ics, subscription, overlay, busy, invite, invitation, invites, colleagues, sync, sync now, change email, move invites, old address, planning clash, feed, webcal, method request, sequence, cancel, test invite, encrypted url]
 pages: [core:settings, calendar_view:planning]
 ---
 BitGigs talks to calendars in two independent directions, and each is optional
@@ -72,6 +72,8 @@ warns you and links across if it isn't ready. Then, under **Invites you send**:
    `{end}` are filled in) and a **default remote location** for work-from-home
    shifts.
 4. Press **Send myself a test invite** to prove the whole path works end to end.
+   The test event **withdraws itself right away**, so it won't linger in your
+   calendar as an invitation waiting for a response.
 
 Invites are then configured **per contract**, where you set up the job. When you
 **create a contract** — or set up your first workplace during onboarding — you're
@@ -95,21 +97,49 @@ your invite choices are saved.
 ### Activating and keeping them current
 
 Invites aren't sent automatically the moment you plan a shift — you send them
-deliberately. On the planning calendar, press **Send invites** to email invites
-for the planned shifts on screen. Shifts that already have an invite are skipped,
-and an invited shift shows a small **envelope marker** with a blue ring.
+deliberately, and each shift is invited **once**. On the planning calendar, press
+**Send invites** to email invites for the planned shifts on screen; shifts that
+already have an invite are skipped, so pressing it again while you keep planning
+never re-sends. An invited shift shows a small **envelope marker** with a blue
+ring (see the legend in this help panel).
 
-Once a shift has an invite, BitGigs keeps it current for you:
+Editing a shift does **not** re-send its invite — that would spam the recipient
+every time you nudge a time. When you *do* want to push an update, open the
+planned shift and use the **Re-send invite** button in the edit dialog (it also
+offers **Send invite** for a shift that hasn't been invited yet). So:
 
-- **Edit** the shift (time, type, from any screen) → an updated invite is
-  re-sent automatically.
+- **Edit** a shift → nothing is sent; press **Re-send invite** in the dialog when
+  you're ready to update the event.
 - **Approve** a planned shift → the same event carries over to the approved
-  shift; it's updated, not duplicated.
-- **Delete** the shift → a cancellation is sent and the event is withdrawn.
+  shift; it's not re-sent or duplicated.
+- **Delete** a shift → a cancellation is sent and the event is withdrawn.
+
+The whole system only cares about **today and future** shifts. A shift whose day
+has passed is left alone — it's never invited, re-sent, or cancelled (deleting an
+old shift sends nothing).
 
 If a send ever fails, it's caught and logged — it will **never** block you from
 saving, approving or deleting a shift. BitGigs ignores any replies or RSVPs to
 the invites.
+
+### Changing a work or personal e-mail
+
+A calendar invite lives in the recipient's calendar, and BitGigs remembers which
+address each invite was last sent to. So if you change a contract's **work
+e-mail**, or your **personal calendar address**, the invites you already sent
+still point at the *old* mailbox — old address keeps the events, new address has
+none.
+
+BitGigs doesn't move them silently. After such a change, the **Calendar** tab
+shows a **“N calendar invites still point at an old address”** notice (and saving
+a contract nudges you there). Press **Review & sync** to open a summary that lists
+exactly what will change — for each affected shift, which address the event is
+**withdrawn from** and which it's **sent to** — so nothing happens until you
+confirm. Pressing **Sync now** then sends a **cancellation** to each dropped
+address and re-sends the event to the current one, showing a live status as it
+works. It only ever touches invites whose address actually changed; everything
+already correct is left alone. Turning a contract's invites **off** and syncing
+withdraws that contract's events too.
 
 ## "Accepted" is not "delivered"
 

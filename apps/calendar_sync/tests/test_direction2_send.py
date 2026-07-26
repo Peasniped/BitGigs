@@ -57,8 +57,10 @@ def _cfg(wp):
 
 
 def _shift(wp, shift_type="on_site"):
+    # A fixed FUTURE March date: invites are future-only (eligible() rejects past
+    # shifts), and March is CET (+01) so the ICS UTC-time assertions stay stable.
     return Shift.objects.create(
-        workplace=wp, date=date(2026, 3, 15),
+        workplace=wp, date=date(2035, 3, 15),
         start_time=time(9, 0), end_time=time(17, 0), shift_type=shift_type,
     )
 
@@ -124,7 +126,7 @@ class BuildInviteTests(TestCase):
         self.assertIn("UID:bitgigs-shift-abc@zink.nu", ics)
         self.assertIn("SEQUENCE:2", ics)
         # 09:00 Europe/Copenhagen in March (CET, +01) → 08:00Z
-        self.assertIn("DTSTART:20260315T080000Z", ics)
+        self.assertIn("DTSTART:20350315T080000Z", ics)
 
     def test_title_and_location_by_type(self):
         onsite = self._ics(shift_type="on_site")

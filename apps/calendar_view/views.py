@@ -619,6 +619,28 @@ def _shift_to_dict(shift):
         "net_hours": str(shift.net_hours.quantize(Decimal("0.01"))),
         "gross_minutes": shift.gross_minutes,
         "net_minutes": shift.net_minutes,
+        # Direction 2: drives the edit modal's Send / Re-send invite control
+        # (shown only for planned shifts). Cheap per-shift resolution.
+        **_shift_invite_flags(shift),
+    }
+
+
+def _shift_invite_flags(shift):
+    """``has_active_invite`` / ``invite_eligible`` for the edit-shift modal's
+    invite control. Resolved per shift (planning is not a hot path)."""
+    from calendar_sync import invites
+    from calendar_sync.models import ShiftInvite
+
+    uid = getattr(shift, "invite_uid", None)
+    has_active = bool(uid) and ShiftInvite.objects.filter(
+        invite_uid=uid, status=ShiftInvite.STATUS_ACTIVE
+    ).exists()
+    return {
+        "has_active_invite": has_active,
+        "invite_eligible": invites.eligible(shift),
+        # Past shifts are out of scope — the modal hides the control even if a
+        # stale active invite lingers (see planning.js setupInviteBlock).
+        "invite_past": invites._is_past(shift),
     }
 
 

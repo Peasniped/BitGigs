@@ -19,4 +19,6 @@ urlpatterns = [
     path("invites/settings/", views.CalendarInviteSettingsSaveView.as_view(),
          name="invite-settings"),
     path("invites/test/", views.InviteTestView.as_view(), name="invite-test"),
+    path("invites/sync/", views.InviteSyncView.as_view(), name="invite-sync"),
+    path("invites/shift/<int:pk>/", views.ShiftInviteView.as_view(), name="invite-shift"),
 ]

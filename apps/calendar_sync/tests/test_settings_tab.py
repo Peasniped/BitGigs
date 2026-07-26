@@ -159,8 +159,12 @@ class TestInviteButtonTests(CalendarTabBase):
 
         resp = self.client.post("/calendar-sync/invites/test/", follow=True)
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(len(mail.outbox), 1)
+        # The test invite sends a REQUEST then immediately withdraws it (CANCEL),
+        # so it doesn't linger as an unanswered invitation → two messages.
+        self.assertEqual(len(mail.outbox), 2)
         self.assertIn("me@home.example", mail.outbox[0].to)
+        self.assertIn("METHOD:REQUEST", mail.outbox[0].alternatives[0][0])
+        self.assertIn("METHOD:CANCEL", mail.outbox[1].alternatives[0][0])
         self.assertTrue(CalendarInviteSettings.load().last_test_ok)
 
     def test_no_address_reports_error(self):
