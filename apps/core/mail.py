@@ -19,7 +19,7 @@ from email.utils import make_msgid, parseaddr
 from django.core.mail import EmailMultiAlternatives, get_connection
 from django.utils import timezone
 
-from .models import EmailSettings
+from .models import EmailSettings, MailConnection
 
 # Common providers, offered as one-click fills on the settings page. Host/port
 # only — credentials and the from address are always the operator's own.
@@ -28,7 +28,7 @@ PRESETS = {
         "label": "Gmail / Google Workspace",
         "host": "smtp.gmail.com",
         "port": 587,
-        "security": EmailSettings.SECURITY_STARTTLS,
+        "security": MailConnection.SECURITY_STARTTLS,
         "note": "Requires 2-step verification plus an App Password — a normal "
                 "Google account password will be rejected.",
     },
@@ -36,7 +36,7 @@ PRESETS = {
         "label": "Outlook / Microsoft 365",
         "host": "smtp.office365.com",
         "port": 587,
-        "security": EmailSettings.SECURITY_STARTTLS,
+        "security": MailConnection.SECURITY_STARTTLS,
         "note": "The account must have SMTP AUTH enabled; Microsoft disables it "
                 "by default on new tenants.",
     },
@@ -44,7 +44,7 @@ PRESETS = {
         "label": "Fastmail",
         "host": "smtp.fastmail.com",
         "port": 465,
-        "security": EmailSettings.SECURITY_SSL,
+        "security": MailConnection.SECURITY_SSL,
         "note": "Requires an app password created in Fastmail's settings.",
     },
 }
@@ -54,27 +54,46 @@ class MailNotConfigured(RuntimeError):
     """Raised when a send is attempted with mail disabled or half-configured."""
 
 
-def build_connection(config=None, fail_silently=False):
-    """A Django email backend wired from the stored configuration."""
-    config = config or EmailSettings.load()
-    if not config.is_configured:
+def connection_for(role):
+    """The ``MailConnection`` a role sends through, or ``None`` if none is set up.
+
+    Thin wrapper over ``EmailSettings.connection_for`` so callers in this module
+    (and the backend) don't each import the model.
+    """
+    return EmailSettings.load().connection_for(role)
+
+
+def _require_connection(config):
+    """Resolve ``config`` to a usable ``MailConnection`` or raise.
+
+    ``config`` may be a ``MailConnection`` or ``None`` (→ the system role's
+    connection). Raises ``MailNotConfigured`` when there is nothing to send with
+    or the stored password can't be decrypted.
+    """
+    config = config or connection_for(EmailSettings.ROLE_SYSTEM)
+    if config is None or not config.is_configured:
         raise MailNotConfigured(
             "Email is not configured. Set it up in Settings → Email."
         )
-    password = config.password
-    if password is None:
+    if config.password is None:
         raise MailNotConfigured(
             "The stored mail password could not be decrypted — DJANGO_SECRET_KEY "
             "has changed. Re-enter the password in Settings → Email."
         )
+    return config
+
+
+def build_connection(config=None, fail_silently=False):
+    """A Django email backend wired from a stored ``MailConnection``."""
+    config = _require_connection(config)
     return get_connection(
         backend="django.core.mail.backends.smtp.EmailBackend",
         host=config.host,
         port=config.port,
         username=config.username or None,
-        password=password or None,
-        use_tls=config.security == EmailSettings.SECURITY_STARTTLS,
-        use_ssl=config.security == EmailSettings.SECURITY_SSL,
+        password=config.password or None,
+        use_tls=config.security == MailConnection.SECURITY_STARTTLS,
+        use_ssl=config.security == MailConnection.SECURITY_SSL,
         timeout=config.timeout,
         fail_silently=fail_silently,
     )
@@ -82,7 +101,9 @@ def build_connection(config=None, fail_silently=False):
 
 def from_address(config=None):
     """The RFC 5322 From header: ``Name <address>`` when a name is set."""
-    config = config or EmailSettings.load()
+    config = config or connection_for(EmailSettings.ROLE_SYSTEM)
+    if config is None:
+        return ""
     if config.from_name:
         return f"{config.from_name} <{config.from_email}>"
     return config.from_email
@@ -116,7 +137,7 @@ def send_mail(subject, body, to, html_body=None, config=None, connection=None):
     ``EmailSettings.load().is_configured`` first and hide the feature, so reaching
     this with mail off is a bug rather than a user error.
     """
-    config = config or EmailSettings.load()
+    config = config or connection_for(EmailSettings.ROLE_SYSTEM)
     connection = connection or build_connection(config)
     message = EmailMultiAlternatives(
         subject=subject,
@@ -244,7 +265,13 @@ def diagnose(config=None, send_to=None):
     the only way to catch relay and from-address rejections — those happen after
     a perfectly successful login.
     """
-    config = config or EmailSettings.load()
+    config = config or connection_for(EmailSettings.ROLE_SYSTEM)
+    if config is None:
+        result = Diagnosis([Stage("config", "Configuration")])
+        result.stages[0].status = FAILED
+        result.stages[0].detail = "No mail connection is set up."
+        result.stages[0].hint = "Add a connection in Settings → Email."
+        return result
 
     stages = [
         Stage("config", "Configuration"),
@@ -302,7 +329,7 @@ def diagnose(config=None, send_to=None):
     server = None
     try:
         try:
-            if config.security == EmailSettings.SECURITY_SSL:
+            if config.security == MailConnection.SECURITY_SSL:
                 server = smtplib.SMTP_SSL(
                     config.host, config.port, timeout=config.timeout,
                     context=ssl.create_default_context(),
@@ -312,7 +339,7 @@ def diagnose(config=None, send_to=None):
             else:
                 server = smtplib.SMTP(config.host, config.port, timeout=config.timeout)
                 server.ehlo()
-                if config.security == EmailSettings.SECURITY_STARTTLS:
+                if config.security == MailConnection.SECURITY_STARTTLS:
                     if not server.has_extn("starttls"):
                         return fail(
                             "tls", "The server does not offer STARTTLS.",
@@ -413,11 +440,12 @@ def run_and_record(config=None, send_to=None):
     """
     from .models import EmailLog
 
-    config = config or EmailSettings.load()
+    config = config or connection_for(EmailSettings.ROLE_SYSTEM)
     result = diagnose(config, send_to=send_to)
-    config.last_test_at = timezone.now()
-    config.last_test_ok = result.ok
-    config.save(update_fields=["last_test_at", "last_test_ok", "updated_at"])
+    if config is not None and config.pk:
+        config.last_test_at = timezone.now()
+        config.last_test_ok = result.ok
+        config.save(update_fields=["last_test_at", "last_test_ok", "updated_at"])
 
     if send_to:
         send_stage = next((s for s in result.stages if s.key == "send"), None)
@@ -426,6 +454,7 @@ def run_and_record(config=None, send_to=None):
         EmailLog.record(
             to=send_to, subject="BitGigs test message", ok=ok,
             kind=EmailLog.KIND_TEST, error=error,
+            connection_name=config.name if config is not None else "",
         )
     return result
 

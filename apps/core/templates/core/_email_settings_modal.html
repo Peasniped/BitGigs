@@ -1,12 +1,13 @@
 {% load crispy_forms_tags %}
 {% comment %}
-  The email configuration form, in a modal opened from the Email tab's summary
-  card. Grouped into Server / Sign-in / Sender / Options and laid out two-column
-  so the password field is nowhere near the from-address (they used to sit one
-  under the other, which is how the password kept landing in from-email).
+  One shared modal for adding or editing a mail connection. "Add connection"
+  opens it blank; a card's Edit button fills it from the card's data-* attributes
+  and points the hidden pk at that connection (see email_settings.js). Only one
+  such form exists on the page, so the crispy field IDs (id_host, …) stay unique
+  and email_settings.js's presets/probe/auto-from wire to it unchanged.
 
-  The `data-email-preset` buttons live inside the [data-email-settings] root
-  (the pane wrapper in settings.html), so email_settings.js still wires them.
+  On a validation bounce the server re-renders with email_modal_open set, so the
+  modal reopens showing the errors instead of hiding them behind a closed dialog.
 {% endcomment %}
 <div class="modal fade" id="emailSettingsModal" tabindex="-1" aria-labelledby="emailSettingsModalLabel"
      data-bs-backdrop="static" aria-hidden="true">
@@ -14,15 +15,16 @@
     <div class="modal-content app-modal">
       <div class="modal-header">
         <h5 class="modal-title" id="emailSettingsModalLabel">
-          <i class="bi bi-envelope-gear me-1"></i>Email settings
+          <i class="bi bi-envelope-gear me-1"></i><span data-modal-title>Add connection</span>
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
-      <form method="post" action="{% url 'core:email-settings' %}" id="emailSettingsForm"
+      <form method="post" action="{% url 'core:mail-connection-save' %}" id="emailSettingsForm"
             data-probe-url="{% url 'core:email-probe' %}">
         <div class="modal-body">
           {% csrf_token %}
+          <input type="hidden" name="pk" value="{{ email_edit_pk }}" data-conn-pk>
           {% include "core/_email_form_body.html" %}
         </div>
 
@@ -31,7 +33,7 @@
           <button type="submit" class="btn btn-outline-primary">
             <i class="bi bi-check-lg me-1"></i>Save
           </button>
-          {% comment %}Saves, then redirects back with ?test=1 so email_settings.js
+          {% comment %}Saves, then redirects back with ?test=<pk> so email_settings.js
           runs the staged connection test on the reloaded tab (connection only —
           no real message is sent).{% endcomment %}
           <button type="submit" name="run_test" value="1" class="btn btn-primary">

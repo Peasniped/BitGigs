@@ -410,7 +410,9 @@ def _calendar_readiness():
     from core.models import EmailSettings
     from calendar_sync.models import CalendarInviteSettings
     return {
-        "email_configured": EmailSettings.load().is_configured,
+        "email_configured": EmailSettings.load().is_configured_for(
+            EmailSettings.ROLE_CALENDAR
+        ),
         "invites_master_on": CalendarInviteSettings.load().enabled,
     }
 

@@ -41,31 +41,30 @@
         {% endif %}
 
         {% comment %}
-          Two independent reasons to offer recovery: an IdP that might be down,
-          or a configured mail server that can send a reset link. A standalone
-          install with mail set up needs this just as much as an SSO one.
+          Recovery is always offered: console recovery (changepassword) works even
+          with no mail server and no IdP, so the link must never disappear. What it
+          leads to varies — an emailed reset link when mail is configured, otherwise
+          the console instructions — but that's the modal body's job, not this gate's.
         {% endcomment %}
-        {% if sso_enabled or password_reset_enabled %}
-          <div class="text-center mt-3">
-            <button type="button" class="btn btn-link btn-sm text-muted p-0"
-                    data-bs-toggle="modal" data-bs-target="#recoveryModal">
-              {% if password_login_disabled %}Can't access {{ sso_brand.name }}?{% else %}Forgot your password?{% endif %}
-            </button>
-          </div>
-        {% endif %}
+        <div class="text-center mt-3">
+          <button type="button" class="btn btn-link btn-sm text-muted p-0"
+                  data-bs-toggle="modal" data-bs-target="#recoveryModal">
+            {% if password_login_disabled %}Can't access {{ sso_brand.name }}?{% else %}Forgot your password?{% endif %}
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
-{% if sso_enabled or password_reset_enabled %}
 {% comment %}
   Recovery has two shapes. With mail configured (Settings → Email) the modal
   offers a normal emailed reset link. Without it, recovery is the server console
   — which is a perfectly good answer for a single-owner self-hosted app, because
   the only person who should be able to recover the account is whoever runs it.
   The console instructions stay visible either way: they are the fallback for
-  when the mail server itself is what's broken.
+  when the mail server itself is what's broken. Always rendered — the trigger link
+  is always shown, so the modal it opens must always exist.
 {% endcomment %}
 <div class="modal fade" id="recoveryModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -101,7 +100,7 @@
           </p>
         {% endif %}
 
-        <pre class="bg-body-secondary rounded p-3 mb-2"><code>python manage.py changepassword {{ owner_username|default:"&lt;your-email&gt;" }}</code></pre>
+        <pre class="bg-body-secondary rounded p-3 mb-2"><code>python manage.py changepassword your@email.address</code></pre>
         <p class="form-text mb-0">
           Run it in the BitGigs project directory, with the virtualenv active. In dev, add
           <code>--settings=bitgigs.settings.local</code>.
@@ -113,5 +112,4 @@
     </div>
   </div>
 </div>
-{% endif %}
 {% endblock %}

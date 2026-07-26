@@ -11,7 +11,7 @@ from calendar_sync.models import (
     ContractCalendarConfig,
     ShiftInvite,
 )
-from core.models import EmailSettings
+from core.models import EmailSettings, MailConnection
 from shifts.models import PlannedShift
 from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
 
@@ -26,8 +26,10 @@ class SendInvitesEndpointTests(TestCase):
         session["onboarding_complete"] = True
         session.save()
 
+        MailConnection.objects.create(name="Default", host="smtp.zink.nu",
+                                      from_email="robot@zink.nu", is_default=True)
         es = EmailSettings.load()
-        es.enabled, es.host, es.from_email = True, "smtp.zink.nu", "robot@zink.nu"
+        es.enabled = True
         es.save()
         s = CalendarInviteSettings.load()
         s.enabled, s.send_to_personal, s.owner_address = True, True, "me@home.example"

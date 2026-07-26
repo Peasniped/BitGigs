@@ -4,13 +4,19 @@
 
 ## Bigger / functional
 
-- Probably during onboarding/contract creation/edit it should prompt the user if they want the calendar invites.
-- - on the settings>calendar page, keep the per workplace info and uncollapse functionality about calendar config as read-only, then have a button to edit contract if the user wants to change, that opens the edit modal directly.
-- Add functionality right on the planning page to enable/disable individual calendars.
-- In Settings>Display and Analytics, add some space between the save button and the last setting on the page.
+- [DONE v0.9.0] Multiple SMTP connections + a "Used for" role map — system mail (pw reset) and calendar invites can each send from a different connection (e.g. no-reply vs your own address). Settings → Email.
 
-- Maybe add the possibility to have multiple SMTP-setups, where you can select one or multiple roles for each setup (only one setup per role ofc) if eg. you want system mails (pw reset etc) to come from a noreply and calendar invites to come from your own email.
-- Check and remove stale/unused workplace icons in media>workplace_icons
+- System that checks and remove stale/unused workplace icons in media>workplace_icons, maybe once per day?
+
+## Philosophize about an invite management system, if you will
+- What happens if I have sent out a bunch of invites to one email, then change either the workplace or the personal email. Then the old address will have a bunch of orphaned calendar events, and the new address will not have any events?
+- - Maybe have a small system for changing the email that sends out cancellations to the old address and sends the events to the new address?
+- - This can also be used for the planning calendar "Send Invites" to make sure events for each event is only sent out once.
+- - Maybe it would be nice to have an overview/list on the planning page that shows which planned shifts have not had invites sent out.
+- Test calendar invites should have a cancellation sent out a few sec after, so the events do not linger in the calendar as events I have not responded to.
+
+- Add functionality right on the planning page to enable/disable individual calendars. Maybe the UX for this could live with the invite management system and the send invites button on the planning page.
+
 
 ## Polish
 - When editing a workplace contract from Settings>Calendar, it should return you back there, when clicking save or cancel.
@@ -21,14 +27,12 @@
 - It seems on the about page that the info lines could use some padding. The section headers have a nice padding to the left div/canvas edge, but the text is only a few px from the edge.
 - make a bit more spacing between items on the calendar, currently I have two overlapping events and the extra amber border makes them almost touch, making it look kind of strange.
 - - It is the same when you hover over a workplace and it shows the green highlight showing which days belong to the payroll period. The borders of neighboring green days almost merge together. Maybe this highlight can be inset ever so slightly into the day cell so the borders do not (or do not almost) overlap.
+- In Settings>Display and Analytics, add some space between the save button and the last setting on the page.
+- It seems that on the Add Pay Terms-page, the workplace accent is used to color employment type and working time selectors, while the save button uses the app accent color (most probably because of the gradient). Can you try to make the button use the company colors as well? I know you need two colors, and the workplace accent only has one color.
 
 
 
-## Philosophize
-- What happens if I have sent out a bunch of invites to one email, then change either the workplace or the personal email. Then the old address will have a bunch of orphaned calendar events, and the new address will not have any events?
-- - Maybe have a small system for changing the email that sends out cancellations to the old address and sends the events to the new address?
-- - This can also be used for the planning calendar "Send Invites" to make sure events for each event is only sent out once.
-- - Maybe it would be nice to have an overview/list on the planning page that shows which planned shifts have not had invites sent out.
+
 
 - Go through help articles and make them shorter and more concise. A lot of articles could use with being split up into two or more articles. keep redundant information as short as possible and to a minimum and just cite to articles with the information.
 

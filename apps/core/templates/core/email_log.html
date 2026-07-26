@@ -41,6 +41,7 @@
         <tr>
           <th>When</th>
           <th>Type</th>
+          <th>Connection</th>
           <th>To</th>
           <th>Subject</th>
           <th>Result</th>
@@ -51,6 +52,7 @@
         <tr>
           <td class="text-nowrap">{{ e.created_at|date:"j M Y, H:i" }}</td>
           <td><span class="badge-soft">{{ e.get_kind_display }}</span></td>
+          <td>{{ e.connection_name|default:"—" }}</td>
           <td>{{ e.to|default:"—" }}</td>
           <td>{{ e.subject|default:"—" }}</td>
           <td>
@@ -63,7 +65,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="5" class="text-muted text-center py-4">No mail has been sent yet.</td></tr>
+        <tr><td colspan="6" class="text-muted text-center py-4">No mail has been sent yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>

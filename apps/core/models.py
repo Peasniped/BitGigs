@@ -219,17 +219,15 @@ class UserSettings(models.Model):
         return obj
 
 
-class EmailSettings(models.Model):
-    """Singleton SMTP configuration, edited in Settings → Email.
+class MailConnection(models.Model):
+    """One SMTP setup. The operator may keep several — e.g. a ``no-reply`` mailbox
+    for system mail (password resets) and their own mailbox for calendar invites —
+    and point each *role* at one of them via ``EmailSettings`` (see ``connection_for``).
 
-    Held in the database rather than env vars so the operator can configure and
-    *test* mail from inside the app. The password is the one exception to
-    "config is plain data": it is stored encrypted (see ``core.crypto``) and only
-    ever read back through the ``password`` property.
-
-    ``enabled`` is the master switch — with it off, ``core.mail`` refuses to send
-    and every email-dependent feature (today: password reset) hides itself. A
-    fresh install has this row absent entirely, which reads as off.
+    This is the SMTP-config half that used to live directly on ``EmailSettings``;
+    only the master switch and the role map stay on that singleton now. The
+    password is the one exception to "config is plain data": stored encrypted (see
+    ``core.crypto``) and only ever read back through the ``password`` property.
     """
 
     SECURITY_NONE = "none"
@@ -241,12 +239,10 @@ class EmailSettings(models.Model):
         (SECURITY_NONE, "None — unencrypted (not recommended)"),
     ]
 
-    enabled = models.BooleanField(
-        default=False,
-        help_text="Master switch. While this is off BitGigs sends no mail at all "
-                  "and features that need it stay hidden.",
+    name = models.CharField(
+        max_length=100,
+        help_text="A label to tell your setups apart, e.g. 'No-reply' or 'My mailbox'.",
     )
-
     host = models.CharField(max_length=255, blank=True, help_text="e.g. smtp.gmail.com")
     port = models.PositiveIntegerField(default=587)
     security = models.CharField(
@@ -274,11 +270,9 @@ class EmailSettings(models.Model):
         validators=[MinValueValidator(1), MaxValueValidator(120)],
         help_text="Seconds to wait for the server before giving up.",
     )
-
-    allow_password_reset = models.BooleanField(
-        default=True,
-        help_text="Offer 'Forgot your password?' on the login page. Needs a "
-                  "working mail setup; turn it off to require console recovery.",
+    is_default = models.BooleanField(
+        default=False,
+        help_text="Used for any role that isn't pointed at a specific setup.",
     )
 
     last_test_at = models.DateTimeField(null=True, blank=True)
@@ -288,23 +282,27 @@ class EmailSettings(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Email Settings"
-        verbose_name_plural = "Email Settings"
+        verbose_name = "Mail connection"
+        verbose_name_plural = "Mail connections"
+        ordering = ["-is_default", "name", "pk"]
 
     def __str__(self):
-        if not self.enabled:
-            return "Email (disabled)"
-        return f"Email via {self.host or 'unconfigured'}:{self.port}"
+        return self.name or (self.host or "unconfigured")
 
     def save(self, *args, **kwargs):
-        # Enforce singleton, matching UserSettings.
-        self.pk = 1
         super().save(*args, **kwargs)
+        if self.is_default:
+            # At most one default: demote every other connection.
+            type(self).objects.exclude(pk=self.pk).filter(is_default=True).update(
+                is_default=False
+            )
 
     @classmethod
-    def load(cls):
-        obj, _ = cls.objects.get_or_create(pk=1)
-        return obj
+    def default(cls):
+        """The connection any unassigned role falls back to: the one flagged
+        ``is_default``, or — if none is — the first that exists."""
+        return (cls.objects.filter(is_default=True).first()
+                or cls.objects.order_by("pk").first())
 
     # ── Password: encrypted at rest, overridable from the environment ─────────
     @property
@@ -339,27 +337,101 @@ class EmailSettings(models.Model):
 
     @property
     def is_configured(self):
-        return bool(self.enabled and self.host and self.from_email)
+        """Enough here to attempt a send. The global master switch
+        (``EmailSettings.enabled``) is a separate, higher gate."""
+        return bool(self.host and self.from_email)
+
+
+class EmailSettings(models.Model):
+    """Global mail settings + the role→connection map (singleton).
+
+    The SMTP configurations themselves live in ``MailConnection`` rows; this row
+    holds only what is genuinely app-wide: the master switch, the password-reset
+    toggle, and which connection serves each *role*.
+
+    ``enabled`` is the master switch — with it off, ``core.mail`` refuses to send
+    and every email-dependent feature hides itself. A fresh install has this row
+    absent entirely (and no connections), which reads as off.
+    """
+
+    ROLE_SYSTEM = "system"
+    ROLE_CALENDAR = "calendar"
+    ROLE_CHOICES = [
+        (ROLE_SYSTEM, "System mail"),
+        (ROLE_CALENDAR, "Calendar invites"),
+    ]
+
+    enabled = models.BooleanField(
+        default=False,
+        help_text="Master switch. While this is off BitGigs sends no mail at all "
+                  "and features that need it stay hidden.",
+    )
+    allow_password_reset = models.BooleanField(
+        default=True,
+        help_text="Offer 'Forgot your password?' on the login page. Needs a "
+                  "working mail setup; turn it off to require console recovery.",
+    )
+
+    # Which connection serves each role. Null → fall back to the default
+    # connection (see connection_for), which is the common one-server case.
+    system_connection = models.ForeignKey(
+        MailConnection, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    calendar_connection = models.ForeignKey(
+        MailConnection, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Email Settings"
+        verbose_name_plural = "Email Settings"
+
+    def __str__(self):
+        return "Email (enabled)" if self.enabled else "Email (disabled)"
+
+    def save(self, *args, **kwargs):
+        # Enforce singleton, matching UserSettings.
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def connection_for(self, role):
+        """The ``MailConnection`` a role sends through: its explicit assignment,
+        else the default connection. May be ``None`` when nothing is set up yet."""
+        assigned = (self.system_connection if role == self.ROLE_SYSTEM
+                    else self.calendar_connection)
+        return assigned or MailConnection.default()
+
+    def is_configured_for(self, role):
+        """Whether the master switch is on *and* the role's connection is usable."""
+        conn = self.connection_for(role)
+        return bool(self.enabled and conn and conn.is_configured)
+
+    @property
+    def is_configured(self):
+        """Generic 'is mail working' — keyed on the system role, which is what
+        password reset and the other transactional paths use."""
+        return self.is_configured_for(self.ROLE_SYSTEM)
 
     def reset_to_fresh(self, *, save=True):
-        """Return this singleton to a clean, disabled state — clears the
-        credentials, sender and stored test result, and drops the password.
-        Shared by the Email tab's Clear button and onboarding Start-over (which
-        must undo the mail server the hidden email step wrote as it went)."""
-        field = self._meta.get_field
+        """Return mail to a clean, disabled state: master switch off, role map
+        cleared, and every stored connection dropped. Shared by the Email tab's
+        Clear button and onboarding Start-over (which must undo the mail server
+        the hidden email step wrote as it went)."""
         self.enabled = False
-        self.host = ""
-        self.port = field("port").default
-        self.security = field("security").default
-        self.username = ""
-        self.password = ""
-        self.from_email = ""
-        self.from_name = field("from_name").default
-        self.timeout = field("timeout").default
-        self.last_test_at = None
-        self.last_test_ok = None
+        self.system_connection = None
+        self.calendar_connection = None
         if save:
             self.save()
+        MailConnection.objects.all().delete()
 
 
 class EmailLogQuerySet(models.QuerySet):
@@ -394,6 +466,9 @@ class EmailLog(models.Model):
     to = models.CharField(max_length=254, blank=True)
     subject = models.CharField(max_length=255, blank=True)
     kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=KIND_SENT)
+    # Which mail connection sent it (denormalised name — connections come and go,
+    # and the log is pruned anyway, so an FK would only add cascade fuss).
+    connection_name = models.CharField(max_length=100, blank=True)
     ok = models.BooleanField(default=True)
     error = models.TextField(blank=True)
     # Set when the operator dismisses the dashboard failure banner. Only failures
@@ -410,7 +485,7 @@ class EmailLog(models.Model):
         return f"{self.get_kind_display()} to {self.to or '—'} ({state})"
 
     @classmethod
-    def record(cls, to, subject, ok, kind=KIND_SENT, error=""):
+    def record(cls, to, subject, ok, kind=KIND_SENT, error="", connection_name=""):
         """Create a log row and prune the table back to ``PRUNE_KEEP``.
 
         Successes are stamped acknowledged immediately — the banner is only ever
@@ -419,8 +494,9 @@ class EmailLog(models.Model):
         entry = cls.objects.create(
             to=(to or "")[:254],
             subject=(subject or "")[:255],
-            ok=ok,
             kind=kind,
+            connection_name=(connection_name or "")[:100],
+            ok=ok,
             error=error or "",
             acknowledged_at=timezone.now() if ok else None,
         )

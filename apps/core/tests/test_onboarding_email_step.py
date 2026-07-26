@@ -7,12 +7,14 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from core.models import EmailSettings, OnboardingDraft
+from core.models import EmailSettings, MailConnection, OnboardingDraft
 
 
 def make_config():
+    MailConnection.objects.create(name="Default", host="smtp.example.com",
+                                  from_email="me@example.com", is_default=True)
     es = EmailSettings.load()
-    es.enabled, es.host, es.from_email = True, "smtp.example.com", "me@example.com"
+    es.enabled = True
     es.save()
     return es
 
@@ -130,7 +132,7 @@ class OnboardingResetClearsEmailTests(TestCase):
                              fetch_redirect_response=False)
         config = EmailSettings.load()
         self.assertFalse(config.is_configured)
-        self.assertEqual(config.host, "")
+        self.assertEqual(MailConnection.objects.count(), 0)
 
 
 class OnboardingEmailEndpointsReachableTests(TestCase):

@@ -6,38 +6,55 @@ parent: settings-and-sign-in
 audience: everyone
 order: 75
 published: true
-keywords: [email, smtp, mail, gmail, outlook, password reset, forgot password, app password, starttls, port 587, port 465, test connection, email log, failed email, clear configuration]
+keywords: [email, smtp, mail, gmail, outlook, password reset, forgot password, app password, starttls, port 587, port 465, test connection, email log, failed email, clear configuration, mail connection, no-reply, calendar invites, used for, roles, multiple mail servers]
 pages: [core:settings]
 ---
 BitGigs can send mail through a mail server **you** choose. It is entirely
 optional — everything else in the app works without it — and it is **off until
-you turn it on**. Today it powers the "forgot your password" link; calendar
-invites will use the same connection later.
+you turn it on**. It powers the "forgot your password" link and, if you use them,
+[calendar invites](/help/calendar-integration/).
 
 Set it up under **[Settings → Email](/settings/?tab=email)**.
 
 ## What gets sent where
 
 Only what you ask BitGigs to send: a password reset link, addressed to your own
-sign-in address. Nothing about your shifts, pay or workplaces goes anywhere.
+sign-in address, and calendar invites to the addresses you name on a contract.
+Nothing about your shifts, pay or workplaces goes anywhere else.
 
 Bear in mind that the mail server you point this at *is* a third party unless you
 run it yourself — if you use Gmail, your reset emails pass through Google. That's
 your call to make about your own mail account, which is exactly why this is
 opt-in and why BitGigs never picks a provider for you.
 
-The Email tab shows your **saved settings** as a read-only summary. Press
-**Edit settings** to change them in a dialog, and **Save** when you're done.
-There's also a **Clear** button that wipes the whole configuration back to a
-fresh, disabled state — handy when a setup has gone wrong and you'd rather start
-over.
+## Mail connections and what they're used for
 
-## Connecting a server
+A **mail connection** is one SMTP setup — a server, a sign-in, and a from-address.
+You can keep **more than one** and choose which one sends which kind of mail:
 
-Press **Edit settings**. Use **Quick setup** to fill in the server address, port
-and encryption for a common provider, then add your own credentials. The dialog
-groups the fields — **Server**, **Sign-in**, **Sender** — so the password and the
-from-address stay well apart.
+- **System mail** — the transactional stuff, i.e. password reset links.
+- **Calendar invites** — the invites your shifts turn into.
+
+A common reason to keep two: send system mail from a **no-reply** mailbox, and
+send calendar invites from **your own address** so replies reach you. Set this up
+in the **Used for** panel — pick a connection for each kind of mail, or leave it
+on **Default** to use whichever connection you marked as the default. If you only
+ever want one server, just add one connection and leave both on Default.
+
+The **master switch** at the top turns all outgoing mail on or off. Below it,
+each connection is shown as a card; a **Clear all** button wipes every connection
+back to a fresh, disabled state — handy when a setup has gone wrong and you'd
+rather start over.
+
+## Adding a connection
+
+Press **Add connection** (or **Edit** on an existing card). Use **Quick setup** to
+fill in the server address, port and encryption for a common provider, then add
+your own credentials. Give the connection a **name** so you can tell your setups
+apart (e.g. "No-reply" and "My mailbox"). The dialog groups the fields —
+**Server**, **Sign-in**, **Sender** — so the password and the from-address stay
+well apart. The first connection you add becomes the **default**; use **Make
+default** on any card to move that.
 
 | Provider | Server | Port | Encryption |
 |---|---|---|---|
@@ -62,10 +79,12 @@ read and BitGigs will ask you to enter it again.
 
 ## Testing it
 
-The test always runs against your **saved** settings — the summary you see on
-the tab — so save any edits first, then press **Run test**. It walks through the
-same steps a real send does and reports each one, so the first ✗ tells you which
-setting is wrong:
+Each connection card has a **Test** button that checks that saved connection,
+step by step, without sending anything. There's also a **Send a test message**
+panel below the list: pick a connection, enter an address, and it delivers a real
+message so you can confirm it arrives. Either way, save any edits first — the test
+runs against the **saved** connection. The report walks through the same steps a
+real send does, so the first ✗ tells you which setting is wrong:
 
 1. **Configuration** — are the required fields filled in at all
 2. **Resolve hostname** — does the server address exist
@@ -93,9 +112,9 @@ Common results:
 
 Every message BitGigs tries to send — test messages and real mail alike — is
 recorded in the **Email log** (the button is on the Email tab). Each row shows
-when it was sent, to whom, the subject, and the outcome; a failure also shows
-**why**. Only this metadata is kept, never the contents of the message. The log
-holds the most recent 200 attempts.
+when it was sent, which **connection** sent it, to whom, the subject, and the
+outcome; a failure also shows **why**. Only this metadata is kept, never the
+contents of the message. The log holds the most recent 200 attempts.
 
 A result of **Accepted** means the mail server took the message for delivery —
 it is *not* proof it landed in the inbox. Mail works in relays: the server can

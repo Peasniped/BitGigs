@@ -159,7 +159,9 @@ def calendar_settings_context(*, sub_form=None, invite_form=None, open_modal="",
         "cal_invite_settings": invite_settings,
         "cal_invite_form": invite_form or CalendarInviteSettingsForm(instance=invite_settings),
         "cal_workplace_rows": workplace_rows,
-        "cal_mail_configured": EmailSettings.load().is_configured,
+        "cal_mail_configured": EmailSettings.load().is_configured_for(
+            EmailSettings.ROLE_CALENDAR
+        ),
         "cal_open_modal": open_modal,
         "cal_sub_edit_id": sub_edit_id,
         # Swatch picker (Direction 1 add/edit modal): the shared app accent

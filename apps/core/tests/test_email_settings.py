@@ -1,5 +1,5 @@
-"""Mail configuration: secret storage, the staged connection test, and the
-password-reset flow it unlocks."""
+"""Mail configuration: connections, secret storage, the staged connection test,
+and the password-reset flow it unlocks."""
 import re
 import smtplib
 import socket
@@ -15,24 +15,43 @@ from django.utils import timezone
 from core import mail as core_mail
 from core.crypto import decrypt_secret, encrypt_secret
 from core.mail_backend import DbConfiguredEmailBackend
-from core.models import EmailLog, EmailSettings, UserSettings
+from core.models import EmailLog, EmailSettings, MailConnection, UserSettings
 from core.mail import FAILED, OK, SKIPPED
 
 
-def make_config(**overrides):
-    config = EmailSettings.load()
-    config.enabled = True
-    config.host = "smtp.example.com"
-    config.port = 587
-    config.security = EmailSettings.SECURITY_STARTTLS
-    config.username = "me@example.com"
-    config.password = "hunter2"
-    config.from_email = "me@example.com"
-    config.timeout = 5
-    for key, value in overrides.items():
-        setattr(config, key, value)
-    config.save()
-    return config
+def make_config(*, enabled=True, allow_password_reset=True, **overrides):
+    """Create a default ``MailConnection`` and, unless disabled, turn mail on with
+    it as the fallback for every role. Returns the connection.
+
+    ``enabled`` / ``allow_password_reset`` land on the ``EmailSettings`` singleton;
+    everything else is a connection field."""
+    password = overrides.pop("password", "hunter2")
+    fields = dict(
+        name="Default", host="smtp.example.com", port=587,
+        security=MailConnection.SECURITY_STARTTLS, username="me@example.com",
+        from_email="me@example.com", from_name="BitGigs", timeout=5, is_default=True,
+    )
+    fields.update(overrides)
+    conn = MailConnection(**fields)
+    if password:
+        conn.password = password
+    conn.save()
+    es = EmailSettings.load()
+    es.enabled = enabled
+    es.allow_password_reset = allow_password_reset
+    es.save()
+    return conn
+
+
+# A full, valid connection-save POST body (the connection modal's form).
+def conn_post(**overrides):
+    body = {
+        "name": "Default", "host": "smtp.example.com", "port": "587",
+        "security": "starttls", "username": "me@example.com", "password": "hunter2",
+        "from_email": "me@example.com", "from_name": "BitGigs", "timeout": "10",
+    }
+    body.update(overrides)
+    return body
 
 
 class SecretStorageTests(TestCase):
@@ -52,33 +71,51 @@ class SecretStorageTests(TestCase):
             self.assertIsNone(decrypt_secret(token))
 
     def test_model_flags_an_undecryptable_password(self):
-        config = make_config()
+        conn = make_config()
         with override_settings(SECRET_KEY="a-completely-different-key"):
-            config.refresh_from_db()
-            self.assertTrue(config.password_unreadable)
-            self.assertIsNone(config.password)
+            conn.refresh_from_db()
+            self.assertTrue(conn.password_unreadable)
+            self.assertIsNone(conn.password)
 
     def test_environment_override_wins(self):
-        config = make_config()
+        conn = make_config()
         with override_settings(EMAIL_PASSWORD_OVERRIDE="from-the-env"):
-            self.assertEqual(config.password, "from-the-env")
-            self.assertTrue(config.password_from_env)
+            self.assertEqual(conn.password, "from-the-env")
+            self.assertTrue(conn.password_from_env)
 
 
 class ConfiguredFlagTests(TestCase):
     def test_disabled_is_not_configured(self):
-        self.assertFalse(make_config(enabled=False).is_configured)
+        make_config(enabled=False)
+        self.assertFalse(EmailSettings.load().is_configured)
 
     def test_missing_host_is_not_configured(self):
-        self.assertFalse(make_config(host="").is_configured)
+        make_config(host="")
+        self.assertFalse(EmailSettings.load().is_configured)
+
+    def test_configured_when_enabled_with_a_usable_connection(self):
+        make_config()
+        self.assertTrue(EmailSettings.load().is_configured)
+        self.assertTrue(EmailSettings.load().is_configured_for(EmailSettings.ROLE_CALENDAR))
+
+    def test_role_uses_its_assigned_connection(self):
+        make_config()
+        other = MailConnection.objects.create(name="Personal", host="smtp.p.com",
+                                               from_email="me@p.com")
+        es = EmailSettings.load()
+        es.calendar_connection = other
+        es.save()
+        self.assertEqual(es.connection_for(EmailSettings.ROLE_CALENDAR), other)
+        self.assertEqual(es.connection_for(EmailSettings.ROLE_SYSTEM).from_email,
+                         "me@example.com")
 
     def test_from_address_uses_the_display_name(self):
-        config = make_config(from_name="BitGigs")
-        self.assertEqual(core_mail.from_address(config), "BitGigs <me@example.com>")
+        conn = make_config(from_name="BitGigs")
+        self.assertEqual(core_mail.from_address(conn), "BitGigs <me@example.com>")
 
     def test_from_address_without_a_name_is_bare(self):
-        config = make_config(from_name="")
-        self.assertEqual(core_mail.from_address(config), "me@example.com")
+        conn = make_config(from_name="")
+        self.assertEqual(core_mail.from_address(conn), "me@example.com")
 
 
 class DiagnoseTests(TestCase):
@@ -97,10 +134,10 @@ class DiagnoseTests(TestCase):
         self.assertEqual(stages["dns"].status, SKIPPED)
 
     def test_undecryptable_password_is_explained(self):
-        config = make_config()
+        conn = make_config()
         with override_settings(SECRET_KEY="rotated"):
-            config.refresh_from_db()
-            result = core_mail.diagnose(config)
+            conn.refresh_from_db()
+            result = core_mail.diagnose(conn)
         stages = self.stages(result)
         self.assertEqual(stages["config"].status, FAILED)
         self.assertIn("DJANGO_SECRET_KEY", stages["config"].hint)
@@ -185,8 +222,6 @@ class DiagnoseTests(TestCase):
         )
         result = core_mail.diagnose(make_config(), send_to="you@example.com")
         stages = self.stages(result)
-        # Everything up to the send passed — which is exactly why the optional
-        # send stage exists.
         self.assertEqual(stages["auth"].status, OK)
         self.assertEqual(stages["send"].status, FAILED)
         self.assertIn("me@example.com", stages["send"].hint)
@@ -195,14 +230,14 @@ class DiagnoseTests(TestCase):
     @mock.patch("core.mail.socket.create_connection")
     @mock.patch("core.mail.socket.getaddrinfo", return_value=[(2, 1, 6, "", ("10.0.0.1", 587))])
     def test_run_and_record_stores_the_outcome(self, _r, _c, smtp):
-        make_config()
+        conn = make_config()
         core_mail.run_and_record()
-        config = EmailSettings.load()
-        self.assertTrue(config.last_test_ok)
-        self.assertIsNotNone(config.last_test_at)
+        conn.refresh_from_db()
+        self.assertTrue(conn.last_test_ok)
+        self.assertIsNotNone(conn.last_test_at)
 
 
-class EmailSettingsViewTests(TestCase):
+class MailConnectionViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("owner@example.com", password="pw")
         self.user.email = "owner@example.com"
@@ -218,76 +253,113 @@ class EmailSettingsViewTests(TestCase):
         self.assertContains(response, "Outgoing mail")
 
     def test_saving_stores_the_password_encrypted(self):
-        self.client.post(reverse("core:email-settings"), {
-            "enabled": "on", "host": "smtp.example.com", "port": "587",
-            "security": "starttls", "username": "me@example.com",
-            "password": "hunter2", "from_email": "me@example.com",
-            "from_name": "BitGigs", "timeout": "10", "allow_password_reset": "on",
-        })
-        config = EmailSettings.load()
-        self.assertEqual(config.password, "hunter2")
-        self.assertNotIn("hunter2", config.password_encrypted)
+        self.client.post(reverse("core:mail-connection-save"), conn_post())
+        conn = MailConnection.objects.get()
+        self.assertEqual(conn.password, "hunter2")
+        self.assertNotIn("hunter2", conn.password_encrypted)
+
+    def test_first_connection_becomes_default(self):
+        self.client.post(reverse("core:mail-connection-save"), conn_post())
+        self.assertTrue(MailConnection.objects.get().is_default)
 
     def test_changing_the_config_clears_the_stored_test_result(self):
-        make_config(last_test_ok=True, last_test_at=timezone.now())
-        self.client.post(reverse("core:email-settings"), {
-            "enabled": "on", "host": "smtp.changed.com", "port": "587",
-            "security": "starttls", "username": "me@example.com",
-            "password": "", "from_email": "me@example.com",
-            "from_name": "BitGigs", "timeout": "10", "allow_password_reset": "on",
-        })
-        config = EmailSettings.load()
-        self.assertEqual(config.host, "smtp.changed.com")
-        self.assertIsNone(config.last_test_ok)
-        self.assertIsNone(config.last_test_at)
+        conn = make_config(last_test_ok=True, last_test_at=timezone.now())
+        self.client.post(reverse("core:mail-connection-save"),
+                         conn_post(pk=conn.pk, host="smtp.changed.com", password=""))
+        conn.refresh_from_db()
+        self.assertEqual(conn.host, "smtp.changed.com")
+        self.assertIsNone(conn.last_test_ok)
+        self.assertIsNone(conn.last_test_at)
 
     def test_save_and_test_redirects_with_the_test_flag(self):
-        response = self.client.post(reverse("core:email-settings"), {
-            "enabled": "on", "host": "smtp.example.com", "port": "587",
-            "security": "starttls", "username": "me@example.com",
-            "password": "hunter2", "from_email": "me@example.com",
-            "from_name": "BitGigs", "timeout": "10", "allow_password_reset": "on",
-            "run_test": "1",
-        })
-        self.assertIn("test=1", response["Location"])
+        response = self.client.post(reverse("core:mail-connection-save"),
+                                    conn_post(run_test="1"))
+        pk = MailConnection.objects.get().pk
+        self.assertIn(f"test={pk}", response["Location"])
 
     def test_plain_save_carries_no_test_flag(self):
-        response = self.client.post(reverse("core:email-settings"), {
-            "enabled": "on", "host": "smtp.example.com", "port": "587",
-            "security": "starttls", "username": "me@example.com",
-            "password": "hunter2", "from_email": "me@example.com",
-            "from_name": "BitGigs", "timeout": "10", "allow_password_reset": "on",
-        })
-        self.assertNotIn("test=1", response["Location"])
+        response = self.client.post(reverse("core:mail-connection-save"), conn_post())
+        self.assertNotIn("test=", response["Location"])
 
     def test_blank_password_keeps_the_stored_one(self):
-        make_config()
-        self.client.post(reverse("core:email-settings"), {
-            "enabled": "on", "host": "smtp.example.com", "port": "587",
-            "security": "starttls", "username": "me@example.com",
-            "password": "", "from_email": "me@example.com",
-            "from_name": "", "timeout": "10",
-        })
-        self.assertEqual(EmailSettings.load().password, "hunter2")
+        conn = make_config()
+        self.client.post(reverse("core:mail-connection-save"),
+                         conn_post(pk=conn.pk, password=""))
+        conn.refresh_from_db()
+        self.assertEqual(conn.password, "hunter2")
 
     def test_clear_password_removes_it(self):
-        make_config()
-        self.client.post(reverse("core:email-settings"), {
-            "enabled": "on", "host": "smtp.example.com", "port": "587",
-            "security": "starttls", "username": "me@example.com",
-            "password": "", "clear_password": "on", "from_email": "me@example.com",
-            "from_name": "", "timeout": "10",
-        })
-        self.assertEqual(EmailSettings.load().password, "")
+        conn = make_config()
+        self.client.post(reverse("core:mail-connection-save"),
+                         conn_post(pk=conn.pk, password="", clear_password="on"))
+        conn.refresh_from_db()
+        self.assertEqual(conn.password, "")
 
-    def test_enabling_without_a_host_is_rejected(self):
-        response = self.client.post(reverse("core:email-settings"), {
-            "enabled": "on", "host": "", "port": "587", "security": "starttls",
-            "username": "", "password": "", "from_email": "me@example.com",
-            "from_name": "", "timeout": "10",
-        })
+    def test_incomplete_connection_is_rejected(self):
+        response = self.client.post(reverse("core:mail-connection-save"),
+                                    conn_post(host=""))
         self.assertEqual(response.status_code, 200)  # re-rendered with errors
+        self.assertFalse(MailConnection.objects.exists())
+
+    def test_delete_promotes_a_new_default(self):
+        a = make_config()
+        b = MailConnection.objects.create(name="B", host="smtp.b.com",
+                                          from_email="b@b.com")
+        self.client.post(reverse("core:mail-connection-delete"), {"pk": a.pk})
+        b.refresh_from_db()
+        self.assertFalse(MailConnection.objects.filter(pk=a.pk).exists())
+        self.assertTrue(b.is_default)
+
+    def test_make_default_moves_the_flag(self):
+        a = make_config()
+        b = MailConnection.objects.create(name="B", host="smtp.b.com",
+                                          from_email="b@b.com")
+        self.client.post(reverse("core:mail-connection-default"), {"pk": b.pk})
+        a.refresh_from_db(); b.refresh_from_db()
+        self.assertTrue(b.is_default)
+        self.assertFalse(a.is_default)
+
+    def test_master_enable_needs_a_usable_connection(self):
+        # No connection yet → enabling is rejected.
+        response = self.client.post(reverse("core:email-settings"),
+                                    {"enabled": "on", "allow_password_reset": "on"})
+        self.assertEqual(response.status_code, 200)
         self.assertFalse(EmailSettings.load().enabled)
+
+    def test_master_enable_with_a_connection(self):
+        make_config(enabled=False)
+        self.client.post(reverse("core:email-settings"),
+                         {"enabled": "on", "allow_password_reset": "on"})
+        self.assertTrue(EmailSettings.load().enabled)
+
+    def test_role_assignment_saves(self):
+        make_config()
+        other = MailConnection.objects.create(name="Personal", host="smtp.p.com",
+                                              from_email="me@p.com")
+        self.client.post(reverse("core:email-settings"), {
+            "enabled": "on", "allow_password_reset": "on",
+            "calendar_connection": other.pk,
+        })
+        self.assertEqual(EmailSettings.load().calendar_connection, other)
+
+    def test_section_saves_are_independent(self):
+        # The master switch and the role map are separate cards/forms; saving one
+        # must not clear the other's fields (they share one model row).
+        make_config()  # enabled=True
+        other = MailConnection.objects.create(name="Personal", host="smtp.p.com",
+                                              from_email="me@p.com")
+        # Save only the role map → enabled must survive.
+        self.client.post(reverse("core:email-settings"),
+                         {"section": "roles", "calendar_connection": other.pk})
+        es = EmailSettings.load()
+        self.assertTrue(es.enabled)
+        self.assertEqual(es.calendar_connection, other)
+        # Save only the switches → the role map must survive.
+        self.client.post(reverse("core:email-settings"),
+                         {"section": "switches", "enabled": "on"})
+        es = EmailSettings.load()
+        self.assertEqual(es.calendar_connection, other)
+        self.assertFalse(es.allow_password_reset)  # absent checkbox = off, as rendered
 
     def test_test_endpoint_rejects_a_bad_recipient(self):
         make_config()
@@ -295,8 +367,8 @@ class EmailSettingsViewTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_test_endpoint_returns_stages(self):
-        make_config(host="")
-        response = self.client.post(reverse("core:email-test"))
+        conn = make_config(host="")
+        response = self.client.post(reverse("core:email-test"), {"connection": conn.pk})
         payload = response.json()
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["stages"][0]["key"], "config")
@@ -307,8 +379,9 @@ class EmailSettingsViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
 
     def test_test_endpoint_reports_unseen_failure_flag(self):
-        make_config(host="")  # fails at the config stage, nothing sent → no failure logged
-        payload = self.client.post(reverse("core:email-test")).json()
+        conn = make_config(host="")  # fails at config, nothing sent → no failure logged
+        payload = self.client.post(reverse("core:email-test"),
+                                   {"connection": conn.pk}).json()
         self.assertIn("failures_unseen", payload)
         self.assertFalse(payload["failures_unseen"])
 
@@ -337,6 +410,21 @@ class PasswordResetTests(TestCase):
         response = self.client.get("/accounts/login/")
         self.assertContains(response, "Email me a reset link")
 
+    def test_recovery_link_shows_even_without_mail(self):
+        # With no mail server the emailed-link button is hidden, but the recovery
+        # link + console instructions must still be there — changepassword always
+        # works, and hiding recovery entirely would strand a standalone owner.
+        response = self.client.get("/accounts/login/")
+        self.assertContains(response, "Forgot your password?")
+        self.assertContains(response, "changepassword")
+        self.assertNotContains(response, "Email me a reset link")
+
+    def test_login_page_never_leaks_the_owner_username(self):
+        # The login page is public; the console-recovery hint must use a
+        # placeholder, never the owner's real address.
+        response = self.client.get("/accounts/login/")
+        self.assertNotContains(response, "owner@example.com")
+
     def test_end_to_end(self):
         make_config()
         response = self.client.post(
@@ -347,7 +435,6 @@ class PasswordResetTests(TestCase):
         self.assertEqual(message.from_email, "BitGigs <me@example.com>")
 
         link = re.search(r"/accounts/reset/\S+", message.body).group(0)
-        # Django swaps the token for a session-held one and redirects.
         self.client.get(link, follow=True)
         response = self.client.post(
             link.replace(link.split("/")[-2], "set-password"),
@@ -381,7 +468,6 @@ class PasswordResetTests(TestCase):
         for _ in range(5):
             self.client.post("/accounts/password_reset/", {"email": "owner@example.com"})
         self.assertEqual(len(mail.outbox), 5)
-        # The sixth is turned away without sending.
         self.client.post("/accounts/password_reset/", {"email": "owner@example.com"})
         self.assertEqual(len(mail.outbox), 5)
         cache.clear()
@@ -391,19 +477,22 @@ class EmailLogModelTests(TestCase):
     def test_record_marks_success_seen_and_failure_unseen(self):
         ok_row = EmailLog.record("a@b.com", "Hi", ok=True)
         fail_row = EmailLog.record("a@b.com", "Hi", ok=False, error="nope")
-        self.assertIsNotNone(ok_row.acknowledged_at)   # successes never need dismissing
+        self.assertIsNotNone(ok_row.acknowledged_at)
         self.assertIsNone(fail_row.acknowledged_at)
         self.assertQuerySetEqual(EmailLog.objects.failures_unseen(), [fail_row])
+
+    def test_record_keeps_the_connection_name(self):
+        row = EmailLog.record("a@b.com", "Hi", ok=True, connection_name="No-reply")
+        self.assertEqual(row.connection_name, "No-reply")
 
     def test_record_prunes_to_the_cap(self):
         with mock.patch.object(EmailLog, "PRUNE_KEEP", 3):
             for i in range(6):
                 EmailLog.record("a@b.com", f"msg {i}", ok=True)
         self.assertEqual(EmailLog.objects.count(), 3)
-        # The most recent survive.
         self.assertEqual(EmailLog.objects.first().subject, "msg 5")
 
-    def test_backend_logs_a_successful_send(self):
+    def test_backend_logs_a_successful_send_with_the_connection_name(self):
         make_config()
         with mock.patch(
             "django.core.mail.backends.smtp.EmailBackend.send_messages", return_value=1
@@ -415,6 +504,7 @@ class EmailLogModelTests(TestCase):
         self.assertEqual(row.subject, "Welcome")
         self.assertEqual(row.to, "you@x.com")
         self.assertEqual(row.kind, EmailLog.KIND_SENT)
+        self.assertEqual(row.connection_name, "Default")
 
     def test_backend_logs_a_failed_send_and_reraises(self):
         make_config()
@@ -428,6 +518,17 @@ class EmailLogModelTests(TestCase):
         row = EmailLog.objects.get()
         self.assertFalse(row.ok)
         self.assertIn("gone", row.error)
+
+    def test_backend_role_selects_the_connection(self):
+        make_config()
+        personal = MailConnection.objects.create(name="Personal", host="smtp.p.com",
+                                                 from_email="me@p.com")
+        es = EmailSettings.load()
+        es.calendar_connection = personal
+        es.save()
+        backend = DbConfiguredEmailBackend(role=EmailSettings.ROLE_CALENDAR)
+        self.assertEqual(backend.host, "smtp.p.com")
+        self.assertEqual(backend.connection_name, "Personal")
 
     @mock.patch("core.mail.smtplib.SMTP")
     @mock.patch("core.mail.socket.create_connection")
@@ -454,7 +555,7 @@ class EmailLogModelTests(TestCase):
         self.assertIn("Sender address rejected", row.error)
 
     def test_connection_only_test_writes_no_log(self):
-        make_config(host="")   # fails at config stage, no send requested
+        make_config(host="")
         core_mail.run_and_record()
         self.assertEqual(EmailLog.objects.count(), 0)
 
@@ -501,10 +602,7 @@ class EmailLogViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         config = EmailSettings.load()
         self.assertFalse(config.enabled)
-        self.assertEqual(config.host, "")
-        self.assertEqual(config.from_email, "")
-        self.assertEqual(config.password, "")
-        self.assertIsNone(config.last_test_at)
+        self.assertEqual(MailConnection.objects.count(), 0)
 
 
 class MessageIdTests(TestCase):

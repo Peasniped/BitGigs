@@ -13,17 +13,18 @@ from calendar_sync.models import (
     ContractCalendarConfig,
     ShiftInvite,
 )
-from core.models import EmailLog, EmailSettings
+from core.models import EmailLog, EmailSettings, MailConnection
 from shifts.models import Shift
 from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
 
 
 def _configure_mail():
+    conn = MailConnection.objects.create(
+        name="Default", host="smtp.zink.nu", from_email="robot@zink.nu",
+        from_name="BitGigs", is_default=True,
+    )
     es = EmailSettings.load()
     es.enabled = True
-    es.host = "smtp.zink.nu"
-    es.from_email = "robot@zink.nu"
-    es.from_name = "BitGigs"
     es.save()
     return es
 

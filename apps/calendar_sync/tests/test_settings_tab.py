@@ -15,7 +15,7 @@ from calendar_sync.models import (
     ContractCalendarConfig,
 )
 from calendar_sync.services import build_calendar, build_event
-from core.models import EmailSettings
+from core.models import EmailSettings, MailConnection
 from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
 
 
@@ -148,8 +148,10 @@ class InviteConfigTests(CalendarTabBase):
 class TestInviteButtonTests(CalendarTabBase):
     def test_sends_test_invite_to_owner(self):
         mail.outbox = []
+        MailConnection.objects.create(name="Default", host="smtp.zink.nu",
+                                      from_email="robot@zink.nu", is_default=True)
         es = EmailSettings.load()
-        es.enabled, es.host, es.from_email = True, "smtp.zink.nu", "robot@zink.nu"
+        es.enabled = True
         es.save()
         s = CalendarInviteSettings.load()
         s.enabled, s.owner_address = True, "me@home.example"

@@ -267,155 +267,200 @@ OIDC_CLIENT_SECRET=</code></pre>
 
     {% elif active_tab == 'email' %}
     {% comment %}
-      The saved configuration is shown read-only; editing happens in a modal.
-      That is deliberate — the connection test runs against the *saved* config,
-      so an always-editable form next to the Test button used to invite editing
-      a field, testing, and quietly testing the old values. With the form behind
-      Edit, "Test tests what you see" is self-evident.
+      Multiple mail connections + a role map. Each connection is a read-only
+      summary; editing happens in a shared modal. That is deliberate — the
+      connection test runs against the *saved* config, so an always-editable form
+      next to Test used to invite editing a field, testing, and quietly testing
+      the old values. Behind Edit, "Test tests what you see" is self-evident.
     {% endcomment %}
-    <div data-email-settings>
+    <div data-email-settings data-test-url="{% url 'core:email-test' %}">
+
+    {% comment %} ── Master switch (first card butts against the tab strip) ─── {% endcomment %}
     <div class="card settings-pane">
       <div class="card-body">
-
         <div class="mb-3">
           <div class="fw-medium">Outgoing mail</div>
           <p class="form-text mb-0">
-            Optional. BitGigs sends nothing until you turn this on. It powers
-            password reset today, and calendar invites later.
+            Optional. BitGigs sends nothing until you turn it on. It powers
+            password reset and calendar invites, sent through the mail
+            connections you set up below.
           </p>
         </div>
+        <form method="post" action="{% url 'core:email-settings' %}">
+          {% csrf_token %}
+          <input type="hidden" name="section" value="switches">
+          {{ email_switch_form.enabled|as_crispy_field }}
+          {{ email_switch_form.allow_password_reset|as_crispy_field }}
+          <button type="submit" class="btn btn-outline-primary">
+            <i class="bi bi-check-lg me-1"></i>Save settings
+          </button>
+        </form>
+      </div>
+    </div>
 
-        {% if email_config.password_unreadable %}
-          <div class="alert alert-warning py-2 px-3">
-            <i class="bi bi-key me-1"></i>
-            The stored password can no longer be decrypted &mdash; this happens when
-            <code>DJANGO_SECRET_KEY</code> changes. Enter the password again to fix it.
-          </div>
-        {% endif %}
-        {% if email_config.password_from_env %}
-          <div class="alert alert-info py-2 px-3">
-            <i class="bi bi-terminal me-1"></i>
-            The password is supplied by the <code>EMAIL_HOST_PASSWORD</code>
-            environment variable, so it can't be edited here.
-          </div>
-        {% endif %}
-
-        {% comment %}
-          Read-only summary of the saved configuration. When nothing is set up
-          (a fresh install, or after Clear) the per-field rows would be a wall of
-          "Not set" plus a misleading reset status, so show a plain empty state
-          instead.
-        {% endcomment %}
-        {% if email_config.host or email_config.from_email or email_config.username or email_config.enabled %}
-        <dl class="email-summary row mb-0">
-          <dt class="col-4 col-sm-3">Status</dt>
-          <dd class="col-8 col-sm-9">
-            {% if email_config.enabled %}
-              <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Enabled</span>
-            {% else %}
-              <span class="text-muted"><i class="bi bi-slash-circle me-1"></i>Disabled</span>
-            {% endif %}
-          </dd>
-
-          <dt class="col-4 col-sm-3">Server</dt>
-          <dd class="col-8 col-sm-9">
-            {% if email_config.host %}
-              {{ email_config.host }}:{{ email_config.port }}
-              <span class="text-muted">&middot; {{ email_config.get_security_display }}</span>
-            {% else %}
-              <span class="text-muted">Not set</span>
-            {% endif %}
-          </dd>
-
-          <dt class="col-4 col-sm-3">Sign-in</dt>
-          <dd class="col-8 col-sm-9">
-            {% if email_config.username %}{{ email_config.username }}
-            {% else %}<span class="text-muted">None (anonymous)</span>{% endif %}
-          </dd>
-
-          <dt class="col-4 col-sm-3">From</dt>
-          <dd class="col-8 col-sm-9">
-            {% if email_config.from_email %}
-              {% if email_config.from_name %}{{ email_config.from_name }} {% endif %}&lt;{{ email_config.from_email }}&gt;
-            {% else %}
-              <span class="text-muted">Not set</span>
-            {% endif %}
-          </dd>
-
-          <dt class="col-4 col-sm-3">Password reset</dt>
-          <dd class="col-8 col-sm-9">
-            {% if email_config.allow_password_reset %}
-              <span class="text-success"><i class="bi bi-check-circle me-1"></i>Allowed</span>
-            {% else %}
-              <span class="text-muted"><i class="bi bi-slash-circle me-1"></i>Off</span>
-            {% endif %}
-          </dd>
-        </dl>
-        {% else %}
-        <div class="email-empty text-center text-muted py-4">
-          <i class="bi bi-envelope-slash" style="font-size:2rem;opacity:.35;"></i>
-          <div class="mt-2">Email has not been configured yet.</div>
+    {% comment %} ── Connections ─────────────────────────────────────────── {% endcomment %}
+    <div class="card mt-3">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <div class="fw-medium">Mail connections</div>
+          <button type="button" class="btn btn-primary btn-sm ms-auto"
+                  data-conn-add data-bs-toggle="modal" data-bs-target="#emailSettingsModal">
+            <i class="bi bi-plus-lg me-1"></i>Add connection
+          </button>
         </div>
-        {% endif %}
+
+        {% for conn in email_connections %}
+          <div class="email-conn border rounded p-3 mb-2" data-conn-card
+               data-pk="{{ conn.pk }}" data-name="{{ conn.name }}"
+               data-host="{{ conn.host }}" data-port="{{ conn.port }}"
+               data-security="{{ conn.security }}" data-username="{{ conn.username }}"
+               data-from-email="{{ conn.from_email }}" data-from-name="{{ conn.from_name }}"
+               data-timeout="{{ conn.timeout }}"
+               data-has-password="{{ conn.password_encrypted|yesno:'1,' }}"
+               data-password-env="{{ conn.password_from_env|yesno:'1,' }}">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <div class="fw-medium">
+                {{ conn.name }}
+                {% if conn.is_default %}
+                  <span class="badge badge-soft ms-1"><i class="bi bi-star-fill me-1"></i>Default</span>
+                {% endif %}
+              </div>
+              {% comment %} Live "Last test" badge, rewritten by email_settings.js after a test. {% endcomment %}
+              <span id="emailLastTestBadge-{{ conn.pk }}"
+                    class="status-pill flex-shrink-0 ms-auto {% if not conn.last_test_at %}d-none{% endif %}
+                           {% if conn.last_test_ok %}status-pill--ok{% else %}status-pill--bad{% endif %}">
+                <i class="bi bi-{% if conn.last_test_ok %}check-circle-fill{% else %}exclamation-triangle-fill{% endif %}"></i>
+                Last test {% if conn.last_test_ok %}passed{% else %}failed{% endif %}
+              </span>
+            </div>
+            <div class="form-text mt-1">
+              {% if conn.host %}{{ conn.host }}:{{ conn.port }}
+                <span class="text-muted">&middot; {{ conn.get_security_display }}</span>{% else %}
+                <span class="text-muted">No server set</span>{% endif %}
+              {% if conn.from_email %} &middot; from
+                {% if conn.from_name %}{{ conn.from_name }} {% endif %}&lt;{{ conn.from_email }}&gt;{% endif %}
+            </div>
+            {% if conn.password_unreadable %}
+              <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
+                <i class="bi bi-key me-1"></i>The stored password can't be decrypted
+                (<code>DJANGO_SECRET_KEY</code> changed) — edit and re-enter it.
+              </div>
+            {% endif %}
+
+            <div class="d-flex flex-wrap gap-2 mt-3">
+              <button type="button" class="btn btn-outline-secondary btn-sm"
+                      data-conn-edit data-bs-toggle="modal" data-bs-target="#emailSettingsModal">
+                <i class="bi bi-pencil me-1"></i>Edit
+              </button>
+              <button type="button" class="btn btn-outline-primary btn-sm"
+                      data-conn-test data-pk="{{ conn.pk }}">
+                <i class="bi bi-play-fill me-1"></i>Test
+              </button>
+              {% if not conn.is_default %}
+                <form method="post" action="{% url 'core:mail-connection-default' %}" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="pk" value="{{ conn.pk }}">
+                  <button type="submit" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-star me-1"></i>Make default
+                  </button>
+                </form>
+              {% endif %}
+              <form method="post" action="{% url 'core:mail-connection-delete' %}" class="d-inline ms-auto"
+                    data-confirm="Delete the connection “{{ conn.name }}”? Any role using it falls back to the default.">
+                {% csrf_token %}
+                <input type="hidden" name="pk" value="{{ conn.pk }}">
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                  <i class="bi bi-trash me-1"></i>Delete
+                </button>
+              </form>
+            </div>
+            <div class="mt-3 d-none" data-conn-results="{{ conn.pk }}"></div>
+          </div>
+        {% empty %}
+          <div class="email-empty text-center text-muted py-4">
+            <i class="bi bi-envelope-slash" style="font-size:2rem;opacity:.35;"></i>
+            <div class="mt-2">No mail connections yet.</div>
+            <div class="small">Add one to enable password reset and calendar invites.</div>
+          </div>
+        {% endfor %}
 
         <div class="d-flex flex-wrap gap-2 mt-3">
-          <button type="button" class="btn btn-primary" data-bs-toggle="modal"
-                  data-bs-target="#emailSettingsModal">
-            <i class="bi bi-pencil me-1"></i>Edit settings
-          </button>
-          <a class="btn btn-outline-secondary" href="{% url 'core:email-log' %}">
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:email-log' %}">
             <i class="bi bi-list-ul me-1"></i>Email log
             {% comment %} email_settings.js toggles this after a test so a fresh failure shows without a reload. {% endcomment %}
             <span id="emailLogAlert"
                   class="badge rounded-pill text-bg-danger ms-1 {% if not email_failures_unseen %}d-none{% endif %}">!</span>
           </a>
-          {% comment %} Only offer to clear when there is something to clear. {% endcomment %}
-          {% if email_config.host or email_config.from_email or email_config.username %}
+          {% if email_connections %}
             <form method="post" action="{% url 'core:email-clear' %}" class="ms-auto"
-                  data-confirm="Clear the email configuration? This removes the server, credentials and from address.">
+                  data-confirm="Clear all email configuration? This removes every connection, credential and from address.">
               {% csrf_token %}
-              <button type="submit" class="btn btn-outline-danger">
-                <i class="bi bi-trash me-1"></i>Clear
+              <button type="submit" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-trash me-1"></i>Clear all
               </button>
             </form>
           {% endif %}
         </div>
 
+        {% comment %} ── Role map — same pane as the connections, so it reads as
+        "here are your connections, here's what each is used for" ───────────── {% endcomment %}
+        {% if email_connections %}
         <hr class="my-4">
-
-        {% comment %}
-          The test is the reason this configuration lives in the database rather
-          than in env vars: it reports each stage of a real SMTP session, so the
-          first failure says *which* setting is wrong. It runs against the saved
-          configuration shown above.
-        {% endcomment %}
-        <div class="d-flex justify-content-between align-items-center gap-3">
-          <div class="fw-medium">Test the connection</div>
-          {% comment %} email_settings.js rewrites this badge live after a test. {% endcomment %}
-          <span id="emailLastTestBadge"
-                class="status-pill flex-shrink-0 {% if not email_config.last_test_at %}d-none{% endif %}
-                       {% if email_config.last_test_ok %}status-pill--ok{% else %}status-pill--bad{% endif %}">
-            <i class="bi bi-{% if email_config.last_test_ok %}check-circle-fill{% else %}exclamation-triangle-fill{% endif %}"></i>
-            Last test {% if email_config.last_test_ok %}passed{% else %}failed{% endif %}
-          </span>
-        </div>
+        <div class="fw-medium mb-2"><i class="bi bi-diagram-3 me-1"></i>Used for</div>
         <p class="form-text mt-0">
-          Checks the saved settings above, step by step. Add an address to also
-          send a real message and confirm it arrives.
+          Which connection sends each kind of mail. Leave on <em>Default</em> to
+          use the connection marked as default.
         </p>
-        <div class="input-group mb-2">
-          <input type="email" class="form-control" id="emailTestTo"
-                 placeholder="Optional: send a test message to…"
-                 value="{{ user.email }}" autocomplete="off">
-          <button type="button" class="btn btn-primary" id="emailTestRun"
-                  data-url="{% url 'core:email-test' %}">
-            <i class="bi bi-play-fill me-1"></i>Run test
+        <form method="post" action="{% url 'core:email-settings' %}">
+          {% csrf_token %}
+          <input type="hidden" name="section" value="roles">
+          <div class="row">
+            <div class="col-sm-6">{{ email_roles_form.system_connection|as_crispy_field }}</div>
+            <div class="col-sm-6">{{ email_roles_form.calendar_connection|as_crispy_field }}</div>
+          </div>
+          <button type="submit" class="btn btn-outline-primary">
+            <i class="bi bi-check-lg me-1"></i>Save
           </button>
-        </div>
-        <div id="emailTestResults" class="mt-3"></div>
-
+        </form>
+        {% endif %}
       </div>
     </div>
+
+    {% comment %} Standalone test panel: send a real message through a chosen connection. {% endcomment %}
+    {% if email_connections %}
+    <div class="card mt-3">
+      <div class="card-body">
+        <div class="fw-medium">Send a test message</div>
+        <p class="form-text mt-0">
+          Sends a real message through the chosen connection, so you can confirm
+          it arrives. (The per-connection <em>Test</em> above checks the server
+          without sending.)
+        </p>
+        <div class="row g-2 align-items-end">
+          <div class="col-sm-5">
+            <label class="form-label form-label-sm mb-1">Connection</label>
+            <select class="form-select" id="emailTestConnection">
+              {% for conn in email_connections %}
+                <option value="{{ conn.pk }}">{{ conn.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-7">
+            <label class="form-label form-label-sm mb-1">Send to</label>
+            <div class="input-group">
+              <input type="email" class="form-control" id="emailTestTo"
+                     placeholder="you@example.com" value="{{ user.email }}" autocomplete="off">
+              <button type="button" class="btn btn-primary" id="emailTestRun"
+                      data-url="{% url 'core:email-test' %}">
+                <i class="bi bi-send me-1"></i>Send
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="emailTestResults" class="mt-3"></div>
+      </div>
+    </div>
+    {% endif %}
 
     {% include "core/_email_settings_modal.html" %}
     </div>
@@ -675,8 +720,14 @@ OIDC_CLIENT_SECRET=</code></pre>
 {% if open_account_modal %}
   <script>new bootstrap.Modal(document.getElementById("accountDetailsModal")).show();</script>
 {% endif %}
-{% if email_form_invalid %}
-  {% comment %} The email save failed validation — reopen the modal so the errors are visible. {% endcomment %}
-  <script>new bootstrap.Modal(document.getElementById("emailSettingsModal")).show();</script>
+{% if email_modal_open %}
+  {% comment %} A connection save failed validation — reopen the modal so the errors are visible.
+  The server rendered the modal with the bound form (and edit pk), so no JS population is needed. {% endcomment %}
+  <script>
+    document.getElementById("emailSettingsForm")
+      .querySelector("[data-modal-title]").textContent =
+        "{{ email_edit_pk|yesno:'Edit connection,Add connection' }}";
+    new bootstrap.Modal(document.getElementById("emailSettingsModal")).show();
+  </script>
 {% endif %}
 {% endblock %}

@@ -1,6 +1,8 @@
-/* Settings → Email: provider presets and the staged connection test.
+/* Settings → Email: mail connections, provider presets and the staged test.
  *
- * The test posts to core:email-test and renders one row per stage of a real
+ * There is one shared connection modal: "Add connection" opens it blank, a card's
+ * Edit button fills it from that card's data-* attributes. The staged test posts
+ * to core:email-test with a connection id and renders one row per stage of a real
  * SMTP session (resolve → connect → TLS → auth → optional send). The first
  * failing row is the answer, so it carries the diagnosis and a hint; the rows
  * after it stay "not reached" rather than pretending to be fine.
@@ -9,18 +11,63 @@
   var root = document.querySelector('[data-email-settings]');
   if (!root) return;   // Another settings tab is rendered.
 
-  // ── Clear-configuration confirm ────────────────────────────────────────────
+  var testUrl = root.dataset.testUrl;
+
+  // ── Confirm guards (delete / clear) ────────────────────────────────────────
   root.querySelectorAll('form[data-confirm]').forEach(function (form) {
     form.addEventListener('submit', function (event) {
       if (!window.confirm(form.dataset.confirm)) event.preventDefault();
     });
   });
 
+  // ── Shared connection modal: fill for Edit, clear for Add ──────────────────
+  var modalForm = document.getElementById('emailSettingsForm');
+  var modalTitle = modalForm ? modalForm.querySelector('[data-modal-title]') : null;
+  var pkInput = modalForm ? modalForm.querySelector('[data-conn-pk]') : null;
+
+  function setField(id, value) {
+    var el = document.getElementById(id);
+    if (el) el.value = value == null ? '' : value;
+  }
+
+  function fillModal(card) {
+    if (!modalForm) return;
+    var d = card ? card.dataset : {};
+    if (pkInput) pkInput.value = card ? d.pk : '';
+    if (modalTitle) modalTitle.textContent = card ? 'Edit connection' : 'Add connection';
+    setField('id_name', d.name);
+    setField('id_host', d.host);
+    setField('id_port', card ? d.port : '587');
+    setField('id_security', card ? d.security : 'starttls');
+    setField('id_username', d.username);
+    setField('id_from_email', d.fromEmail);
+    setField('id_from_name', card ? d.fromName : 'BitGigs');
+    setField('id_timeout', card ? d.timeout : '10');
+    var pwd = document.getElementById('id_password');
+    if (pwd) {
+      pwd.value = '';
+      pwd.setAttribute('placeholder', d.hasPassword ? '•••••••• (unchanged)' : '');
+    }
+    // Clearing the checkbox: a fresh open shouldn't inherit the last card's state.
+    var clearPwd = document.getElementById('id_clear_password');
+    if (clearPwd) clearPwd.checked = false;
+    // Reset preset highlight + note.
+    root.querySelectorAll('[data-email-preset]').forEach(function (b) { b.classList.remove('active'); });
+    var note = root.querySelector('[data-preset-note]');
+    if (note) { note.textContent = ''; note.classList.add('d-none'); }
+  }
+
+  root.querySelectorAll('[data-conn-edit]').forEach(function (btn) {
+    btn.addEventListener('click', function () { fillModal(btn.closest('[data-conn-card]')); });
+  });
+  root.querySelectorAll('[data-conn-add]').forEach(function (btn) {
+    btn.addEventListener('click', function () { fillModal(null); });
+  });
+
   // ── Sender auto-fills from the username while it's blank ───────────────────
   // Most providers require the from-address to equal the account you sign in as,
   // so mirror the username into an empty From field as you type — but back off
-  // the moment the operator edits From themselves (a pre-filled value counts as
-  // already-theirs). Same "only while untouched" rule the help-editor slug uses.
+  // the moment the operator edits From themselves. Re-armed when the modal opens.
   var usernameInput = document.getElementById('id_username');
   var fromInput = document.getElementById('id_from_email');
   if (usernameInput && fromInput) {
@@ -29,20 +76,19 @@
     usernameInput.addEventListener('input', function () {
       if (!fromTouched) fromInput.value = usernameInput.value;
     });
+    var mEl = document.getElementById('emailSettingsModal');
+    if (mEl) mEl.addEventListener('shown.bs.modal', function () {
+      fromTouched = fromInput.value.trim() !== '';
+    });
   }
 
   // ── Provider presets ───────────────────────────────────────────────────────
   var noteBox = root.querySelector('[data-preset-note]');
-
   root.querySelectorAll('[data-email-preset]').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      var host = document.getElementById('id_host');
-      var port = document.getElementById('id_port');
-      var security = document.getElementById('id_security');
-      if (host) host.value = btn.dataset.host;
-      if (port) port.value = btn.dataset.port;
-      if (security) security.value = btn.dataset.security;
-
+      setField('id_host', btn.dataset.host);
+      setField('id_port', btn.dataset.port);
+      setField('id_security', btn.dataset.security);
       root.querySelectorAll('[data-email-preset]').forEach(function (other) {
         other.classList.toggle('active', other === btn);
       });
@@ -50,29 +96,18 @@
         noteBox.textContent = btn.dataset.note || '';
         noteBox.classList.toggle('d-none', !btn.dataset.note);
       }
-      // A preset fills host/port by assignment, which fires no 'input' event —
-      // nudge the probe so the freshly-picked server is checked straight away.
+      var host = document.getElementById('id_host');
       if (host) host.dispatchEvent(new Event('input'));
     });
   });
 
   // ── Live host / port probe ─────────────────────────────────────────────────
-  // A beat after the operator stops typing the server hostname, resolve it on
-  // the server (the browser can't do DNS) and, when a port is set, check that
-  // something is listening. The fast, field-level cousin of the staged test
-  // below; it sends no mail and holds no socket open. The verdict shows as a
-  // spinner → check/error icon inside each field's right edge, the full detail
-  // on hover; also run once when the modal opens so a saved server is verified
-  // without a keystroke.
-  var emailForm = document.getElementById('emailSettingsForm');
   var hostInput = document.getElementById('id_host');
   var portInput = document.getElementById('id_port');
-  if (emailForm && emailForm.dataset.probeUrl && hostInput) {
+  if (modalForm && modalForm.dataset.probeUrl && hostInput) {
     var probeTimer = null;
     var probeToken = 0;   // guards against out-of-order replies from fast typing
 
-    // Wrap an input so an absolutely-positioned status icon can sit at its right
-    // edge; return the icon holder.
     function attachStatus(input) {
       var wrap = document.createElement('span');
       wrap.className = 'field-status-wrap';
@@ -92,7 +127,6 @@
       return part.hint ? part.detail + ' — ' + part.hint : (part.detail || '');
     }
 
-    // state: 'pending' | 'ok' | 'failed' | 'clear'
     function setStatus(slot, state, tip) {
       if (!slot) return;
       slot.textContent = '';
@@ -125,17 +159,14 @@
       body.set('host', value);
       if (hasPort) body.set('port', portInput.value.trim());
 
-      fetch(emailForm.dataset.probeUrl, {
+      fetch(modalForm.dataset.probeUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'X-CSRFToken': getCsrfToken()
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': getCsrfToken() },
         body: body.toString()
       })
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          if (token !== probeToken) return;   // a newer keystroke superseded us
+          if (token !== probeToken) return;
           if (data.host) setStatus(hostStatus, data.host.status, tipFor(data.host));
           else setStatus(hostStatus, 'clear');
           if (data.port) setStatus(portStatus, data.port.status, tipFor(data.port));
@@ -156,17 +187,11 @@
     hostInput.addEventListener('input', scheduleProbe);
     if (portInput) portInput.addEventListener('input', scheduleProbe);
 
-    // Verify the saved server the moment the modal is shown, no keystroke needed.
     var modalEl = document.getElementById('emailSettingsModal');
     if (modalEl) modalEl.addEventListener('shown.bs.modal', runProbe);
   }
 
-  // ── Connection test ────────────────────────────────────────────────────────
-  var runBtn = document.getElementById('emailTestRun');
-  var toInput = document.getElementById('emailTestTo');
-  var results = document.getElementById('emailTestResults');
-  if (!runBtn || !results) return;
-
+  // ── Staged test rendering ──────────────────────────────────────────────────
   var ICONS = {
     ok: 'bi-check-circle-fill text-success',
     failed: 'bi-x-circle-fill text-danger',
@@ -177,19 +202,15 @@
   function stageRow(stage) {
     var row = document.createElement('div');
     row.className = 'd-flex gap-2 align-items-start py-2 border-bottom';
-
     var icon = document.createElement('i');
     icon.className = 'bi ' + (ICONS[stage.status] || ICONS.pending) + ' mt-1 flex-shrink-0';
     row.appendChild(icon);
-
     var body = document.createElement('div');
     body.className = 'flex-grow-1';
-
     var label = document.createElement('div');
     label.className = stage.status === 'failed' ? 'fw-medium text-danger' : 'fw-medium';
     label.textContent = stage.label;
     body.appendChild(label);
-
     if (stage.detail) {
       var detail = document.createElement('div');
       detail.className = 'form-text mt-0';
@@ -197,7 +218,6 @@
       body.appendChild(detail);
     }
     if (stage.hint) {
-      // The hint is the actionable half — give it more weight than the detail.
       var hint = document.createElement('div');
       hint.className = 'small mt-1';
       var bulb = document.createElement('i');
@@ -206,17 +226,15 @@
       hint.appendChild(document.createTextNode(stage.hint));
       body.appendChild(hint);
     }
-
     row.appendChild(body);
     return row;
   }
 
-  // The "Last test passed/failed" badge on the summary card. run_and_record has
-  // already persisted this result server-side, so it survives a later reload —
-  // this just spares the operator a refresh to see the outcome flip. Re-queried
-  // on each call rather than cached at load, so it can't go stale.
-  function updateBadge(ok) {
-    var badge = document.getElementById('emailLastTestBadge');
+  // Rewrite a connection's "Last test passed/failed" badge (run_and_record has
+  // already persisted the result, so this just spares a refresh).
+  function updateBadge(pk, ok) {
+    if (!pk) return;
+    var badge = document.getElementById('emailLastTestBadge-' + pk);
     if (!badge) return;
     badge.classList.remove('d-none', 'status-pill--ok', 'status-pill--bad');
     badge.classList.add(ok ? 'status-pill--ok' : 'status-pill--bad');
@@ -225,85 +243,105 @@
       (ok ? 'passed' : 'failed');
   }
 
-  // The "Email log" button's red "!" dot. The server tells us the live unseen-
-  // failure state on every test, so this mirrors it whether the test passed or
-  // failed (a pass doesn't clear older, still-undismissed failures).
   function updateLogAlert(hasFailures) {
     var dot = document.getElementById('emailLogAlert');
     if (dot) dot.classList.toggle('d-none', !hasFailures);
   }
 
-  function render(data) {
-    results.textContent = '';
-    updateBadge(data.ok);
+  function render(container, data) {
+    container.textContent = '';
+    container.classList.remove('d-none');
+    updateBadge(data.connection_pk, data.ok);
     updateLogAlert(data.failures_unseen);
-
     var summary = document.createElement('div');
     summary.className = 'alert py-2 px-3 ' + (data.ok ? 'alert-success' : 'alert-danger');
-    summary.innerHTML = '<i class="bi bi-' +
-      (data.ok ? 'check-circle' : 'exclamation-triangle') + ' me-1"></i>';
+    summary.innerHTML = '<i class="bi bi-' + (data.ok ? 'check-circle' : 'exclamation-triangle') + ' me-1"></i>';
     summary.appendChild(document.createTextNode(
       data.ok ? 'Everything checked out.' : 'The test stopped at the step marked below.'
     ));
-    results.appendChild(summary);
-
-    data.stages.forEach(function (stage) { results.appendChild(stageRow(stage)); });
+    container.appendChild(summary);
+    data.stages.forEach(function (stage) { container.appendChild(stageRow(stage)); });
   }
 
-  function renderError(message) {
-    results.textContent = '';
+  function renderError(container, message) {
+    container.textContent = '';
+    container.classList.remove('d-none');
     var box = document.createElement('div');
     box.className = 'alert alert-danger py-2 px-3 mb-0';
     box.textContent = message;
-    results.appendChild(box);
+    container.appendChild(box);
   }
 
-  runBtn.addEventListener('click', function () {
-    var body = new URLSearchParams();
-    // Onboarding sets data-test-values: test the values currently typed into the
-    // form (a dry run against an unsaved config) rather than the saved config the
-    // Settings tab tests. Everything else about the request/render is identical.
-    if (emailForm && emailForm.dataset.testValues) {
-      new FormData(emailForm).forEach(function (v, k) { body.set(k, v); });
+  // Post a prepared body to a test endpoint and render into a container.
+  function postTest(url, body, button, container) {
+    var original = button ? button.innerHTML : '';
+    if (button) {
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Testing…';
     }
-    if (toInput && toInput.value.trim()) body.set('send_to', toInput.value.trim());
+    container.classList.remove('d-none');
+    container.textContent = '';
 
-    runBtn.disabled = true;
-    var original = runBtn.innerHTML;
-    runBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Testing…';
-    results.textContent = '';
-
-    fetch(runBtn.dataset.url, {
+    fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'X-CSRFToken': getCsrfToken()
-      },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': getCsrfToken() },
       body: body.toString()
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (res) {
-        if (!res.ok) { renderError(res.data.error || 'The test could not be run.'); return; }
-        render(res.data);
+        if (!res.ok) { renderError(container, res.data.error || 'The test could not be run.'); return; }
+        render(container, res.data);
       })
-      .catch(function () {
-        renderError('Could not reach the server to run the test.');
-      })
-      .finally(function () {
-        runBtn.disabled = false;
-        runBtn.innerHTML = original;
-      });
+      .catch(function () { renderError(container, 'Could not reach the server to run the test.'); })
+      .finally(function () { if (button) { button.disabled = false; button.innerHTML = original; } });
+  }
+
+  // A saved connection's staged test (connection only unless sendTo is given).
+  function runConnectionTest(button, container, pk, sendTo) {
+    var body = new URLSearchParams();
+    if (pk) body.set('connection', pk);
+    if (sendTo) body.set('send_to', sendTo);
+    postTest(testUrl, body, button, container);
+  }
+
+  // Per-connection "Test" (connection only, no message sent).
+  root.querySelectorAll('[data-conn-test]').forEach(function (btn) {
+    var pk = btn.dataset.pk;
+    var container = root.querySelector('[data-conn-results="' + pk + '"]');
+    btn.addEventListener('click', function () { runConnectionTest(btn, container, pk); });
   });
 
-  // "Save & test" redirects back here with ?test=1 — run the connection test
-  // once the saved page has loaded, then strip the flag so a refresh doesn't
-  // repeat it. No address is set, so this is connection-only and sends no mail.
+  // Send-a-test-message panel (settings), and the onboarding dry-run test.
+  var runBtn = document.getElementById('emailTestRun');
+  var toInput = document.getElementById('emailTestTo');
+  var connSelect = document.getElementById('emailTestConnection');
+  var results = document.getElementById('emailTestResults');
+  if (runBtn && results) {
+    runBtn.addEventListener('click', function () {
+      var sendTo = toInput && toInput.value.trim() ? toInput.value.trim() : '';
+      // Onboarding: test the typed (unsaved) values against its own endpoint.
+      if (modalForm && modalForm.dataset.testValues) {
+        var body = new URLSearchParams();
+        new FormData(modalForm).forEach(function (v, k) { body.set(k, v); });
+        if (sendTo) body.set('send_to', sendTo);
+        postTest(runBtn.dataset.url, body, runBtn, results);
+        return;
+      }
+      runConnectionTest(runBtn, results, connSelect ? connSelect.value : '', sendTo);
+    });
+  }
+
+  // "Save & test" redirects back with ?test=<pk> — run that connection's test
+  // once the page has loaded (connection-only, no message), then strip the flag.
   try {
     var url = new URL(window.location.href);
-    if (url.searchParams.get('test') === '1') {
+    var testPk = url.searchParams.get('test');
+    if (testPk) {
       url.searchParams.delete('test');
       window.history.replaceState({}, '', url.pathname + url.search + url.hash);
-      runBtn.click();
+      var container = root.querySelector('[data-conn-results="' + testPk + '"]');
+      var btn = root.querySelector('[data-conn-test][data-pk="' + testPk + '"]');
+      if (container) runTest({ button: btn, container: container, pk: testPk });
     }
   } catch (e) { /* no URL/history support — skip the auto-run */ }
 })();

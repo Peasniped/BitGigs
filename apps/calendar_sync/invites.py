@@ -21,7 +21,7 @@ import uuid
 from datetime import datetime, time, timedelta, timezone as dt_timezone
 
 from django.contrib.auth.models import User
-from django.core.mail import EmailMultiAlternatives
+from django.core.mail import EmailMultiAlternatives, get_connection
 from django.utils import timezone
 
 from core.models import EmailSettings
@@ -42,10 +42,21 @@ def _owner_user():
     )
 
 
+def _calendar_connection():
+    """The mail connection calendar invites send through (the calendar role)."""
+    return EmailSettings.load().connection_for(EmailSettings.ROLE_CALENDAR)
+
+
+def _calendar_from_email():
+    conn = _calendar_connection()
+    return conn.from_email if conn else ""
+
+
 def _organizer():
-    """``(display_name, address)`` for ORGANIZER/From, or ``None`` if mail has no
-    from-address. Address stays the SMTP mailbox; the name shows who it's from."""
-    from_email = EmailSettings.load().from_email
+    """``(display_name, address)`` for ORGANIZER/From, or ``None`` if the calendar
+    connection has no from-address. Address stays the SMTP mailbox; the name shows
+    who it's from."""
+    from_email = _calendar_from_email()
     if not from_email:
         return None
     owner = _owner_user()
@@ -55,8 +66,8 @@ def _organizer():
 
 
 def invite_domain():
-    """Domain for the namespaced UID — the From address's domain."""
-    from_email = EmailSettings.load().from_email
+    """Domain for the namespaced UID — the calendar From address's domain."""
+    from_email = _calendar_from_email()
     return from_email.rpartition("@")[2] or "bitgigs.local"
 
 
@@ -88,7 +99,7 @@ def eligible(shift) -> bool:
         return False
     if shift.shift_type not in ContractCalendarConfig.INVITEABLE_TYPES:
         return False
-    return EmailSettings.load().is_configured
+    return EmailSettings.load().is_configured_for(EmailSettings.ROLE_CALENDAR)
 
 
 def recipients_for(shift):
@@ -170,8 +181,12 @@ def _send_mail(subject, body, recipients, ics_bytes, method):
     """
     organizer = _organizer()
     from_email = f"{organizer[0]} <{organizer[1]}>" if organizer else None
+    # Route through the calendar role so invites go from the calendar mailbox
+    # (and are logged against it), independent of the system/no-reply setup.
+    connection = get_connection(role=EmailSettings.ROLE_CALENDAR)
     message = EmailMultiAlternatives(
         subject=subject, body=body, from_email=from_email, to=recipients,
+        connection=connection,
     )
     ics_text = ics_bytes.decode("utf-8")
     message.attach_alternative(ics_text, f'text/calendar; method={method}; charset=UTF-8')
@@ -253,7 +268,7 @@ def send_test_invite(to_address):
     ``(ok, error_message)``; never raises."""
     if not to_address:
         return False, "No address to send to."
-    if not EmailSettings.load().is_configured:
+    if not EmailSettings.load().is_configured_for(EmailSettings.ROLE_CALENDAR):
         return False, "Email is not configured — set it up on the Email tab."
 
     settings = CalendarInviteSettings.load()

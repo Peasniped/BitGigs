@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from calendar_sync.models import CalendarInviteSettings, ContractCalendarConfig
-from core.models import EmailSettings
+from core.models import EmailSettings, MailConnection
 from workplaces.models import Workplace, WorkplaceContract
 
 from .test_contract_overlap import LoggedInTestCase
@@ -66,8 +66,10 @@ class ContractCreateInvitePromptTests(LoggedInTestCase):
         self.assertContains(resp, "?tab=email")
 
     def test_warns_when_master_switch_off_but_email_ready(self):
+        MailConnection.objects.create(name="Default", host="smtp.example",
+                                      from_email="robot@example", is_default=True)
         es = EmailSettings.load()
-        es.enabled, es.host, es.from_email = True, "smtp.example", "robot@example"
+        es.enabled = True
         es.save()
         s = CalendarInviteSettings.load()
         s.enabled = False

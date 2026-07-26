@@ -12,7 +12,7 @@ from django.views import View
 from django.utils import timezone
 
 from .constants import APP_ACCENT_CHOICES, DEFAULT_ACCENT, DEFAULT_SECONDARY
-from .models import EmailLog, EmailSettings, TaxProfile, UserSettings
+from .models import EmailLog, EmailSettings, MailConnection, TaxProfile, UserSettings
 from .forms import EmailSettingsForm, TaxProfileForm, UserSettingsForm
 from .utils import parse_int_param, prev_next_month
 from .dashboard_service import DashboardDataService, get_pending_shifts, get_todays_banner
@@ -291,68 +291,151 @@ class BitGigsLoginView(LoginView):
         # that would lock the owner out of their own app.
         context["show_password_form"] = usable or not django_settings.SSO_ENABLED
         context["password_login_disabled"] = not usable
-        context["owner_username"] = owner.get_username() if owner else ""
+        # NB: the login page is public, so it must never render the owner's
+        # username — the console-recovery hint uses a generic placeholder instead.
         # Drives the recovery modal: an emailed reset link, or console-only.
         context["password_reset_enabled"] = password_reset_available()
         return context
 
 
-def email_context(form=None, form_invalid=False):
-    """Email-tab state: the saved configuration (shown as a read-only summary),
-    the edit form that lives in a modal, and the presets the fill buttons offer.
-    Built lazily so the other tabs never touch the EmailSettings row.
+def email_context(switch_form=None, roles_form=None, conn_form=None,
+                  modal_open=False, edit_pk=None):
+    """Email-tab state: the global mail settings split into two cards (the master
+    switch and the role map), the list of stored connections shown as read-only
+    summaries, the connection edit form that lives in a shared modal, and the
+    provider presets.
 
-    ``form_invalid`` is set when a save bounced on validation, so the template
-    re-opens the modal with the errors instead of hiding them behind a closed
-    dialog."""
+    ``modal_open`` re-opens the connection modal (with ``conn_form``'s errors)
+    after a save bounced on validation; ``edit_pk`` names the connection being
+    edited so the modal posts back to the right row."""
     from .mail import PRESETS
+    from .forms import MailConnectionForm
+
     config = EmailSettings.load()
     return {
-        "email_config": config,
-        "email_form": form or EmailSettingsForm(instance=config),
+        "email_settings": config,
+        "email_configured": config.is_configured,
+        "email_switch_form": switch_form or EmailSettingsForm(
+            instance=config, section=EmailSettingsForm.SECTION_SWITCHES),
+        "email_roles_form": roles_form or EmailSettingsForm(
+            instance=config, section=EmailSettingsForm.SECTION_ROLES),
+        "email_conn_form": conn_form or MailConnectionForm(),
+        "email_connections": list(MailConnection.objects.all()),
         "email_presets": PRESETS,
-        "email_form_invalid": form_invalid,
+        "email_modal_open": modal_open,
+        "email_edit_pk": edit_pk,
         "email_failures_unseen": EmailLog.objects.failures_unseen().exists(),
     }
 
 
+def _email_invalid_render(request, *, switch_form=None, roles_form=None,
+                          conn_form=None, modal_open=False, edit_pk=None):
+    """Re-render the settings page on the Email tab with a bounced form."""
+    return render(request, "core/settings.html", {
+        "form": UserSettingsForm(instance=UserSettings.load(), tab="display"),
+        "next_url": None,
+        "active_tab": "email",
+        **sign_in_context(request.user),
+        **email_context(switch_form=switch_form, roles_form=roles_form,
+                        conn_form=conn_form, modal_open=modal_open, edit_pk=edit_pk),
+    })
+
+
 class EmailSettingsView(View):
-    """Save the Email tab. It has its own POST endpoint for the same reason the
-    Sign-in tab does: its form can't nest inside the UserSettings form."""
+    """Save the Email tab's global settings — the master switch, password-reset
+    toggle and the role→connection map. Its own POST endpoint for the same reason
+    the Sign-in tab is: its form can't nest inside the UserSettings form. The two
+    cards post with a ``section`` marker so each saves only its own fields."""
 
     def post(self, request):
         from django.contrib import messages
 
         config = EmailSettings.load()
-        form = EmailSettingsForm(request.POST, instance=config)
+        section = request.POST.get("section")
+        form = EmailSettingsForm(request.POST, instance=config, section=section)
         if form.is_valid():
-            config = form.save()
-            # A changed configuration invalidates the stored test result: it was
-            # run against the old server, so stop claiming "Last test passed".
-            if form.has_changed():
-                config.last_test_at = None
-                config.last_test_ok = None
-                config.save(update_fields=["last_test_at", "last_test_ok", "updated_at"])
+            form.save()
             messages.success(request, "Email settings saved.")
+            return redirect(f"{reverse('core:settings')}?tab=email")
+        if section == EmailSettingsForm.SECTION_ROLES:
+            return _email_invalid_render(request, roles_form=form)
+        return _email_invalid_render(request, switch_form=form)
+
+
+class MailConnectionSaveView(View):
+    """Create or update one mail connection. A blank ``pk`` creates; otherwise the
+    named connection is edited in place. On the first connection, mark it default
+    so an unassigned role has something to fall back to."""
+
+    def post(self, request):
+        from django.contrib import messages
+        from .forms import MailConnectionForm
+
+        pk = parse_int_param(request.POST.get("pk"))
+        instance = MailConnection.objects.filter(pk=pk).first() if pk else None
+        is_new = instance is None
+        form = MailConnectionForm(request.POST, instance=instance or MailConnection())
+        if form.is_valid():
+            conn = form.save(commit=False)
+            if is_new and not MailConnection.objects.exists():
+                conn.is_default = True
+            # A changed connection invalidates its stored test result.
+            if form.has_changed():
+                conn.last_test_at = None
+                conn.last_test_ok = None
+            conn.save()
+            messages.success(request, f"Connection “{conn.name}” saved.")
             target = f"{reverse('core:settings')}?tab=email"
             if request.POST.get("run_test"):
-                # "Save & test": the reloaded tab auto-runs the staged test.
-                target += "&test=1"
+                target += f"&test={conn.pk}"
             return redirect(target)
-        return render(request, "core/settings.html", {
-            "form": UserSettingsForm(instance=UserSettings.load(), tab="display"),
-            "next_url": None,
-            "active_tab": "email",
-            **email_context(form, form_invalid=True),
-        })
+        return _email_invalid_render(request, conn_form=form, modal_open=True,
+                                     edit_pk=pk or "")
+
+
+class MailConnectionDeleteView(View):
+    """Delete a mail connection. Any role still pointing at it falls back to the
+    default (the FK is ``SET_NULL``)."""
+
+    def post(self, request):
+        from django.contrib import messages
+
+        pk = parse_int_param(request.POST.get("pk"))
+        conn = MailConnection.objects.filter(pk=pk).first()
+        if conn:
+            name, was_default = conn.name, conn.is_default
+            conn.delete()
+            # Keep a default alive: promote another connection if the deleted one
+            # was it, so unassigned roles still resolve.
+            if was_default:
+                nxt = MailConnection.objects.order_by("pk").first()
+                if nxt:
+                    nxt.is_default = True
+                    nxt.save(update_fields=["is_default", "updated_at"])
+            messages.success(request, f"Connection “{name}” deleted.")
+        return redirect(f"{reverse('core:settings')}?tab=email")
+
+
+class MailConnectionDefaultView(View):
+    """Flag a connection as the default one (used by any role not pointed
+    elsewhere). ``MailConnection.save`` demotes the previous default."""
+
+    def post(self, request):
+        from django.contrib import messages
+
+        pk = parse_int_param(request.POST.get("pk"))
+        conn = MailConnection.objects.filter(pk=pk).first()
+        if conn:
+            conn.is_default = True
+            conn.save(update_fields=["is_default", "updated_at"])
+            messages.success(request, f"“{conn.name}” is now the default connection.")
+        return redirect(f"{reverse('core:settings')}?tab=email")
 
 
 class EmailClearView(View):
-    """Reset the email configuration to a fresh, disabled state.
-
-    A one-click way out of a broken setup — clears the credentials and the from
-    address, drops the stored password, and forgets the last-test result. Behind
-    a JS confirm in the summary card since it discards data."""
+    """Reset all mail configuration to a fresh, disabled state — master switch
+    off, role map cleared, every stored connection dropped. A one-click way out of
+    a broken setup, behind a JS confirm since it discards data."""
 
     def post(self, request):
         from django.contrib import messages
@@ -408,11 +491,17 @@ class EmailTestView(View):
                 return JsonResponse(
                     {"error": f"'{send_to}' is not a valid email address."}, status=400
                 )
-        result = run_and_record(send_to=send_to or None)
+        # Which connection to test: the named one, else the system default.
+        pk = parse_int_param(request.POST.get("connection"))
+        config = MailConnection.objects.filter(pk=pk).first() if pk else None
+        if pk and config is None:
+            return JsonResponse({"error": "That connection no longer exists."}, status=400)
+        result = run_and_record(config=config, send_to=send_to or None)
         # Report the live unseen-failure state too, so the tab's "Email log"
         # alert dot can flip the moment a test send fails, without a reload.
         return JsonResponse({
             **result.as_dict(),
+            "connection_pk": config.pk if config else None,
             "failures_unseen": EmailLog.objects.failures_unseen().exists(),
         })
 
@@ -447,8 +536,7 @@ class EmailProbeView(View):
                   "port": None}
         if dns.ok and port:
             # Cap the wait low — this is interactive, not the full test.
-            timeout = min(EmailSettings.load().timeout or 10, 5)
-            tcp = check_port(host, port, timeout)
+            tcp = check_port(host, port, 5)
             result["port"] = {"status": "ok" if tcp.ok else "failed",
                               "detail": tcp.detail, "hint": tcp.hint, "port": port}
         return JsonResponse(result)
@@ -1075,11 +1163,18 @@ class OnboardingEmailView(View):
     until it is."""
 
     def _context(self, request, form=None, form_invalid=False):
+        from .forms import MailConnectionForm
+        from .mail import PRESETS
         return {
             "onboarding": True,
             # A hidden step, so the indicator keeps Workplace as the active context.
             "steps": ob.steps_for(request, "workplace"),
-            **email_context(form, form_invalid=form_invalid),
+            "email_conn_form": form or MailConnectionForm(
+                instance=MailConnection.default(), require_name=False,
+                initial={"name": "Default"},
+            ),
+            "email_presets": PRESETS,
+            "email_form_invalid": form_invalid,
         }
 
     def get(self, request):
@@ -1090,19 +1185,26 @@ class OnboardingEmailView(View):
 
     def post(self, request):
         from django.contrib import messages
+        from .forms import MailConnectionForm
 
-        config = EmailSettings.load()
-        form = EmailSettingsForm(request.POST, instance=config)
+        conn = MailConnection.default()
+        form = MailConnectionForm(request.POST, instance=conn or MailConnection(),
+                                  require_name=False)
         if not form.is_valid():
             return render(request, "core/onboarding_email.html",
                           self._context(request, form, form_invalid=True))
-        config = form.save()
-        # A changed configuration invalidates the stored test result (it ran
-        # against the old server) — mirror EmailSettingsView.
+        connection = form.save(commit=False)
+        if conn is None:
+            connection.is_default = True
         if form.has_changed():
-            config.last_test_at = None
-            config.last_test_ok = None
-            config.save(update_fields=["last_test_at", "last_test_ok", "updated_at"])
+            connection.last_test_at = None
+            connection.last_test_ok = None
+        connection.save()
+        # Turn mail on so invites can send; the roles fall back to this default.
+        config = EmailSettings.load()
+        if not config.enabled:
+            config.enabled = True
+            config.save(update_fields=["enabled", "updated_at"])
         messages.success(request, "Email settings saved.")
         return redirect("core:onboarding-terms")
 
@@ -1110,17 +1212,19 @@ class OnboardingEmailView(View):
 class OnboardingEmailTestView(View):
     """Dry-run staged test against the **typed** values, without saving them — so
     the user can verify the server before committing, with no reload. Builds a
-    transient EmailSettings from the posted form and runs the same staged
+    transient MailConnection from the posted form and runs the same staged
     diagnosis; nothing is persisted (no config write, no EmailLog row). Under
     /onboarding/ so the AJAX escapes the funnel."""
 
     def post(self, request):
         from django.core.validators import validate_email
         from django.core.exceptions import ValidationError
+        from .forms import MailConnectionForm
 
         from .mail import diagnose
 
-        form = EmailSettingsForm(request.POST, instance=EmailSettings())
+        form = MailConnectionForm(request.POST, instance=MailConnection(),
+                                  require_name=False)
         if not form.is_valid():
             return JsonResponse(
                 {"error": "Fill in the server details above before testing."}, status=400

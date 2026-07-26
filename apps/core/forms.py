@@ -5,7 +5,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.core.validators import validate_email
 
-from .models import EmailSettings, TaxProfile, UserSettings
+from .models import EmailSettings, MailConnection, TaxProfile, UserSettings
 
 
 class OnboardingUserCreationForm(UserCreationForm):
@@ -105,14 +105,15 @@ class AccountDetailsForm(forms.ModelForm):
         return user
 
 
-class EmailSettingsForm(forms.ModelForm):
-    """SMTP configuration (Settings → Email).
+class MailConnectionForm(forms.ModelForm):
+    """One SMTP setup (a ``MailConnection``), edited in the Settings → Email
+    connection modal and the onboarding email step.
 
-    The password is deliberately *not* a model field here: it is stored
+    The password is deliberately *not* a plain model field here: it is stored
     encrypted, so it can never be round-tripped into a rendered input. Instead
     the field is write-only — blank means "leave whatever is stored alone" — with
     a separate checkbox for actively clearing it. That also means a stray save
-    from another part of the page can't wipe the password.
+    can't wipe the password.
     """
 
     password = forms.CharField(
@@ -126,14 +127,21 @@ class EmailSettingsForm(forms.ModelForm):
     )
 
     class Meta:
-        model = EmailSettings
+        model = MailConnection
         fields = [
-            "enabled", "host", "port", "security", "username",
-            "from_email", "from_name", "timeout", "allow_password_reset",
+            "name", "host", "port", "security", "username",
+            "from_email", "from_name", "timeout",
         ]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, require_complete=True, require_name=True, **kwargs):
+        # ``require_complete`` gates the "must be fully filled" check. A connection
+        # is only ever saved to be used, so it defaults on — but onboarding, which
+        # may Skip, can relax it. ``require_name`` is off in onboarding, where the
+        # single connection's name is incidental and defaults to "Default".
+        self.require_complete = require_complete
         super().__init__(*args, **kwargs)
+        if not require_name:
+            self.fields["name"].required = False
         stored = self.instance and self.instance.pk and self.instance.password_encrypted
         if self.instance and self.instance.password_from_env:
             pwd = self.fields["password"]
@@ -149,12 +157,12 @@ class EmailSettingsForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
-        # Only a configuration that is actually turned on has to be complete;
-        # half-filled drafts are allowed so the operator can save and come back.
-        if cleaned.get("enabled"):
+        if not cleaned.get("name"):
+            cleaned["name"] = "Default"
+        if self.require_complete:
             for name, label in (("host", "Server hostname"), ("from_email", "From address")):
                 if not cleaned.get(name):
-                    self.add_error(name, f"{label} is required to enable email.")
+                    self.add_error(name, f"{label} is required.")
         if cleaned.get("clear_password") and cleaned.get("password"):
             self.add_error(
                 "clear_password",
@@ -171,6 +179,67 @@ class EmailSettingsForm(forms.ModelForm):
         if commit:
             config.save()
         return config
+
+
+class EmailSettingsForm(forms.ModelForm):
+    """Global mail settings (Settings → Email): the master switch, the
+    password-reset toggle, and which connection serves each role.
+
+    The Email tab renders this across **two cards** — the master switch and the
+    role map — with the connections list (which holds its own forms) between them,
+    so they can't share one ``<form>``. ``section`` splits the form the way the
+    tabbed ``UserSettingsForm`` does: it drops the other section's fields so a
+    partial save writes only what it rendered instead of clearing the rest.
+
+    The role fields are optional — an unassigned role falls back to the default
+    connection — and their querysets are the stored connections.
+    """
+
+    SECTION_SWITCHES = "switches"
+    SECTION_ROLES = "roles"
+
+    class Meta:
+        model = EmailSettings
+        fields = [
+            "enabled", "allow_password_reset",
+            "system_connection", "calendar_connection",
+        ]
+
+    def __init__(self, *args, section=None, **kwargs):
+        self.section = section
+        super().__init__(*args, **kwargs)
+        connections = MailConnection.objects.all()
+        default = MailConnection.default()
+        blank_label = (f"Default ({default.name})" if default else "Default")
+        for role in ("system_connection", "calendar_connection"):
+            self.fields[role].queryset = connections
+            self.fields[role].required = False
+            self.fields[role].empty_label = blank_label
+        if section == self.SECTION_SWITCHES:
+            del self.fields["system_connection"]
+            del self.fields["calendar_connection"]
+        elif section == self.SECTION_ROLES:
+            del self.fields["enabled"]
+            del self.fields["allow_password_reset"]
+
+    def clean(self):
+        cleaned = super().clean()
+        # The master switch can only be on once there is something to send with —
+        # the system role must resolve to a usable connection. Fields the active
+        # section didn't render fall back to the stored values.
+        enabled = cleaned.get("enabled", self.instance.enabled)
+        if enabled:
+            if "system_connection" in self.fields:
+                system = cleaned.get("system_connection") or MailConnection.default()
+            else:
+                system = self.instance.system_connection or MailConnection.default()
+            if system is None or not system.is_configured:
+                target = "enabled" if "enabled" in self.fields else None
+                self.add_error(
+                    target,
+                    "Add and select a mail connection before turning email on.",
+                )
+        return cleaned
 
 
 class TaxProfileForm(forms.ModelForm):
