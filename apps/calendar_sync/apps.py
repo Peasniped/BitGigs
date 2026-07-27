@@ -10,3 +10,5 @@ class CalendarSyncConfig(AppConfig):
         from . import signals
 
         signals.connect()
+        # Register scheduler task handlers (e.g. the async test-invite send).
+        from . import tasks  # noqa: F401

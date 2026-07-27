@@ -1902,15 +1902,15 @@
   if (sendInvitesBtn && SEND_INVITES_URL) {
     sendInvitesBtn.addEventListener('click', function() {
       if (!window.confirm(
-        'Send calendar invites for the planned shifts shown?\n\n' +
+        'Send calendar invites for this month’s planned shifts?\n\n' +
         'Each invite-enabled workplace’s recipients (and your own calendar) ' +
-        'will be emailed. Already-synced shifts are skipped.'
+        'will be emailed. Shifts in a different payroll period, and ' +
+        'already-synced shifts, are skipped.'
       )) return;
 
-      var range = visibleDateRange();
-      var url = SEND_INVITES_URL + (range
-        ? '?start=' + range.start + '&end=' + range.end
-        : '?year=' + CURRENT_YEAR + '&month=' + CURRENT_MONTH);
+      // Scoped server-side by each workplace's payroll period for this month —
+      // not the padded visible grid — so send the viewed month, not a date span.
+      var url = SEND_INVITES_URL + '?year=' + CURRENT_YEAR + '&month=' + CURRENT_MONTH;
 
       sendInvitesBtn.disabled = true;
       sendInvitesBtn.classList.remove('btn-outline-primary');

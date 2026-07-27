@@ -9,7 +9,7 @@ from time import monotonic
 from django.utils import timezone
 
 from . import registry
-from .models import ScheduledJob
+from .models import ScheduledJob, ScheduledTask
 
 logger = logging.getLogger(__name__)
 
@@ -117,4 +117,98 @@ def run_due(now: datetime | None = None, *, log=logger) -> list[str]:
         if claim(row, now):
             run_job(row, log=log)
             ran.append(row.key)
+    return ran
+
+
+# ─── One-off task queue ──────────────────────────────────────────────────────
+
+RETRY_BACKOFF = timedelta(seconds=60)
+
+
+def due_tasks(now: datetime | None = None):
+    now = now or timezone.now()
+    return ScheduledTask.objects.filter(
+        status=ScheduledTask.PENDING, run_at__lte=now
+    ).order_by("run_at", "id")  # FIFO within the same run_at (CANCEL before REQUEST)
+
+
+def claim_task(task: ScheduledTask, now: datetime | None = None) -> bool:
+    """Atomically flip PENDING → RUNNING so only one loop owns the run (same
+    compare-and-set trick as ``claim``)."""
+    now = now or timezone.now()
+    return (
+        ScheduledTask.objects.filter(pk=task.pk, status=ScheduledTask.PENDING)
+        .update(status=ScheduledTask.RUNNING, started_at=now)
+    ) == 1
+
+
+def process_task(task: ScheduledTask, *, log=logger) -> str:
+    """Run the registered handler for *task* and record how it went.
+
+    Never raises. On failure, retries (back to PENDING with a backoff) while
+    attempts remain, else marks FAILED. Returns the resulting status.
+    """
+    from . import tasks as task_registry
+
+    handler = task_registry.get_handler(task.task)
+    attempts = task.attempts + 1
+    if handler is None:
+        ScheduledTask.objects.filter(pk=task.pk).update(
+            status=ScheduledTask.FAILED,
+            finished_at=timezone.now(),
+            attempts=attempts,
+            last_error="No handler registered for this task.",
+        )
+        log.warning("Task %r has no registered handler", task.task)
+        return ScheduledTask.FAILED
+
+    started = monotonic()
+    try:
+        result = handler(task.payload or {})
+    except Exception as exc:  # a task's failure must not stop the loop
+        error = f"{type(exc).__name__}: {exc}"
+        log.exception("Task %r failed (attempt %d/%d)", task.task, attempts, task.max_attempts)
+        if attempts < task.max_attempts:
+            ScheduledTask.objects.filter(pk=task.pk).update(
+                status=ScheduledTask.PENDING,
+                attempts=attempts,
+                last_error=error[:2000],
+                run_at=timezone.now() + RETRY_BACKOFF * attempts,
+            )
+            return ScheduledTask.PENDING
+        ScheduledTask.objects.filter(pk=task.pk).update(
+            status=ScheduledTask.FAILED,
+            finished_at=timezone.now(),
+            attempts=attempts,
+            last_error=error[:2000],
+        )
+        return ScheduledTask.FAILED
+
+    duration_ms = int((monotonic() - started) * 1000)
+    ScheduledTask.objects.filter(pk=task.pk).update(
+        status=ScheduledTask.DONE,
+        finished_at=timezone.now(),
+        attempts=attempts,
+        result=(str(result) if result else "")[:255],
+        last_error="",
+    )
+    log.info(
+        "Task %r done in %dms%s",
+        task.task,
+        duration_ms,
+        f" — {result}" if result else "",
+    )
+    return ScheduledTask.DONE
+
+
+def run_pending_tasks(now: datetime | None = None, *, log=logger) -> list[str]:
+    """Claim and run every queued task that is due. Returns the task ids run."""
+    now = now or timezone.now()
+    ran: list[str] = []
+    for task in list(due_tasks(now)):
+        if claim_task(task, now):
+            process_task(task, log=log)
+            ran.append(task.task)
+    if ran:
+        ScheduledTask.prune()
     return ran

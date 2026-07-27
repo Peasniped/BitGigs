@@ -202,7 +202,12 @@ ICON_PRUNE_AUTO = True
 # not an in-process thread — see the command's docstring. Jobs are defined in
 # scheduler/registry.py; the loop is optional (opportunistic housekeeping still
 # works without it), so nothing here forces it to run.
-SCHEDULER_TICK_SECONDS = 30
+SCHEDULER_TICK_SECONDS = 10
+
+# Run enqueued one-off tasks inline (synchronously) instead of on the loop —
+# the "always eager" switch, for tests that assert a queued send's effect. Off
+# everywhere real; a test flips it on with @override_settings.
+SCHEDULER_TASK_EAGER = False
 
 # ─── Outbound mail (optional, configured in-app) ─────────────────────────────
 # BitGigs keeps its SMTP configuration in the database (the EmailSettings

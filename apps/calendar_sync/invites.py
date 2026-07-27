@@ -192,11 +192,14 @@ def _recipients_for_send(shift, invite, method):
 
 # ── sending ──────────────────────────────────────────────────────────────────
 
-def _send_mail(subject, body, recipients, ics_bytes, method):
-    """Attach the ``.ics`` and send through the default (logging) backend.
+def _send_mail_now(subject, body, recipients, ics_bytes, method):
+    """Attach the ``.ics`` and send through the default (logging) backend — the
+    actual synchronous SMTP send.
 
     The ``text/calendar; method=…`` alternative is what makes Gmail/Fastmail
     auto-file the event; the file attachment covers clients that want a download.
+    Runs **in the scheduler process** for real invites (see ``_send_mail``); the
+    self-contained test invite calls it inline so it can report a live result.
     """
     organizer = _organizer()
     from_email = f"{organizer[0]} <{organizer[1]}>" if organizer else None
@@ -211,6 +214,36 @@ def _send_mail(subject, body, recipients, ics_bytes, method):
     message.attach_alternative(ics_text, f'text/calendar; method={method}; charset=UTF-8')
     message.attach("invite.ics", ics_bytes, f"text/calendar; method={method}")
     message.send()  # default EMAIL_BACKEND = DbConfiguredEmailBackend → EmailLog
+
+
+def _send_mail(subject, body, recipients, ics_bytes, method):
+    """Hand the invite send to the scheduler queue instead of blocking on SMTP.
+
+    Every real invite path (activate / resync / cancel / reconcile / the
+    delete-signal CANCEL) funnels through here, so this one line makes them all
+    async: the caller's ``ShiftInvite`` bookkeeping stays synchronous, only the
+    SMTP round-trip is deferred. **No auto-retry** (``max_attempts=1``): a retry
+    would re-send the email — the calendar client dedupes the event, but the
+    inbox shows a duplicate — so a failed send fails *visibly* on the Jobs queue
+    (re-sendable from the shift) rather than silently duplicating.
+    """
+    import base64
+
+    from scheduler.tasks import enqueue
+
+    from .tasks import SEND_INVITE_MAIL
+
+    enqueue(
+        SEND_INVITE_MAIL,
+        {
+            "subject": subject,
+            "body": body,
+            "recipients": list(recipients),
+            "ics_b64": base64.b64encode(ics_bytes).decode("ascii"),
+            "method": method,
+        },
+        max_attempts=1,
+    )
 
 
 def _dispatch(shift, invite, *, method, status, recipients=None, remember=True):
@@ -318,9 +351,13 @@ def send_test_invite(to_address):
         )
         return build_calendar(event, method=method)
 
+    # The test invite already runs inside its own scheduler task, so it sends
+    # *synchronously* (``_send_mail_now``, not the enqueuing ``_send_mail``) —
+    # that's what lets it report a live pass/fail onto the "Last test" badge and
+    # withdraw itself back-to-back over the same connection.
     ok, error = True, ""
     try:
-        _send_mail(
+        _send_mail_now(
             "BitGigs test invite",
             "This is a test calendar invite from BitGigs. It withdraws itself "
             "right away, so you don't need to respond. Replies are not monitored.",
@@ -333,11 +370,11 @@ def send_test_invite(to_address):
 
     # Immediately withdraw the test event so it doesn't linger as an unanswered
     # invitation — same UID, bumped SEQUENCE, sent back-to-back over the same SMTP
-    # connection (no scheduler). Best-effort: a failed withdraw is logged but does
-    # not change the reported result, which reflects whether the REQUEST went out.
+    # connection. Best-effort: a failed withdraw is logged but does not change the
+    # reported result, which reflects whether the REQUEST went out.
     if ok:
         try:
-            _send_mail(
+            _send_mail_now(
                 "Cancelled: BitGigs test invite",
                 "This withdraws the BitGigs test invite just sent.",
                 [to_address], _test_ics(method="CANCEL", status="CANCELLED", sequence=1),

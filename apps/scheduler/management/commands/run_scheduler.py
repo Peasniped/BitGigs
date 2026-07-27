@@ -19,11 +19,11 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from scheduler import services
-from scheduler.models import ScheduledJob
+from scheduler.models import ScheduledJob, SchedulerHeartbeat
 
 logger = logging.getLogger("scheduler")
 
-DEFAULT_TICK = 30
+DEFAULT_TICK = 10
 
 
 class Command(BaseCommand):
@@ -49,16 +49,23 @@ class Command(BaseCommand):
         self._stop = threading.Event()
 
         if options["once"]:
-            ran = services.run_due(log=logger)
-            self.stdout.write(self.style.SUCCESS(f"Ran {len(ran)} due job(s): {ran}"))
+            SchedulerHeartbeat.beat()
+            jobs = services.run_due(log=logger)
+            tasks = services.run_pending_tasks(log=logger)
+            self.stdout.write(self.style.SUCCESS(
+                f"Ran {len(jobs)} due job(s): {jobs}; {len(tasks)} task(s): {tasks}"
+            ))
             return
 
         self._install_signal_handlers()
+        SchedulerHeartbeat.beat()
         self._announce(tick)
 
         while not self._stop.is_set():
             try:
+                SchedulerHeartbeat.beat()
                 services.run_due(log=logger)
+                services.run_pending_tasks(log=logger)
             except Exception:  # a bug in the engine must not kill the loop
                 logger.exception("Scheduler tick failed")
             self._stop.wait(tick)

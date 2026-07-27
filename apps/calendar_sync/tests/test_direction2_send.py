@@ -148,7 +148,10 @@ class BuildInviteTests(TestCase):
         self.assertIn("boss@work.example", ics)
 
 
-@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    SCHEDULER_TASK_EAGER=True,  # invite sends are queued now — run them inline
+)
 class ActivateSendTests(TestCase):
     def setUp(self):
         mail.outbox = []
@@ -180,7 +183,37 @@ class ActivateSendTests(TestCase):
         self.assertEqual(len(mail.outbox), 0)
 
 
-@override_settings(EMAIL_BACKEND="core.mail_backend.DbConfiguredEmailBackend")
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class ActivateDeferralTests(TestCase):
+    """Without eager mode: activation queues the send instead of blocking on
+    SMTP; nothing goes out until the scheduler drains the queue."""
+
+    def setUp(self):
+        mail.outbox = []
+        _configure_mail()
+        _configure_invites(owner="me@home.example")
+        self.wp = _workplace_with_config(recipient="boss@work.example")
+
+    def test_activate_enqueues_and_send_is_deferred(self):
+        from scheduler import services
+        from scheduler.models import ScheduledTask
+
+        invite = invites.activate(_shift(self.wp))
+        self.assertIsNotNone(invite)  # invite row created synchronously
+        self.assertEqual(len(mail.outbox), 0)  # but nothing sent yet
+        task = ScheduledTask.objects.get(task="calendar.send_invite_mail")
+        self.assertEqual(task.payload["method"], "REQUEST")
+
+        services.run_pending_tasks()  # the scheduler tick
+        self.assertEqual(len(mail.outbox), 1)
+        task.refresh_from_db()
+        self.assertEqual(task.status, ScheduledTask.DONE)
+
+
+@override_settings(
+    EMAIL_BACKEND="core.mail_backend.DbConfiguredEmailBackend",
+    SCHEDULER_TASK_EAGER=True,
+)
 class InviteEmailLogTests(TestCase):
     """Routing through the default backend (DbConfiguredEmailBackend) writes an
     EmailLog row — the same trail every other message leaves. Django's test

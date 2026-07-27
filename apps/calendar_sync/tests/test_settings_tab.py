@@ -157,15 +157,27 @@ class TestInviteButtonTests(CalendarTabBase):
         s.enabled, s.owner_address = True, "me@home.example"
         s.save()
 
+        from scheduler import services
+        from scheduler.models import ScheduledTask
+
         resp = self.client.post("/calendar-sync/invites/test/", follow=True)
         self.assertEqual(resp.status_code, 200)
-        # The test invite sends a REQUEST then immediately withdraws it (CANCEL),
-        # so it doesn't linger as an unanswered invitation → two messages.
+        # The button now hands off to the scheduler queue instead of blocking the
+        # request on two SMTP round-trips — so nothing is sent yet.
+        self.assertEqual(len(mail.outbox), 0)
+        task = ScheduledTask.objects.get(task="calendar.test_invite")
+        self.assertEqual(task.payload, {"to": "me@home.example"})
+
+        # Draining the queue is what actually sends: a REQUEST then an immediate
+        # withdraw (CANCEL), so it doesn't linger as an unanswered invitation.
+        services.run_pending_tasks()
         self.assertEqual(len(mail.outbox), 2)
         self.assertIn("me@home.example", mail.outbox[0].to)
         self.assertIn("METHOD:REQUEST", mail.outbox[0].alternatives[0][0])
         self.assertIn("METHOD:CANCEL", mail.outbox[1].alternatives[0][0])
         self.assertTrue(CalendarInviteSettings.load().last_test_ok)
+        task.refresh_from_db()
+        self.assertEqual(task.status, ScheduledTask.DONE)
 
     def test_no_address_reports_error(self):
         resp = self.client.post("/calendar-sync/invites/test/", follow=True)

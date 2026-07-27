@@ -7,7 +7,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.views import View
 
-from .models import ScheduledJob
+from .models import ScheduledJob, ScheduledTask, SchedulerHeartbeat
 
 
 def _back_to_tab():
@@ -16,7 +16,24 @@ def _back_to_tab():
 
 def jobs_settings_context():
     """Context for the Settings → Jobs tab (called by core.UserSettingsView)."""
-    return {"scheduled_jobs": list(ScheduledJob.objects.all())}
+    secs = SchedulerHeartbeat.seconds_since()
+    active_tasks = list(
+        ScheduledTask.objects.filter(
+            status__in=[ScheduledTask.PENDING, ScheduledTask.RUNNING]
+        ).order_by("run_at")
+    )
+    recent_tasks = list(
+        ScheduledTask.objects.filter(
+            status__in=[ScheduledTask.DONE, ScheduledTask.FAILED]
+        ).order_by("-finished_at", "-id")[:5]
+    )
+    return {
+        "scheduled_jobs": list(ScheduledJob.objects.all()),
+        "scheduler_alive": SchedulerHeartbeat.is_alive(),
+        "scheduler_seconds_since": None if secs is None else int(secs),
+        "scheduler_active_tasks": active_tasks,
+        "scheduler_recent_tasks": recent_tasks,
+    }
 
 
 class ScheduledJobToggleView(View):

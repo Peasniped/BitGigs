@@ -7,8 +7,8 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from scheduler import registry, services
-from scheduler.models import ScheduledJob
+from scheduler import registry, services, tasks
+from scheduler.models import ScheduledJob, ScheduledTask, SchedulerHeartbeat
 
 
 class ComputeNextRunTests(TestCase):
@@ -193,3 +193,126 @@ class JobsSettingsTabTests(TestCase):
     def test_toggle_of_missing_job_is_a_noop_redirect(self):
         resp = self.client.post(reverse("scheduler:job-toggle", args=[999999]))
         self.assertRedirects(resp, reverse("core:settings") + "?tab=jobs")
+
+
+class TaskQueueTests(TestCase):
+    def test_enqueue_creates_a_pending_task(self):
+        task = tasks.enqueue("demo.thing", {"a": 1})
+        self.assertEqual(task.status, ScheduledTask.PENDING)
+        self.assertEqual(task.payload, {"a": 1})
+
+    def test_process_success_marks_done_with_result(self):
+        task = tasks.enqueue("demo.ok")
+        with mock.patch.object(tasks, "get_handler", return_value=lambda p: "did it"):
+            status = services.process_task(task)
+        task.refresh_from_db()
+        self.assertEqual(status, ScheduledTask.DONE)
+        self.assertEqual(task.status, ScheduledTask.DONE)
+        self.assertEqual(task.result, "did it")
+        self.assertEqual(task.attempts, 1)
+
+    def test_process_failure_without_retries_marks_failed(self):
+        task = tasks.enqueue("demo.boom", max_attempts=1)
+
+        def boom(payload):
+            raise ValueError("nope")
+
+        with mock.patch.object(tasks, "get_handler", return_value=boom):
+            status = services.process_task(task)
+        task.refresh_from_db()
+        self.assertEqual(status, ScheduledTask.FAILED)
+        self.assertIn("ValueError: nope", task.last_error)
+
+    def test_process_failure_with_retries_requeues(self):
+        task = tasks.enqueue("demo.flaky", max_attempts=2)
+
+        def boom(payload):
+            raise RuntimeError("temporary")
+
+        with mock.patch.object(tasks, "get_handler", return_value=boom):
+            status = services.process_task(task)
+        task.refresh_from_db()
+        self.assertEqual(status, ScheduledTask.PENDING)  # back in the queue
+        self.assertEqual(task.attempts, 1)
+        self.assertGreater(task.run_at, timezone.now())  # backed off
+
+    def test_missing_handler_fails_the_task(self):
+        task = tasks.enqueue("demo.unregistered")
+        with mock.patch.object(tasks, "get_handler", return_value=None):
+            status = services.process_task(task)
+        self.assertEqual(status, ScheduledTask.FAILED)
+
+    def test_run_pending_runs_due_and_leaves_future_alone(self):
+        due = tasks.enqueue("demo.due")
+        future = tasks.enqueue("demo.future", run_at=timezone.now() + timedelta(hours=1))
+        with mock.patch.object(tasks, "get_handler", return_value=lambda p: None):
+            ran = services.run_pending_tasks()
+        self.assertEqual(ran, ["demo.due"])
+        future.refresh_from_db()
+        self.assertEqual(future.status, ScheduledTask.PENDING)
+
+    def test_claim_task_is_exclusive(self):
+        task = tasks.enqueue("demo.claim")
+        self.assertTrue(services.claim_task(task))
+        self.assertFalse(services.claim_task(task))  # already RUNNING
+
+    def test_prune_keeps_only_the_newest_finished(self):
+        for i in range(5):
+            ScheduledTask.objects.create(
+                task=f"demo.old{i}", status=ScheduledTask.DONE,
+                finished_at=timezone.now() - timedelta(minutes=i),
+            )
+        ScheduledTask.prune(keep=2)
+        self.assertEqual(
+            ScheduledTask.objects.filter(status=ScheduledTask.DONE).count(), 2
+        )
+
+
+class HeartbeatTests(TestCase):
+    def test_beat_then_alive(self):
+        SchedulerHeartbeat.beat()
+        self.assertTrue(SchedulerHeartbeat.is_alive())
+        self.assertIsNotNone(SchedulerHeartbeat.seconds_since())
+
+    def test_no_beat_is_not_alive(self):
+        self.assertFalse(SchedulerHeartbeat.is_alive())
+        self.assertIsNone(SchedulerHeartbeat.seconds_since())
+
+    def test_stale_beat_is_not_alive(self):
+        SchedulerHeartbeat.objects.create(
+            pk=1, beat_at=timezone.now() - timedelta(hours=1)
+        )
+        self.assertFalse(SchedulerHeartbeat.is_alive())
+
+
+class InviteTestEnqueueTests(TestCase):
+    """The 'send myself a test invite' button now enqueues instead of blocking."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("tester", password="pw")
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["onboarding_complete"] = True
+        session.save()
+
+    def test_configured_send_enqueues_and_returns_instantly(self):
+        from core.models import EmailSettings
+
+        with mock.patch.object(EmailSettings, "is_configured_for", return_value=True):
+            resp = self.client.post(
+                reverse("calendar_sync:invite-test"), {"to": "me@example.com"}
+            )
+        self.assertEqual(resp.status_code, 302)
+        task = ScheduledTask.objects.get(task="calendar.test_invite")
+        self.assertEqual(task.status, ScheduledTask.PENDING)
+        self.assertEqual(task.payload, {"to": "me@example.com"})
+
+    def test_unconfigured_email_errors_and_enqueues_nothing(self):
+        from core.models import EmailSettings
+
+        with mock.patch.object(EmailSettings, "is_configured_for", return_value=False):
+            resp = self.client.post(
+                reverse("calendar_sync:invite-test"), {"to": "me@example.com"}
+            )
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(ScheduledTask.objects.exists())

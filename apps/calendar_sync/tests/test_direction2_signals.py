@@ -61,6 +61,7 @@ PAST = date(2020, 3, 15)
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+@override_settings(SCHEDULER_TASK_EAGER=True)  # invite sends are queued now
 class SignalSyncTests(TestCase):
     def setUp(self):
         mail.outbox = []

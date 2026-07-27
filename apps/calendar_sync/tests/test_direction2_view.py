@@ -16,7 +16,10 @@ from shifts.models import PlannedShift
 from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
 
 
-@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    SCHEDULER_TASK_EAGER=True,  # invite sends are queued now — run them inline
+)
 class SendInvitesEndpointTests(TestCase):
     def setUp(self):
         mail.outbox = []
@@ -53,9 +56,7 @@ class SendInvitesEndpointTests(TestCase):
         )
 
     def _post(self):
-        return self.client.post(
-            "/calendar-sync/invites/send/?start=2035-03-01&end=2035-03-31"
-        )
+        return self.client.post("/calendar-sync/invites/send/?year=2035&month=3")
 
     def test_activates_planned_shifts_and_is_idempotent(self):
         shift = self._planned()
@@ -77,6 +78,21 @@ class SendInvitesEndpointTests(TestCase):
         self.assertEqual(resp2.json()["activated"], 0)
         self.assertEqual(len(mail.outbox), 1)
 
+    def test_manual_per_shift_send_then_bulk_does_not_resend(self):
+        """Repro: invite one shift from the edit modal, then hit bulk 'Send
+        invites' for the month — the already-invited shift must NOT be re-sent."""
+        shift = self._planned()
+        r = self.client.post(
+            f"/calendar-sync/invites/shift/{shift.pk}/",
+            data="{}", content_type="application/json",
+        )
+        self.assertTrue(r.json()["ok"])
+        self.assertEqual(len(mail.outbox), 1)  # manual REQUEST
+
+        resp = self._post()
+        self.assertEqual(resp.json()["activated"], 0)  # skipped, not re-activated
+        self.assertEqual(len(mail.outbox), 1)          # no duplicate send
+
     def test_disabled_contract_activates_nothing(self):
         cfg = self.wp.contracts.first().calendar_config
         cfg.send_invites = False
@@ -86,14 +102,56 @@ class SendInvitesEndpointTests(TestCase):
         self.assertEqual(resp.json()["activated"], 0)
         self.assertEqual(len(mail.outbox), 0)
 
-    def test_end_before_start_is_400(self):
-        resp = self.client.post(
-            "/calendar-sync/invites/send/?start=2035-03-31&end=2035-03-01"
-        )
+    def test_invalid_month_is_400(self):
+        resp = self.client.post("/calendar-sync/invites/send/?year=2035&month=13")
         self.assertEqual(resp.status_code, 400)
 
+    def test_only_shifts_in_the_months_period_are_sent(self):
+        """A shift outside the viewed month's payroll period isn't swept in —
+        even a whole month over, it's the next period's send, not this one."""
+        self._planned(day=15)  # March 2035 — in period
+        PlannedShift.objects.create(  # April 2035 — a different period
+            workplace=self.wp, date=date(2035, 4, 15),
+            start_time=time(9, 0), end_time=time(17, 0),
+        )
+        resp = self._post()  # year=2035&month=3
+        self.assertEqual(resp.json()["activated"], 1)  # only the March shift
+        self.assertEqual(len(mail.outbox), 1)
 
-@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_offset_period_next_period_shift_is_excluded(self):
+        """The JKF case: a 20th→19th job's shift after the 20th belongs to the
+        *next* payroll period, so viewing this month doesn't sweep it."""
+        wp = Workplace.objects.create(name="Offset", slug="offset")
+        c = WorkplaceContract.objects.create(workplace=wp)
+        ContractTermSet.objects.create(
+            contract=c, effective_from=date(2030, 1, 1),
+            employment_type=ContractTermSet.EmploymentType.HOURLY, hourly_rate=Decimal("200"),
+            payroll_period_start_day=20,
+        )
+        ContractCalendarConfig.objects.create(
+            contract=c, send_invites=True, recipient="boss@offset.example",
+        )
+        # March period for a 20th-start job = Feb 20 – Mar 19.
+        in_period = PlannedShift.objects.create(
+            workplace=wp, date=date(2035, 3, 10),
+            start_time=time(9, 0), end_time=time(17, 0),
+        )
+        next_period = PlannedShift.objects.create(
+            workplace=wp, date=date(2035, 3, 25),  # belongs to April payroll
+            start_time=time(9, 0), end_time=time(17, 0),
+        )
+        resp = self._post()  # year=2035&month=3
+        self.assertEqual(resp.json()["activated"], 1)
+        in_period.refresh_from_db()
+        next_period.refresh_from_db()
+        self.assertIsNotNone(in_period.invite_uid)   # sent
+        self.assertIsNone(next_period.invite_uid)    # left for April
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    SCHEDULER_TASK_EAGER=True,
+)
 class ShiftInviteEndpointTests(SendInvitesEndpointTests):
     """The per-shift Send / Re-send endpoint behind the edit-modal control."""
 

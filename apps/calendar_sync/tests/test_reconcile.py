@@ -147,7 +147,10 @@ class DriftDiffTests(TestCase):
         self.assertIn("old-me@home.example", drift.removed)
 
 
-@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    SCHEDULER_TASK_EAGER=True,  # invite sends are queued now — run them inline
+)
 class SyncMigrationTests(TestCase):
     def setUp(self):
         mail.outbox = []

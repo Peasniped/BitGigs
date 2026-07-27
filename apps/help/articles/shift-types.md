@@ -26,7 +26,9 @@ it.
 Turn on **Colour shifts by type** under
 **More › Settings › [Display](/settings/?tab=display)** and calendar chips get
 a tint per type. The legend matching those colours lives right here in the
-help panel on every calendar page.
+help panel on every calendar page — the markers below the types (planned,
+approved, break, invite sent, greyed-out) are covered in
+[Shift states](/help/shift-states/).
 
 > Only **on-site** shifts feed the commuting count — see
 > [Commuting deduction](/help/commuting/). Vacation tracking is explained in

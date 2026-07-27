@@ -61,54 +61,74 @@ class BusyView(View):
 
 
 class SendInvitesView(View):
-    """``POST ?start=&end=`` → activate invites for the planned shifts shown.
+    """``POST ?year=&month=`` → activate invites for the planned shifts that
+    **belong to the viewed month's payroll period** for each workplace.
 
-    Bulk-activates every PLANNED shift in the range whose workplace has invites
-    enabled and that isn't already synced. Idempotent: an already-active shift is
-    skipped, so pressing the button twice doesn't re-send. Each activation is
-    best-effort (``invites.activate`` swallows send errors), so one bad send can't
-    fail the whole batch or the request.
+    Scoping is per-workplace by payroll period, **not** the padded visible grid:
+    an offset job (e.g. a 20th→19th period) whose shifts fall after the 20th are
+    in its *next* period, so they aren't swept into this month's send — they're
+    offered when you view that next month. Conversely a late-of-previous-month
+    day that belongs to *this* period is included, even though it's grid padding.
+    Idempotent: a shift with an active invite is skipped, so pressing twice
+    doesn't re-send. Each activation is best-effort (``invites.activate`` swallows
+    send errors), so one bad send can't fail the whole batch.
     """
 
     def post(self, request):
-        from calendar_sync.models import ShiftInvite
-        from calendar_sync import invites
+        from payroll.services import PayrollPeriodService
+        from scheduler.models import SchedulerHeartbeat
         from shifts.models import PlannedShift
+        from workplaces.services import workplaces_active_in_period
 
-        start = parse_iso_date_param(request.GET.get("start"))
-        end = parse_iso_date_param(request.GET.get("end"))
-        if not (start and end):
-            today = timezone.localdate()
-            year = parse_int_param(request.GET.get("year"), today.year)
-            month = parse_int_param(request.GET.get("month"), today.month)
-            if not (1 <= month <= 12):
-                return JsonResponse({"error": "Invalid month."}, status=400)
-            start, end = services.month_window(year, month, pad_days=0)
-        if end < start:
-            return JsonResponse({"error": "end is before start."}, status=400)
+        from calendar_sync import invites
+        from calendar_sync.models import ShiftInvite
+
+        today = timezone.localdate()
+        year = parse_int_param(request.GET.get("year"), today.year)
+        month = parse_int_param(request.GET.get("month"), today.month)
+        if not (1 <= month <= 12):
+            return JsonResponse({"error": "Invalid month."}, status=400)
 
         active_uids = set(
             ShiftInvite.objects.filter(status=ShiftInvite.STATUS_ACTIVE)
             .values_list("invite_uid", flat=True)
         )
-        planned = (
-            PlannedShift.objects.filter(
-                status=PlannedShift.Status.PLANNED, date__gte=start, date__lte=end,
-            )
-            .select_related("workplace")
-            .prefetch_related("workplace__contracts__calendar_config")
+        month_start, month_end = services.month_window(year, month, pad_days=0)
+        workplaces = workplaces_active_in_period(month_start, month_end).prefetch_related(
+            "contracts__calendar_config"
         )
 
         activated = 0
-        for shift in planned:
-            if shift.invite_uid and shift.invite_uid in active_uids:
-                continue  # already synced
-            if not invites.eligible(shift):
-                continue
-            if invites.activate(shift) is not None:
-                activated += 1
+        for wp in workplaces:
+            _terms, period_start, period_end = PayrollPeriodService.resolve_period_bounds(
+                wp, year, month
+            )
+            planned = (
+                PlannedShift.objects.filter(
+                    workplace=wp, status=PlannedShift.Status.PLANNED,
+                    date__gte=period_start, date__lte=period_end,
+                )
+                .select_related("workplace")
+                .prefetch_related("workplace__contracts__calendar_config")
+            )
+            for shift in planned:
+                if shift.invite_uid and shift.invite_uid in active_uids:
+                    continue  # already synced
+                if not invites.eligible(shift):
+                    continue
+                if invites.activate(shift) is not None:
+                    activated += 1
 
-        return JsonResponse({"activated": activated})
+        # Sends are queued, not sent inline — warn (on the reload the JS triggers)
+        # if nothing is there to drain the queue, else they'd silently never go.
+        alive = SchedulerHeartbeat.is_alive()
+        if activated and not alive:
+            messages.warning(
+                request,
+                f"{activated} invite(s) queued, but the scheduler isn't running, "
+                "so they won't send until it starts (Settings → Jobs).",
+            )
+        return JsonResponse({"activated": activated, "scheduler_alive": alive})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -322,11 +342,18 @@ class CalendarInviteSettingsSaveView(View):
 
 
 class InviteTestView(View):
-    """Send a one-off test invite to the owner address (the "invite myself" button)."""
+    """Queue a one-off test invite to the owner address (the "invite myself"
+    button). The send is two SMTP round-trips (REQUEST + immediate CANCEL), so it
+    runs off-request via the scheduler queue — the page returns instantly and the
+    result lands on the "Last test" badge once the scheduler picks it up."""
 
     def post(self, request):
-        from . import invites
+        from core.models import EmailSettings
+        from scheduler.models import SchedulerHeartbeat
+        from scheduler.tasks import enqueue
+
         from .models import CalendarInviteSettings
+        from .tasks import TEST_INVITE
 
         to_address = (
             request.POST.get("to")
@@ -335,15 +362,30 @@ class InviteTestView(View):
         if not to_address:
             messages.error(request, "Set an address to invite first.")
             return _calendar_redirect()
-        ok, error = invites.send_test_invite(to_address)
-        if ok:
+        # Fail fast on the one thing we can check synchronously, so the user
+        # isn't left waiting on a badge that will never turn green.
+        if not EmailSettings.load().is_configured_for(EmailSettings.ROLE_CALENDAR):
+            messages.error(
+                request,
+                "Email isn't configured for calendar invites yet — set it up on "
+                "the Email tab first.",
+            )
+            return _calendar_redirect()
+
+        enqueue(TEST_INVITE, {"to": to_address})
+        if SchedulerHeartbeat.is_alive():
             messages.success(
                 request,
-                f"Test invite sent to {to_address} — it withdraws itself right "
-                "away, so you don't need to respond.",
+                f"Test invite queued for {to_address} — it'll arrive shortly and "
+                "withdraw itself, so you don't need to respond.",
             )
         else:
-            messages.error(request, f"Test invite failed: {error}")
+            messages.warning(
+                request,
+                f"Test invite queued for {to_address}, but the scheduler doesn't "
+                "appear to be running, so it won't send until it's started. See "
+                "Settings → Jobs.",
+            )
         return _calendar_redirect()
 
 

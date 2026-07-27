@@ -1045,6 +1045,13 @@ body[data-mask-money] .money-chart {
   background: rgba(var(--primary-rgb),.08);
   border: 1px solid rgba(var(--primary-rgb),.2);
 }
+/* Matches the greyed-out prior/next-period chips on the planning grid. */
+.shift-legend__sample--prior-period {
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1.5px dashed var(--primary);
+  opacity: 0.45;
+  filter: grayscale(0.6);
+}
 .shift-legend__icon {
   display: inline-flex;
   align-items: center;

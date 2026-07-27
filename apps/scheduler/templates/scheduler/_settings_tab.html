@@ -14,6 +14,61 @@
       simply wait. Toggle one off to skip it, or click a row for details.
     </p>
 
+    {% comment %} ── Scheduler liveness ─────────────────────────────────────── {% endcomment %}
+    {% if scheduler_alive %}
+    <div class="alert alert-success d-flex align-items-center gap-2 py-2">
+      <i class="bi bi-check-circle-fill"></i>
+      <span>Scheduler is running{% if scheduler_seconds_since is not None %} — last seen {{ scheduler_seconds_since }}s ago{% endif %}.</span>
+    </div>
+    {% else %}
+    <div class="alert alert-warning d-flex align-items-start gap-2 py-2">
+      <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+      <div>
+        <div class="fw-medium">The scheduler process isn't running.</div>
+        <div class="small">
+          Jobs and queued tasks won't run until it starts. In development use
+          <code>python scripts/dev.py</code>; in production it's a separate
+          service (Docker sidecar / systemd unit).
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% comment %} ── One-off task queue ─────────────────────────────────────── {% endcomment %}
+    {% if scheduler_active_tasks or scheduler_recent_tasks %}
+    <div class="fw-medium mb-2">Task queue</div>
+    <div class="table-responsive mb-4">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr><th>Task</th><th>Status</th><th>When</th></tr>
+        </thead>
+        <tbody>
+          {% for t in scheduler_active_tasks %}
+          <tr>
+            <td class="small"><code>{{ t.task }}</code></td>
+            <td>
+              {% if t.status == 'running' %}<span class="badge-soft text-info">Running</span>
+              {% else %}<span class="badge-soft text-warning">Queued</span>{% endif %}
+            </td>
+            <td class="small text-body-secondary">{{ t.run_at|date:"j M, H:i" }}</td>
+          </tr>
+          {% endfor %}
+          {% for t in scheduler_recent_tasks %}
+          <tr class="text-body-secondary">
+            <td class="small"><code>{{ t.task }}</code></td>
+            <td>
+              {% if t.status == 'done' %}<span class="badge-soft text-success">Done</span>
+              {% else %}<span class="badge-soft text-danger" title="{{ t.last_error }}">Failed</span>{% endif %}
+            </td>
+            <td class="small">{{ t.finished_at|date:"j M, H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    <div class="fw-medium mb-2">Jobs</div>
     {% if scheduled_jobs %}
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-0">
