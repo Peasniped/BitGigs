@@ -12,7 +12,6 @@
 - In settings>calendar, there is a weird space between the sections for ingoing and outgoing calendar. I think it should just be a horizontal line
 - Can you show the color coding/iconography of shift types when creating/editing/approving a planned/approved shift?
 - Add a bit more padding to all the settings-page.
-- [x] It seems on the about page that the info lines could use some padding. The section headers have a nice padding to the left div/canvas edge, but the text is only a few px from the edge.
 - make a bit more spacing between items on the calendar, currently I have two overlapping events and the extra amber border makes them almost touch, making it look kind of strange.
 - - It is the same when you hover over a workplace and it shows the green highlight showing which days belong to the payroll period. The borders of neighboring green days almost merge together. Maybe this highlight can be inset ever so slightly into the day cell so the borders do not (or do not almost) overlap.
 - In Settings>Display and Analytics, add some space between the save button and the last setting on the page.
@@ -22,8 +21,6 @@
 - Make the email master arm the same style as the calendar master arm.
 - We have a space issue for planned shifts that have all four indicators/icons active (invite sent, break active, shift type, hover over edit pencil icon) maybe we need to go back to the invite sent being a highlight around the shift and to make the shift type indicator a bit narrower -- do you have a better idea?
 - When I open the full manual/help from the more menu, I am always put into the "claiming the instance"-article. Maybe it would make more sense that you land on an article about how to use the help system? (meta, i know)
-- [x] Planning page on an approved shift, a banner reads "This shift has been approved and converted to a work session. Changes here will update the work session.". I thought we removed all mentions of 'work session' a long time ago lol. Please change it to reflect the updated terminology.
-- [x] In the help pop-up, links are a bit hard to read (blue against the dark blue background.)
 - Improve Help>Search to also search body text (in addition to the super quick keyword search that is already implemented.)
 
 
