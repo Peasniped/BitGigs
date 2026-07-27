@@ -1473,7 +1473,7 @@
     var sessionId = document.getElementById('shiftIsSession').value;
     var url;
     if (sessionId) {
-      if (!confirm('Delete this approved work session?')) return;
+      if (!confirm('Delete this approved shift?')) return;
       url = cfg.sessionUpdateUrl.replace('/0/', '/' + sessionId + '/');
     } else {
       if (!shiftId || !confirm('Delete this planned shift?')) return;

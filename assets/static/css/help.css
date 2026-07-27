@@ -264,6 +264,19 @@
   height: auto;
   border-radius: 0.5rem;
 }
+/* Links inside the popup panel: default Bootstrap blue is low-contrast against
+   the panel's dark surface, so always underline and, in dark mode, brighten
+   toward the (light-blue) secondary accent. The full-manual page sits on a
+   light surface, so this is scoped to the offcanvas only. */
+.help-offcanvas .help-article-body a {
+  text-decoration: underline;
+}
+[data-bs-theme="dark"] .help-offcanvas .help-article-body a {
+  color: var(--secondary);
+}
+[data-bs-theme="dark"] .help-offcanvas .help-article-body a:hover {
+  color: color-mix(in srgb, var(--secondary) 80%, white);
+}
 .help-article-body pre {
   background: var(--bs-secondary-bg);
   padding: 0.75rem;

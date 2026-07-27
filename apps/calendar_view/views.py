@@ -561,7 +561,7 @@ class ApproveShiftsView(View):
             shift_ids, workplace=workplace
         )
 
-        messages.success(request, f"{approved_count} shift(s) approved and converted to work sessions.")
+        messages.success(request, f"{approved_count} shift(s) approved.")
         if uncovered_dates:
             messages.warning(request, TaxCalculationService.coverage_warning(min(uncovered_dates)))
         from django.shortcuts import redirect

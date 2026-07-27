@@ -2023,7 +2023,11 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
   color: var(--text-subtle);
   margin-bottom: 0.6rem;
 }
-/* The fact grid: hairline-separated rows, muted labels, values that stand out. */
+/* The fact grid: hairline-separated rows, muted labels, values that stand out.
+   It's a Bootstrap .row, whose negative gutter margins would pull the fact text
+   outside the card padding — closer to the edge than the section labels above
+   it. Zero the gutter so labels and values line up with those headers. */
+.about-grid.row { --bs-gutter-x: 0; }
 .about-grid dt {
   font-weight: 500;
   color: var(--text-muted);
