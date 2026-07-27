@@ -35,6 +35,7 @@ urlpatterns = [
     path("analytics/", include("analytics.urls")),
     path("help/", include("help.urls")),
     path("api/", include("api.urls")),
+    path("scheduler/", include("scheduler.urls")),
 ]
 
 # Media is served by the app in every environment, not just DEBUG: WhiteNoise

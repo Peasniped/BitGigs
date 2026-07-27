@@ -52,6 +52,30 @@ services:
       - instance:/app/instance
     restart: unless-stopped
 
+  # The task scheduler runs as its own process (never an in-process thread —
+  # the app service has several gunicorn workers, which would each fire it).
+  # Same image, same .env, same instance volume; it just runs the loop instead
+  # of gunicorn. Reads/writes the same database as the app.
+  scheduler:
+    image: ${BITGIGS_IMAGE:-ghcr.io/peasniped/bitgigs:latest}
+    command: python manage.py run_scheduler
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-bitgigs}
+      POSTGRES_USER: ${POSTGRES_USER:-bitgigs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+    volumes:
+      # Shares the app's media/setup-state so jobs (e.g. icon prune) act on the
+      # same files gunicorn serves.
+      - instance:/app/instance
+    restart: unless-stopped
+
   db:
     image: postgres:17-alpine
     environment:

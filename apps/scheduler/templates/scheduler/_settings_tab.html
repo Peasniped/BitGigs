@@ -1,0 +1,133 @@
+{% comment %}
+  Settings → Jobs pane. Included by core/settings.html; context comes from
+  scheduler.views.jobs_settings_context. Each row toggles on/off (auto-submits)
+  and expands for detail. The self-contained script is guarded by
+  [data-jobs-settings].
+{% endcomment %}
+<div class="card settings-pane">
+  <div class="card-body" data-jobs-settings>
+
+    <div class="fw-medium">Scheduled jobs</div>
+    <p class="form-text mb-3">
+      Background tasks that run on a schedule, whether or not anyone is using the
+      app. They run in a separate scheduler process — if it isn't running, jobs
+      simply wait. Toggle one off to skip it, or click a row for details.
+    </p>
+
+    {% if scheduled_jobs %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th style="width:2rem"></th>
+            <th>Job</th>
+            <th>Runs</th>
+            <th>Next run</th>
+            <th>Last run</th>
+            <th class="text-end">On</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for job in scheduled_jobs %}
+          <tr>
+            <td class="pe-0">
+              <button type="button" class="btn btn-link btn-sm p-0 text-body-secondary job-expander"
+                      data-bs-toggle="collapse" data-bs-target="#jobDetail{{ job.pk }}"
+                      aria-expanded="false" aria-controls="jobDetail{{ job.pk }}"
+                      aria-label="Toggle details for {{ job.title }}">
+                <i class="bi bi-chevron-right"></i>
+              </button>
+            </td>
+            <td>
+              <span class="fw-medium">{{ job.title }}</span>
+              {% if not job.in_registry %}
+              <span class="badge-soft text-warning ms-1" title="No matching job in the code registry">defunct</span>
+              {% endif %}
+            </td>
+            <td class="small text-body-secondary">{{ job.cadence_label }}</td>
+            <td class="small">
+              {% if job.enabled %}{{ job.next_run_at|date:"j M, H:i" }}{% else %}<span class="text-body-secondary">—</span>{% endif %}
+            </td>
+            <td class="small">
+              {% if job.last_run_at %}
+                {{ job.last_run_at|date:"j M, H:i" }}
+                {% if job.last_status == 'ok' %}
+                  <span class="badge-soft text-success ms-1">OK</span>
+                {% elif job.last_status == 'error' %}
+                  <span class="badge-soft text-danger ms-1">Failed</span>
+                {% endif %}
+              {% else %}
+                <span class="text-body-secondary">Never</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <form method="post" action="{% url 'scheduler:job-toggle' job.pk %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <div class="form-check form-switch d-inline-block m-0">
+                  <input type="checkbox" class="form-check-input job-toggle" role="switch"
+                         {% if job.enabled %}checked{% endif %}
+                         aria-label="{% if job.enabled %}Disable{% else %}Enable{% endif %} {{ job.title }}">
+                </div>
+              </form>
+            </td>
+          </tr>
+          <tr class="job-detail-row">
+            <td colspan="6" class="p-0 border-0">
+              <div class="collapse" id="jobDetail{{ job.pk }}">
+                <div class="px-3 py-3 job-detail">
+                  {% if job.description %}<p class="mb-2">{{ job.description }}</p>{% endif %}
+                  <dl class="row mb-0 small">
+                    <dt class="col-4 col-sm-3 text-body-secondary fw-normal">Identifier</dt>
+                    <dd class="col-8 col-sm-9"><code>{{ job.key }}</code></dd>
+                    <dt class="col-4 col-sm-3 text-body-secondary fw-normal">Schedule</dt>
+                    <dd class="col-8 col-sm-9">{{ job.cadence_label }}</dd>
+                    <dt class="col-4 col-sm-3 text-body-secondary fw-normal">Status</dt>
+                    <dd class="col-8 col-sm-9">
+                      {% if not job.enabled %}Disabled
+                      {% elif job.last_status == 'ok' %}Last run OK
+                      {% elif job.last_status == 'error' %}Last run failed
+                      {% else %}Enabled, not yet run{% endif %}
+                    </dd>
+                    {% if job.last_duration_ms is not None %}
+                    <dt class="col-4 col-sm-3 text-body-secondary fw-normal">Last duration</dt>
+                    <dd class="col-8 col-sm-9">{{ job.last_duration_ms }} ms</dd>
+                    {% endif %}
+                    {% if job.last_error %}
+                    <dt class="col-4 col-sm-3 text-body-secondary fw-normal">Last error</dt>
+                    <dd class="col-8 col-sm-9 text-danger"><code class="text-danger">{{ job.last_error }}</code></dd>
+                    {% endif %}
+                  </dl>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-body-secondary mb-0">No jobs are registered.</p>
+    {% endif %}
+
+  </div>
+</div>
+
+<script>
+  (function () {
+    const root = document.querySelector('[data-jobs-settings]');
+    if (!root) return;
+    // A switch flip submits its little form (no separate Save button).
+    root.querySelectorAll('.job-toggle').forEach(function (input) {
+      input.addEventListener('change', function () { input.form.submit(); });
+    });
+    // Rotate the chevron as its row expands/collapses.
+    root.querySelectorAll('.collapse').forEach(function (panel) {
+      const btn = root.querySelector('[data-bs-target="#' + panel.id + '"]');
+      if (!btn) return;
+      const icon = btn.querySelector('i');
+      panel.addEventListener('show.bs.collapse', function () { icon.classList.replace('bi-chevron-right', 'bi-chevron-down'); });
+      panel.addEventListener('hide.bs.collapse', function () { icon.classList.replace('bi-chevron-down', 'bi-chevron-right'); });
+    });
+  })();
+</script>

@@ -1,0 +1,26 @@
+# BitGigs task scheduler — bare-metal deployment.
+#
+# Runs the single `run_scheduler` loop as its own long-lived process (never an
+# in-process thread — gunicorn's several workers would each fire it). One unit,
+# one process, so jobs run exactly once. Install alongside bitgigs-web.service
+# (see that file's header).
+
+[Unit]
+Description=BitGigs task scheduler
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=bitgigs
+Group=bitgigs
+WorkingDirectory=/opt/bitgigs
+EnvironmentFile=/opt/bitgigs/.env
+Environment=DJANGO_SETTINGS_MODULE=bitgigs.settings.production
+ExecStart=/opt/bitgigs/.venv/bin/python manage.py run_scheduler
+# The loop stops cleanly on SIGTERM (systemd's default stop signal).
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

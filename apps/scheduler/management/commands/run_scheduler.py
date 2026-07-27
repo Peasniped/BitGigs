@@ -1,0 +1,100 @@
+"""The scheduler loop.
+
+Run as a **standalone process** — one code path in dev, bare-metal prod and
+Docker, so dev and prod behave the same. It is deliberately *not* an in-process
+thread: gunicorn runs several workers and each would fire the loop, so a thread
+would need a cross-worker lease. A single process sidesteps that entirely.
+
+    python manage.py run_scheduler [--tick SECONDS] [--once]
+
+Ticks every SCHEDULER_TICK_SECONDS (default 30), runs whatever is due, sleeps.
+Stops cleanly on Ctrl+C (SIGINT) and on SIGTERM (systemd / `docker stop`).
+"""
+import logging
+import signal
+import threading
+
+from django.conf import settings
+from django.core.management.base import BaseCommand
+from django.utils import timezone
+
+from scheduler import services
+from scheduler.models import ScheduledJob
+
+logger = logging.getLogger("scheduler")
+
+DEFAULT_TICK = 30
+
+
+class Command(BaseCommand):
+    help = "Run the BitGigs task-scheduler loop (a long-lived process)."
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--tick",
+            type=float,
+            default=None,
+            help="Seconds between checks for due jobs (default: SCHEDULER_TICK_SECONDS).",
+        )
+        parser.add_argument(
+            "--once",
+            action="store_true",
+            help="Run whatever is due right now, then exit (no loop).",
+        )
+
+    def handle(self, *args, **options):
+        tick = options["tick"] or getattr(
+            settings, "SCHEDULER_TICK_SECONDS", DEFAULT_TICK
+        )
+        self._stop = threading.Event()
+
+        if options["once"]:
+            ran = services.run_due(log=logger)
+            self.stdout.write(self.style.SUCCESS(f"Ran {len(ran)} due job(s): {ran}"))
+            return
+
+        self._install_signal_handlers()
+        self._announce(tick)
+
+        while not self._stop.is_set():
+            try:
+                services.run_due(log=logger)
+            except Exception:  # a bug in the engine must not kill the loop
+                logger.exception("Scheduler tick failed")
+            self._stop.wait(tick)
+
+        self.stdout.write(self.style.WARNING("Scheduler stopped."))
+
+    # ── helpers ──────────────────────────────────────────────────────────────
+
+    def _install_signal_handlers(self):
+        # Handlers must be set from the main thread — a management command runs
+        # there. SIGTERM may be absent/unsettable on some platforms; ignore that.
+        for name in ("SIGTERM", "SIGINT"):
+            sig = getattr(signal, name, None)
+            if sig is None:
+                continue
+            try:
+                signal.signal(sig, self._request_stop)
+            except (ValueError, OSError):
+                pass
+
+    def _request_stop(self, signum, frame):
+        self.stdout.write("")  # break out of a partial line
+        self._stop.set()
+
+    def _announce(self, tick):
+        self.stdout.write(
+            self.style.SUCCESS(f"Scheduler started (tick {tick:g}s). Registered jobs:")
+        )
+        rows = ScheduledJob.objects.all()
+        if not rows:
+            self.stdout.write("  (none)")
+        for row in rows:
+            state = "on" if row.enabled else "OFF"
+            nxt = (
+                timezone.localtime(row.next_run_at).strftime("%Y-%m-%d %H:%M")
+                if row.next_run_at
+                else "—"
+            )
+            self.stdout.write(f"  [{state:>3}] {row.key} — {row.cadence_label}, next {nxt}")

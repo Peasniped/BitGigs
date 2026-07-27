@@ -216,6 +216,9 @@ class UserSettingsView(View):
             **(api_settings_context(request) if tab == "api" else {}),
             **(about_context(request) if tab == "about" else {}),
         }
+        if tab == "jobs":
+            from scheduler.views import jobs_settings_context
+            ctx.update(jobs_settings_context())
         if tab == "calendar":
             from calendar_sync.views import calendar_settings_context
             ctx.update(calendar_settings_context())
@@ -266,7 +269,7 @@ class SetThemeView(View):
 # set is wider than UserSettingsForm.TABS. Sign-in is offered even without an IdP
 # configured — that is where the password lives, and where we explain how to turn
 # SSO on.
-SETTINGS_TABS = ("display", "analytics", "email", "calendar", "api", "signin", "about")
+SETTINGS_TABS = ("display", "analytics", "email", "calendar", "api", "jobs", "signin", "about")
 
 
 def active_settings_tab(raw):

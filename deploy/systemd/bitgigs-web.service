@@ -1,0 +1,27 @@
+# BitGigs web server (gunicorn) — bare-metal deployment.
+#
+#   sudo cp deploy/systemd/bitgigs-*.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now bitgigs-web bitgigs-scheduler
+#
+# Edit User/paths/EnvironmentFile to match your install. The Docker deployment
+# does NOT use these — it runs the app and scheduler as two compose services.
+
+[Unit]
+Description=BitGigs web server
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=bitgigs
+Group=bitgigs
+WorkingDirectory=/opt/bitgigs
+EnvironmentFile=/opt/bitgigs/.env
+Environment=DJANGO_SETTINGS_MODULE=bitgigs.settings.production
+ExecStart=/opt/bitgigs/.venv/bin/gunicorn bitgigs.wsgi:application --bind 127.0.0.1:8000 --workers 3
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -92,6 +92,7 @@ INSTALLED_APPS = [
     "analytics.apps.AnalyticsConfig",
     "help.apps.HelpConfig",
     "api.apps.ApiConfig",
+    "scheduler.apps.SchedulerConfig",
 ]
 
 MIDDLEWARE = [
@@ -194,6 +195,14 @@ ICON_PRUNE_MARKER_PATH = BASE_DIR / "instance" / "last_icon_prune"
 # auto-sweep is on here and turned OFF in local.py; `manage.py prune_workplace_icons`
 # stays available everywhere as a deliberate, explicit action.
 ICON_PRUNE_AUTO = True
+
+# ─── Task scheduler ──────────────────────────────────────────────────────────
+# The standalone `manage.py run_scheduler` loop checks the DB schedule table
+# (scheduler.ScheduledJob) this often for due jobs. It is a separate process,
+# not an in-process thread — see the command's docstring. Jobs are defined in
+# scheduler/registry.py; the loop is optional (opportunistic housekeeping still
+# works without it), so nothing here forces it to run.
+SCHEDULER_TICK_SECONDS = 30
 
 # ─── Outbound mail (optional, configured in-app) ─────────────────────────────
 # BitGigs keeps its SMTP configuration in the database (the EmailSettings
