@@ -18,7 +18,7 @@ usa- make a bit more spacing between items on the calendar, currently I have two
 - We have a space issue for planned shifts that have all four indicators/icons active (invite sent, break active, shift type, hover over edit pencil icon) maybe we need to go back to the invite sent being a highlight around the shift and to make the shift type indicator a bit narrower -- do you have a better idea?
 - When I open the full manual/help from the more menu, I am always put into the "claiming the instance"-article. Maybe it would make more sense that you land on an article about how to use the help system? (meta, i know)
 - Improve Help>Search to also search body text (in addition to the super quick keyword search that is already implemented.)
-
+- On the workplace dashboard, make the accent strip a bit thicker, so it looks intentional, and make it glow subtly
 
 - Implement propper logging
 - Take a look at the full test suite and see if all tests are necessary and no tests are testing old/stale code
