@@ -123,6 +123,13 @@ class ScheduledTask(models.Model):
     def __str__(self):
         return f"{self.task} ({self.status})"
 
+    @property
+    def label(self) -> str:
+        """The handler's title, falling back to the raw task id."""
+        from . import tasks
+
+        return tasks.title_for(self.task) or self.task
+
     @classmethod
     def prune(cls, keep: int | None = None):
         """Keep the newest *keep* finished (done/failed) rows; drop older ones.

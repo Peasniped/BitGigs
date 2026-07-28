@@ -257,6 +257,15 @@
   --bs-table-border-color: color-mix(in srgb, var(--success) 35%, var(--surface));
 }
 
+/* `hidden` must actually hide. Bootstrap's display utilities (.d-flex, .d-block,
+   …) are !important at the *same* specificity as reboot's [hidden] and come
+   later in its bundle, so a `hidden` attribute on a .d-flex element silently
+   does nothing — which is how both scheduler banners once showed at once.
+   style.css loads after Bootstrap, so this restores the guarantee app-wide. */
+[hidden] {
+  display: none !important;
+}
+
 /* ---- Typography ---- */
 body {
   font-family: var(--font-sans);

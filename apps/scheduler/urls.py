@@ -7,4 +7,7 @@ app_name = "scheduler"
 urlpatterns = [
     # Session-gated, POSTed to from Settings → Jobs.
     path("jobs/<int:pk>/toggle/", views.ScheduledJobToggleView.as_view(), name="job-toggle"),
+    path("tasks/clear/", views.TaskQueueClearView.as_view(), name="tasks-clear"),
+    # Polled by the tab for live queue/heartbeat updates.
+    path("status/", views.SchedulerStatusView.as_view(), name="status"),
 ]

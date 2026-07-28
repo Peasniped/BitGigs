@@ -10,7 +10,7 @@ TEST_INVITE = "calendar.test_invite"
 SEND_INVITE_MAIL = "calendar.send_invite_mail"
 
 
-@register(TEST_INVITE)
+@register(TEST_INVITE, title="Test calendar invite")
 def run_test_invite(payload: dict) -> str:
     from . import invites
 
@@ -23,7 +23,7 @@ def run_test_invite(payload: dict) -> str:
     return f"test invite sent to {to_address}"
 
 
-@register(SEND_INVITE_MAIL)
+@register(SEND_INVITE_MAIL, title="Send calendar invite")
 def run_send_invite_mail(payload: dict) -> str:
     """Perform one deferred invite send (see invites._send_mail). Raising on an
     SMTP failure lets the queue retry — re-sending the same UID+SEQUENCE is an

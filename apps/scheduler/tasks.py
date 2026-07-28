@@ -5,12 +5,15 @@ task id and enqueue work against it, without the scheduler importing them:
 
     from scheduler.tasks import register, enqueue
 
-    @register("calendar.test_invite")
+    @register("calendar.test_invite", title="Send a test invite")
     def _run(payload):
         ...                       # do the slow thing; raise to fail/retry
         return "a short summary"  # stored on the row's result
 
     enqueue("calendar.test_invite", {"to": address})
+
+The optional *title* is what the Settings → Jobs queue shows instead of the bare
+task id (which stays visible as the row's detail).
 
 A handler takes the task's ``payload`` dict and returns a short summary string
 (or None). Raising marks the run failed (and retries if ``max_attempts`` > 1).
@@ -22,18 +25,27 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 _HANDLERS: dict[str, Callable[[dict], object]] = {}
+_TITLES: dict[str, str] = {}
 
 
-def register(task_id: str):
+def register(task_id: str, *, title: str = ""):
     """Decorator: bind *task_id* to the handler it decorates."""
     def decorator(func: Callable[[dict], object]) -> Callable[[dict], object]:
         _HANDLERS[task_id] = func
+        if title:
+            _TITLES[task_id] = title
         return func
     return decorator
 
 
 def get_handler(task_id: str) -> Optional[Callable[[dict], object]]:
     return _HANDLERS.get(task_id)
+
+
+def title_for(task_id: str) -> str:
+    """The human label for *task_id*, or "" when it declared none (or is a row
+    left over from a handler that no longer exists)."""
+    return _TITLES.get(task_id, "")
 
 
 def registered_ids() -> set[str]:

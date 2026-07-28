@@ -1,188 +1,214 @@
 {% comment %}
   Settings → Jobs pane. Included by core/settings.html; context comes from
-  scheduler.views.jobs_settings_context. Each row toggles on/off (auto-submits)
-  and expands for detail. The self-contained script is guarded by
-  [data-jobs-settings].
+  scheduler.views.jobs_settings_context. Three panes: the scheduler process
+  (watchdog), the recurring schedule table, and the one-off task queue.
+
+  Everything that can change on its own carries a data-* hook and is refreshed
+  in place by js/jobs_settings.js polling scheduler:status — the queue rows it
+  builds mirror the markup below, so keep the two in step.
 {% endcomment %}
-<div class="card settings-pane">
-  <div class="card-body" data-jobs-settings>
+<div data-jobs-settings data-status-url="{% url 'scheduler:status' %}">
 
-    <div class="fw-medium">Scheduled jobs</div>
-    <p class="form-text mb-3">
-      Background tasks that run on a schedule, whether or not anyone is using the
-      app. They run in a separate scheduler process — if it isn't running, jobs
-      simply wait. Toggle one off to skip it, or click a row for details.
-    </p>
+  {% comment %} ── Scheduler process (watchdog) ─────────────────────────────── {% endcomment %}
+  <div class="card settings-pane mb-3">
+    <div class="card-body">
+      <div class="fw-medium mb-2">Scheduler process</div>
 
-    {% comment %} ── Scheduler liveness ─────────────────────────────────────── {% endcomment %}
-    {% if scheduler_alive %}
-    <div class="alert alert-success d-flex align-items-center gap-2 py-2">
-      <i class="bi bi-check-circle-fill"></i>
-      <span>Scheduler is running{% if scheduler_seconds_since is not None %} — last seen {{ scheduler_seconds_since }}s ago{% endif %}.</span>
-    </div>
-    {% else %}
-    <div class="alert alert-warning d-flex align-items-start gap-2 py-2">
-      <i class="bi bi-exclamation-triangle-fill mt-1"></i>
-      <div>
-        <div class="fw-medium">The scheduler process isn't running.</div>
-        <div class="small">
-          Jobs and queued tasks won't run until it starts. In development use
-          <code>python scripts/dev.py</code>; in production it's a separate
-          service (Docker sidecar / systemd unit).
+      <div class="alert alert-success d-flex align-items-center gap-2 py-2 mb-0"
+           data-beat="up" {% if not scheduler_alive %}hidden{% endif %}>
+        <i class="bi bi-check-circle-fill"></i>
+        <span>
+          Scheduler is running<span data-beat-seen>{% if scheduler_seconds_since is not None %} — last seen {{ scheduler_seconds_since }}s ago{% endif %}</span>.
+        </span>
+      </div>
+
+      <div class="alert alert-warning d-flex align-items-start gap-2 py-2 mb-0"
+           data-beat="down" {% if scheduler_alive %}hidden{% endif %}>
+        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+        <div>
+          <div class="fw-medium">The scheduler process isn't running.</div>
+          <div class="small">
+            Jobs and queued tasks won't run until it starts. In development use
+            <code>python scripts/dev.py</code>; in production it's a separate
+            service (Docker sidecar / systemd unit).
+          </div>
         </div>
       </div>
     </div>
-    {% endif %}
-
-    {% comment %} ── One-off task queue ─────────────────────────────────────── {% endcomment %}
-    {% if scheduler_active_tasks or scheduler_recent_tasks %}
-    <div class="fw-medium mb-2">Task queue</div>
-    <div class="table-responsive mb-4">
-      <table class="table table-sm align-middle mb-0">
-        <thead>
-          <tr><th>Task</th><th>Status</th><th>When</th></tr>
-        </thead>
-        <tbody>
-          {% for t in scheduler_active_tasks %}
-          <tr>
-            <td class="small"><code>{{ t.task }}</code></td>
-            <td>
-              {% if t.status == 'running' %}<span class="badge-soft text-info">Running</span>
-              {% else %}<span class="badge-soft text-warning">Queued</span>{% endif %}
-            </td>
-            <td class="small text-body-secondary">{{ t.run_at|date:"j M, H:i" }}</td>
-          </tr>
-          {% endfor %}
-          {% for t in scheduler_recent_tasks %}
-          <tr class="text-body-secondary">
-            <td class="small"><code>{{ t.task }}</code></td>
-            <td>
-              {% if t.status == 'done' %}<span class="badge-soft text-success">Done</span>
-              {% else %}<span class="badge-soft text-danger" title="{{ t.last_error }}">Failed</span>{% endif %}
-            </td>
-            <td class="small">{{ t.finished_at|date:"j M, H:i" }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% endif %}
-
-    <div class="fw-medium mb-2">Jobs</div>
-    {% if scheduled_jobs %}
-    <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0">
-        <thead>
-          <tr>
-            <th style="width:2rem"></th>
-            <th>Job</th>
-            <th>Runs</th>
-            <th>Next run</th>
-            <th>Last run</th>
-            <th class="text-end">On</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for job in scheduled_jobs %}
-          <tr>
-            <td class="pe-0">
-              <button type="button" class="btn btn-link btn-sm p-0 text-body-secondary job-expander"
-                      data-bs-toggle="collapse" data-bs-target="#jobDetail{{ job.pk }}"
-                      aria-expanded="false" aria-controls="jobDetail{{ job.pk }}"
-                      aria-label="Toggle details for {{ job.title }}">
-                <i class="bi bi-chevron-right"></i>
-              </button>
-            </td>
-            <td>
-              <span class="fw-medium">{{ job.title }}</span>
-              {% if not job.in_registry %}
-              <span class="badge-soft text-warning ms-1" title="No matching job in the code registry">defunct</span>
-              {% endif %}
-            </td>
-            <td class="small text-body-secondary">{{ job.cadence_label }}</td>
-            <td class="small">
-              {% if job.enabled %}{{ job.next_run_at|date:"j M, H:i" }}{% else %}<span class="text-body-secondary">—</span>{% endif %}
-            </td>
-            <td class="small">
-              {% if job.last_run_at %}
-                {{ job.last_run_at|date:"j M, H:i" }}
-                {% if job.last_status == 'ok' %}
-                  <span class="badge-soft text-success ms-1">OK</span>
-                {% elif job.last_status == 'error' %}
-                  <span class="badge-soft text-danger ms-1">Failed</span>
-                {% endif %}
-              {% else %}
-                <span class="text-body-secondary">Never</span>
-              {% endif %}
-            </td>
-            <td class="text-end">
-              <form method="post" action="{% url 'scheduler:job-toggle' job.pk %}" class="d-inline">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                <div class="form-check form-switch d-inline-block m-0">
-                  <input type="checkbox" class="form-check-input job-toggle" role="switch"
-                         {% if job.enabled %}checked{% endif %}
-                         aria-label="{% if job.enabled %}Disable{% else %}Enable{% endif %} {{ job.title }}">
-                </div>
-              </form>
-            </td>
-          </tr>
-          <tr class="job-detail-row">
-            <td colspan="6" class="p-0 border-0">
-              <div class="collapse" id="jobDetail{{ job.pk }}">
-                <div class="px-3 py-3 job-detail">
-                  {% if job.description %}<p class="mb-2">{{ job.description }}</p>{% endif %}
-                  <dl class="row mb-0 small">
-                    <dt class="col-4 col-sm-3 text-body-secondary fw-normal">Identifier</dt>
-                    <dd class="col-8 col-sm-9"><code>{{ job.key }}</code></dd>
-                    <dt class="col-4 col-sm-3 text-body-secondary fw-normal">Schedule</dt>
-                    <dd class="col-8 col-sm-9">{{ job.cadence_label }}</dd>
-                    <dt class="col-4 col-sm-3 text-body-secondary fw-normal">Status</dt>
-                    <dd class="col-8 col-sm-9">
-                      {% if not job.enabled %}Disabled
-                      {% elif job.last_status == 'ok' %}Last run OK
-                      {% elif job.last_status == 'error' %}Last run failed
-                      {% else %}Enabled, not yet run{% endif %}
-                    </dd>
-                    {% if job.last_duration_ms is not None %}
-                    <dt class="col-4 col-sm-3 text-body-secondary fw-normal">Last duration</dt>
-                    <dd class="col-8 col-sm-9">{{ job.last_duration_ms }} ms</dd>
-                    {% endif %}
-                    {% if job.last_error %}
-                    <dt class="col-4 col-sm-3 text-body-secondary fw-normal">Last error</dt>
-                    <dd class="col-8 col-sm-9 text-danger"><code class="text-danger">{{ job.last_error }}</code></dd>
-                    {% endif %}
-                  </dl>
-                </div>
-              </div>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p class="text-body-secondary mb-0">No jobs are registered.</p>
-    {% endif %}
-
   </div>
-</div>
 
-<script>
-  (function () {
-    const root = document.querySelector('[data-jobs-settings]');
-    if (!root) return;
-    // A switch flip submits its little form (no separate Save button).
-    root.querySelectorAll('.job-toggle').forEach(function (input) {
-      input.addEventListener('change', function () { input.form.submit(); });
-    });
-    // Rotate the chevron as its row expands/collapses.
-    root.querySelectorAll('.collapse').forEach(function (panel) {
-      const btn = root.querySelector('[data-bs-target="#' + panel.id + '"]');
-      if (!btn) return;
-      const icon = btn.querySelector('i');
-      panel.addEventListener('show.bs.collapse', function () { icon.classList.replace('bi-chevron-right', 'bi-chevron-down'); });
-      panel.addEventListener('hide.bs.collapse', function () { icon.classList.replace('bi-chevron-down', 'bi-chevron-right'); });
-    });
-  })();
-</script>
+  {% comment %} ── Scheduled jobs ───────────────────────────────────────────── {% endcomment %}
+  <div class="card settings-pane mb-3">
+    <div class="card-body">
+      <div class="fw-medium">Scheduled jobs</div>
+      <p class="form-text mb-3">
+        Background tasks that run on a schedule, whether or not anyone is using the
+        app. Toggle one off to skip it, or click a row for details.
+      </p>
+
+      {% if scheduled_jobs %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th style="width:2rem"></th>
+              <th>Job</th>
+              <th>Runs</th>
+              <th>Next run</th>
+              <th>Last run</th>
+              <th class="text-end">On</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for job in scheduled_jobs %}
+            <tr data-job-row="{{ job.pk }}">
+              <td class="pe-0">
+                <button type="button" class="btn btn-link btn-sm p-0 text-body-secondary job-expander"
+                        data-bs-toggle="collapse" data-bs-target="#jobDetail{{ job.pk }}"
+                        aria-expanded="false" aria-controls="jobDetail{{ job.pk }}"
+                        aria-label="Toggle details for {{ job.title }}">
+                  <i class="bi bi-chevron-right"></i>
+                </button>
+              </td>
+              <td>
+                <span class="fw-medium">{{ job.title }}</span>
+                {% if not job.in_registry %}
+                <span class="badge-soft text-warning ms-1" title="No matching job in the code registry">defunct</span>
+                {% endif %}
+              </td>
+              <td class="small text-body-secondary">{{ job.cadence_label }}</td>
+              <td class="small">
+                <span data-job-next>{% if job.enabled %}{{ job.next_run_at|date:"j M, H:i" }}{% endif %}</span>
+                <span class="text-body-secondary" data-job-next-dash {% if job.enabled %}hidden{% endif %}>—</span>
+              </td>
+              <td class="small">
+                <span data-job-last>{% if job.last_run_at %}{{ job.last_run_at|date:"j M, H:i" }}{% endif %}</span>
+                <span class="text-body-secondary" data-job-never {% if job.last_run_at %}hidden{% endif %}>Never</span>
+                <span class="badge-soft ms-1 {% if job.last_status == 'ok' %}text-success{% else %}text-danger{% endif %}"
+                      data-job-last-status {% if not job.last_status %}hidden{% endif %}>
+                  {% if job.last_status == 'ok' %}OK{% else %}Failed{% endif %}
+                </span>
+              </td>
+              <td class="text-end">
+                <form method="post" action="{% url 'scheduler:job-toggle' job.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                  <div class="form-check form-switch d-inline-block m-0">
+                    <input type="checkbox" class="form-check-input job-toggle" role="switch"
+                           {% if job.enabled %}checked{% endif %}
+                           aria-label="{% if job.enabled %}Disable{% else %}Enable{% endif %} {{ job.title }}">
+                  </div>
+                </form>
+              </td>
+            </tr>
+            <tr class="job-detail-row">
+              <td colspan="6" class="p-0 border-0">
+                <div class="collapse" id="jobDetail{{ job.pk }}">
+                  <div class="px-3 py-3 job-detail">
+                    {% if job.description %}<p class="mb-2">{{ job.description }}</p>{% endif %}
+                    <dl class="row mb-0 small">
+                      <dt class="col-4 col-sm-3 text-body-secondary fw-normal">Identifier</dt>
+                      <dd class="col-8 col-sm-9"><code>{{ job.key }}</code></dd>
+                      <dt class="col-4 col-sm-3 text-body-secondary fw-normal">Schedule</dt>
+                      <dd class="col-8 col-sm-9">{{ job.cadence_label }}</dd>
+                      <dt class="col-4 col-sm-3 text-body-secondary fw-normal">Status</dt>
+                      <dd class="col-8 col-sm-9" data-job-detail-status>
+                        {% if not job.enabled %}Disabled
+                        {% elif job.last_status == 'ok' %}Last run OK
+                        {% elif job.last_status == 'error' %}Last run failed
+                        {% else %}Enabled, not yet run{% endif %}
+                      </dd>
+                      <dt class="col-4 col-sm-3 text-body-secondary fw-normal" data-job-duration-row
+                          {% if job.last_duration_ms is None %}hidden{% endif %}>Last duration</dt>
+                      <dd class="col-8 col-sm-9" data-job-duration-row
+                          {% if job.last_duration_ms is None %}hidden{% endif %}><span data-job-detail-duration>{{ job.last_duration_ms }}</span> ms</dd>
+                      <dt class="col-4 col-sm-3 text-body-secondary fw-normal" data-job-error-row
+                          {% if not job.last_error %}hidden{% endif %}>Last error</dt>
+                      <dd class="col-8 col-sm-9 text-danger" data-job-error-row
+                          {% if not job.last_error %}hidden{% endif %}><code class="text-danger" data-job-detail-error>{{ job.last_error }}</code></dd>
+                    </dl>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-body-secondary mb-0">No jobs are registered.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% comment %} ── One-off task queue ───────────────────────────────────────── {% endcomment %}
+  <div class="card settings-pane">
+    <div class="card-body">
+      <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+        <div>
+          <div class="fw-medium">Task queue</div>
+          <p class="form-text mb-0">
+            One-off work handed to the scheduler by the app — sending a calendar
+            invite, for instance. Rows disappear on their own once the queue is
+            long enough; clear them here to tidy up sooner.
+          </p>
+        </div>
+        <div class="d-flex gap-2">
+          <form method="post" action="{% url 'scheduler:tasks-clear' %}">
+            {% csrf_token %}
+            <input type="hidden" name="scope" value="done">
+            <button type="submit" class="btn btn-sm btn-outline-secondary"
+                    data-clear="done" {% if not scheduler_done_count %}disabled{% endif %}>
+              <i class="bi bi-check2-all me-1"></i>Clear done<span data-clear-count="done">{% if scheduler_done_count %} ({{ scheduler_done_count }}){% endif %}</span>
+            </button>
+          </form>
+          <form method="post" action="{% url 'scheduler:tasks-clear' %}"
+                data-confirm="Clear the failed tasks? Their error messages are the only record of what went wrong.">
+            {% csrf_token %}
+            <input type="hidden" name="scope" value="failed">
+            <button type="submit" class="btn btn-sm btn-outline-danger"
+                    data-clear="failed" {% if not scheduler_failed_count %}disabled{% endif %}>
+              <i class="bi bi-x-octagon me-1"></i>Clear failed<span data-clear-count="failed">{% if scheduler_failed_count %} ({{ scheduler_failed_count }}){% endif %}</span>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="table-responsive mt-3">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr><th>Task</th><th>Status</th><th>When</th><th>Details</th></tr>
+          </thead>
+          <tbody data-queue-body>
+            {% for t in scheduler_active_tasks %}
+            <tr>
+              <td class="small" title="{{ t.task }}">{{ t.label }}</td>
+              <td>
+                {% if t.status == 'running' %}<span class="badge-soft text-info">Running</span>
+                {% else %}<span class="badge-soft text-warning">Queued</span>{% endif %}
+              </td>
+              <td class="small text-body-secondary">{{ t.run_at|date:"j M, H:i" }}</td>
+              <td class="small text-body-secondary"></td>
+            </tr>
+            {% endfor %}
+            {% for t in scheduler_recent_tasks %}
+            <tr class="text-body-secondary">
+              <td class="small" title="{{ t.task }}">{{ t.label }}</td>
+              <td>
+                {% if t.status == 'done' %}<span class="badge-soft text-success">Done</span>
+                {% else %}<span class="badge-soft text-danger">Failed</span>{% endif %}
+              </td>
+              <td class="small">{{ t.finished_at|date:"j M, H:i" }}</td>
+              <td class="small{% if t.status == 'failed' %} text-danger{% endif %}">{% if t.status == 'failed' %}{{ t.last_error }}{% else %}{{ t.result }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+            <tr data-queue-empty {% if scheduler_active_tasks or scheduler_recent_tasks %}hidden{% endif %}>
+              <td colspan="4" class="small text-body-secondary">Nothing in the queue.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>

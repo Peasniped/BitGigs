@@ -194,6 +194,60 @@ class JobsSettingsTabTests(TestCase):
         resp = self.client.post(reverse("scheduler:job-toggle", args=[999999]))
         self.assertRedirects(resp, reverse("core:settings") + "?tab=jobs")
 
+    def test_status_endpoint_reports_queue_jobs_and_heartbeat(self):
+        SchedulerHeartbeat.beat()
+        ScheduledTask.objects.create(task="demo.queued")
+        ScheduledTask.objects.create(
+            task="demo.finished", status=ScheduledTask.DONE,
+            finished_at=timezone.now(), result="all good",
+        )
+        data = self.client.get(reverse("scheduler:status")).json()
+        self.assertTrue(data["alive"])
+        self.assertIsNotNone(data["seconds_since"])
+        self.assertEqual([t["task"] for t in data["active"]], ["demo.queued"])
+        self.assertEqual([t["result"] for t in data["recent"]], ["all good"])
+        self.assertEqual(data["done_count"], 1)
+        self.assertEqual(data["failed_count"], 0)
+        job = ScheduledJob.objects.get(key="prune_workplace_icons")
+        self.assertIn(job.pk, [j["id"] for j in data["jobs"]])
+
+    def test_clear_done_leaves_failed_and_pending_alone(self):
+        pending = ScheduledTask.objects.create(task="demo.pending")
+        ScheduledTask.objects.create(
+            task="demo.done", status=ScheduledTask.DONE, finished_at=timezone.now()
+        )
+        failed = ScheduledTask.objects.create(
+            task="demo.failed", status=ScheduledTask.FAILED,
+            finished_at=timezone.now(), last_error="boom",
+        )
+        resp = self.client.post(reverse("scheduler:tasks-clear"), {"scope": "done"})
+        self.assertRedirects(resp, reverse("core:settings") + "?tab=jobs")
+        self.assertQuerySetEqual(
+            ScheduledTask.objects.order_by("task"), [failed, pending]
+        )
+
+    def test_clear_failed_and_clear_all(self):
+        ScheduledTask.objects.create(
+            task="demo.done", status=ScheduledTask.DONE, finished_at=timezone.now()
+        )
+        ScheduledTask.objects.create(
+            task="demo.failed", status=ScheduledTask.FAILED, finished_at=timezone.now()
+        )
+        self.client.post(reverse("scheduler:tasks-clear"), {"scope": "failed"})
+        self.assertEqual(
+            list(ScheduledTask.objects.values_list("status", flat=True)),
+            [ScheduledTask.DONE],
+        )
+        self.client.post(reverse("scheduler:tasks-clear"), {"scope": "all"})
+        self.assertFalse(ScheduledTask.objects.exists())
+
+    def test_clear_with_an_unknown_scope_deletes_nothing(self):
+        ScheduledTask.objects.create(
+            task="demo.done", status=ScheduledTask.DONE, finished_at=timezone.now()
+        )
+        self.client.post(reverse("scheduler:tasks-clear"), {"scope": "everything"})
+        self.assertEqual(ScheduledTask.objects.count(), 1)
+
 
 class TaskQueueTests(TestCase):
     def test_enqueue_creates_a_pending_task(self):
@@ -255,6 +309,11 @@ class TaskQueueTests(TestCase):
         task = tasks.enqueue("demo.claim")
         self.assertTrue(services.claim_task(task))
         self.assertFalse(services.claim_task(task))  # already RUNNING
+
+    def test_label_uses_the_handlers_title_and_falls_back_to_the_id(self):
+        titled = tasks.enqueue("calendar.send_invite_mail")  # registered with a title
+        self.assertEqual(titled.label, "Send calendar invite")
+        self.assertEqual(tasks.enqueue("demo.untitled").label, "demo.untitled")
 
     def test_prune_keeps_only_the_newest_finished(self):
         for i in range(5):
