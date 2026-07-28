@@ -658,3 +658,36 @@ class MessageIdTests(TestCase):
             )
             DbConfiguredEmailBackend().send_messages([message])
         self.assertTrue(message.extra_headers["Message-ID"].endswith("@zink.nu>"))
+
+
+class FailureStreakTests(TestCase):
+    """"This connection keeps refusing" — derived from the send log, not kept as
+    a counter, so it can't drift and a success needs no reset step."""
+
+    def _log(self, ok, name="Default"):
+        EmailLog.record(to="to@example.com", subject="s", ok=ok, connection_name=name)
+
+    def test_streak_counts_only_the_unbroken_run_of_failures(self):
+        self._log(False)
+        self._log(True)
+        self._log(False)
+        self._log(False)
+        self.assertEqual(core_mail.failure_streak("Default"), 2)
+        self.assertFalse(core_mail.connection_is_failing("Default"))
+
+    def test_three_in_a_row_is_a_failing_connection(self):
+        for _ in range(3):
+            self._log(False)
+        self.assertTrue(core_mail.connection_is_failing("Default"))
+
+    def test_a_success_clears_it(self):
+        for _ in range(3):
+            self._log(False)
+        self._log(True)
+        self.assertEqual(core_mail.failure_streak("Default"), 0)
+
+    def test_other_connections_are_counted_separately(self):
+        for _ in range(3):
+            self._log(False, name="Work")
+        self.assertFalse(core_mail.connection_is_failing("Default"))
+        self.assertEqual(core_mail.failure_streak(""), 0)

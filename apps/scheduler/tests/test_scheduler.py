@@ -7,7 +7,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from scheduler import registry, services, tasks
+from scheduler import registry, services, tasks, views
 from scheduler.models import ScheduledJob, ScheduledTask, SchedulerHeartbeat
 
 
@@ -248,12 +248,112 @@ class JobsSettingsTabTests(TestCase):
         self.client.post(reverse("scheduler:tasks-clear"), {"scope": "everything"})
         self.assertEqual(ScheduledTask.objects.count(), 1)
 
+    def test_a_drained_batch_stays_visible(self):
+        """A month's worth of invites finishing must not scroll itself out of the
+        table — the old 10-row cap made a 31-shift send look like rows vanishing."""
+        for i in range(31):
+            ScheduledTask.objects.create(
+                task="demo.done", status=ScheduledTask.DONE,
+                finished_at=timezone.now() - timedelta(seconds=i),
+            )
+        data = self.client.get(reverse("scheduler:status")).json()
+        self.assertEqual(len(data["recent"]), 31)
+        self.assertEqual(data["hidden_count"], 0)
+
+    def test_rows_past_the_cap_are_counted_not_silently_dropped(self):
+        for i in range(views.RECENT_TASK_LIMIT + 5):
+            ScheduledTask.objects.create(
+                task="demo.done", status=ScheduledTask.DONE,
+                finished_at=timezone.now() - timedelta(seconds=i),
+            )
+        data = self.client.get(reverse("scheduler:status")).json()
+        self.assertEqual(len(data["recent"]), views.RECENT_TASK_LIMIT)
+        self.assertEqual(data["hidden_count"], 5)
+
+
+class TaskRetryTests(TestCase):
+    """Retrying a failed queue row — the only route back for work whose origin is
+    gone (a calendar CANCEL whose shift was deleted has no shift left to press)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("tester", password="pw")
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["onboarding_complete"] = True
+        session.save()
+        self.ran = []
+        tasks.register("demo.retryable")(lambda payload: self.ran.append(payload))
+        self.addCleanup(tasks._HANDLERS.pop, "demo.retryable", None)
+
+    def _failed(self, task="demo.retryable", **payload):
+        return ScheduledTask.objects.create(
+            task=task, payload=payload, status=ScheduledTask.FAILED,
+            finished_at=timezone.now(), last_error="refused", attempts=1,
+        )
+
+    def test_retry_requeues_the_payload_and_retires_the_failed_row(self):
+        failed = self._failed(invite_uid="abc")
+        resp = self.client.post(reverse("scheduler:task-retry"), {"id": failed.pk})
+        self.assertRedirects(resp, reverse("core:settings") + "?tab=jobs")
+        self.assertFalse(ScheduledTask.objects.filter(pk=failed.pk).exists())
+        fresh = ScheduledTask.objects.get()
+        self.assertEqual(fresh.status, ScheduledTask.PENDING)
+        self.assertEqual(fresh.payload["invite_uid"], "abc")
+        # Labelled so it reads as a second attempt next to the one it follows.
+        self.assertEqual(fresh.label, "demo.retryable (retry)")
+
+    def test_retry_is_a_deliberate_probe_past_the_mail_breaker(self):
+        """queued_at is re-stamped: the breaker only lets through messages queued
+        after the failures it is reacting to, and a hand-pressed retry is exactly
+        that (see core.mail.blocked_reason)."""
+        old = (timezone.now() - timedelta(hours=2)).isoformat()
+        failed = self._failed(queued_at=old)
+        self.client.post(reverse("scheduler:task-retry"), {"id": failed.pk})
+        self.assertGreater(ScheduledTask.objects.get().payload["queued_at"], old)
+
+    def test_retry_does_not_fire_the_on_clear_hook(self):
+        """Retrying is the opposite of dismissing — the failure must not be
+        acknowledged away while a fresh attempt is still in flight."""
+        cleared = []
+        tasks.register("demo.hooked", on_clear=cleared.append)(lambda payload: None)
+        self.addCleanup(tasks._HANDLERS.pop, "demo.hooked", None)
+        self.addCleanup(tasks._CLEAR_HOOKS.pop, "demo.hooked", None)
+        failed = self._failed(task="demo.hooked")
+        self.client.post(reverse("scheduler:task-retry"), {"id": failed.pk})
+        self.assertEqual(cleared, [])
+
+    def test_retry_of_a_done_or_missing_row_changes_nothing(self):
+        done = ScheduledTask.objects.create(
+            task="demo.retryable", status=ScheduledTask.DONE, finished_at=timezone.now()
+        )
+        self.client.post(reverse("scheduler:task-retry"), {"id": done.pk})
+        self.client.post(reverse("scheduler:task-retry"), {"id": 999999})
+        self.assertQuerySetEqual(ScheduledTask.objects.all(), [done])
+
+    def test_a_row_with_no_handler_left_is_refused(self):
+        failed = self._failed(task="demo.long_gone")
+        self.client.post(reverse("scheduler:task-retry"), {"id": failed.pk})
+        self.assertQuerySetEqual(ScheduledTask.objects.all(), [failed])
+
+    def test_status_marks_only_runnable_failures_retryable(self):
+        self._failed()
+        self._failed(task="demo.long_gone")
+        ScheduledTask.objects.create(
+            task="demo.retryable", status=ScheduledTask.DONE, finished_at=timezone.now()
+        )
+        recent = self.client.get(reverse("scheduler:status")).json()["recent"]
+        self.assertEqual(
+            {t["task"] for t in recent if t["can_retry"]}, {"demo.retryable"}
+        )
+
 
 class TaskQueueTests(TestCase):
     def test_enqueue_creates_a_pending_task(self):
         task = tasks.enqueue("demo.thing", {"a": 1})
         self.assertEqual(task.status, ScheduledTask.PENDING)
-        self.assertEqual(task.payload, {"a": 1})
+        self.assertEqual(task.payload["a"], 1)
+        # Every payload is stamped with when it was queued (see enqueue).
+        self.assertIn("queued_at", task.payload)
 
     def test_process_success_marks_done_with_result(self):
         task = tasks.enqueue("demo.ok")
@@ -364,7 +464,7 @@ class InviteTestEnqueueTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         task = ScheduledTask.objects.get(task="calendar.test_invite")
         self.assertEqual(task.status, ScheduledTask.PENDING)
-        self.assertEqual(task.payload, {"to": "me@example.com"})
+        self.assertEqual(task.payload["to"], "me@example.com")
 
     def test_unconfigured_email_errors_and_enqueues_nothing(self):
         from core.models import EmailSettings

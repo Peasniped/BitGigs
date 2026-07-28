@@ -1,17 +1,9 @@
 
 # NU     --------------------------------------------------------
 
-## Invite management system / task queue Bugs
-- I just requested invites sent out for 3, 5, 10, 11, 13, 17 and 19 aug. Yet only 3 through 13 was sent out
-- 17 and 19 both have the Calendar invite sent icon.
-- Even though I used the "Send invites" button and that all shifts have the icon, the "send invites" button has not changed to "All invites sent".
-- The log also shows only 5 of 7 invites were sent -- at 27 Jul 2026, 14:28
-- The task queue also shows only 5 invites.
-- I just sent out invites for 5 shifts (20, 24, 26, 27 and 31 aug) at 27 Jul, 14:37, where all five arrived. 
-- It seems now they were sent, i don't know why they arrived later. The email log also only shows 10 emails sent, yet 12 shifts were planned.
-- - Now the "Send Invites" button is also changed to "All invites sent"
 
-Can you help explore?
+- Custom modal for send invites
+- A way to remove a stuck task from the queue (or do it yourself with a watchdog and timeout->failed)
 
 ## Features-page
 - Allows the user to easily turn on/off or hide/unhide functionality such as Payroll, Vacation, Commuting, Analytics etc.

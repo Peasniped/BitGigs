@@ -125,10 +125,16 @@ class ScheduledTask(models.Model):
 
     @property
     def label(self) -> str:
-        """The handler's title, falling back to the raw task id."""
+        """The handler's title, falling back to the raw task id.
+
+        A payload may add a ``label_note`` to tell otherwise-identical rows apart
+        — "Send calendar invite (retry)" next to the attempt it follows.
+        """
         from . import tasks
 
-        return tasks.title_for(self.task) or self.task
+        base = tasks.title_for(self.task) or self.task
+        note = (self.payload or {}).get("label_note")
+        return f"{base} ({note})" if note else base
 
     @classmethod
     def prune(cls, keep: int | None = None):

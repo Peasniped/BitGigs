@@ -222,7 +222,15 @@ class ContractCalendarConfig(models.Model):
         help_text="Send calendar invites for this contract's shifts.",
     )
 
-    # Recipient (single work address) — required by the form when invites are on.
+    # Recipient (single work address). Its own on/off switch, mirroring the
+    # global "send invites to personal calendar" one: inviting the employer's
+    # mailbox is a separate decision from wanting the shift in your own calendar,
+    # and a contract may legitimately want only the latter.
+    send_to_work = models.BooleanField(
+        default=True,
+        help_text="Invite the work address below. Turn off to send this "
+                  "contract's shifts only to your own calendar.",
+    )
     recipient = models.EmailField(
         blank=True,
         help_text="Work address to invite for this contract.",
@@ -264,9 +272,11 @@ class ContractCalendarConfig(models.Model):
         return invite_settings if invite_settings is not None else CalendarInviteSettings.load()
 
     def resolved_recipient(self, invite_settings=None):
-        # A plain per-contract field (no global default); the form requires it
-        # whenever invites are on for the contract.
-        return self.recipient
+        # A plain per-contract field (no global default) behind its own on/off
+        # switch; the form requires it whenever *both* invites and the work
+        # address are on for the contract. Off → no work recipient at all, so the
+        # invite goes only wherever else it's addressed (the personal calendar).
+        return self.recipient if self.send_to_work else ""
 
     def resolved_title_onsite(self, invite_settings=None):
         if self.override_title_onsite and self.title_onsite:
@@ -338,7 +348,17 @@ class ShiftInvite(models.Model):
     # stale, so an upgrade doesn't mark every live invite for re-sending.
     content_key = models.CharField(max_length=64, blank=True)
 
+    # When the message was handed to the queue…
     sent_at = models.DateTimeField(null=True, blank=True)
+    # …and when SMTP actually accepted one. The gap between the two is the whole
+    # point: sends are queued, so "dispatched" is not "delivered", and a rejected
+    # send (rate limit, bad address) would otherwise leave the shift wearing an
+    # "invite sent" marker for an email nobody ever received. A row that has
+    # never been delivered is one nobody holds — safe to drop entirely.
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    send_failed_at = models.DateTimeField(null=True, blank=True)
+    send_error = models.TextField(blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -352,3 +372,14 @@ class ShiftInvite(models.Model):
     @property
     def is_active(self):
         return self.status == self.STATUS_ACTIVE
+
+    @property
+    def send_failed(self):
+        """True while the last send attempt is known to have failed."""
+        return self.send_failed_at is not None
+
+    @property
+    def ever_delivered(self):
+        """True once any send for this series reached the mail server — i.e. the
+        recipients hold *something*, so the series can't be treated as unsent."""
+        return self.delivered_at is not None

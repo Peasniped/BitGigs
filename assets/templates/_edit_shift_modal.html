@@ -101,12 +101,22 @@ Params: title, icon, save_label.
           revealed by planning.js). Invites send once; this is where you re-send
           after an edit. Ships hidden like the other extras.{% endcomment %}
           <div id="shiftInviteBlock" class="d-none mb-2 p-2 rounded"
-               style="background:var(--bg-light);">
+               style="background:var(--bg-light);"
+               data-jobs-url="{% url 'core:settings' %}?tab=jobs">
             <div class="d-flex align-items-center justify-content-between gap-2">
               <span class="small" id="shiftInviteStatus"></span>
               <button type="button" class="btn btn-outline-primary btn-sm" id="shiftInviteBtn">
                 <i class="bi bi-envelope-paper me-1"></i><span id="shiftInviteBtnLabel">Send invite</span>
               </button>
+            </div>
+            {% comment %}The send was rejected — nobody got it. Shown by
+            planning.js with the mail server's own words, since those name the
+            cause (a bad address, a rate limit) far better than we could.{% endcomment %}
+            <div class="small mt-2 d-none" id="shiftInviteError">
+              <div class="text-danger" id="shiftInviteErrorText"></div>
+              <a href="#" target="_blank" rel="noopener" class="small" id="shiftInviteQueueLink">
+                <i class="bi bi-list-task me-1"></i>See it in the task queue
+              </a>
             </div>
           </div>
 

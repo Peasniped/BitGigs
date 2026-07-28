@@ -124,13 +124,14 @@ class ContractCalendarConfigForm(forms.ModelForm):
         model = ContractCalendarConfig
         fields = [
             "send_invites",
-            "recipient", "address_onsite",
+            "send_to_work", "recipient", "address_onsite",
             "override_title_onsite", "title_onsite",
             "override_title_remote", "title_remote",
             "override_address_remote", "address_remote",
         ]
         labels = {
             "send_invites": "Enable calendar invites for this contract",
+            "send_to_work": "Send invites to the work address",
             "recipient": "Work e-mail address",
             "address_onsite": "On-site location",
             "override_title_onsite": "Override default on-site title",
@@ -162,9 +163,11 @@ class ContractCalendarConfigForm(forms.ModelForm):
         ):
             if cleaned.get(toggle) and not (cleaned.get(value) or "").strip():
                 cleaned[toggle] = False
-        # Invites on → a work recipient and an on-site location are required.
+        # Invites on → an on-site location is required, and a work address only
+        # when the work recipient is switched on (it's optional in exactly the way
+        # the personal calendar is — the invite can go to your own calendar alone).
         if cleaned.get("send_invites"):
-            if not (cleaned.get("recipient") or "").strip():
+            if cleaned.get("send_to_work") and not (cleaned.get("recipient") or "").strip():
                 self.add_error("recipient", "Add a work e-mail address to invite.")
             if not (cleaned.get("address_onsite") or "").strip():
                 self.add_error("address_onsite", "Add the on-site location.")

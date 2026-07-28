@@ -54,6 +54,106 @@ class MailNotConfigured(RuntimeError):
     """Raised when a send is attempted with mail disabled or half-configured."""
 
 
+# How many sends in a row have to fail before a caller should stop trying. A
+# refusal is rarely about the one message — a rate limit, a dead host or wrong
+# credentials refuses the next thirty too, and hammering a mail server that just
+# said no is how an account gets throttled harder.
+FAILURE_STREAK_LIMIT = 3
+
+
+def failure_streak(connection_name, limit=FAILURE_STREAK_LIMIT):
+    """How many of the most recent sends on *connection_name* failed, capped at
+    *limit*.
+
+    Read off ``EmailLog`` rather than kept as a counter: the log already records
+    every attempt per connection, so the streak is derived state that can't drift
+    — and a single success (a real send, or a diagnostic test the operator ran
+    after fixing things) breaks it with no reset step to remember.
+    """
+    from .models import EmailLog
+
+    if not connection_name:
+        return 0
+    recent = (
+        EmailLog.objects.filter(connection_name=connection_name)
+        .order_by("-created_at", "-id")
+        .values_list("ok", flat=True)[:limit]
+    )
+    streak = 0
+    for ok in recent:
+        if ok:
+            break
+        streak += 1
+    return streak
+
+
+def connection_is_failing(connection_name, limit=FAILURE_STREAK_LIMIT):
+    """True once *connection_name* has refused ``limit`` sends in a row."""
+    return failure_streak(connection_name, limit) >= limit
+
+
+class MailPaused(RuntimeError):
+    """Raised instead of sending, when the connection has just refused a run of
+    messages. Carries the reason as its message, so whatever reports the failure
+    (a queue row, a log line) says why nothing was tried."""
+
+
+def blocked_reason(connection_name, queued_at=None):
+    """Why a queued message should be dropped rather than sent, or ``None``.
+
+    The circuit breaker. One press of "Send invites" can queue thirty messages,
+    and a refusal is rarely about the individual message — a rate limit, a dead
+    host or a bad password refuses the next twenty-nine too, and hammering a
+    server that just said no is how an account gets throttled harder.
+
+    *queued_at* is what keeps this from becoming a deadlock. Blocking everything
+    while the streak stands would also block the retry that could clear it, since
+    only a **success** breaks a streak. So a message queued *after* the most
+    recent failure is let through: whoever queued it did so already knowing, and
+    it becomes the probe that either clears the streak or renews it. Anything
+    queued before is part of the storm the breaker exists to stop.
+    """
+    from django.utils.dateparse import parse_datetime
+
+    from .models import EmailLog
+
+    if not connection_is_failing(connection_name):
+        return None
+    # Payloads are JSON, so this arrives as an ISO string, not a datetime.
+    if isinstance(queued_at, str):
+        queued_at = parse_datetime(queued_at)
+    if queued_at:
+        newest_failure = (
+            EmailLog.objects.filter(connection_name=connection_name, ok=False)
+            .order_by("-created_at", "-id")
+            .values_list("created_at", flat=True)
+            .first()
+        )
+        if newest_failure and queued_at > newest_failure:
+            return None
+    return (
+        f"Skipped — {FAILURE_STREAK_LIMIT} messages in a row were refused by "
+        f"“{connection_name}”, so the rest were stopped instead of piling on. "
+        "Nothing was sent; send again once the mail server accepts mail."
+    )
+
+
+def require_sendable(role=EmailSettings.ROLE_SYSTEM, queued_at=None):
+    """Raise ``MailPaused`` if this role's connection is in a failing run.
+
+    **Every scheduler task that sends mail should call this first** — it is the
+    one shared piece of "don't keep spamming the server", and it is deliberately
+    a one-liner in the task rather than something the scheduler does on its own:
+    the scheduler core knows nothing about mail, and should stay that way.
+    ``queued_at`` comes from the payload the queue stamps (see
+    ``scheduler.tasks.enqueue``).
+    """
+    conn = connection_for(role)
+    reason = blocked_reason(conn.name if conn else "", queued_at)
+    if reason:
+        raise MailPaused(reason)
+
+
 def connection_for(role):
     """The ``MailConnection`` a role sends through, or ``None`` if none is set up.
 

@@ -118,10 +118,12 @@ class SendInvitesView(View):
             )
             for shift in planned:
                 if shift.invite_uid and shift.invite_uid in active_uids:
-                    # Synced — unless the shift has since been edited, in which
-                    # case the invite out there is wrong and this is the sweep
-                    # that fixes it (declining the post-edit prompt lands here).
-                    if invites.is_stale(shift):
+                    # Synced — unless the shift has since been edited (the invite
+                    # out there is wrong) or its send was rejected (nobody got
+                    # one at all). This sweep is what fixes both: declining the
+                    # post-edit prompt lands here, and so does a rate-limited
+                    # send that failed on the queue.
+                    if invites.needs_send(shift):
                         invites.resync(shift)
                         resent += 1
                     continue
@@ -180,15 +182,28 @@ def calendar_settings_context(*, sub_form=None, invite_form=None, open_modal="",
         .prefetch_related("contracts__calendar_config", "contracts__term_sets")
     )
     workplace_rows = []
+    # Contracts that are armed to send but resolve no work address: with the
+    # personal copy on they're fine (the shift lands in the owner's own calendar),
+    # with it off their invites reach nobody at all. The list doesn't depend on
+    # that switch, so it's rendered once and the switch reveals the warning.
+    no_recipient = []
     for wp in workplaces:
         contracts = []
         for contract in wp.contracts.all():
             config = getattr(contract, "calendar_config", None)
+            recipient = config.resolved_recipient(invite_settings) if config else ""
             contracts.append({
                 "contract": contract,
                 "config": config,
-                "recipient": config.resolved_recipient(invite_settings) if config else "",
+                "recipient": recipient,
             })
+            if config is not None and config.send_invites and not recipient:
+                no_recipient.append({
+                    "label": f"{wp.name} — {contract.name}" if contract.name else wp.name,
+                    "url": reverse(
+                        "workplaces:contract-update", args=[wp.slug, contract.pk]
+                    ),
+                })
         workplace_rows.append({"workplace": wp, "contracts": contracts})
     return {
         "cal_subscriptions": subscriptions,
@@ -196,6 +211,7 @@ def calendar_settings_context(*, sub_form=None, invite_form=None, open_modal="",
         "cal_invite_settings": invite_settings,
         "cal_invite_form": invite_form or CalendarInviteSettingsForm(instance=invite_settings),
         "cal_workplace_rows": workplace_rows,
+        "cal_no_recipient_contracts": no_recipient,
         "cal_mail_configured": EmailSettings.load().is_configured_for(
             EmailSettings.ROLE_CALENDAR
         ),
@@ -478,7 +494,11 @@ class ShiftInviteView(View):
             "ok": True,
             "active": active,
             "action": action,
+            # Queued, not sent: the SMTP round-trip happens in the scheduler
+            # process, and saying "sent" here is exactly the claim that left a
+            # rejected invite looking delivered.
             "message": (
-                "Invite re-sent." if action == "resent" else "Invite sent."
+                "Invite queued to re-send." if action == "resent"
+                else "Invite queued to send."
             ),
         })

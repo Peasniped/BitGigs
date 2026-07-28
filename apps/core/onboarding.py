@@ -153,9 +153,11 @@ def calendar_readiness():
     ``workplaces.views._calendar_readiness``."""
     from core.models import EmailSettings
     from calendar_sync.models import CalendarInviteSettings
+    invite_settings = CalendarInviteSettings.load()
     return {
         "email_configured": EmailSettings.load().is_configured,
-        "invites_master_on": CalendarInviteSettings.load().enabled,
+        "invites_master_on": invite_settings.enabled,
+        "personal_invites_on": invite_settings.send_to_personal,
     }
 
 

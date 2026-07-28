@@ -19,6 +19,13 @@ A handler takes the task's ``payload`` dict and returns a short summary string
 (or None). Raising marks the run failed (and retries if ``max_attempts`` > 1).
 Handlers must be imported for their `@register` to run — each app does that from
 its ``AppConfig.ready()`` (see calendar_sync/apps.py).
+
+``enqueue`` stamps ``queued_at`` into every payload. A handler that **sends mail**
+should open with ``core.mail.require_sendable(role, payload.get("queued_at"))``:
+that is the shared circuit breaker, which drops queued messages once the
+connection has refused a run of them rather than feeding a server that is already
+saying no. It lives in the mail layer, not here — the scheduler core knows
+nothing about mail and stays that way.
 """
 from __future__ import annotations
 
@@ -26,14 +33,24 @@ from typing import Callable, Optional
 
 _HANDLERS: dict[str, Callable[[dict], object]] = {}
 _TITLES: dict[str, str] = {}
+_CLEAR_HOOKS: dict[str, Callable[[dict], object]] = {}
 
 
-def register(task_id: str, *, title: str = ""):
-    """Decorator: bind *task_id* to the handler it decorates."""
+def register(task_id: str, *, title: str = "", on_clear: Callable[[dict], object] | None = None):
+    """Decorator: bind *task_id* to the handler it decorates.
+
+    *on_clear* is called with the payload when a **failed** row for this task is
+    cleared from the queue. A failed row is often the only visible record that
+    something didn't happen, so clearing it doubles as acknowledging it — this is
+    the hook that lets the owning app act on that (see calendar_sync.tasks) while
+    the scheduler core keeps importing no feature app.
+    """
     def decorator(func: Callable[[dict], object]) -> Callable[[dict], object]:
         _HANDLERS[task_id] = func
         if title:
             _TITLES[task_id] = title
+        if on_clear:
+            _CLEAR_HOOKS[task_id] = on_clear
         return func
     return decorator
 
@@ -46,6 +63,22 @@ def title_for(task_id: str) -> str:
     """The human label for *task_id*, or "" when it declared none (or is a row
     left over from a handler that no longer exists)."""
     return _TITLES.get(task_id, "")
+
+
+def run_clear_hooks(rows, *, log=None) -> None:
+    """Fire each cleared row's ``on_clear`` hook. Never raises — tidying up a log
+    must not fail because of what a hook makes of it."""
+    import logging
+
+    log = log or logging.getLogger(__name__)
+    for row in rows:
+        hook = _CLEAR_HOOKS.get(row.task)
+        if hook is None:
+            continue
+        try:
+            hook(row.payload or {})
+        except Exception:  # noqa: BLE001 — housekeeping never breaks the page
+            log.exception("on_clear hook for task %r failed", row.task)
 
 
 def registered_ids() -> set[str]:
@@ -65,9 +98,16 @@ def enqueue(task_id: str, payload: dict | None = None, *, run_at=None, max_attem
 
     from .models import ScheduledTask
 
+    # Stamped for every task: a handler only ever sees the payload, and "when was
+    # this queued?" is the difference between a message that is part of a storm
+    # already known to be failing and one somebody asked for afterwards (see
+    # core.mail.blocked_reason).
+    payload = dict(payload or {})
+    payload.setdefault("queued_at", timezone.now().isoformat())
+
     task = ScheduledTask.objects.create(
         task=task_id,
-        payload=payload or {},
+        payload=payload,
         run_at=run_at or timezone.now(),
         max_attempts=max_attempts,
     )

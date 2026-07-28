@@ -121,9 +121,26 @@
     const failed = task.status === "failed";
     details.className = failed ? "small text-danger" : "small text-body-secondary";
     details.textContent = failed ? task.error : task.result || "";
+    if (task.can_retry) details.appendChild(retryButton(task.id));
 
     tr.append(name, status, when, details);
     return tr;
+  }
+
+  // Nothing retries on its own (a re-sent invite would arrive twice), so this is
+  // how a failure gets a second attempt — including a cancellation whose shift is
+  // already deleted, which has no other control anywhere in the app.
+  function retryButton(id) {
+    const wrap = document.createElement("div");
+    wrap.className = "mt-1";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-outline-secondary btn-sm py-0";
+    btn.dataset.retryTask = id;
+    btn.title = "Run this task again — the only way to finish work whose shift is already gone";
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Retry';
+    wrap.appendChild(btn);
+    return wrap;
   }
 
   function applyQueue(data) {
@@ -141,7 +158,37 @@
       if (btn) btn.disabled = !count;
       setText(root.querySelector('[data-clear-count="' + scope + '"]'), count ? " (" + count + ")" : "");
     });
+
+    // The table shows a capped tail; say how much of it is off-screen rather than
+    // let a drained batch look like rows quietly went missing.
+    show(root.querySelector("[data-queue-more]"), data.hidden_count > 0);
+    setText(root.querySelector("[data-queue-more-count]"), data.hidden_count);
   }
+
+  // Retry posts a plain form so the redirect carries the usual flash message —
+  // the rows are rebuilt by every poll, so a listener bound to one would die.
+  root.addEventListener("click", function (event) {
+    const btn = event.target.closest("[data-retry-task]");
+    if (!btn || !root.dataset.retryUrl) return;
+    const token = root.querySelector('input[name="csrfmiddlewaretoken"]');
+    if (!token) return;
+    btn.disabled = true;
+    const form = document.createElement("form");
+    form.method = "post";
+    form.action = root.dataset.retryUrl;
+    form.hidden = true;
+    [["csrfmiddlewaretoken", token.value], ["id", btn.dataset.retryTask]].forEach(
+      function ([n, v]) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = n;
+        input.value = v;
+        form.appendChild(input);
+      }
+    );
+    document.body.appendChild(form);
+    form.submit();
+  });
 
   function stop() {
     if (timer) clearInterval(timer);

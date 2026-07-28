@@ -346,6 +346,7 @@
             var chip = buildShiftChip(data.shift, wp);
             insertChipSorted(container, chip);
             updateDayHourBadge(td);
+            noteInvitePending(data.shift);
             recheckOverlaps();
           }
         }
@@ -686,6 +687,7 @@
             insertChipSorted(container, chip);
             updateDayHourBadge(td);
             updateWpCardProgress(workplaceId);
+            noteInvitePending(data.shift);
             recheckOverlaps();
           }
         }
@@ -1137,6 +1139,9 @@
   var inviteBtn = document.getElementById('shiftInviteBtn');
   var inviteStatus = document.getElementById('shiftInviteStatus');
   var inviteLabel = document.getElementById('shiftInviteBtnLabel');
+  var inviteError = document.getElementById('shiftInviteError');
+  var inviteErrorText = document.getElementById('shiftInviteErrorText');
+  var inviteQueueLink = document.getElementById('shiftInviteQueueLink');
   var inviteShiftId = null;
   var inviteReloadOnClose = false;
 
@@ -1145,20 +1150,37 @@
     inviteShiftId = null;
   }
 
+  function showInviteError(message) {
+    if (!inviteError) return;
+    inviteError.classList.toggle('d-none', !message);
+    if (!message) return;
+    inviteErrorText.textContent = message;
+    if (inviteQueueLink && inviteBlock.dataset.jobsUrl) {
+      inviteQueueLink.href = inviteBlock.dataset.jobsUrl;
+    }
+  }
+
   // Reveal + label from the shift's invite state (only for planned shifts).
   function setupInviteBlock(shift) {
     if (!inviteBlock || !INVITE_URL) return;
     if (shift.invite_past) { hideInviteBlock(); return; }  // past → out of scope
     inviteShiftId = shift.id;
     inviteBtn.disabled = false;
+    showInviteError(shift.invite_failed ? shift.invite_error : '');
     if (shift.has_active_invite) {
       inviteBlock.classList.remove('d-none');
-      // Stale = the shift was edited after the invite went out, so what the
-      // recipients hold no longer matches. Says so until it's re-sent.
-      inviteStatus.innerHTML = shift.invite_stale
-        ? '<i class="bi bi-envelope-exclamation me-1" style="color:var(--warning-strong);"></i>Invite is out of date'
-        : '<i class="bi bi-envelope-check me-1" style="color:var(--info);"></i>Calendar invite sent';
-      inviteLabel.textContent = 'Re-send invite';
+      // Three states, worst first. Failed = the send was rejected, so nobody
+      // holds anything; stale = they hold the *old* details after an edit.
+      if (shift.invite_failed) {
+        inviteStatus.innerHTML = '<i class="bi bi-envelope-slash me-1" style="color:var(--danger-strong);"></i>' +
+          (shift.invite_delivered ? 'Update never sent' : 'Invite never sent');
+        inviteLabel.textContent = 'Retry now';
+      } else {
+        inviteStatus.innerHTML = shift.invite_stale
+          ? '<i class="bi bi-envelope-exclamation me-1" style="color:var(--warning-strong);"></i>Invite is out of date'
+          : '<i class="bi bi-envelope-check me-1" style="color:var(--info);"></i>Calendar invite sent';
+        inviteLabel.textContent = 'Re-send invite';
+      }
     } else if (shift.invite_eligible) {
       inviteBlock.classList.remove('d-none');
       inviteStatus.textContent = 'No invite sent yet';
@@ -1187,7 +1209,8 @@
           return;
         }
         inviteReloadOnClose = true;  // refresh chips on close to show the marker
-        inviteStatus.innerHTML = '<i class="bi bi-check-circle-fill me-1" style="color:var(--success);"></i>' + (data.message || 'Invite sent.');
+        showInviteError('');  // a fresh attempt supersedes the last failure
+        inviteStatus.innerHTML = '<i class="bi bi-check-circle-fill me-1" style="color:var(--success);"></i>' + (data.message || 'Invite queued.');
         inviteLabel.textContent = 'Re-send invite';
         inviteBtn.disabled = false;
       }).catch(function () {
@@ -1472,6 +1495,7 @@
             if (newWp) updateWpCardProgress(data.shift.workplace_id);
           }
         }
+        noteInvitePending(data.shift);
         recheckOverlaps();
       } else {
         offerInviteResend(data.shift, function() { location.reload(); });
@@ -1912,6 +1936,28 @@
   // gradient busy look as the other buttons while the batch sends.
   var SEND_INVITES_URL = cfg.sendInvitesUrl;
   var sendInvitesBtn = document.getElementById('sendInvitesBtn');
+
+  // Whether the button offers a send is a *count*, computed server-side when the
+  // page rendered — so planning a new shift left it stuck on the disabled "All
+  // invites sent" until a reload, offering nothing for work that plainly needed
+  // an invite. Chips are inserted without a reload, so the button has to follow.
+  //
+  // The condition mirrors what the server counts (PlanningCalendarView): the
+  // shift is invite-eligible, has no invite yet, and falls inside its workplace's
+  // payroll period for the month on screen — the padded grid reaches into the
+  // next period, and those shifts are not this month's to send.
+  function noteInvitePending(shift) {
+    if (!sendInvitesBtn || !SEND_INVITES_URL || !sendInvitesBtn.disabled) return;
+    if (!shift || !shift.invite_eligible || shift.has_active_invite) return;
+    if (!isInPeriod(shift.workplace_id, shift.date)) return;
+    sendInvitesBtn.disabled = false;
+    sendInvitesBtn.classList.remove('btn-outline-secondary', 'disabled');
+    sendInvitesBtn.classList.add('btn-outline-primary');
+    sendInvitesBtn.title = "Email calendar invites for the planned shifts shown, " +
+      "to each workplace's recipients and your own calendar";
+    sendInvitesBtn.innerHTML = '<i class="bi bi-envelope-paper me-1"></i>Send invites';
+  }
+
   if (sendInvitesBtn && SEND_INVITES_URL) {
     sendInvitesBtn.addEventListener('click', function() {
       if (!window.confirm(

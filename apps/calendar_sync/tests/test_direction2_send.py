@@ -94,6 +94,26 @@ class EligibilityTests(TestCase):
         # owner duplicates the work address → one entry
         self.assertEqual(invites.recipients_for(_shift(self.wp)), ["boss@work.example"])
 
+    def test_work_address_switched_off_leaves_the_personal_copy(self):
+        """The work switch is the mirror of send_to_personal: turning it off drops
+        the employer's mailbox from the invite and nothing else."""
+        cfg = _cfg(self.wp)
+        cfg.send_to_work = False
+        cfg.save()
+        s = CalendarInviteSettings.load()
+        s.owner_address = "me@home.example"
+        s.save()
+        self.assertEqual(invites.recipients_for(_shift(self.wp)), ["me@home.example"])
+
+    def test_work_address_off_with_personal_off_invites_nobody(self):
+        cfg = _cfg(self.wp)
+        cfg.send_to_work = False
+        cfg.save()
+        s = CalendarInviteSettings.load()
+        s.send_to_personal = False
+        s.save()
+        self.assertEqual(invites.recipients_for(_shift(self.wp)), [])
+
     def test_no_work_recipient_and_personal_off_invites_nobody(self):
         cfg = _cfg(self.wp)
         cfg.recipient = ""

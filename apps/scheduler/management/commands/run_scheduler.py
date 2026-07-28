@@ -5,10 +5,16 @@ Docker, so dev and prod behave the same. It is deliberately *not* an in-process
 thread: gunicorn runs several workers and each would fire the loop, so a thread
 would need a cross-worker lease. A single process sidesteps that entirely.
 
-    python manage.py run_scheduler [--tick SECONDS] [--once]
+    python manage.py run_scheduler [--tick SECONDS] [--once] [--no-reload]
 
 Ticks every SCHEDULER_TICK_SECONDS (default 30), runs whatever is due, sleeps.
 Stops cleanly on Ctrl+C (SIGINT) and on SIGTERM (systemd / `docker stop`).
+
+Under ``DEBUG`` it runs inside Django's **autoreloader**, the same one runserver
+uses. Without it the loop keeps executing whatever code it started with while
+runserver quietly reloads, so a just-edited task handler silently doesn't take
+effect — which reads as "the feature doesn't work" rather than "restart me".
+Production (DEBUG off) never reloads; a deploy restarts the service anyway.
 """
 import logging
 import signal
@@ -16,7 +22,7 @@ import threading
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
-from django.utils import timezone
+from django.utils import autoreload, timezone
 
 from scheduler import services
 from scheduler.models import ScheduledJob, SchedulerHeartbeat
@@ -41,6 +47,11 @@ class Command(BaseCommand):
             action="store_true",
             help="Run whatever is due right now, then exit (no loop).",
         )
+        parser.add_argument(
+            "--no-reload",
+            action="store_true",
+            help="Don't restart on code changes (the reloader is on under DEBUG).",
+        )
 
     def handle(self, *args, **options):
         tick = options["tick"] or getattr(
@@ -57,6 +68,17 @@ class Command(BaseCommand):
             ))
             return
 
+        if settings.DEBUG and not options["no_reload"]:
+            # Same reloader as runserver: it re-executes this command in a child
+            # process and restarts it whenever a watched file changes.
+            autoreload.run_with_reloader(self._loop, tick)
+        else:
+            self._loop(tick)
+
+    def _loop(self, tick):
+        # Under the reloader this runs in a worker thread, so the signal handlers
+        # can't be installed (they're main-thread only) — that's fine, the
+        # reloader owns Ctrl+C there. _install_signal_handlers already tolerates it.
         self._install_signal_handlers()
         SchedulerHeartbeat.beat()
         self._announce(tick)

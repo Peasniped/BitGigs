@@ -6,7 +6,7 @@ parent: settings-and-sign-in
 audience: everyone
 order: 78
 published: true
-keywords: [calendar, ical, ics, subscription, overlay, busy, invite, invitation, invites, colleagues, sync, sync now, change email, move invites, old address, planning clash, feed, webcal, method request, sequence, cancel, test invite, encrypted url, re-send, resend, out of date, stale invite, changed shift, all invites sent]
+keywords: [calendar, ical, ics, subscription, overlay, busy, invite, invitation, invites, colleagues, sync, sync now, change email, move invites, old address, planning clash, feed, webcal, method request, sequence, cancel, test invite, encrypted url, re-send, resend, out of date, stale invite, changed shift, all invites sent, failed invite, invite failed, send failed, rejected, rate limit, retry invite, clear failed, retry task, failed cancel, cancellation failed, withdraw failed, deleted shift invite, work address off, personal only]
 pages: [core:settings, calendar_view:planning]
 ---
 BitGigs talks to calendars in two independent directions, and each is optional
@@ -87,11 +87,25 @@ asked **Activate calendar invites for shifts on this contract?** and must pick
 **Yes** or **No** (you can always change it later). Picking **Yes**, or opening an
 existing contract to **Edit** it (Workplaces → a workplace → **Edit** a contract,
 or the **Edit** button on the Calendar tab's per-contract overview), reveals the
-fields: a **work e-mail address** and an **on-site location** (both required),
-then three **override** toggles for the on-site title, remote title and remote
-location — each shows an input inline only when you turn it on, otherwise it uses
-your global default. Only **on-site** and **remote** shifts generate invites; sick
-leave, vacation and paid absence don't.
+fields: **Send invites to the work address** (on by default, with the address
+inline beside it) and an **on-site location**, then three **override** toggles for
+the on-site title, remote title and remote location — each shows an input inline
+only when you turn it on, otherwise it uses your global default. Only **on-site**
+and **remote** shifts generate invites; sick leave, vacation and paid absence
+don't.
+
+The work address works exactly like **Send invites to personal calendar** on
+Settings → Calendar, and for the same reason: putting a shift in *your* calendar
+and putting it in your *employer's* mailbox are two separate decisions. Turn the
+work switch off and this contract's shifts go only to your own calendar — useful
+for a job whose scheduling doesn't run through e-mail at all. The address stays
+stored while the switch is off, so turning it back on doesn't mean retyping it.
+Turning **both** off leaves the invite with nowhere to go, and BitGigs says so
+from either end: the contract form warns as you switch the work address off, and
+Settings → Calendar warns as you switch the personal copy off — there naming every
+contract that would be left with no recipient, each linking straight to it. The
+per-contract overview on that tab reads *Personal calendar only* while the
+personal copy is on, and **No recipient** once it isn't.
 
 Invites won't actually send until your **Email** connection is set up and the
 master switch is on, so the form tells you when something's still missing. If you
@@ -148,9 +162,71 @@ The whole system only cares about **today and future** shifts. A shift whose day
 has passed is left alone — it's never invited, re-sent, or cancelled (deleting an
 old shift sends nothing).
 
+### When a send fails
+
+Invites don't go out while you wait — they're handed to the background scheduler,
+which does the actual sending a few seconds later. So a send can still be
+*refused* by your mail server after the page has moved on: a mistyped address, a
+mailbox that's full, or a sending limit on your mail account.
+
+When that happens the shift doesn't pretend to be invited. Its chip turns
+**red with a crossed-out envelope**, and opening the shift shows the mail
+server's own explanation — usually the most useful part — with a link to
+**Settings → Jobs**, where the failed attempt sits in the task queue with the
+full error.
+
+You have three ways out:
+
+- **Retry now**, in the shift dialog. Nothing was delivered, so retrying can't
+  produce a duplicate in anyone's calendar. The retry appears in the queue as
+  *Send calendar invite (retry)*.
+- **Retry** on the failed row itself, on Settings → Jobs. Same thing, reached from
+  the queue instead of the shift — and the only route available when the shift is
+  gone (see below).
+- **Clear failed** on Settings → Jobs, which dismisses the failure. A shift whose
+  invite never reached anyone goes back to plain **not invited**, so the month's
+  **Send invites** button will offer it again. If the failure was a *re-send* —
+  the recipients still hold the older version of the event — the shift keeps its
+  invite and simply goes back to being marked **out of date**.
+
+Either way the month's **Send invites** button counts failed shifts as still
+needing to go out, so it won't claim *All invites sent* while one is unsent.
+
+**BitGigs stops after three refusals in a row.** A mail server that rejects one
+message usually rejects the next thirty — a sending limit on your account, a
+wrong password, a server that's down — and hammering it only makes things worse.
+So when three messages in a row are refused on the same mail connection, the rest
+of the queued batch is dropped rather than attempted: those shifts are marked as
+failed invites with *“Skipped …”* as the reason, and nothing further is sent on
+that connection.
+
+It gets out of the way as soon as you do something about it. Anything you send
+**after** those failures — a retry, another press of Send invites, a test message
+on the Email tab — is always attempted, and the first success clears the state
+completely. There's nothing to reset by hand.
+
 If a send ever fails, it's caught and logged — it will **never** block you from
 saving, approving or deleting a shift. BitGigs ignores any replies or RSVPs to
 the invites.
+
+#### When the *cancellation* is what failed
+
+Deleting an invited shift sends a **withdrawal** to whoever holds it. That send
+can be refused just like any other — and when it is, the shift is still deleted.
+Deleting is a decision about *your* records; it never depends on an e-mail
+getting through, and the shift will not reappear.
+
+What's left undone is on the other side: your recipient still has an event in
+their calendar for a shift that no longer exists. Because the shift is gone,
+there's no chip to click and no **Send invites** sweep that can pick it up — so
+the failed row on **Settings → Jobs** is the only trace, and its **Retry** button
+is the only way to actually withdraw the event. Retry it once the underlying
+problem is fixed; if you'd rather sort it out in your calendar app or by telling
+the person directly, **Clear failed** dismisses it instead. Clearing is *not*
+retrying — it only says you've seen it.
+
+Since a refused withdrawal is a refused e-mail like any other, it also shows up in
+the **Email activity log** and raises the red banner on your dashboard.
 
 ### Changing a work or personal e-mail
 

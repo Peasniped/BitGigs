@@ -161,6 +161,9 @@ class PlanningCalendarView(View):
             s.invite_stale = invite is not None and _invites.is_stale(
                 s, invite=invite, settings=invite_settings
             )
+            # The harder marker: the send was rejected, so this shift's invite is
+            # not merely out of date — it never reached anyone.
+            s.invite_failed = invite is not None and invite.send_failed
 
         # Data-driven "Send invites" button: how many planned shifts the button
         # would actually act on. Zero → it reads "All invites sent" (disabled)
@@ -185,7 +188,7 @@ class PlanningCalendarView(View):
                     continue
                 if not _invites.eligible(s):
                     continue
-                if not s.has_active_invite or s.invite_stale:
+                if not s.has_active_invite or s.invite_stale or s.invite_failed:
                     invite_pending_count += 1
 
         # Navigation
@@ -681,7 +684,8 @@ def _shift_invite_flags(shift):
     path).
 
     ``invite_stale`` is what drives the re-send prompt after a save: the shift
-    changed in a way the already-sent invite doesn't reflect.
+    changed in a way the already-sent invite doesn't reflect. ``invite_failed``
+    is the harder state — the send was *rejected*, so nobody holds anything.
     """
     from calendar_sync import invites
     from calendar_sync.models import ShiftInvite
@@ -699,6 +703,11 @@ def _shift_invite_flags(shift):
         "invite_stale": (
             invites.is_stale(shift, invite=invite) if invite is not None else False
         ),
+        "invite_failed": invite is not None and invite.send_failed,
+        "invite_error": invite.send_error if invite is not None else "",
+        # A failed *first* send means nobody holds anything — the retry is a
+        # first send, not an update, and the wording follows.
+        "invite_delivered": invite is not None and invite.ever_delivered,
         # Named in the re-send prompt, so it says who is about to be mailed.
         "invite_recipients": invites.recipients_for(shift) if invite is not None else [],
     }

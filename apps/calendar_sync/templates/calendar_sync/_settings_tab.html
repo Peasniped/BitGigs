@@ -149,8 +149,10 @@
         <p class="form-text mt-1 mb-0">{{ cal_invite_form.enabled.help_text }}</p>
       </div>
 
-      {# Personal calendar: toggle + inline address revealed only when on #}
-      <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+      {# Personal calendar: toggle + inline address revealed only when on. The #}
+      {# row picks up the hint's bottom gap while the hint is hidden (.mb-3 #}
+      {# comes after .mb-1 in Bootstrap, so it wins). #}
+      <div class="d-flex align-items-center gap-2 mb-1 flex-wrap{% if not cal_invite_form.send_to_personal.value %} mb-3{% endif %}">
         <div class="form-check form-switch mb-0" style="min-width:16rem;">
           <input type="checkbox" class="form-check-input" role="switch"
                  name="send_to_personal" id="id_send_to_personal" data-cal-reveal="wrap_owner_address"
@@ -166,7 +168,29 @@
           {% for e in cal_invite_form.owner_address.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
         </div>
       </div>
-      <p class="form-text mt-0 mb-3">{{ cal_invite_form.owner_address.help_text }}</p>
+      {# Describes the address field, so it comes and goes with it. #}
+      <p class="form-text mt-0 mb-3{% if not cal_invite_form.send_to_personal.value %} d-none{% endif %}"
+         id="ownerAddressHelp">{{ cal_invite_form.owner_address.help_text }}</p>
+
+      {# Contracts armed to send but with no work address of their own: the #}
+      {# personal copy is the only thing carrying them, so turning it off #}
+      {# leaves their invites with nowhere to go. Rendered hidden and revealed #}
+      {# by the switch above — the list itself doesn't depend on it. #}
+      {% if cal_no_recipient_contracts %}
+      <div class="alert alert-warning d-flex align-items-start gap-2 py-2 mb-3 d-none"
+           id="calNoRecipientsGlobal">
+        <i class="bi bi-person-x mt-1 flex-shrink-0"></i>
+        <div>
+          <div class="fw-medium">Shift invites are turned off for both your work and personal calendars.</div>
+          <div class="small">
+            Choose where you'd like to receive them by enabling invites for your
+            personal calendar here, or for your work email on
+            {% if cal_no_recipient_contracts|length == 1 %}this contract{% else %}these contracts{% endif %}:
+            {% for c in cal_no_recipient_contracts %}<a href="{{ c.url }}">{{ c.label }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}.
+          </div>
+        </div>
+      </div>
+      {% endif %}
 
       {# Operator-level defaults (plain fields) #}
       {{ cal_invite_form.default_title_onsite|as_crispy_field }}
@@ -223,7 +247,15 @@
                     <span class="badge-soft">Off</span>
                   {% endif %}
                 </td>
-                <td class="small text-body-secondary">{% if c.recipient %}{{ c.recipient }}{% else %}—{% endif %}</td>
+                {# "Personal calendar only" is only true while that switch is on; #}
+                {# with it off this contract's invites reach nobody at all. #}
+                <td class="small text-body-secondary">
+                  {% if c.recipient %}{{ c.recipient }}
+                  {% elif c.config.send_invites %}
+                    {% if cal_invite_settings.send_to_personal %}<em>Personal calendar only</em>
+                    {% else %}<span class="badge-soft text-warning">No recipient</span>{% endif %}
+                  {% else %}—{% endif %}
+                </td>
                 <td class="text-end">
                   <a href="{% url 'workplaces:contract-update' row.workplace.slug c.contract.pk %}"
                      class="btn btn-outline-secondary btn-sm" title="Edit this contract's invites">
@@ -621,5 +653,27 @@
     cb.addEventListener('change', sync);
     sync();
   });
+
+  // Two more things follow the personal-calendar switch. The address hint
+  // describes a field that isn't on the page while the switch is off; the
+  // "reaches nobody" warning is its inverse — those contracts are carried by the
+  // personal copy alone, so turning it off is exactly what strands them. Which
+  // contracts those are doesn't change here, so that block is server-rendered
+  // and only its visibility follows the switch.
+  var personal = document.getElementById('id_send_to_personal');
+  var ownerHelp = document.getElementById('ownerAddressHelp');
+  var nobody = document.getElementById('calNoRecipientsGlobal');
+  if (personal) {
+    var personalRow = personal.closest('.d-flex');
+    function syncPersonal() {
+      if (ownerHelp) ownerHelp.classList.toggle('d-none', !personal.checked);
+      if (nobody) nobody.classList.toggle('d-none', personal.checked);
+      // The hint carries the gap to whatever follows; without it the row would
+      // sit flush against the next control.
+      if (personalRow) personalRow.classList.toggle('mb-3', !personal.checked);
+    }
+    personal.addEventListener('change', syncPersonal);
+    syncPersonal();
+  }
 })();
 </script>

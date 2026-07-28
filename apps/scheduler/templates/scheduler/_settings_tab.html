@@ -7,7 +7,8 @@
   in place by js/jobs_settings.js polling scheduler:status — the queue rows it
   builds mirror the markup below, so keep the two in step.
 {% endcomment %}
-<div data-jobs-settings data-status-url="{% url 'scheduler:status' %}">
+<div data-jobs-settings data-status-url="{% url 'scheduler:status' %}"
+     data-retry-url="{% url 'scheduler:task-retry' %}">
 
   {% comment %} ── Scheduler process (watchdog) ─────────────────────────────── {% endcomment %}
   <div class="card settings-pane mb-3">
@@ -149,8 +150,10 @@
           <div class="fw-medium">Task queue</div>
           <p class="form-text mb-0">
             One-off work handed to the scheduler by the app — sending a calendar
-            invite, for instance. Rows disappear on their own once the queue is
-            long enough; clear them here to tidy up sooner.
+            invite, for instance. Nothing retries by itself (a re-sent invite would
+            land twice), so a failed row waits here until you press
+            <strong>Retry</strong> or clear it. Rows disappear on their own once the
+            queue is long enough; clear them here to tidy up sooner.
           </p>
         </div>
         <div class="d-flex gap-2">
@@ -163,7 +166,7 @@
             </button>
           </form>
           <form method="post" action="{% url 'scheduler:tasks-clear' %}"
-                data-confirm="Clear the failed tasks? Their error messages are the only record of what went wrong.">
+                data-confirm="Clear the failed tasks? Their error messages are the only record of what went wrong, and clearing is not the same as retrying — use Retry on a row first if you still want it to run. Shifts whose calendar invite failed go back to 'not sent', ready to be sent again.">
             {% csrf_token %}
             <input type="hidden" name="scope" value="failed">
             <button type="submit" class="btn btn-sm btn-outline-danger"
@@ -174,8 +177,10 @@
         </div>
       </div>
 
+      {% comment %}.queue-table pins the first three columns so a long SMTP error in
+         Details wraps onto more lines instead of squeezing everything else flat.{% endcomment %}
       <div class="table-responsive mt-3">
-        <table class="table table-sm align-middle mb-0">
+        <table class="table table-sm align-middle mb-0 queue-table">
           <thead>
             <tr><th>Task</th><th>Status</th><th>When</th><th>Details</th></tr>
           </thead>
@@ -199,7 +204,18 @@
                 {% else %}<span class="badge-soft text-danger">Failed</span>{% endif %}
               </td>
               <td class="small">{{ t.finished_at|date:"j M, H:i" }}</td>
-              <td class="small{% if t.status == 'failed' %} text-danger{% endif %}">{% if t.status == 'failed' %}{{ t.last_error }}{% else %}{{ t.result }}{% endif %}</td>
+              <td class="small{% if t.status == 'failed' %} text-danger{% endif %}">
+                {% if t.status == 'failed' %}{{ t.last_error }}{% else %}{{ t.result }}{% endif %}
+                {% if t.status == 'failed' %}
+                <div class="mt-1">
+                  <button type="button" class="btn btn-outline-secondary btn-sm py-0"
+                          data-retry-task="{{ t.pk }}"
+                          title="Run this task again — the only way to finish work whose shift is already gone">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Retry
+                  </button>
+                </div>
+                {% endif %}
+              </td>
             </tr>
             {% endfor %}
             <tr data-queue-empty {% if scheduler_active_tasks or scheduler_recent_tasks %}hidden{% endif %}>
@@ -208,6 +224,11 @@
           </tbody>
         </table>
       </div>
+      <p class="form-text mb-0 mt-2" data-queue-more
+         {% if not scheduler_hidden_count %}hidden{% endif %}>
+        <span data-queue-more-count>{{ scheduler_hidden_count }}</span> older finished
+        task(s) aren't shown.
+      </p>
     </div>
   </div>
 

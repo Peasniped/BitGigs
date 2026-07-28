@@ -409,11 +409,15 @@ def _calendar_readiness():
     ``calendar_sync.invites.eligible``)."""
     from core.models import EmailSettings
     from calendar_sync.models import CalendarInviteSettings
+    invite_settings = CalendarInviteSettings.load()
     return {
         "email_configured": EmailSettings.load().is_configured_for(
             EmailSettings.ROLE_CALENDAR
         ),
-        "invites_master_on": CalendarInviteSettings.load().enabled,
+        "invites_master_on": invite_settings.enabled,
+        # With both this and the contract's work address off, an invite has
+        # nowhere to go — the partial warns rather than blocks.
+        "personal_invites_on": invite_settings.send_to_personal,
     }
 
 

@@ -982,6 +982,19 @@ body[data-mask-money] .money-chart {
   box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--warning) 85%, transparent);
 }
 
+/* Worse than stale: the send was *rejected*, so no recipient holds anything at
+   all. Danger-toned and declared after both of the above so it wins the ring
+   (the amber overlap ring still beats it — that one uses !important). */
+.shift-chip--invite-failed {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--danger) 70%, transparent);
+}
+.shift-chip__invited--failed { color: var(--danger-strong); }
+/* Re-stated at the dark selector's specificity, or the --invited blue wins. */
+[data-bs-theme="dark"] .shift-chip__invited--failed { color: var(--danger-strong); }
+[data-bs-theme="dark"] .shift-chip--invite-failed {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--danger) 90%, transparent);
+}
+
 /* Optional shift-type visualization (on by default; toggle in Settings) — a
    solid colour band on the right edge of the chip, coloured by a per-type var. */
 .shift-chip--type-on_site      { --chip-type: #00c853; }
@@ -1989,6 +2002,16 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
 }
 /* The lift-on-hover the other cards get would break the seam with the tab. */
 .settings-pane:hover { box-shadow: var(--card-shadow); }
+/* Settings → Jobs task queue. A failed row's Details cell holds the mail
+   server's own words, which can be one long unbroken string — with auto layout
+   the browser hands it the width and squeezes Task/Status/When down to a
+   character each. Fixed layout pins the three known-width columns so the error
+   wraps onto more lines instead, which is what it should have been doing. */
+.queue-table { table-layout: fixed; }
+.queue-table > :is(thead, tbody) > tr > :nth-child(1) { width: 30%; }
+.queue-table > :is(thead, tbody) > tr > :nth-child(2) { width: 6rem; }
+.queue-table > :is(thead, tbody) > tr > :nth-child(3) { width: 8.5rem; }
+.queue-table td { white-space: normal; overflow-wrap: anywhere; }
 /* "SSO not configured" panel — a tinted aside, so the reader can tell at a
    glance it is a status note rather than another setting to act on. */
 .settings-sso-off {

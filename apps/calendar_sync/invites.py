@@ -300,7 +300,8 @@ def _send_mail_now(subject, body, recipients, ics_bytes, method):
     message.send()  # default EMAIL_BACKEND = DbConfiguredEmailBackend → EmailLog
 
 
-def _send_mail(subject, body, recipients, ics_bytes, method):
+def _send_mail(subject, body, recipients, ics_bytes, method, *, invite=None,
+               content_key="", prev_content_key=""):
     """Hand the invite send to the scheduler queue instead of blocking on SMTP.
 
     Every real invite path (activate / resync / cancel / reconcile / the
@@ -310,6 +311,13 @@ def _send_mail(subject, body, recipients, ics_bytes, method):
     would re-send the email — the calendar client dedupes the event, but the
     inbox shows a duplicate — so a failed send fails *visibly* on the Jobs queue
     (re-sendable from the shift) rather than silently duplicating.
+
+    The invite's identity rides along in the payload so the *outcome* can be
+    written back to it (``mark_send_ok``/``mark_send_failed``): queued is not
+    sent, and without that the shift wears an "invite sent" marker for a mail
+    that was rejected. ``prev_content_key`` is what the invitee held *before*
+    this attempt — restored on failure, so a failed update falls back to "out of
+    date" instead of claiming the recipients hold the new times.
     """
     import base64
 
@@ -325,9 +333,73 @@ def _send_mail(subject, body, recipients, ics_bytes, method):
             "recipients": list(recipients),
             "ics_b64": base64.b64encode(ics_bytes).decode("ascii"),
             "method": method,
+            "invite_uid": str(invite.invite_uid) if invite else "",
+            "content_key": content_key,
+            "prev_content_key": prev_content_key,
+            # A re-send after a failure is worth telling apart in the queue.
+            **({"label_note": "retry"} if invite and invite.send_failed else {}),
         },
         max_attempts=1,
     )
+
+
+# ── send outcome, written back onto the invite ───────────────────────────────
+
+def _invite_for(payload):
+    uid = (payload or {}).get("invite_uid")
+    return ShiftInvite.objects.filter(invite_uid=uid).first() if uid else None
+
+
+def mark_send_ok(payload):
+    """SMTP accepted the message this payload describes: the recipients now hold
+    it. Called by the queue handler, so it runs in the scheduler process."""
+    invite = _invite_for(payload)
+    if invite is None:
+        return
+    ShiftInvite.objects.filter(pk=invite.pk).update(
+        delivered_at=timezone.now(), send_failed_at=None, send_error=""
+    )
+
+
+def mark_send_failed(payload, error):
+    """The message was rejected — nobody received it.
+
+    Restores the fingerprint the invitee actually still holds, so a failed
+    *update* reads as out-of-date rather than in sync. The restore is guarded by
+    a compare on the key this attempt carried: if a newer dispatch has since
+    stamped its own, that one is the truth and this stale failure must not
+    clobber it.
+    """
+    invite = _invite_for(payload)
+    if invite is None:
+        return
+    fields = {"send_failed_at": timezone.now(), "send_error": str(error)[:2000]}
+    attempted = (payload or {}).get("content_key") or ""
+    if attempted and invite.content_key == attempted:
+        fields["content_key"] = (payload or {}).get("prev_content_key") or ""
+    ShiftInvite.objects.filter(pk=invite.pk).update(**fields)
+
+
+def clear_send_failure(invite_uids):
+    """Dismiss failure marks — the "clear the failed tasks" action.
+
+    Two outcomes, because "unsend" isn't one thing. An invite that was **never
+    delivered** is one nobody holds: the row is deleted, so the shift is plainly
+    un-invited again and the ordinary Send-invites sweep will pick it up. One
+    that *was* delivered stays — the recipients hold the older event — and simply
+    loses the failure mark; its restored ``content_key`` then surfaces it as the
+    familiar out-of-date invite. Returns how many rows were reset.
+    """
+    if not invite_uids:
+        return 0
+    rows = ShiftInvite.objects.filter(
+        invite_uid__in=list(invite_uids), send_failed_at__isnull=False
+    )
+    undeliverable = [r.pk for r in rows if r.delivered_at is None and r.is_active]
+    reset = rows.count()
+    ShiftInvite.objects.filter(pk__in=undeliverable).delete()
+    rows.exclude(pk__in=undeliverable).update(send_failed_at=None, send_error="")
+    return reset
 
 
 def _dispatch(shift, invite, *, method, status, recipients=None, remember=True):
@@ -359,17 +431,27 @@ def _dispatch(shift, invite, *, method, status, recipients=None, remember=True):
         verb = "Invitation"
     subject = f"{verb}: {_subject_title(shift, invite)}"
     body = _plain_body(shift, method)
-    _send_mail(subject, body, recipients, ics, method)
+    prev_content_key = invite.content_key
+    new_content_key = "" if method == "CANCEL" else event_fingerprint(shift)
     invite.sent_at = timezone.now()
     if method != "CANCEL":
         # A REQUEST always carries the shift's current content, so this is the
         # point the "what the invitee holds" fingerprint becomes true again —
         # including reconciliation's re-REQUEST, which passes remember=False for
-        # the *recipients* only.
-        invite.content_key = event_fingerprint(shift)
+        # the *recipients* only. Stamped optimistically (the send is queued, not
+        # done); mark_send_failed puts prev_content_key back if it's rejected.
+        invite.content_key = new_content_key
         if remember:
             invite.last_recipients = ", ".join(recipients)
+    # Saved **before** the send is queued. The handler writes the outcome back to
+    # this row, and a full save() of our in-memory copy afterwards would overwrite
+    # it with pre-send values — instantly under SCHEDULER_TASK_EAGER, and in
+    # production whenever the loop claims the task before this request finishes.
     invite.save()
+    _send_mail(
+        subject, body, recipients, ics, method,
+        invite=invite, content_key=new_content_key, prev_content_key=prev_content_key,
+    )
 
 
 def _subject_title(shift, invite):
@@ -492,18 +574,38 @@ def _active_invite(shift):
 
 
 def resync(shift):
-    """Re-send a SEQUENCE-bumped REQUEST (the explicit "Re-send invite"). No-op
-    when the shift has no active invite or its day has passed. Never raises."""
+    """Re-send a REQUEST (the explicit "Re-send invite", and the retry after a
+    failed send). No-op when the shift has no active invite or its day has
+    passed. Never raises.
+
+    SEQUENCE is bumped only when something was actually **delivered**: bumping it
+    marks the message as an *update* to an event the recipient already holds, so
+    doing that after a first send that never left the building would headline a
+    retry as "Update:" for an invitation nobody ever received.
+    """
     if _is_past(shift):
         return
     invite = _active_invite(shift)
     if invite is None:
         return
     try:
-        invite.sequence += 1
+        if invite.ever_delivered:
+            invite.sequence += 1
         _dispatch(shift, invite, method="REQUEST", status="CONFIRMED")
     except Exception:
         logger.exception("calendar invite: resync send failed for %s", invite.uid)
+
+
+def needs_send(shift, *, invite=None, settings=None) -> bool:
+    """True when *shift*'s active invite doesn't match reality and should go out
+    again — either it was edited since (stale) or its last send failed. What the
+    month's "Send invites" sweep and the chips both key on."""
+    invite = invite if invite is not None else _active_invite(shift)
+    if invite is None:
+        return False
+    if invite.send_failed:
+        return not _is_past(shift)
+    return is_stale(shift, invite=invite, settings=settings)
 
 
 def cancel(shift):

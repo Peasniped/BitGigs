@@ -5,6 +5,7 @@
     workplace          - Workplace (may be unsaved/absent in onboarding)
     email_configured   - bool, SMTP ready
     invites_master_on  - bool, global master arm on
+    personal_invites_on- bool, global "also send to my own calendar" is on
     contract           - present only when editing an existing contract
     onboarding         - bool, softens the "set up e-mail" notice (Settings is
                          unreachable mid-wizard, so it's informational only)
@@ -87,15 +88,46 @@
   </div>
   {% endif %}
 
-  {% comment %}Required when invites are on: who to invite + where on-site shifts are.{% endcomment %}
-  <div class="mb-3">
-    <label for="id_recipient" class="form-label fw-medium mb-1">Work e-mail address</label>
-    <input type="email" name="recipient" id="id_recipient"
-           value="{{ cal_form.recipient.value|default_if_none:'' }}"
-           class="form-control form-control-sm {% if cal_form.recipient.errors %}is-invalid{% endif %}"
-           placeholder="name@work.example">
-    {% for err in cal_form.recipient.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+  {% comment %}Work recipient: toggle + inline address revealed only when on — the
+     same shape as "Send invites to personal calendar" on Settings → Calendar,
+     because it's the same kind of decision. Off → the invite goes only to your
+     own calendar.{% endcomment %}
+  <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+    <div class="form-check form-switch mb-0" style="min-width:16rem;">
+      <input type="checkbox" class="form-check-input" role="switch"
+             name="send_to_work" id="id_send_to_work" data-cal-reveal="wrap_recipient"
+             {% if cal_form.send_to_work.value %}checked{% endif %}>
+      <label class="form-check-label" for="id_send_to_work">Send invites to the work address</label>
+    </div>
+    <div class="flex-grow-1{% if not cal_form.send_to_work.value %} d-none{% endif %}"
+         id="wrap_recipient" style="min-width:14rem;">
+      <input type="email" name="recipient" id="id_recipient"
+             value="{{ cal_form.recipient.value|default_if_none:'' }}"
+             class="form-control form-control-sm {% if cal_form.recipient.errors %}is-invalid{% endif %}"
+             placeholder="name@work.example">
+      {% for err in cal_form.recipient.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+    </div>
   </div>
+  <p class="form-text mt-0 mb-3">
+    Turn this off to keep this contract's shifts out of the employer's mailbox and
+    only in your own calendar.
+  </p>
+
+  {% comment %}Both destinations off = an invite with nowhere to go. Rendered only
+     when the personal copy is already off, and revealed by the work toggle.{% endcomment %}
+  {% if not personal_invites_on %}
+  <div class="alert alert-warning d-flex align-items-start gap-2 py-2 mb-3 d-none" id="calNoRecipients">
+    <i class="bi bi-person-x mt-1 flex-shrink-0"></i>
+    <div>
+      <div class="fw-medium">Shift invites are turned off for both your work and personal calendars.</div>
+      <div class="small">
+        Choose where you'd like to receive them by enabling invites for your work
+        email here, or for your personal calendar in
+        {% if onboarding %}Settings &rarr; Calendar{% else %}<a href="{% url 'core:settings' %}?tab=calendar">Settings &rarr; Calendar</a>{% endif %}.
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <div class="mb-3">
     <label for="id_address_onsite" class="form-label fw-medium mb-1">On-site location</label>
@@ -185,6 +217,16 @@
       r.addEventListener('change', syncChoice);
     });
     syncChoice();
+  }
+
+  // "Nobody would get this" warning: only rendered when the personal copy is
+  // already off, so it just follows the work-address toggle.
+  var calWork = document.getElementById('id_send_to_work');
+  var calNobody = document.getElementById('calNoRecipients');
+  if (calWork && calNobody) {
+    function syncNobody() { calNobody.classList.toggle('d-none', calWork.checked); }
+    calWork.addEventListener('change', syncNobody);
+    syncNobody();
   }
 })();
 </script>
