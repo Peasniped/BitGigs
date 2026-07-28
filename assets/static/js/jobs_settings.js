@@ -49,6 +49,8 @@
     failed: ["text-danger", "Failed"],
   };
 
+  const STALLED_NOTE = "Started long ago with no result — the scheduler may have stopped.";
+
   function applyHeartbeat(data) {
     show(root.querySelector('[data-beat="up"]'), data.alive);
     show(root.querySelector('[data-beat="down"]'), !data.alive);
@@ -107,7 +109,9 @@
     name.textContent = task.label;
 
     const status = document.createElement("td");
-    const [cls, label] = STATUS_BADGE[task.status] || ["text-body-secondary", task.status];
+    const [cls, label] = task.stalled
+      ? ["text-warning", "Stalled"]
+      : STATUS_BADGE[task.status] || ["text-body-secondary", task.status];
     const badge = document.createElement("span");
     badge.className = "badge-soft " + cls;
     badge.textContent = label;
@@ -120,8 +124,9 @@
     const details = document.createElement("td");
     const failed = task.status === "failed";
     details.className = failed ? "small text-danger" : "small text-body-secondary";
-    details.textContent = failed ? task.error : task.result || "";
+    details.textContent = failed ? task.error : task.stalled ? STALLED_NOTE : task.result || "";
     if (task.can_retry) details.appendChild(retryButton(task.id));
+    if (task.can_cancel) details.appendChild(cancelButton(task.id));
 
     tr.append(name, status, when, details);
     return tr;
@@ -139,6 +144,21 @@
     btn.dataset.retryTask = id;
     btn.title = "Run this task again — the only way to finish work whose shift is already gone";
     btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Retry';
+    wrap.appendChild(btn);
+    return wrap;
+  }
+
+  // The way out of a row nothing else can reach: pending/running rows belong to
+  // the scheduler, which can only hand them back while it is alive.
+  function cancelButton(id) {
+    const wrap = document.createElement("div");
+    wrap.className = "mt-1";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-outline-danger btn-sm py-0";
+    btn.dataset.cancelTask = id;
+    btn.title = "Give up on this task and mark it failed";
+    btn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel';
     wrap.appendChild(btn);
     return wrap;
   }
@@ -165,29 +185,45 @@
     setText(root.querySelector("[data-queue-more-count]"), data.hidden_count);
   }
 
-  // Retry posts a plain form so the redirect carries the usual flash message —
-  // the rows are rebuilt by every poll, so a listener bound to one would die.
-  root.addEventListener("click", function (event) {
-    const btn = event.target.closest("[data-retry-task]");
-    if (!btn || !root.dataset.retryUrl) return;
+  // Retry/Cancel post a plain form so the redirect carries the usual flash
+  // message — the rows are rebuilt by every poll, so a listener bound to one
+  // would die. Delegated from the root for the same reason.
+  function submitTaskAction(url, id, btn) {
     const token = root.querySelector('input[name="csrfmiddlewaretoken"]');
     if (!token) return;
     btn.disabled = true;
     const form = document.createElement("form");
     form.method = "post";
-    form.action = root.dataset.retryUrl;
+    form.action = url;
     form.hidden = true;
-    [["csrfmiddlewaretoken", token.value], ["id", btn.dataset.retryTask]].forEach(
-      function ([n, v]) {
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = n;
-        input.value = v;
-        form.appendChild(input);
-      }
-    );
+    [["csrfmiddlewaretoken", token.value], ["id", id]].forEach(function ([n, v]) {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = n;
+      input.value = v;
+      form.appendChild(input);
+    });
     document.body.appendChild(form);
     form.submit();
+  }
+
+  root.addEventListener("click", function (event) {
+    const retry = event.target.closest("[data-retry-task]");
+    if (retry && root.dataset.retryUrl) {
+      submitTaskAction(root.dataset.retryUrl, retry.dataset.retryTask, retry);
+      return;
+    }
+    const cancel = event.target.closest("[data-cancel-task]");
+    if (cancel && root.dataset.cancelUrl) {
+      // Cancelling is a decision about work that may still be in flight — and
+      // for an invite it marks the shift as not sent — so it is asked for.
+      if (!window.confirm(
+        "Give up on this task? It is marked failed, so you can retry it or clear " +
+        "it away. Anything waiting on it (a calendar invite, say) is recorded as " +
+        "not sent."
+      )) return;
+      submitTaskAction(root.dataset.cancelUrl, cancel.dataset.cancelTask, cancel);
+    }
   });
 
   function stop() {

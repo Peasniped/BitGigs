@@ -427,6 +427,88 @@ class TaskQueueTests(TestCase):
         )
 
 
+class StuckTaskTests(TestCase):
+    """The watchdog. A task is flipped to RUNNING *before* it runs, so a process
+    that dies mid-task leaves a row nothing can touch — not re-claimable, not
+    clearable, not retryable. These pin the two ways out of that."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("tester", password="pw")
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["onboarding_complete"] = True
+        session.save()
+        self.abandoned = []
+        tasks.register(
+            "demo.stuck",
+            on_abandon=lambda payload, reason: self.abandoned.append((payload, reason)),
+        )(lambda payload: None)
+        self.addCleanup(tasks._HANDLERS.pop, "demo.stuck", None)
+        self.addCleanup(tasks._ABANDON_HOOKS.pop, "demo.stuck", None)
+
+    def _running(self, *, age_seconds, task="demo.stuck", **payload):
+        started = timezone.now() - timedelta(seconds=age_seconds)
+        return ScheduledTask.objects.create(
+            task=task, payload=payload, status=ScheduledTask.RUNNING,
+            run_at=started, started_at=started,
+        )
+
+    def test_a_long_running_row_is_reaped_and_its_hook_fires(self):
+        row = self._running(age_seconds=services.task_timeout_seconds() + 60, uid="abc")
+        self.assertEqual(services.reap_stuck_tasks(), 1)
+        row.refresh_from_db()
+        self.assertEqual(row.status, ScheduledTask.FAILED)
+        self.assertIn("Timed out", row.last_error)
+        # The handler's own failure path never ran, so the owning app is told
+        # here instead — this is what stops a shift keeping an "invite sent"
+        # marker for a message nobody received.
+        self.assertEqual(len(self.abandoned), 1)
+        self.assertEqual(self.abandoned[0][0]["uid"], "abc")
+
+    def test_a_freshly_started_row_is_left_alone(self):
+        row = self._running(age_seconds=5)
+        self.assertEqual(services.reap_stuck_tasks(), 0)
+        row.refresh_from_db()
+        self.assertEqual(row.status, ScheduledTask.RUNNING)
+        self.assertEqual(self.abandoned, [])
+
+    def test_a_hook_that_raises_does_not_undo_the_reap(self):
+        tasks._ABANDON_HOOKS["demo.stuck"] = mock.Mock(side_effect=RuntimeError("x"))
+        row = self._running(age_seconds=services.task_timeout_seconds() + 60)
+        self.assertEqual(services.reap_stuck_tasks(), 1)
+        row.refresh_from_db()
+        self.assertEqual(row.status, ScheduledTask.FAILED)
+
+    def test_status_json_flags_a_stalled_row_but_never_reaps_it(self):
+        row = self._running(age_seconds=services.task_timeout_seconds() + 60)
+        active = self.client.get(reverse("scheduler:status")).json()["active"]
+        self.assertEqual([t["stalled"] for t in active], [True])
+        self.assertEqual([t["can_cancel"] for t in active], [True])
+        row.refresh_from_db()
+        self.assertEqual(row.status, ScheduledTask.RUNNING)  # a page load reaps nothing
+        self.assertEqual(self.abandoned, [])
+
+    def test_cancel_fails_a_pending_row_and_fires_the_hook(self):
+        row = tasks.enqueue("demo.stuck", {"uid": "abc"})
+        resp = self.client.post(reverse("scheduler:task-cancel"), {"id": row.pk})
+        self.assertRedirects(resp, reverse("core:settings") + "?tab=jobs")
+        row.refresh_from_db()
+        # Failed, not deleted: it stays as the visible record, retryable and
+        # clearable like any other failure.
+        self.assertEqual(row.status, ScheduledTask.FAILED)
+        self.assertIn("Cancelled", row.last_error)
+        self.assertEqual(len(self.abandoned), 1)
+
+    def test_cancel_ignores_an_already_finished_row(self):
+        row = ScheduledTask.objects.create(
+            task="demo.stuck", status=ScheduledTask.DONE, finished_at=timezone.now()
+        )
+        self.client.post(reverse("scheduler:task-cancel"), {"id": row.pk})
+        row.refresh_from_db()
+        self.assertEqual(row.status, ScheduledTask.DONE)
+        self.assertEqual(self.abandoned, [])
+
+
 class HeartbeatTests(TestCase):
     def test_beat_then_alive(self):
         SchedulerHeartbeat.beat()

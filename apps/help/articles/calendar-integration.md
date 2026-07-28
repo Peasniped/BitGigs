@@ -129,6 +129,11 @@ the 19th) the days after the 20th belong to the *next* period — they're greyed
 the grid, and they're offered when you move to that month. When there's nothing
 left to send, the button reads **All invites sent**.
 
+Pressing it doesn't send straight away — it opens a **summary of exactly what
+would go out**: each workplace, how many invites are brand new versus updates to
+one already in someone's calendar, and every address they'd reach. Nothing is
+sent until you confirm, so you can back out if a recipient looks wrong.
+
 ### When a shift changes after its invite went out
 
 Editing a shift does **not** silently re-send its invite — that would spam the
@@ -160,7 +165,15 @@ So:
 
 The whole system only cares about **today and future** shifts. A shift whose day
 has passed is left alone — it's never invited, re-sent, or cancelled (deleting an
-old shift sends nothing).
+old shift sends nothing). Open yesterday's shift and it says so instead of
+offering a Send button; there's nobody to invite to a shift that already
+happened.
+
+An invite also needs **somewhere to go**. If a contract has its work address
+switched off *and* **Send invites to personal calendar** is off, that contract is
+armed at nobody — those shifts get no invite control, and if no contract can
+reach anyone the month's **Send invites** button doesn't appear at all. Turning
+either destination on brings it straight back.
 
 ### When a send fails
 
@@ -227,6 +240,25 @@ retrying — it only says you've seen it.
 
 Since a refused withdrawal is a refused e-mail like any other, it also shows up in
 the **Email activity log** and raises the red banner on your dashboard.
+
+#### When a task gets stuck
+
+A task is marked *Running* the moment the scheduler picks it up. If that process
+then stops — a restart, a crash, a machine reboot — the row is left saying
+**Running** for something that isn't running at all.
+
+BitGigs sorts this out by itself: once a task has sat there far longer than any
+real send would take, the next scheduler to start marks it **failed** with a
+timeout, and whatever was waiting on it is put right (an invite that never left
+the building goes back to *not sent*, so the month's **Send invites** button
+offers it again). The row shows as **Stalled** in the meantime.
+
+That clean-up needs a scheduler running to do it, though — and "no scheduler" is
+exactly the situation that strands a task. So any row still waiting or running
+carries a **Cancel** button on **Settings → Jobs**: pressing it gives up on that
+task and records it as failed, which puts **Retry** and **Clear failed** back
+within reach. Cancelling doesn't stop a send already in flight, so use it for a
+row that's plainly gone nowhere.
 
 ### Changing a work or personal e-mail
 

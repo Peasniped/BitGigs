@@ -34,9 +34,16 @@ from typing import Callable, Optional
 _HANDLERS: dict[str, Callable[[dict], object]] = {}
 _TITLES: dict[str, str] = {}
 _CLEAR_HOOKS: dict[str, Callable[[dict], object]] = {}
+_ABANDON_HOOKS: dict[str, Callable[[dict, str], object]] = {}
 
 
-def register(task_id: str, *, title: str = "", on_clear: Callable[[dict], object] | None = None):
+def register(
+    task_id: str,
+    *,
+    title: str = "",
+    on_clear: Callable[[dict], object] | None = None,
+    on_abandon: Callable[[dict, str], object] | None = None,
+):
     """Decorator: bind *task_id* to the handler it decorates.
 
     *on_clear* is called with the payload when a **failed** row for this task is
@@ -44,6 +51,12 @@ def register(task_id: str, *, title: str = "", on_clear: Callable[[dict], object
     something didn't happen, so clearing it doubles as acknowledging it — this is
     the hook that lets the owning app act on that (see calendar_sync.tasks) while
     the scheduler core keeps importing no feature app.
+
+    *on_abandon* is the same idea for a row that is failed **without its handler
+    ever finishing** — reaped by the watchdog, or cancelled by hand. The handler's
+    own failure path (which is where an app normally records "this didn't send")
+    never ran, so without this hook the app is left believing the work is still
+    in flight. It takes ``(payload, reason)``.
     """
     def decorator(func: Callable[[dict], object]) -> Callable[[dict], object]:
         _HANDLERS[task_id] = func
@@ -51,6 +64,8 @@ def register(task_id: str, *, title: str = "", on_clear: Callable[[dict], object
             _TITLES[task_id] = title
         if on_clear:
             _CLEAR_HOOKS[task_id] = on_clear
+        if on_abandon:
+            _ABANDON_HOOKS[task_id] = on_abandon
         return func
     return decorator
 
@@ -79,6 +94,22 @@ def run_clear_hooks(rows, *, log=None) -> None:
             hook(row.payload or {})
         except Exception:  # noqa: BLE001 — housekeeping never breaks the page
             log.exception("on_clear hook for task %r failed", row.task)
+
+
+def run_abandon_hooks(rows, reason: str, *, log=None) -> None:
+    """Fire each abandoned row's ``on_abandon`` hook. Never raises — the row is
+    already marked failed, and a hook's opinion of that must not undo it."""
+    import logging
+
+    log = log or logging.getLogger(__name__)
+    for row in rows:
+        hook = _ABANDON_HOOKS.get(row.task)
+        if hook is None:
+            continue
+        try:
+            hook(row.payload or {}, reason)
+        except Exception:  # noqa: BLE001 — see run_clear_hooks
+            log.exception("on_abandon hook for task %r failed", row.task)
 
 
 def registered_ids() -> set[str]:

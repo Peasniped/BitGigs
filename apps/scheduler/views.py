@@ -35,9 +35,10 @@ def _when(dt) -> str:
     return date_filter(dt, "j M, H:i") or ""
 
 
-def _task_payload(task: ScheduledTask) -> dict:
+def _task_payload(task: ScheduledTask, *, stalled_ids: set[int] | None = None) -> dict:
     from . import tasks as task_registry
 
+    unfinished = task.status in (ScheduledTask.PENDING, ScheduledTask.RUNNING)
     return {
         "id": task.pk,
         "task": task.task,
@@ -54,6 +55,14 @@ def _task_payload(task: ScheduledTask) -> dict:
             task.status == ScheduledTask.FAILED
             and task_registry.get_handler(task.task) is not None
         ),
+        # Running well past the timeout: the watchdog will reap it, but only once
+        # a scheduler is up to do the reaping — which is exactly when it isn't.
+        # Saying so is what turns "why has this said Running for an hour?" into a
+        # button worth pressing.
+        "stalled": bool(stalled_ids and task.pk in stalled_ids),
+        # Pending/running rows are the scheduler's, but it can only give them back
+        # while it's alive; Cancel is the way out when it isn't.
+        "can_cancel": unfinished,
     }
 
 
@@ -71,6 +80,8 @@ def _job_payload(job: ScheduledJob) -> dict:
 
 def scheduler_status() -> dict:
     """Everything the Jobs tab shows that can change on its own."""
+    from . import services
+
     finished = ScheduledTask.objects.filter(
         status__in=[ScheduledTask.DONE, ScheduledTask.FAILED]
     )
@@ -83,6 +94,10 @@ def scheduler_status() -> dict:
                 status__in=[ScheduledTask.PENDING, ScheduledTask.RUNNING]
             ).order_by("run_at", "id")
         ),
+        # Read-only: the tab reports stalled rows, it never reaps them. Reaping is
+        # the scheduler's job (a view that wrote here would fire on_abandon hooks
+        # from a page load), and the Cancel button is the answer when it's down.
+        "stalled_ids": set(services.stuck_tasks().values_list("pk", flat=True)),
         "recent_tasks": list(finished.order_by("-finished_at", "-id")[:RECENT_TASK_LIMIT]),
         "done_count": finished.filter(status=ScheduledTask.DONE).count(),
         "failed_count": finished.filter(status=ScheduledTask.FAILED).count(),
@@ -95,6 +110,10 @@ def scheduler_status() -> dict:
 def jobs_settings_context():
     """Context for the Settings → Jobs tab (called by core.UserSettingsView)."""
     status = scheduler_status()
+    # The first paint reads the same flag the poll's JSON carries, so a stalled
+    # row doesn't wait for the first poll to be labelled one.
+    for task in status["active_tasks"]:
+        task.stalled = task.pk in status["stalled_ids"]
     return {
         "scheduled_jobs": list(ScheduledJob.objects.all()),
         "scheduler_alive": status["alive"],
@@ -116,7 +135,10 @@ class SchedulerStatusView(View):
             {
                 "alive": status["alive"],
                 "seconds_since": status["seconds_since"],
-                "active": [_task_payload(t) for t in status["active_tasks"]],
+                "active": [
+                    _task_payload(t, stalled_ids=status["stalled_ids"])
+                    for t in status["active_tasks"]
+                ],
                 "recent": [_task_payload(t) for t in status["recent_tasks"]],
                 "done_count": status["done_count"],
                 "failed_count": status["failed_count"],
@@ -194,6 +216,44 @@ class TaskRetryView(View):
                 f"“{label}” queued to run again, but the scheduler isn't running, "
                 "so it won't go until it starts.",
             )
+        return _back_to_tab()
+
+
+class TaskCancelView(View):
+    """Give up on one **pending or running** queue row.
+
+    The watchdog reaps a run the scheduler died holding — but only once a
+    scheduler is up again to do the reaping, and "the scheduler isn't running" is
+    the very situation that strands a row in the first place. This is the manual
+    way out of it, and the only one available while the process is down.
+
+    The row is marked **failed**, not deleted, for the same reason a rejected send
+    is: it is the visible record that the work didn't happen, it can be retried,
+    and clearing it later fires the ordinary ``on_clear`` acknowledgement. Its
+    ``on_abandon`` hook fires now, because the handler's own failure path never
+    ran — for a calendar invite that's what stops the shift keeping an "invite
+    sent" marker for a message nobody received.
+    """
+
+    def post(self, request):
+        from django.utils import timezone
+
+        from . import tasks
+
+        task = ScheduledTask.objects.filter(
+            pk=parse_int_param(request.POST.get("id")),
+            status__in=[ScheduledTask.PENDING, ScheduledTask.RUNNING],
+        ).first()
+        if task is None:
+            messages.info(request, "That task is no longer waiting to run.")
+            return _back_to_tab()
+
+        reason = "Cancelled from Settings → Jobs."
+        ScheduledTask.objects.filter(pk=task.pk).update(
+            status=ScheduledTask.FAILED, finished_at=timezone.now(), last_error=reason
+        )
+        tasks.run_abandon_hooks([task], reason)
+        messages.success(request, f"“{task.label}” cancelled.")
         return _back_to_tab()
 
 

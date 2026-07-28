@@ -8,7 +8,8 @@
   builds mirror the markup below, so keep the two in step.
 {% endcomment %}
 <div data-jobs-settings data-status-url="{% url 'scheduler:status' %}"
-     data-retry-url="{% url 'scheduler:task-retry' %}">
+     data-retry-url="{% url 'scheduler:task-retry' %}"
+     data-cancel-url="{% url 'scheduler:task-cancel' %}">
 
   {% comment %} ── Scheduler process (watchdog) ─────────────────────────────── {% endcomment %}
   <div class="card settings-pane mb-3">
@@ -153,7 +154,10 @@
             invite, for instance. Nothing retries by itself (a re-sent invite would
             land twice), so a failed row waits here until you press
             <strong>Retry</strong> or clear it. Rows disappear on their own once the
-            queue is long enough; clear them here to tidy up sooner.
+            queue is long enough; clear them here to tidy up sooner. A row that is
+            still waiting can be given up on with <strong>Cancel</strong>; one left
+            <em>Running</em> by a scheduler that stopped is marked failed on its own
+            once the scheduler is back.
           </p>
         </div>
         <div class="d-flex gap-2">
@@ -189,11 +193,21 @@
             <tr>
               <td class="small" title="{{ t.task }}">{{ t.label }}</td>
               <td>
-                {% if t.status == 'running' %}<span class="badge-soft text-info">Running</span>
+                {% if t.stalled %}<span class="badge-soft text-warning">Stalled</span>
+                {% elif t.status == 'running' %}<span class="badge-soft text-info">Running</span>
                 {% else %}<span class="badge-soft text-warning">Queued</span>{% endif %}
               </td>
               <td class="small text-body-secondary">{{ t.run_at|date:"j M, H:i" }}</td>
-              <td class="small text-body-secondary"></td>
+              <td class="small text-body-secondary">
+                {% if t.stalled %}Started long ago with no result — the scheduler may have stopped.{% endif %}
+                <div class="mt-1">
+                  <button type="button" class="btn btn-outline-danger btn-sm py-0"
+                          data-cancel-task="{{ t.pk }}"
+                          title="Give up on this task and mark it failed">
+                    <i class="bi bi-x-circle me-1"></i>Cancel
+                  </button>
+                </div>
+              </td>
             </tr>
             {% endfor %}
             {% for t in scheduler_recent_tasks %}

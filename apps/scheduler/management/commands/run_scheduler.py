@@ -61,6 +61,7 @@ class Command(BaseCommand):
 
         if options["once"]:
             SchedulerHeartbeat.beat()
+            services.reap_stuck_tasks(log=logger)
             jobs = services.run_due(log=logger)
             tasks = services.run_pending_tasks(log=logger)
             self.stdout.write(self.style.SUCCESS(
@@ -86,6 +87,9 @@ class Command(BaseCommand):
         while not self._stop.is_set():
             try:
                 SchedulerHeartbeat.beat()
+                # First: release rows a previous process died holding, so a crash
+                # can't leave work RUNNING for ever with nothing able to touch it.
+                services.reap_stuck_tasks(log=logger)
                 services.run_due(log=logger)
                 services.run_pending_tasks(log=logger)
             except Exception:  # a bug in the engine must not kill the loop

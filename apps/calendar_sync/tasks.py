@@ -42,7 +42,27 @@ def clear_invite_failure(payload: dict) -> None:
         invites.clear_send_failure([uid])
 
 
-@register(SEND_INVITE_MAIL, title="Send calendar invite", on_clear=clear_invite_failure)
+def abandon_invite_mail(payload: dict, reason: str) -> None:
+    """The send never ran to a conclusion — the scheduler died holding it, or
+    somebody cancelled the row.
+
+    ``run_send_invite_mail`` records the outcome itself, so an abandoned row is
+    precisely the case nothing recorded: without this the shift would keep its
+    "invite sent" marker for a message that never left the building. Marking it
+    failed puts it back where a rejected send would: visibly out, re-sendable
+    from the shift and counted by the month's Send invites sweep.
+    """
+    from . import invites
+
+    invites.mark_send_failed(payload, reason)
+
+
+@register(
+    SEND_INVITE_MAIL,
+    title="Send calendar invite",
+    on_clear=clear_invite_failure,
+    on_abandon=abandon_invite_mail,
+)
 def run_send_invite_mail(payload: dict) -> str:
     """Perform one deferred invite send (see invites._send_mail).
 

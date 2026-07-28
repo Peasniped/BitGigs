@@ -6,12 +6,16 @@ import logging
 from datetime import datetime, timedelta
 from time import monotonic
 
+from django.conf import settings as django_settings
+from django.db import models
 from django.utils import timezone
 
 from . import registry
 from .models import ScheduledJob, ScheduledTask
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_TASK_TIMEOUT = 600  # seconds; overridden by SCHEDULER_TASK_TIMEOUT_SECONDS
 
 
 def compute_next_run(job: ScheduledJob, after: datetime | None = None) -> datetime | None:
@@ -212,3 +216,63 @@ def run_pending_tasks(now: datetime | None = None, *, log=logger) -> list[str]:
     if ran:
         ScheduledTask.prune()
     return ran
+
+
+# ─── Stuck-task watchdog ─────────────────────────────────────────────────────
+#
+# A task is claimed by flipping PENDING → RUNNING *before* it runs, so if the
+# process dies mid-task (a crash, `docker stop`, a dev Ctrl+C) the row is left
+# RUNNING for ever: nothing re-claims it (claim_task only takes PENDING), the
+# queue's Clear buttons only touch finished rows, and Retry only offers itself on
+# a failed one. It sits in the table permanently and — worse — whatever queued it
+# still believes the work is in flight. The watchdog is what ends that: past a
+# generous timeout, a RUNNING row becomes FAILED like any other failure, which
+# puts Retry and Clear back within reach.
+
+def task_timeout_seconds() -> int:
+    return int(
+        getattr(django_settings, "SCHEDULER_TASK_TIMEOUT_SECONDS", DEFAULT_TASK_TIMEOUT)
+    )
+
+
+def stuck_tasks(now: datetime | None = None):
+    """RUNNING rows that have been running longer than the timeout.
+
+    ``started_at`` is stamped by ``claim_task``; a row somehow missing it falls
+    back to ``run_at`` so it can still be reaped rather than stay stuck for ever.
+    """
+    now = now or timezone.now()
+    cutoff = now - timedelta(seconds=task_timeout_seconds())
+    return ScheduledTask.objects.filter(status=ScheduledTask.RUNNING).filter(
+        models.Q(started_at__lte=cutoff)
+        | models.Q(started_at__isnull=True, run_at__lte=cutoff)
+    )
+
+
+def reap_stuck_tasks(now: datetime | None = None, *, log=logger) -> int:
+    """Mark timed-out RUNNING rows as failed. Returns how many were reaped.
+
+    Each row's ``on_abandon`` hook then fires, because the handler's own failure
+    path never got to run — for a calendar invite that's what stops the shift
+    wearing an "invite sent" marker nobody ever received.
+
+    The reap can't *stop* a run that is genuinely still going; if that process
+    later finishes it overwrites the row with its real outcome, which is the
+    honest answer either way.
+    """
+    from . import tasks as task_registry
+
+    now = now or timezone.now()
+    rows = list(stuck_tasks(now))
+    if not rows:
+        return 0
+
+    minutes = task_timeout_seconds() // 60
+    reason = f"Timed out — no result after {minutes} minute(s); the scheduler may have restarted."
+    ScheduledTask.objects.filter(pk__in=[r.pk for r in rows]).update(
+        status=ScheduledTask.FAILED, finished_at=now, last_error=reason
+    )
+    for row in rows:
+        log.warning("Reaped stuck task %r (#%d) — %s", row.task, row.pk, reason)
+    task_registry.run_abandon_hooks(rows, reason, log=log)
+    return len(rows)
