@@ -216,6 +216,14 @@ class UserSettingsView(View):
             **(api_settings_context(request) if tab == "api" else {}),
             **(about_context(request) if tab == "about" else {}),
         }
+        if tab == "features":
+            from . import features as feature_registry
+
+            # The registry drives the pane, so a new feature needs no template
+            # edit — each entry is paired with its bound form field here.
+            ctx["feature_rows"] = [
+                {"feature": f, "field": form[f.setting]} for f in feature_registry.FEATURES
+            ]
         if tab == "jobs":
             from scheduler.views import jobs_settings_context
             ctx.update(jobs_settings_context())
@@ -243,7 +251,7 @@ class UserSettingsView(View):
         next_url = _safe_next(request, request.POST.get("next"))
         if form.is_valid():
             form.save()
-            label = {"display": "Display", "analytics": "Analytics"}.get(tab, "Settings")
+            label = {"display": "Display", "features": "Feature"}.get(tab, "Settings")
             messages.success(request, f"{label} settings saved.")
             return redirect(next_url or f"{reverse('core:settings')}?tab={tab}")
         return render(request, "core/settings.html",
@@ -269,7 +277,7 @@ class SetThemeView(View):
 # set is wider than UserSettingsForm.TABS. Sign-in is offered even without an IdP
 # configured — that is where the password lives, and where we explain how to turn
 # SSO on.
-SETTINGS_TABS = ("display", "analytics", "email", "calendar", "api", "jobs", "signin", "about")
+SETTINGS_TABS = ("display", "features", "email", "calendar", "api", "jobs", "signin", "about")
 
 
 def active_settings_tab(raw):

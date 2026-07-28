@@ -198,6 +198,28 @@ class UserSettings(models.Model):
                   "instead of the trailing-average projection.",
     )
 
+    # ── Optional features (Settings → Features; see core/features.py) ────────
+    # Default True throughout: an upgrade must never hide a page the owner was
+    # already using. Turning one off hides its nav entry *and* blocks its URLs
+    # (FeatureEnabledMiddleware) — but touches no data, so it is always
+    # reversible.
+    feature_payroll = models.BooleanField(
+        default=True,
+        help_text="Payroll periods and the payslip editor.",
+    )
+    feature_vacation = models.BooleanField(
+        default=True,
+        help_text="The vacation / feriepenge overview.",
+    )
+    feature_commuting = models.BooleanField(
+        default=True,
+        help_text="Commuting days for the transport deduction.",
+    )
+    feature_analytics = models.BooleanField(
+        default=True,
+        help_text="Income projection and rate history.",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

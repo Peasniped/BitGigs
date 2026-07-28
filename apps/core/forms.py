@@ -5,6 +5,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.core.validators import validate_email
 
+from . import features
 from .models import EmailSettings, MailConnection, TaxProfile, UserSettings
 
 
@@ -288,12 +289,19 @@ class UserSettingsForm(forms.ModelForm):
     partial POST comes back."""
 
     # Tab slug → the fields that tab owns. Order here is the render order.
+    #
+    # The **Features** tab owns both the on/off switches *and* the settings that
+    # belong to the features themselves: the projection settings sit under the
+    # Analytics switch rather than in a tab of their own, which is what keeps a
+    # feature's "should I have this?" and "how should it behave?" in one place
+    # instead of growing a second row of tabs.
     TABS = {
         "display": ["show_shift_type_colors", "show_help_button",
                     "mask_money", "week_start",
                     "theme", "accent_color", "secondary_color"],
-        "analytics": ["projection_method", "projection_trailing_months",
-                      "use_planned_shifts"],
+        "features": list(features.SETTING_FIELDS) + [
+            "projection_method", "projection_trailing_months", "use_planned_shifts",
+        ],
     }
 
     class Meta:
@@ -309,6 +317,7 @@ class UserSettingsForm(forms.ModelForm):
             "projection_method",
             "projection_trailing_months",
             "use_planned_shifts",
+            *features.SETTING_FIELDS,
         ]
         widgets = {
             # Driven by the swatch/wheel picker in settings.html (settings.js);

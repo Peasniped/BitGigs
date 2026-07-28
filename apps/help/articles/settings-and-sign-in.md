@@ -1,12 +1,12 @@
 ---
 title: Settings & sign-in
 slug: settings-and-sign-in
-summary: Display preferences and how you sign in to BitGigs.
+summary: Display preferences, switching features on and off, and how you sign in to BitGigs.
 parent:
 audience: everyone
 order: 70
 published: true
-keywords: [settings, preferences, password, sso, oidc, authentik, sign in, theme, dark mode, accent, colour, color]
+keywords: [settings, preferences, password, sso, oidc, authentik, sign in, theme, dark mode, accent, colour, color, features, turn off, hide, disable, payroll, vacation, commuting, analytics]
 pages: [core:settings]
 ---
 ## Display preferences
@@ -22,8 +22,37 @@ pages: [core:settings]
   page previews the colour live, and **Save** makes it stick. *Reset to
   default* returns to BitGigs indigo. (Charts keep their fixed
   actual/planned/projected colours so their meaning never changes.)
-- **Use planned shifts** — let analytics project future months from your
-  planned shifts (on by default).
+
+## Features
+
+BitGigs covers more ground than most people need. The **Features** tab is where
+you switch off the parts you don't use — each one gets a card with a switch and a
+plain description of what goes away:
+
+- **Payroll periods** — generated periods and the payslip editor.
+- **Vacation & feriepenge** — the holiday-pay overview.
+- **Commuting** — commuting days for the transport deduction.
+- **Analytics** — income projection and rate history.
+
+Switching one off does two things: its menu entry disappears, and its pages stop
+opening. That second part matters — a bookmark or an old link would otherwise
+still walk you into a page you'd turned off. If you follow one anyway, BitGigs
+takes you to the dashboard and says which feature is off.
+
+**Nothing is deleted.** A switch only changes what you can *reach*; your shifts,
+payslip lines and commuting days stay exactly where they are, and turning it back
+on brings the pages back unchanged. So there's no risk in trying it.
+
+A feature that has settings of its own keeps them here, on its own card, so its
+on/off switch and its behaviour sit together:
+
+- **Projection method** and **trailing months** — how Analytics estimates future
+  hours from your history.
+- **Use planned shifts** — let Analytics use your planned shifts for a future
+  month instead of the trailing average (on by default).
+
+Those fold away when Analytics is switched off, but they're remembered — turn it
+back on and it's configured exactly as you left it.
 
 ## Sign-in
 

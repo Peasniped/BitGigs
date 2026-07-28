@@ -21,9 +21,9 @@
         </a>
       </li>
       <li class="nav-item">
-        <a class="nav-link{% if active_tab == 'analytics' %} active{% endif %}"
-           href="?tab=analytics{% if next_url %}&next={{ next_url|urlencode }}{% endif %}">
-          <i class="bi bi-graph-up me-1"></i>Analytics
+        <a class="nav-link{% if active_tab == 'features' %} active{% endif %}"
+           href="?tab=features{% if next_url %}&next={{ next_url|urlencode }}{% endif %}">
+          <i class="bi bi-toggles me-1"></i>Features
         </a>
       </li>
       <li class="nav-item">
@@ -693,10 +693,58 @@ OIDC_CLIENT_SECRET=</code></pre>
           {{ form.accent_color }}
           {{ form.secondary_color }}
           {% else %}
-          {# Analytics tab: the boolean renders as an on/off switch too. #}
-          {{ form.projection_method|as_crispy_field }}
-          {{ form.projection_trailing_months|as_crispy_field }}
-          {% include "_switch_field.html" with field=form.use_planned_shifts %}
+          {% comment %}
+            Features tab. One card per registry entry (core/features.py), so a new
+            feature needs no edit here. Each card carries the switch and, for a
+            feature that owns settings, those settings nested underneath — which
+            is the point of this tab: a feature's "do I want this?" and "how
+            should it behave?" in one place, rather than a second row of tabs.
+          {% endcomment %}
+          <p class="form-text mt-0 mb-3">
+            Switch off the parts of BitGigs you don't use. The menu entries go and
+            the pages stop opening &mdash; <strong>nothing is deleted</strong>, so
+            turning one back on restores everything exactly as it was.
+          </p>
+
+          {% for row in feature_rows %}
+          <div class="feature-card mb-3" data-feature="{{ row.feature.key }}">
+            <div class="d-flex align-items-start gap-3">
+              <i class="bi {{ row.feature.icon }} feature-card__icon"></i>
+              <div class="flex-grow-1">
+                <div class="form-check form-switch mb-1">
+                  <input type="checkbox" class="form-check-input" role="switch"
+                         name="{{ row.field.html_name }}" id="{{ row.field.id_for_label }}"
+                         {% if row.field.value %}checked{% endif %}>
+                  <label class="form-check-label fw-medium" for="{{ row.field.id_for_label }}">
+                    {{ row.feature.label }}
+                  </label>
+                </div>
+                <div class="form-text mt-0">{{ row.feature.description }}</div>
+                {% if row.feature.extras %}
+                <div class="form-text mt-1 text-body-secondary">
+                  Switching off also hides:
+                  {% for extra in row.feature.extras %}{{ extra }}{% if not forloop.last %}; {% endif %}{% endfor %}.
+                </div>
+                {% endif %}
+                {% for err in row.field.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+
+                {% comment %}
+                  A feature's own settings, revealed with it. Hidden (not removed)
+                  when the switch is off, so the fields still post and their stored
+                  values survive a save with the feature turned off.
+                {% endcomment %}
+                {% if row.feature.key == 'analytics' %}
+                <div class="feature-card__settings mt-3{% if not row.field.value %} d-none{% endif %}"
+                     data-feature-settings>
+                  {{ form.projection_method|as_crispy_field }}
+                  {{ form.projection_trailing_months|as_crispy_field }}
+                  {% include "_switch_field.html" with field=form.use_planned_shifts wrapper_class="mb-0" %}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
           {% endif %}
           <div class="d-flex gap-2 mt-3">
             <button type="submit" class="btn btn-primary">

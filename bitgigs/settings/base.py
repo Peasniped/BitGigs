@@ -109,6 +109,9 @@ MIDDLEWARE = [
     # @login_not_required (the contrib auth views already are).
     "django.contrib.auth.middleware.LoginRequiredMiddleware",
     "core.middleware.OnboardingRequiredMiddleware",
+    # Makes the Settings → Features switches mean it: a feature that is off
+    # doesn't just lose its nav entry, its URLs stop answering.
+    "core.middleware.FeatureEnabledMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
@@ -208,6 +211,13 @@ SCHEDULER_TICK_SECONDS = 10
 # the "always eager" switch, for tests that assert a queued send's effect. Off
 # everywhere real; a test flips it on with @override_settings.
 SCHEDULER_TASK_EAGER = False
+
+# How long a one-off task may sit in RUNNING before the watchdog calls it dead
+# and marks it failed. A task is flipped to RUNNING *before* it runs, so a crash
+# mid-task would otherwise leave the row stuck there for ever — nothing re-claims
+# it and the queue's Clear/Retry controls only reach finished rows. Generous on
+# purpose: the point is to catch a dead process, not to time out slow SMTP.
+SCHEDULER_TASK_TIMEOUT_SECONDS = 600
 
 # ─── Outbound mail (optional, configured in-app) ─────────────────────────────
 # BitGigs keeps its SMTP configuration in the database (the EmailSettings

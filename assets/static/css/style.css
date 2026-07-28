@@ -2012,6 +2012,31 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
 .queue-table > :is(thead, tbody) > tr > :nth-child(2) { width: 6rem; }
 .queue-table > :is(thead, tbody) > tr > :nth-child(3) { width: 8.5rem; }
 .queue-table td { white-space: normal; overflow-wrap: anywhere; }
+/* Settings → Features. One card per optional feature: switch, what it covers,
+   and (for a feature that owns settings) those settings nested inside it, so a
+   feature's on/off and its behaviour read as one thing. A card off dims to say
+   so without hiding what it was. */
+.feature-card {
+  background: var(--bg-light);
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  padding: 0.9rem 1rem;
+  transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+.feature-card__icon {
+  font-size: 1.15rem;
+  color: var(--primary);
+  line-height: 1.6;
+}
+/* Off: faded, and the icon drops to a neutral so the accent only ever marks
+   what is actually switched on. */
+.feature-card.is-off { opacity: 0.72; }
+.feature-card.is-off .feature-card__icon { color: var(--text-subtle); }
+.feature-card__settings {
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
 /* "SSO not configured" panel — a tinted aside, so the reader can tell at a
    glance it is a status note rather than another setting to act on. */
 .settings-sso-off {

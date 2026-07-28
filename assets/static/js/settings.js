@@ -74,4 +74,20 @@
     check.addEventListener('change', apply);
     apply();
   })();
+
+  /* Settings → Features: a card dims when its switch goes off, and any settings
+   * it owns fold away with it. The panel is only *hidden*, never removed, so
+   * those fields still post — saving with a feature off must not wipe how it was
+   * configured, or turning it back on would lose the setup. */
+  document.querySelectorAll('[data-feature]').forEach(function (card) {
+    var input = card.querySelector('.form-check-input');
+    if (!input) return;
+    var panel = card.querySelector('[data-feature-settings]');
+    function apply() {
+      card.classList.toggle('is-off', !input.checked);
+      if (panel) panel.classList.toggle('d-none', !input.checked);
+    }
+    input.addEventListener('change', apply);
+    apply();
+  });
 })();

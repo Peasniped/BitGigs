@@ -271,6 +271,9 @@
 </div>
 
 <!-- Payslip editor shortcut -->
+{% comment %} Goes with the feature: the middleware would refuse this POST anyway,
+   so leaving the button here would just be a dead control. {% endcomment %}
+{% if features.payroll %}
 <div class="row g-3 mb-4">
   <div class="col-12">
     <div class="card">
@@ -289,6 +292,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 
 <!-- Contracts timeline + Current Terms sidebar -->
 <div class="row g-3 mb-4">

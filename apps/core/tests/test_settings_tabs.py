@@ -20,8 +20,11 @@ class SettingsTabsTest(TestCase):
         self.assertContains(resp, 'name="week_start"')
         self.assertNotContains(resp, 'name="projection_method"')
 
-    def test_analytics_tab_shows_only_its_own_fields(self):
-        resp = self.client.get("/settings/?tab=analytics")
+    def test_features_tab_shows_the_switches_and_the_analytics_settings(self):
+        """The projection settings moved here, under the Analytics switch — the
+        old Analytics tab is gone."""
+        resp = self.client.get("/settings/?tab=features")
+        self.assertContains(resp, 'name="feature_payroll"')
         self.assertContains(resp, 'name="projection_method"')
         self.assertNotContains(resp, 'name="week_start"')
 

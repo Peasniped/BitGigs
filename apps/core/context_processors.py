@@ -23,11 +23,13 @@ def display_settings(request):
     """Expose global display preferences (from the ``UserSettings`` singleton):
     ``show_shift_type_colors`` (chips coloured by shift type),
     ``show_help_button`` (the floating help button on every page),
+    ``features`` (the Settings → Features on/off map),
     ``theme`` (light/dark/auto — base.html turns it into ``data-bs-theme``)
     and the accent/secondary colours (base.html overrides ``--primary``/
     ``--primary-rgb``/``--secondary`` inline on <html>, each independently,
     whenever it differs from its default — every other colour derives from
     those tokens)."""
+    from . import features as feature_registry
     from .constants import DEFAULT_ACCENT, DEFAULT_SECONDARY
     from .models import UserSettings
     from .utils import hex_to_rgb_str
@@ -36,6 +38,10 @@ def display_settings(request):
     accent = (settings.accent_color or DEFAULT_ACCENT).lower()
     secondary = (settings.secondary_color or DEFAULT_SECONDARY).lower()
     return {
+        # {feature key: on?} — base.html hides the nav entries of anything off.
+        # Same singleton read the middleware uses, so the menu can't offer a link
+        # the URL guard would then refuse.
+        "features": feature_registry.enabled_map(settings),
         "show_shift_type_colors": settings.show_shift_type_colors,
         "show_help_button": settings.show_help_button,
         "mask_money": settings.mask_money,

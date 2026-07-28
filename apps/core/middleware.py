@@ -64,3 +64,47 @@ class OnboardingRequiredMiddleware:
 
         # Onboarding still in progress → into the wizard.
         return redirect(reverse("core:onboarding"))
+
+
+class FeatureEnabledMiddleware:
+    """Refuse the URLs of a feature switched off on Settings → Features.
+
+    Hiding the nav entry is not the same as turning something off: a bookmark, a
+    link in a help article or the browser's own history would still walk straight
+    into a page the owner has disabled. This is what makes the switch mean it.
+
+    Implemented as ``process_view`` rather than ``__call__`` because it matches on
+    the resolved **view name** (``payroll:vacation-overview``) — three features
+    share the ``payroll:`` namespace, so a path or namespace test would switch off
+    all three at once. Anonymous requests are left to the login gate, and the
+    admin is deliberately never gated: it is the escape hatch.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        return self.get_response(request)
+
+    def process_view(self, request, view_func, view_args, view_kwargs):
+        from django.contrib import messages
+
+        from core import features
+
+        if not request.user.is_authenticated:
+            return None
+        match = request.resolver_match
+        if match is None or request.path.startswith("/admin/"):
+            return None
+
+        blocked = features.blocked_feature(match.view_name)
+        if blocked is None:
+            return None
+        # Say *why* and where to undo it — a bare redirect to the dashboard reads
+        # as a broken link rather than as a setting doing its job.
+        messages.info(
+            request,
+            f"“{blocked.label}” is switched off. You can turn it back on under "
+            "Settings → Features.",
+        )
+        return redirect(reverse("core:dashboard"))

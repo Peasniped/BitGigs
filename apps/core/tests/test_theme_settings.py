@@ -143,7 +143,7 @@ class SettingsFormTest(LoggedInTestCase):
     def test_accent_picker_only_on_display_tab(self):
         response = self.client.get(reverse("core:settings") + "?tab=display")
         self.assertContains(response, "data-accent-picker")
-        response = self.client.get(reverse("core:settings") + "?tab=analytics")
+        response = self.client.get(reverse("core:settings") + "?tab=features")
         self.assertNotContains(response, "data-accent-picker")
 
 

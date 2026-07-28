@@ -2,18 +2,10 @@
 # NU     --------------------------------------------------------
 
 
-- Custom modal for send invites
-- A way to remove a stuck task from the queue (or do it yourself with a watchdog and timeout->failed)
-
-## Features-page
-- Allows the user to easily turn on/off or hide/unhide functionality such as Payroll, Vacation, Commuting, Analytics etc.
-- This would also be a good place to have feature settings, such as the analytics settings, without overrunning the settings page with a second row of tabs in order to fit everything.
-
-
 ## Polish
 - When editing a workplace contract from Settings>Calendar, it should return you back there, when clicking save or cancel.
 - Add a bit more space between Send invites to personal calendar and the email input field, and change the input field border to primary accent.
-- In settings>calendar, there is a weird space between the sections for ingoing and outgoing calendar. I think it should just be a horizontal line
+- In settings>calendar, there is a weird space between the sections for ingoing and outgoing calendar. I think you said in a previous setting that it is because the settings pane class should only be used for the upper pane (needs flat top to work well with the tabs) It is fixed in Settings > Email. -- Please update claude.md conventions so no new settings panes are created with wrong classes.
 - Can you show the color coding/iconography of shift types when creating/editing/approving a planned/approved shift?
 - Add a bit more padding to all the settings-page.
 usa- make a bit more spacing between items on the calendar, currently I have two overlapping events and the extra amber border makes them almost touch, making it look kind of strange.
