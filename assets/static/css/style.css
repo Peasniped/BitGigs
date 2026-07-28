@@ -959,6 +959,20 @@ body[data-mask-money] .money-chart {
   box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--info) 75%, transparent);
 }
 
+/* The shift changed after its invite went out, so what the recipients hold is
+   wrong until it's re-sent. Warning-toned rather than the settled blue; declared
+   after --invited so it wins the ring (the amber overlap ring still beats both —
+   it uses !important). */
+.shift-chip--invite-stale {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--warning) 65%, transparent);
+}
+.shift-chip__invited--stale { color: var(--warning-strong); }
+/* Re-stated at the dark selector's specificity, or the --invited blue above wins. */
+[data-bs-theme="dark"] .shift-chip__invited--stale { color: var(--warning-strong); }
+[data-bs-theme="dark"] .shift-chip--invite-stale {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--warning) 85%, transparent);
+}
+
 /* Optional shift-type visualization (on by default; toggle in Settings) — a
    solid colour band on the right edge of the chip, coloured by a per-type var. */
 .shift-chip--type-on_site      { --chip-type: #00c853; }

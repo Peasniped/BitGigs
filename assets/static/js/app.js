@@ -1252,3 +1252,133 @@ function getCsrfToken() {
     return cookie ? cookie.split('=')[1] : '';
 }
 
+
+/* =========================================================================
+ *  Calendar-invite re-send prompt (#inviteResendModal, in _edit_shift_modal.html)
+ *
+ *  Shown after a save that returned invite_stale: the shift changed in a way the
+ *  already-sent invite doesn't reflect. Invites are never re-sent silently (that
+ *  spammed the recipient on every nudge while planning a month), so this is the
+ *  ask — and declining is safe, the shift keeps its out-of-date marker.
+ *
+ *  Lives here, not in planning.js / edit_shift_modal.js, because both drive it
+ *  and both had their own copy. Calls *done* exactly once, whichever way it goes.
+ * =========================================================================*/
+
+/** Run *cb* once no Bootstrap modal is on screen — ours must not stack on the
+ *  shift modal that is still animating out (Bootstrap puts the second dialog
+ *  behind the backdrop and locks the page). Waits for one close; if something is
+ *  still open after that (the approve flows re-show their parent), falls back to
+ *  the native confirm rather than rendering a dead modal. */
+function whenModalsClosed(cb, onBlocked) {
+    var open = document.querySelector('.modal.show');
+    if (!open) { cb(); return; }
+    open.addEventListener('hidden.bs.modal', function () {
+        // Let a re-showing parent claim the screen before we look again.
+        setTimeout(function () {
+            if (document.querySelector('.modal.show')) onBlocked();
+            else cb();
+        }, 0);
+    }, { once: true });
+}
+
+function offerInviteResend(shift, done) {
+    done = done || function () {};
+    var el = document.getElementById('inviteResendModal');
+    var url = (document.getElementById('shiftModal') || {}).dataset;
+    url = url ? url.shiftInviteUrl : '';
+    if (!shift || !shift.invite_stale || !url) { done(); return; }
+
+    var CONFIRM_TEXT = 'A calendar invite is already out for this shift, and ' +
+        'your change affects what it says.\n\nRe-send the updated invite now?';
+
+    function send(after) {
+        fetch(url.replace('/0/', '/' + shift.id + '/'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({}),
+        }).then(function (r) { return r.json(); }).then(after).catch(function () {
+            after({ ok: false });
+        });
+    }
+
+    var finished = false;  // done() is called exactly once, whichever way this ends
+
+    function finish() {
+        if (finished) return;
+        finished = true;
+        done();
+    }
+
+    // No modal on the page (or it can't be shown) → the prompt still has to happen.
+    function fallback() {
+        if (!window.confirm(CONFIRM_TEXT)) { finish(); return; }
+        send(finish);
+    }
+    if (!el) { fallback(); return; }
+
+    var modal = bootstrap.Modal.getOrCreateInstance(el);
+    var btn = document.getElementById('resendConfirmBtn');
+    var label = document.getElementById('resendConfirmLabel');
+    var errors = document.getElementById('resendError');
+    var toRow = document.getElementById('resendToRow');
+
+    // ----- fill in what is about to be re-sent -----
+    var avatar = document.getElementById('resendAvatar');
+    avatar.style.background = shift.workplace_color || 'var(--primary)';
+    if (shift.workplace_custom_icon_url) {
+        avatar.innerHTML = '<img src="' + escapeHtml(shift.workplace_custom_icon_url) +
+            '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
+    } else if (shift.workplace_icon) {
+        avatar.innerHTML = '<i class="bi ' + escapeHtml(shift.workplace_icon) + '" style="font-size:0.6rem;"></i>';
+    } else {
+        avatar.textContent = shift.workplace_initials || '';
+    }
+    document.getElementById('resendWorkplace').textContent = shift.workplace_name || '';
+
+    var d = dateFromIso(shift.date);
+    var when = d
+        ? ADP_EN_LOCALE.days[d.getDay()] + ' ' + d.getDate() + ' ' +
+          ADP_EN_LOCALE.months[d.getMonth()] + ' ' + d.getFullYear()
+        : (shift.date || '');
+    document.getElementById('resendWhen').textContent =
+        when + ', ' + shift.start_time + '–' + shift.end_time;
+    document.getElementById('resendType').textContent = shift.shift_type_display || '';
+
+    var to = shift.invite_recipients || [];
+    document.getElementById('resendTo').textContent = to.join(', ');
+    toRow.classList.toggle('d-none', !to.length);
+
+    errors.classList.add('d-none');
+    btn.disabled = false;
+    label.textContent = 'Re-send invite';
+
+    btn.onclick = function () {
+        btn.disabled = true;
+        label.textContent = 'Sending…';
+        send(function (data) {
+            if (data && data.ok === false) {
+                errors.textContent = (data && data.error) || 'Could not re-send the invite.';
+                errors.classList.remove('d-none');
+                btn.disabled = false;
+                label.textContent = 'Re-send invite';
+                return;
+            }
+            modal.hide();  // hidden.bs.modal resolves the caller
+        });
+    };
+
+    whenModalsClosed(function () {
+        // Registered only once we're actually showing it — a listener attached on
+        // a path that never opens the dialog would sit there and fire (resolving
+        // the caller a second time) the next time it *is* opened.
+        // Any way out — button, X, Esc, backdrop — resolves the caller.
+        el.addEventListener('hidden.bs.modal', function () {
+            btn.onclick = null;
+            finish();
+        }, { once: true });
+        modal.show();
+    }, fallback);
+}
+window.offerInviteResend = offerInviteResend;
+

@@ -3,7 +3,7 @@
 {% load dk_filters %}
 
 {% if is_planned %}
-<div class="shift-chip shift-chip--planned{% if is_overlapping %} shift-chip--overlap{% endif %}{% if item.has_active_invite %} shift-chip--invited{% endif %}{% if show_shift_type_colors %} shift-chip--type-{{ item.shift_type }}{% endif %}"
+<div class="shift-chip shift-chip--planned{% if is_overlapping %} shift-chip--overlap{% endif %}{% if item.has_active_invite %} shift-chip--invited{% if item.invite_stale %} shift-chip--invite-stale{% endif %}{% endif %}{% if show_shift_type_colors %} shift-chip--type-{{ item.shift_type }}{% endif %}"
      {% if item.workplace.accent_color %}style="border-color:{{ item.workplace.accent_color }};"{% elif item.workplace.color %}style="border-color:{{ item.workplace.color }};"{% endif %}
      title="{% if is_overlapping %}⚠ Overlapping shift — {% endif %}[Planned] {{ item.workplace.name }}: {{ item.start_time|time:'H:i' }}-{{ item.end_time|time:'H:i' }} ({{ item.net_hours|dk }}h)"
      {% if draggable %}draggable="true" data-shift-id="{{ item.pk }}" data-workplace-id="{{ item.workplace_id }}"{% endif %}>
@@ -25,7 +25,7 @@
   <small class="shift-chip__hours">({{ item.net_hours|dk }}h)</small>
   {% if item.break_minutes %}<i class="bi bi-cup-hot shift-chip__break" title="Includes a break"></i>{% endif %}
   {# Invite marker before the type band so the edge-flush band stays at the far right (no overlap). #}
-  {% if item.has_active_invite %}<i class="bi bi-envelope-check shift-chip__invited" title="Calendar invite sent"></i>{% endif %}
+  {% if item.has_active_invite %}{% if item.invite_stale %}<i class="bi bi-envelope-exclamation shift-chip__invited shift-chip__invited--stale" title="Calendar invite is out of date — this shift changed after it was sent"></i>{% else %}<i class="bi bi-envelope-check shift-chip__invited" title="Calendar invite sent"></i>{% endif %}{% endif %}
   {% if show_shift_type_colors %}<span class="shift-chip__type" title="{{ item.get_shift_type_display }}">{% if item.shift_type == "sick_leave" %}<span class="shift-chip__sym shift-chip__sym--sick"></span>{% elif item.shift_type == "vacation" %}<span class="shift-chip__sym shift-chip__sym--vacation"></span>{% endif %}</span>{% endif %}
   {% if is_planned and draggable %}<i class="bi bi-pencil shift-chip__edit"></i>{% endif %}
 </div>

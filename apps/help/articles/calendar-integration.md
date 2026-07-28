@@ -6,7 +6,7 @@ parent: settings-and-sign-in
 audience: everyone
 order: 78
 published: true
-keywords: [calendar, ical, ics, subscription, overlay, busy, invite, invitation, invites, colleagues, sync, sync now, change email, move invites, old address, planning clash, feed, webcal, method request, sequence, cancel, test invite, encrypted url]
+keywords: [calendar, ical, ics, subscription, overlay, busy, invite, invitation, invites, colleagues, sync, sync now, change email, move invites, old address, planning clash, feed, webcal, method request, sequence, cancel, test invite, encrypted url, re-send, resend, out of date, stale invite, changed shift, all invites sent]
 pages: [core:settings, calendar_view:planning]
 ---
 BitGigs talks to calendars in two independent directions, and each is optional
@@ -104,18 +104,42 @@ your invite choices are saved.
 
 Invites aren't sent automatically the moment you plan a shift — you send them
 deliberately, and each shift is invited **once**. On the planning calendar, press
-**Send invites** to email invites for the planned shifts on screen; shifts that
-already have an invite are skipped, so pressing it again while you keep planning
-never re-sends. An invited shift shows a small **envelope marker** with a blue
-ring (see the legend in this help panel).
+**Send invites** to email invites for the planned shifts in the month you're
+looking at; shifts that already have an up-to-date invite are skipped, so
+pressing it again while you keep planning never re-sends. An invited shift shows
+a small **envelope marker** with a blue ring (see the legend in this help panel).
 
-Editing a shift does **not** re-send its invite — that would spam the recipient
-every time you nudge a time. When you *do* want to push an update, open the
-planned shift and use the **Re-send invite** button in the edit dialog (it also
-offers **Send invite** for a shift that hasn't been invited yet). So:
+The button covers each workplace's **payroll period** for the month on screen,
+not everything the grid happens to show. With an offset period (say the 20th to
+the 19th) the days after the 20th belong to the *next* period — they're greyed on
+the grid, and they're offered when you move to that month. When there's nothing
+left to send, the button reads **All invites sent**.
 
-- **Edit** a shift → nothing is sent; press **Re-send invite** in the dialog when
-  you're ready to update the event.
+### When a shift changes after its invite went out
+
+Editing a shift does **not** silently re-send its invite — that would spam the
+recipient every time you nudge a time. Instead, if your change affects what the
+invite says, a **Re-send calendar invite?** dialog appears once the shift is
+saved, showing the shift as it now stands and who would be mailed.
+
+Choose **Not now** and nothing is sent, but the shift isn't forgotten: its chip
+switches to a **warning-toned envelope** meaning *invite is out of date*, the edit
+dialog says so, and the month's **Send invites** button lights up again and will
+re-send it. A re-send updates the event in the recipient's calendar (same event,
+new details) rather than adding a second one, and its subject reads
+**“Update: …”** instead of “Invitation: …” so it's clear in the inbox which mail
+is the current one.
+
+Only changes the recipient can actually see count — the date, the times, the
+break, the shift type, and the resulting title or location. Editing a shift's
+**notes** changes nothing in the invite, so it never asks. Changing a contract's
+**event title** or **location** does affect every future invite on it, so those
+shifts are marked out of date too.
+
+So:
+
+- **Edit** a shift → you're asked whether to re-send; declining leaves it marked
+  out of date until you re-send it, from the dialog or the Send invites button.
 - **Approve** a planned shift → the same event carries over to the approved
   shift; it's not re-sent or duplicated.
 - **Delete** a shift → a cancellation is sent and the event is withdrawn.

@@ -1153,7 +1153,11 @@
     inviteBtn.disabled = false;
     if (shift.has_active_invite) {
       inviteBlock.classList.remove('d-none');
-      inviteStatus.innerHTML = '<i class="bi bi-envelope-check me-1" style="color:var(--info);"></i>Calendar invite sent';
+      // Stale = the shift was edited after the invite went out, so what the
+      // recipients hold no longer matches. Says so until it's re-sent.
+      inviteStatus.innerHTML = shift.invite_stale
+        ? '<i class="bi bi-envelope-exclamation me-1" style="color:var(--warning-strong);"></i>Invite is out of date'
+        : '<i class="bi bi-envelope-check me-1" style="color:var(--info);"></i>Calendar invite sent';
       inviteLabel.textContent = 'Re-send invite';
     } else if (shift.invite_eligible) {
       inviteBlock.classList.remove('d-none');
@@ -1193,6 +1197,14 @@
       });
     });
   }
+
+  // A save that changed the times/type of an already-invited shift leaves the
+  // recipients holding the old details, so we ask before re-sending (never
+  // silently — that spammed the recipient on every nudge while planning a month).
+  // The prompt itself is window.offerInviteResend in app.js: shared with the
+  // approve flows' driver, and it waits for this modal to finish closing before
+  // showing its own. Calls *done* either way.
+  var offerInviteResend = window.offerInviteResend;
 
   document.getElementById('shiftModal').addEventListener('hidden.bs.modal', function () {
     if (inviteReloadOnClose) { inviteReloadOnClose = false; location.reload(); }
@@ -1462,7 +1474,7 @@
         }
         recheckOverlaps();
       } else {
-        location.reload();
+        offerInviteResend(data.shift, function() { location.reload(); });
       }
     });
   });
@@ -1498,9 +1510,10 @@
       if (data.ok) {
         if (data.overlaps && data.overlaps.length > 0) {
           // Time conflict on the target date . open editor so user can adjust
+          // (the invite prompt waits for that save — the shift isn't settled yet).
           openEditShiftModal(shiftId);
         } else {
-          location.reload();
+          offerInviteResend(data.shift, function() { location.reload(); });
         }
       }
     });

@@ -124,51 +124,72 @@ class PlanningCalendarView(View):
         grid = CalendarService.planning_calendar(year, month)
         has_overlaps = grid.annotate_overlaps()
 
-        # Direction 2: flag each shift chip whose invite is active, and decide
-        # whether to offer the "Send invites" button at all.
-        grid_shifts = [
-            s for week in grid.weeks for day in week.days for s in day.sorted_shifts
-        ]
-        wanted = {s.invite_uid for s in grid_shifts if getattr(s, "invite_uid", None)}
-        active_invite_uids = set(
-            ShiftInvite.objects.filter(
-                invite_uid__in=wanted, status=ShiftInvite.STATUS_ACTIVE
-            ).values_list("invite_uid", flat=True)
-        ) if wanted else set()
-        for s in grid_shifts:
-            s.has_active_invite = getattr(s, "invite_uid", None) in active_invite_uids
-        can_send_invites = (
-            CalendarInviteSettings.load().enabled
-            and EmailSettings.load().is_configured
-            and ContractCalendarConfig.objects.filter(send_invites=True).exists()
-        )
-
-        # Data-driven "Send invites" button: how many planned shifts shown are
-        # eligible for an invite but don't have an active one yet. Zero → the button
-        # reads "All invites sent" (disabled) instead of offering a send that would
-        # do nothing. Only computed when the feature is armed (master + mail + a
-        # contract that sends). has_active_invite is already set on each shift above.
-        invite_pending_count = 0
-        if can_send_invites:
-            from calendar_sync import invites as _invites
-
-            for s in grid_shifts:
-                if (
-                    getattr(s, "is_planned", False)
-                    and not getattr(s, "has_active_invite", False)
-                    and _invites.eligible(s)
-                ):
-                    invite_pending_count += 1
-
-        # Navigation
-        prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
-
         import calendar as _cal_mod
         _m_start = date(year, month, 1)
         _m_end = date(year, month, _cal_mod.monthrange(year, month)[1])
         workplaces = list(
             workplaces_active_in_period(_m_start, _m_end).prefetch_related("contracts")
         )
+
+        # Direction 2: flag each shift chip whose invite is active, and decide
+        # whether to offer the "Send invites" button at all.
+        grid_shifts = [
+            s for week in grid.weeks for day in week.days for s in day.sorted_shifts
+        ]
+        wanted = {s.invite_uid for s in grid_shifts if getattr(s, "invite_uid", None)}
+        # uid → the active invite, so staleness costs no extra query per chip.
+        active_invites = {
+            inv.invite_uid: inv
+            for inv in ShiftInvite.objects.filter(
+                invite_uid__in=wanted, status=ShiftInvite.STATUS_ACTIVE
+            )
+        } if wanted else {}
+        can_send_invites = (
+            CalendarInviteSettings.load().enabled
+            and EmailSettings.load().is_configured
+            and ContractCalendarConfig.objects.filter(send_invites=True).exists()
+        )
+
+        from calendar_sync import invites as _invites
+
+        invite_settings = CalendarInviteSettings.load()
+        for s in grid_shifts:
+            invite = active_invites.get(getattr(s, "invite_uid", None))
+            s.has_active_invite = invite is not None
+            # Chip marker: the invite is out for a version of this shift that no
+            # longer matches it (see invites.event_fingerprint).
+            s.invite_stale = invite is not None and _invites.is_stale(
+                s, invite=invite, settings=invite_settings
+            )
+
+        # Data-driven "Send invites" button: how many planned shifts the button
+        # would actually act on. Zero → it reads "All invites sent" (disabled)
+        # instead of offering a send that would do nothing.
+        #
+        # Scoped exactly like SendInvitesView — each workplace's **payroll period**
+        # for the viewed month, not the padded grid, which reaches into the next
+        # period. Counting the grid is what left the button reading "Send invites"
+        # after everything in scope had gone out: pressing it again sent nothing.
+        # A stale invite counts as pending — the send re-sends those too.
+        invite_pending_count = 0
+        if can_send_invites:
+            period_bounds = {
+                wp.pk: PayrollPeriodService.resolve_period_bounds(wp, year, month)[1:]
+                for wp in workplaces
+            }
+            for s in grid_shifts:
+                if not getattr(s, "is_planned", False):
+                    continue
+                span = period_bounds.get(s.workplace_id)
+                if span is None or not (span[0] <= s.date <= span[1]):
+                    continue
+                if not _invites.eligible(s):
+                    continue
+                if not s.has_active_invite or s.invite_stale:
+                    invite_pending_count += 1
+
+        # Navigation
+        prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
 
         # Build workplace data with avatars, default shifts, payroll periods, monthly hours
         workplace_data = []
@@ -655,21 +676,31 @@ def _shift_to_dict(shift):
 
 
 def _shift_invite_flags(shift):
-    """``has_active_invite`` / ``invite_eligible`` for the edit-shift modal's
-    invite control. Resolved per shift (planning is not a hot path)."""
+    """``has_active_invite`` / ``invite_eligible`` / ``invite_stale`` for the
+    edit-shift modal's invite control. Resolved per shift (planning is not a hot
+    path).
+
+    ``invite_stale`` is what drives the re-send prompt after a save: the shift
+    changed in a way the already-sent invite doesn't reflect.
+    """
     from calendar_sync import invites
     from calendar_sync.models import ShiftInvite
 
     uid = getattr(shift, "invite_uid", None)
-    has_active = bool(uid) and ShiftInvite.objects.filter(
+    invite = ShiftInvite.objects.filter(
         invite_uid=uid, status=ShiftInvite.STATUS_ACTIVE
-    ).exists()
+    ).first() if uid else None
     return {
-        "has_active_invite": has_active,
+        "has_active_invite": invite is not None,
         "invite_eligible": invites.eligible(shift),
         # Past shifts are out of scope — the modal hides the control even if a
         # stale active invite lingers (see planning.js setupInviteBlock).
         "invite_past": invites._is_past(shift),
+        "invite_stale": (
+            invites.is_stale(shift, invite=invite) if invite is not None else False
+        ),
+        # Named in the re-send prompt, so it says who is about to be mailed.
+        "invite_recipients": invites.recipients_for(shift) if invite is not None else [],
     }
 
 

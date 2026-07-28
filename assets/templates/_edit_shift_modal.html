@@ -7,10 +7,16 @@ hidden and are revealed by whichever script drives the modal: planning.js for th
 calendar, edit_shift_modal.js (initEditShiftModal) for the approve flows, which reads
 the update-API URL from data-update-url-template.
 
+Its companion re-send prompt (#inviteResendModal) rides along at the bottom of this
+file rather than in a partial of its own: it only ever follows a save made *here*, and
+bundling it means all four include sites get it without a second include. Driven by
+window.offerInviteResend (app.js), which both scripts call.
+
 Params: title, icon, save_label.
 {% endcomment %}
 <div class="modal fade" id="shiftModal" tabindex="-1" aria-hidden="true"
-     data-update-url-template="{% url 'calendar_view:planned-shift-update-api' pk=0 %}">
+     data-update-url-template="{% url 'calendar_view:planned-shift-update-api' pk=0 %}"
+     data-shift-invite-url="{% url 'calendar_sync:invite-shift' pk=0 %}">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content app-modal">
       <div class="modal-header">
@@ -114,6 +120,59 @@ Params: title, icon, save_label.
             <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% comment %}
+Re-send prompt — shown after a save that left an already-sent calendar invite
+showing the old details. Everything inside is filled in by offerInviteResend
+(app.js); element IDs are the contract with it, like the shift modal above.
+{% endcomment %}
+<div class="modal fade" id="inviteResendModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content app-modal">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-envelope-exclamation me-2" style="color:var(--warning-strong);"></i>
+          Re-send calendar invite?
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small mb-3">
+          You changed this shift after its invite went out, so everyone invited
+          still has the <strong>old details</strong> in their calendar.
+        </p>
+
+        <div class="p-2 mb-3 rounded" style="background:var(--bg-light);">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="wp-avatar" id="resendAvatar"
+                  style="width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-weight:700;color:var(--on-accent);"></span>
+            <span class="fw-medium small" id="resendWorkplace"></span>
+          </div>
+          <div class="small" id="resendWhen"></div>
+          <div class="small text-muted" id="resendType"></div>
+          <div class="small text-muted mt-2" id="resendToRow">
+            <i class="bi bi-send me-1"></i><span id="resendTo"></span>
+          </div>
+        </div>
+
+        <p class="small text-muted mb-3">
+          Re-sending <strong>updates the existing event</strong> — it doesn't add a
+          second one. Skip it and the shift stays marked out of date, so you can
+          re-send it later from the shift or with <strong>Send invites</strong>.
+        </p>
+
+        <div id="resendError" class="alert alert-danger small py-2 d-none"></div>
+
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-primary btn-sm flex-fill" id="resendConfirmBtn">
+            <i class="bi bi-envelope-paper me-1"></i><span id="resendConfirmLabel">Re-send invite</span>
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Not now</button>
+        </div>
       </div>
     </div>
   </div>

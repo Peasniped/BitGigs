@@ -330,6 +330,13 @@ class ShiftInvite(models.Model):
     sequence = models.PositiveIntegerField(default=0)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
     last_recipients = models.TextField(blank=True)
+    # Fingerprint of the event content the last REQUEST actually carried (see
+    # invites.event_fingerprint). Comparing it with the shift's current content is
+    # what makes "this invite is out of date" a fact rather than a guess — an edit
+    # to a field the recipient never sees (notes) must not raise the flag. Blank on
+    # invites sent before this existed: unknown, and deliberately read as *not*
+    # stale, so an upgrade doesn't mark every live invite for re-sending.
+    content_key = models.CharField(max_length=64, blank=True)
 
     sent_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -207,6 +207,12 @@ function initEditShiftModal(opts) {
       if (!data.ok) { showError(data.error || 'Error saving.'); return; }
       if (active.onSaved) active.onSaved(data.shift);
       modal.hide();
+      /* A saved edit can leave an already-sent invite showing the old details.
+         Offered *after* hiding, since the prompt is itself a modal and Bootstrap
+         can't stack them. Rarely fires here — these flows edit shifts on their way
+         to approval, and a past shift is never stale — but the prompt belongs
+         wherever a shift is saved. */
+      window.offerInviteResend(data.shift);
     });
   });
 

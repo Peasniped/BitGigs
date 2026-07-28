@@ -69,9 +69,13 @@ class SendInvitesView(View):
     in its *next* period, so they aren't swept into this month's send — they're
     offered when you view that next month. Conversely a late-of-previous-month
     day that belongs to *this* period is included, even though it's grid padding.
-    Idempotent: a shift with an active invite is skipped, so pressing twice
-    doesn't re-send. Each activation is best-effort (``invites.activate`` swallows
-    send errors), so one bad send can't fail the whole batch.
+    Idempotent: a shift whose active invite still matches it is skipped, so
+    pressing twice doesn't re-send. A shift that was **edited** after its invite
+    went out is not "already synced" though — its recipients hold the old times —
+    so those are re-sent (``invites.resync``, bumped SEQUENCE, an update rather
+    than a duplicate for the calendar client). Each send is best-effort
+    (``invites.activate``/``resync`` swallow send errors), so one bad send can't
+    fail the whole batch.
     """
 
     def post(self, request):
@@ -99,6 +103,7 @@ class SendInvitesView(View):
         )
 
         activated = 0
+        resent = 0
         for wp in workplaces:
             _terms, period_start, period_end = PayrollPeriodService.resolve_period_bounds(
                 wp, year, month
@@ -113,7 +118,13 @@ class SendInvitesView(View):
             )
             for shift in planned:
                 if shift.invite_uid and shift.invite_uid in active_uids:
-                    continue  # already synced
+                    # Synced — unless the shift has since been edited, in which
+                    # case the invite out there is wrong and this is the sweep
+                    # that fixes it (declining the post-edit prompt lands here).
+                    if invites.is_stale(shift):
+                        invites.resync(shift)
+                        resent += 1
+                    continue
                 if not invites.eligible(shift):
                     continue
                 if invites.activate(shift) is not None:
@@ -122,13 +133,16 @@ class SendInvitesView(View):
         # Sends are queued, not sent inline — warn (on the reload the JS triggers)
         # if nothing is there to drain the queue, else they'd silently never go.
         alive = SchedulerHeartbeat.is_alive()
-        if activated and not alive:
+        queued = activated + resent
+        if queued and not alive:
             messages.warning(
                 request,
-                f"{activated} invite(s) queued, but the scheduler isn't running, "
+                f"{queued} invite(s) queued, but the scheduler isn't running, "
                 "so they won't send until it starts (Settings → Jobs).",
             )
-        return JsonResponse({"activated": activated, "scheduler_alive": alive})
+        return JsonResponse({
+            "activated": activated, "resent": resent, "scheduler_alive": alive,
+        })
 
 
 # ─────────────────────────────────────────────────────────────────────────────

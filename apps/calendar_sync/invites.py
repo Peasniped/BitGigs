@@ -16,6 +16,7 @@ swallow-and-log rather than raise. Heavy logic lives here; views/signals stay th
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import uuid
 from datetime import datetime, time, timedelta, timezone as dt_timezone
@@ -139,6 +140,98 @@ def _as_utc(shift_date, shift_time):
     return local.astimezone(dt_timezone.utc)
 
 
+def _event_content(shift, *, settings=None):
+    """``(title, location)`` as they will appear in *shift*'s calendar entry.
+
+    Split out of ``build_invite_calendar`` because ``event_fingerprint`` has to
+    hash exactly what a send would emit — resolving the title twice in two places
+    is how a "no change" fingerprint drifts from the mail that actually goes out.
+    """
+    config = _config(shift)
+    settings = settings if settings is not None else CalendarInviteSettings.load()
+    context = {
+        "workplace": shift.workplace.name,
+        "date": shift.date.isoformat(),
+        "start": shift.start_time.strftime("%H:%M"),
+        "end": shift.end_time.strftime("%H:%M"),
+    }
+    if config is None:
+        return shift.workplace.name, shift.workplace.name
+    return (
+        config.title_for(shift.shift_type, context, settings),
+        config.location_for(shift.shift_type, settings),
+    )
+
+
+def event_fingerprint(shift, *, settings=None) -> str:
+    """A short hash of everything about *shift* that reaches the invitee's
+    calendar: the times, the resolved title and location, and the net hours the
+    description quotes.
+
+    Stored on the invite at send time (``ShiftInvite.content_key``) so a later
+    edit can be judged: a changed start time is stale, an edited ``notes`` — which
+    no invite ever carries — is not.
+    """
+    title, location = _event_content(shift, settings=settings)
+    parts = [
+        shift.date.isoformat(),
+        shift.start_time.strftime("%H:%M"),
+        shift.end_time.strftime("%H:%M"),
+        str(shift.break_minutes),
+        shift.shift_type,
+        title,
+        location,
+    ]
+    # \x1f (unit separator) can't occur in any of the parts, so no join is ambiguous.
+    return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()[:32]
+
+
+def backfill_content_keys():
+    """Stamp the current fingerprint onto active invites that never recorded one.
+
+    Invites sent before ``content_key`` existed carry no fingerprint, and
+    ``is_stale`` reads a blank one as "unknown" rather than "changed". That is the
+    right default — but on its own it also means an install with a month of live
+    invites sees nothing at all until the *next* send, which is not a feature
+    arriving, it's a feature that appears broken.
+
+    Recording what each shift looks like **now** asserts "the invite matches
+    this", which is true unless the shift was edited between its send and this
+    backfill — and it makes every edit from here on prompt. Run once, from the
+    migration that adds the field. Returns the number stamped.
+    """
+    from .reconcile import shift_for_invite
+
+    stamped = 0
+    for invite in ShiftInvite.objects.filter(
+        status=ShiftInvite.STATUS_ACTIVE, content_key=""
+    ):
+        shift = shift_for_invite(invite)
+        if shift is None:  # orphan — nothing to fingerprint
+            continue
+        ShiftInvite.objects.filter(pk=invite.pk).update(
+            content_key=event_fingerprint(shift)
+        )
+        stamped += 1
+    return stamped
+
+
+def is_stale(shift, *, invite=None, settings=None) -> bool:
+    """True when *shift* has an active invite that no longer matches it.
+
+    Past shifts are never stale (the invite system stops caring — see
+    ``_is_past``), and neither is an invite with no recorded fingerprint: that is
+    "unknown", not "changed", and treating it as stale would light up every invite
+    that predates ``content_key``.
+    """
+    if _is_past(shift):
+        return False
+    invite = invite if invite is not None else _active_invite(shift)
+    if invite is None or not invite.content_key:
+        return False
+    return invite.content_key != event_fingerprint(shift, settings=settings)
+
+
 def build_invite_calendar(shift, invite, *, method, status, recipients=None):
     """Serialise the VCALENDAR for one invite send (REQUEST or CANCEL).
 
@@ -146,21 +239,12 @@ def build_invite_calendar(shift, invite, *, method, status, recipients=None):
     from / re-requests a specific subset); when omitted the usual per-method
     resolution applies.
     """
-    config = _config(shift)
-    settings = CalendarInviteSettings.load()
-    shift_type = shift.shift_type
+    title, location = _event_content(shift)
 
-    context = {
-        "workplace": shift.workplace.name,
-        "date": shift.date.isoformat(),
-        "start": shift.start_time.strftime("%H:%M"),
-        "end": shift.end_time.strftime("%H:%M"),
-    }
-    title = config.title_for(shift_type, context, settings) if config else shift.workplace.name
-    location = config.location_for(shift_type, settings) if config else shift.workplace.name
-
+    start = shift.start_time.strftime("%H:%M")
+    end = shift.end_time.strftime("%H:%M")
     hours = shift.net_hours
-    description = f"{title} — {context['start']}–{context['end']} ({hours:.2f}h)"
+    description = f"{title} — {start}–{end} ({hours:.2f}h)"
 
     event = build_event(
         uid=invite.uid,
@@ -262,25 +346,34 @@ def _dispatch(shift, invite, *, method, status, recipients=None, remember=True):
     ics = build_invite_calendar(
         shift, invite, method=method, status=status, recipients=recipients
     )
-    verb = "Cancelled" if method == "CANCEL" else "Invitation"
+    # A re-send is an *update* to an event the recipient already holds, and their
+    # inbox should say so rather than showing a second "Invitation:" for the same
+    # shift. SEQUENCE is the same signal the calendar client uses: every re-send
+    # (resync, reconciliation) bumps it before dispatching, so >0 means "not the
+    # first time they've seen this".
+    if method == "CANCEL":
+        verb = "Cancelled"
+    elif invite.sequence:
+        verb = "Update"
+    else:
+        verb = "Invitation"
     subject = f"{verb}: {_subject_title(shift, invite)}"
     body = _plain_body(shift, method)
     _send_mail(subject, body, recipients, ics, method)
     invite.sent_at = timezone.now()
-    if remember and method != "CANCEL":
-        invite.last_recipients = ", ".join(recipients)
+    if method != "CANCEL":
+        # A REQUEST always carries the shift's current content, so this is the
+        # point the "what the invitee holds" fingerprint becomes true again —
+        # including reconciliation's re-REQUEST, which passes remember=False for
+        # the *recipients* only.
+        invite.content_key = event_fingerprint(shift)
+        if remember:
+            invite.last_recipients = ", ".join(recipients)
     invite.save()
 
 
 def _subject_title(shift, invite):
-    config = _config(shift)
-    context = {
-        "workplace": shift.workplace.name,
-        "date": shift.date.isoformat(),
-        "start": shift.start_time.strftime("%H:%M"),
-        "end": shift.end_time.strftime("%H:%M"),
-    }
-    return config.title_for(shift.shift_type, context) if config else shift.workplace.name
+    return _event_content(shift)[0]
 
 
 def _plain_body(shift, method):
