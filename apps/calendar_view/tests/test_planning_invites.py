@@ -116,3 +116,63 @@ class InvitePendingCountTests(TestCase):
             f"/calendar/planning/?year={yesterday.year}&month={yesterday.month}"
         )
         self.assertEqual(resp.context["invite_pending_count"], 0)
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    SCHEDULER_TASK_EAGER=True,
+)
+class NoRecipientTests(InvitePendingCountTests):
+    """Invites armed at nobody.
+
+    The reported bug: with the contract's work address switched off *and* the
+    personal copy off, the button offered a send and then reported that no shifts
+    were available. An invite with nowhere to go isn't one — the whole feature is
+    effectively off, and the button must not appear at all.
+    """
+
+    def _config(self):
+        return self.wp.contracts.first().calendar_config
+
+    def _turn_off(self, *, work=True, personal=True):
+        if work:
+            cfg = self._config()
+            cfg.send_to_work = False
+            cfg.save()
+        if personal:
+            s = CalendarInviteSettings.load()
+            s.send_to_personal = False
+            s.save()
+
+    def _can_send(self):
+        resp = self.client.get("/calendar/planning/?year=2035&month=3")
+        return resp.context["can_send_invites"]
+
+    def test_the_button_is_not_offered_when_nothing_can_be_reached(self):
+        self._planned(10)
+        self.assertTrue(self._can_send())
+        self._turn_off()
+        self.assertFalse(self._can_send())
+        self.assertFalse(invites.any_sendable_contract())
+
+    def test_the_personal_copy_alone_keeps_it_on(self):
+        """Not wanting to mail the employer is a normal setup — the shift still
+        belongs in your own calendar."""
+        s = CalendarInviteSettings.load()
+        s.send_to_personal, s.owner_address = True, "me@home.example"
+        s.save()
+        self._turn_off(personal=False)   # work address off, personal still on
+        self.assertTrue(invites.any_sendable_contract())
+        self.assertTrue(self._can_send())
+
+    def test_a_shift_with_nowhere_to_send_is_not_eligible(self):
+        shift = self._planned(10)
+        self.assertTrue(invites.eligible(shift))
+        self._turn_off()
+        self.assertFalse(invites.eligible(shift))
+        self.assertEqual(self._pending(), 0)
+
+    def test_the_work_address_alone_keeps_it_on(self):
+        self._turn_off(work=False)       # personal off, work address still set
+        self.assertTrue(invites.any_sendable_contract())
+        self.assertTrue(self._can_send())

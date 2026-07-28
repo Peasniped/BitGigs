@@ -103,11 +103,17 @@ Params: title, icon, save_label.
           <div id="shiftInviteBlock" class="d-none mb-2 p-2 rounded"
                style="background:var(--bg-light);"
                data-jobs-url="{% url 'core:settings' %}?tab=jobs">
-            <div class="d-flex align-items-center justify-content-between gap-2">
+            <div class="d-flex align-items-center justify-content-between gap-2" id="shiftInviteControl">
               <span class="small" id="shiftInviteStatus"></span>
               <button type="button" class="btn btn-outline-primary btn-sm" id="shiftInviteBtn">
                 <i class="bi bi-envelope-paper me-1"></i><span id="shiftInviteBtnLabel">Send invite</span>
               </button>
+            </div>
+            {% comment %}Takes the control's place on a planned shift whose day has
+            passed: the invite system ignores those entirely, and an empty space
+            where today's shift has a button just reads as broken.{% endcomment %}
+            <div class="small text-body-secondary d-none" id="shiftInvitePastNote">
+              <i class="bi bi-clock-history me-1"></i>Shift has passed &mdash; invites are only sent for today and later.
             </div>
             {% comment %}The send was rejected — nobody got it. Shown by
             planning.js with the mail server's own words, since those name the

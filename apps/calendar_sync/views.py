@@ -76,59 +76,76 @@ class SendInvitesView(View):
     than a duplicate for the calendar client). Each send is best-effort
     (``invites.activate``/``resync`` swallow send errors), so one bad send can't
     fail the whole batch.
+
+    ``GET`` on the same URL answers with a **preview** of that same plan — what
+    the confirm modal shows before the owner commits to mailing real people.
+    Both come from ``invites.month_sweep``, so the dialog can't promise a send
+    the POST would then skip.
     """
 
-    def post(self, request):
-        from payroll.services import PayrollPeriodService
-        from scheduler.models import SchedulerHeartbeat
-        from shifts.models import PlannedShift
-        from workplaces.services import workplaces_active_in_period
-
-        from calendar_sync import invites
-        from calendar_sync.models import ShiftInvite
-
+    def _month(self, request):
+        """(year, month) from the query string, or None when the month is bad."""
         today = timezone.localdate()
         year = parse_int_param(request.GET.get("year"), today.year)
         month = parse_int_param(request.GET.get("month"), today.month)
-        if not (1 <= month <= 12):
-            return JsonResponse({"error": "Invalid month."}, status=400)
+        return (year, month) if 1 <= month <= 12 else None
 
-        active_uids = set(
-            ShiftInvite.objects.filter(status=ShiftInvite.STATUS_ACTIVE)
-            .values_list("invite_uid", flat=True)
-        )
-        month_start, month_end = services.month_window(year, month, pad_days=0)
-        workplaces = workplaces_active_in_period(month_start, month_end).prefetch_related(
-            "contracts__calendar_config"
-        )
+    def get(self, request):
+        """JSON preview: per workplace, how many invites and to whom."""
+        from core.utils import avatar_for_name
+        from scheduler.models import SchedulerHeartbeat
+
+        from calendar_sync import invites
+
+        parsed = self._month(request)
+        if parsed is None:
+            return JsonResponse({"error": "Invalid month."}, status=400)
+        year, month = parsed
+
+        groups = invites.month_sweep(year, month)
+        rows = []
+        for group in groups:
+            initials, fallback = avatar_for_name(group.workplace.name)
+            rows.append({
+                "name": group.workplace.name,
+                "initials": initials,
+                "color": group.workplace.color or fallback,
+                "icon": group.workplace.icon or "",
+                "icon_url": (
+                    group.workplace.custom_icon.url
+                    if group.workplace.custom_icon else ""
+                ),
+                "new": len(group.new),
+                "updates": len(group.updates),
+                "recipients": group.recipients,
+            })
+        return JsonResponse({
+            "workplaces": rows,
+            "new": sum(len(g.new) for g in groups),
+            "updates": sum(len(g.updates) for g in groups),
+            "total": sum(g.total for g in groups),
+            # Queued sends need something to drain the queue; say so *before* the
+            # press rather than in a flash message after it.
+            "scheduler_alive": SchedulerHeartbeat.is_alive(),
+        })
+
+    def post(self, request):
+        from scheduler.models import SchedulerHeartbeat
+
+        from calendar_sync import invites
+
+        parsed = self._month(request)
+        if parsed is None:
+            return JsonResponse({"error": "Invalid month."}, status=400)
+        year, month = parsed
 
         activated = 0
         resent = 0
-        for wp in workplaces:
-            _terms, period_start, period_end = PayrollPeriodService.resolve_period_bounds(
-                wp, year, month
-            )
-            planned = (
-                PlannedShift.objects.filter(
-                    workplace=wp, status=PlannedShift.Status.PLANNED,
-                    date__gte=period_start, date__lte=period_end,
-                )
-                .select_related("workplace")
-                .prefetch_related("workplace__contracts__calendar_config")
-            )
-            for shift in planned:
-                if shift.invite_uid and shift.invite_uid in active_uids:
-                    # Synced — unless the shift has since been edited (the invite
-                    # out there is wrong) or its send was rejected (nobody got
-                    # one at all). This sweep is what fixes both: declining the
-                    # post-edit prompt lands here, and so does a rate-limited
-                    # send that failed on the queue.
-                    if invites.needs_send(shift):
-                        invites.resync(shift)
-                        resent += 1
-                    continue
-                if not invites.eligible(shift):
-                    continue
+        for group in invites.month_sweep(year, month):
+            for shift in group.updates:
+                invites.resync(shift)
+                resent += 1
+            for shift in group.new:
                 if invites.activate(shift) is not None:
                     activated += 1
 

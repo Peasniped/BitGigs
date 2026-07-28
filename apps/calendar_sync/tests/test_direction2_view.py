@@ -152,6 +152,65 @@ class SendInvitesEndpointTests(TestCase):
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     SCHEDULER_TASK_EAGER=True,
 )
+class SendInvitesPreviewTests(SendInvitesEndpointTests):
+    """``GET`` on the send endpoint — what the confirm modal shows. It must
+    describe the same plan the POST then performs, or the dialog promises sends
+    that get skipped."""
+
+    def _preview(self):
+        return self.client.get("/calendar-sync/invites/send/?year=2035&month=3").json()
+
+    def test_preview_names_the_workplace_counts_and_recipients(self):
+        self._planned()
+        data = self._preview()
+        self.assertEqual(data["total"], 1)
+        self.assertEqual((data["new"], data["updates"]), (1, 0))
+        row = data["workplaces"][0]
+        self.assertEqual(row["name"], "JKF")
+        self.assertEqual(row["new"], 1)
+        self.assertEqual(
+            sorted(row["recipients"]), ["boss@work.example", "me@home.example"]
+        )
+
+    def test_preview_matches_what_the_post_actually_sends(self):
+        self._planned(day=15)
+        self._planned(day=16)
+        promised = self._preview()["total"]
+        result = self._post().json()
+        self.assertEqual(promised, result["activated"] + result["resent"])
+        # And afterwards there is nothing left to promise.
+        self.assertEqual(self._preview()["total"], 0)
+
+    def test_an_edited_shift_previews_as_an_update_not_a_new_invite(self):
+        shift = self._planned()
+        self._post()
+        shift.refresh_from_db()  # the send stamped invite_uid on the DB row
+        shift.end_time = time(18, 0)
+        shift.save()
+        data = self._preview()
+        self.assertEqual((data["new"], data["updates"]), (0, 1))
+
+    def test_a_contract_with_no_recipient_is_not_offered(self):
+        """``activate`` refuses a shift with nowhere to send, so counting it would
+        offer a send that quietly does nothing."""
+        s = CalendarInviteSettings.load()
+        s.send_to_personal = False
+        s.save()
+        cfg = self.wp.contracts.first().calendar_config
+        cfg.send_to_work = False
+        cfg.save()
+        self._planned()
+        self.assertEqual(self._preview()["total"], 0)
+
+    def test_invalid_month_is_400(self):
+        resp = self.client.get("/calendar-sync/invites/send/?year=2035&month=13")
+        self.assertEqual(resp.status_code, 400)
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    SCHEDULER_TASK_EAGER=True,
+)
 class ShiftInviteEndpointTests(SendInvitesEndpointTests):
     """The per-shift Send / Re-send endpoint behind the edit-modal control."""
 

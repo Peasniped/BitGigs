@@ -110,8 +110,7 @@ class PlanningCalendarView(View):
     def get(self, request):
         from payroll.services import PayrollPeriodService
         from calendar_sync.models import (
-            CalendarInviteSettings, CalendarSubscription, ContractCalendarConfig,
-            ShiftInvite,
+            CalendarInviteSettings, CalendarSubscription, ShiftInvite,
         )
         from calendar_sync import services as calendar_sync_services
         from core.models import EmailSettings
@@ -144,13 +143,19 @@ class PlanningCalendarView(View):
                 invite_uid__in=wanted, status=ShiftInvite.STATUS_ACTIVE
             )
         } if wanted else {}
+        from calendar_sync import invites as _invites
+
+        # Offer the button only when a send could actually reach somebody. Armed
+        # contracts alone aren't enough: with their work address off and the
+        # personal copy off, invites are switched on at nobody, and the button
+        # could only ever report "nothing to send". Mail is checked for the
+        # **calendar role**, matching what `eligible()` requires — the generic
+        # flag let the button appear while every shift was ineligible.
         can_send_invites = (
             CalendarInviteSettings.load().enabled
-            and EmailSettings.load().is_configured
-            and ContractCalendarConfig.objects.filter(send_invites=True).exists()
+            and EmailSettings.load().is_configured_for(EmailSettings.ROLE_CALENDAR)
+            and _invites.any_sendable_contract()
         )
-
-        from calendar_sync import invites as _invites
 
         invite_settings = CalendarInviteSettings.load()
         for s in grid_shifts:
@@ -169,27 +174,14 @@ class PlanningCalendarView(View):
         # would actually act on. Zero → it reads "All invites sent" (disabled)
         # instead of offering a send that would do nothing.
         #
-        # Scoped exactly like SendInvitesView — each workplace's **payroll period**
-        # for the viewed month, not the padded grid, which reaches into the next
-        # period. Counting the grid is what left the button reading "Send invites"
-        # after everything in scope had gone out: pressing it again sent nothing.
-        # A stale invite counts as pending — the send re-sends those too.
-        invite_pending_count = 0
-        if can_send_invites:
-            period_bounds = {
-                wp.pk: PayrollPeriodService.resolve_period_bounds(wp, year, month)[1:]
-                for wp in workplaces
-            }
-            for s in grid_shifts:
-                if not getattr(s, "is_planned", False):
-                    continue
-                span = period_bounds.get(s.workplace_id)
-                if span is None or not (span[0] <= s.date <= span[1]):
-                    continue
-                if not _invites.eligible(s):
-                    continue
-                if not s.has_active_invite or s.invite_stale or s.invite_failed:
-                    invite_pending_count += 1
+        # Asks SendInvitesView's own planner rather than re-deriving the scope
+        # here — counting the *grid* (padded to whole weeks and to the union of
+        # every workplace's period) is what left the button reading "Send invites"
+        # after everything in scope had gone out.
+        invite_pending_count = (
+            sum(g.total for g in _invites.month_sweep(year, month))
+            if can_send_invites else 0
+        )
 
         # Navigation
         prev_year, prev_month, next_year, next_month = prev_next_month(year, month)

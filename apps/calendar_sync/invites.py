@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone as dt_timezone
 
 from django.contrib.auth.models import User
@@ -100,27 +101,37 @@ def eligible(shift) -> bool:
 
     Requires the shift to be **today or later** (a finished shift is never
     invited — see ``_is_past``), the global master switch, the contract's own
-    ``send_invites``, an invite-able shift type (on-site / remote), and mail.
+    ``send_invites``, an invite-able shift type (on-site / remote), mail, and
+    **somewhere to send it**.
+
+    That last one is not a detail: with the contract's work address switched off
+    *and* the personal copy off, the shift is armed at nobody. ``activate``
+    already refuses it, so anything that treated it as eligible was offering a
+    send that could only ever do nothing — which is exactly how the planning
+    button came to promise invites and then report none.
     """
     if _is_past(shift):
         return False
-    if not CalendarInviteSettings.load().enabled:
+    invite_settings = CalendarInviteSettings.load()
+    if not invite_settings.enabled:
         return False
     config = _config(shift)
     if config is None or not config.send_invites:
         return False
     if shift.shift_type not in ContractCalendarConfig.INVITEABLE_TYPES:
         return False
-    return EmailSettings.load().is_configured_for(EmailSettings.ROLE_CALENDAR)
+    if not EmailSettings.load().is_configured_for(EmailSettings.ROLE_CALENDAR):
+        return False
+    return bool(recipients_for(shift, settings=invite_settings))
 
 
-def recipients_for(shift):
+def recipients_for(shift, *, settings=None):
     """Attendees = the contract's resolved work recipient + (when enabled) the
     owner's own address (so each shift also lands in the personal calendar),
     de-duplicated."""
     from .models import parse_addresses
 
-    settings = CalendarInviteSettings.load()
+    settings = settings or CalendarInviteSettings.load()
     config = _config(shift)
     recips = list(config.recipient_list(settings)) if config else []
     if settings.send_to_personal:
@@ -128,6 +139,21 @@ def recipients_for(shift):
         if personal:
             recips.append(personal)
     return parse_addresses("\n".join(recips))
+
+
+def any_sendable_contract(settings=None) -> bool:
+    """True when at least one contract is armed **and** has somewhere to send.
+
+    The whole-app version of the rule in ``eligible``: with every armed contract's
+    work address off and the personal copy off, calendar invites are switched on
+    at nobody, so the planning page must not offer a Send-invites button whose
+    only possible outcome is "nothing to send".
+    """
+    settings = settings or CalendarInviteSettings.load()
+    armed = ContractCalendarConfig.objects.filter(send_invites=True)
+    if settings.send_to_personal and settings.personal_address():
+        return armed.exists()  # the personal copy alone is a valid destination
+    return any(c.resolved_recipient(settings) for c in armed)
 
 
 # ── building ─────────────────────────────────────────────────────────────────
@@ -606,6 +632,87 @@ def needs_send(shift, *, invite=None, settings=None) -> bool:
     if invite.send_failed:
         return not _is_past(shift)
     return is_stale(shift, invite=invite, settings=settings)
+
+
+# ── the month sweep ("Send invites") ─────────────────────────────────────────
+
+@dataclass
+class SweepGroup:
+    """What one workplace contributes to a month's send."""
+
+    workplace: object
+    new: list          # planned shifts with no invite yet
+    updates: list      # shifts whose invite is out of date or never got through
+    recipients: list   # every address this group's invites would reach
+
+    @property
+    def total(self) -> int:
+        return len(self.new) + len(self.updates)
+
+
+def month_sweep(year: int, month: int) -> list[SweepGroup]:
+    """Exactly what a "Send invites" press for *year*/*month* would do.
+
+    The one source of truth for that answer: the send performs it, the confirm
+    modal previews it, and the planning page's button counts it. They used to
+    each work it out for themselves, which is how the button came to offer sends
+    the server then skipped.
+
+    Scope is per-workplace by **payroll period**, not the padded visible grid: an
+    offset job's days after its period start belong to its *next* period and are
+    offered when you view that month. Groups contributing nothing are omitted, and
+    a shift with no resolvable recipient is not eligible in the first place (see
+    ``eligible``), so it is never counted.
+    """
+    from payroll.services import PayrollPeriodService
+    from shifts.models import PlannedShift
+    from workplaces.services import workplaces_active_in_period
+
+    from . import services as ical
+
+    month_start, month_end = ical.month_window(year, month, pad_days=0)
+    workplaces = workplaces_active_in_period(month_start, month_end).prefetch_related(
+        "contracts__calendar_config"
+    )
+    active_uids = set(
+        ShiftInvite.objects.filter(status=ShiftInvite.STATUS_ACTIVE)
+        .values_list("invite_uid", flat=True)
+    )
+    invite_settings = CalendarInviteSettings.load()
+
+    groups: list[SweepGroup] = []
+    for wp in workplaces:
+        _terms, period_start, period_end = PayrollPeriodService.resolve_period_bounds(
+            wp, year, month
+        )
+        planned = (
+            PlannedShift.objects.filter(
+                workplace=wp,
+                status=PlannedShift.Status.PLANNED,
+                date__gte=period_start,
+                date__lte=period_end,
+            )
+            .select_related("workplace")
+            .prefetch_related("workplace__contracts__calendar_config")
+            .order_by("date", "start_time")
+        )
+        new, updates = [], []
+        for shift in planned:
+            if shift.invite_uid and shift.invite_uid in active_uids:
+                # Synced — unless the shift has since been edited (what's out
+                # there is wrong) or its send was rejected (nobody got one).
+                if needs_send(shift, settings=invite_settings):
+                    updates.append(shift)
+                continue
+            if eligible(shift):
+                new.append(shift)
+        if new or updates:
+            addresses = sorted({
+                a for s in new + updates
+                for a in recipients_for(s, settings=invite_settings)
+            })
+            groups.append(SweepGroup(wp, new, updates, addresses))
+    return groups
 
 
 def cancel(shift):

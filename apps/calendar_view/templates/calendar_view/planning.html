@@ -258,6 +258,65 @@
     </div>
   </div>
 </div>
+
+{% comment %}
+  Send-invites confirmation. This mails real people, so it doesn't ask in the
+  abstract: the body is filled from a GET on the same endpoint the button POSTs
+  to (invites.month_sweep), naming every workplace, how many invites are new
+  versus updates, and the addresses they reach. Same shape as #inviteResendModal.
+{% endcomment %}
+<div class="modal fade" id="sendInvitesModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content app-modal">
+      <div class="modal-header">
+        <h5 class="modal-title h6 mb-0">
+          <i class="bi bi-envelope-paper me-2"></i>Send calendar invites
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small mb-3" id="sendInvitesLead">
+          Reviewing <strong id="sendInvitesMonth"></strong>…
+        </p>
+
+        <div id="sendInvitesLoading" class="text-center py-3">
+          <span class="spinner-border spinner-border-sm me-2"></span>
+          <span class="small text-muted">Working out what would be sent…</span>
+        </div>
+
+        <div id="sendInvitesError" class="alert alert-danger small py-2 d-none"></div>
+
+        <div id="sendInvitesEmpty" class="alert alert-info small py-2 d-none">
+          Nothing to send for this month — every eligible planned shift already has
+          an up-to-date invite out.
+        </div>
+
+        <div id="sendInvitesGroups" class="d-none"></div>
+
+        <div id="sendInvitesNoScheduler" class="alert alert-warning small py-2 d-none">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          The background scheduler isn't running, so these will sit in the queue
+          until it starts.
+        </div>
+
+        {% comment %}Shown only when there are updates in the batch — the one thing
+        worth saying, since "update" could otherwise read as a second invite. The
+        rest of the rules live in the help article, not in a dialog you see every
+        time.{% endcomment %}
+        <p class="small text-muted mb-3" id="sendInvitesNote">
+          Updates replace the event already in the calendar &mdash; they don't add a second one.
+        </p>
+
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-primary btn-sm flex-fill" id="sendInvitesConfirmBtn" disabled>
+            <i class="bi bi-send me-1"></i><span id="sendInvitesConfirmLabel">Send invites</span>
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}

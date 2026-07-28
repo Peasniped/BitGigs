@@ -1147,7 +1147,17 @@
 
   function hideInviteBlock() {
     if (inviteBlock) inviteBlock.classList.add('d-none');
+    showInvitePastNote(false);
     inviteShiftId = null;
+  }
+
+  // The past-shift note and the Send/Re-send control are alternatives — exactly
+  // one of them is in the block at a time.
+  function showInvitePastNote(show) {
+    var note = document.getElementById('shiftInvitePastNote');
+    var control = document.getElementById('shiftInviteControl');
+    if (note) note.classList.toggle('d-none', !show);
+    if (control) control.classList.toggle('d-none', show);
   }
 
   function showInviteError(message) {
@@ -1163,7 +1173,17 @@
   // Reveal + label from the shift's invite state (only for planned shifts).
   function setupInviteBlock(shift) {
     if (!inviteBlock || !INVITE_URL) return;
-    if (shift.invite_past) { hideInviteBlock(); return; }  // past → out of scope
+    // A day that has passed is out of scope for the whole invite system — there
+    // is no one to invite to a shift that already happened. Swap the control for
+    // a one-line note saying so; hiding it outright just reads as broken next to
+    // today's shift, which does have a button.
+    showInvitePastNote(shift.invite_past);
+    if (shift.invite_past) {
+      inviteShiftId = null;
+      showInviteError('');
+      inviteBlock.classList.remove('d-none');
+      return;
+    }
     inviteShiftId = shift.id;
     inviteBtn.disabled = false;
     showInviteError(shift.invite_failed ? shift.invite_error : '');
@@ -1931,9 +1951,11 @@
   }
 
   // ----- Direction 2: send calendar invites for the shown planned shifts -----
-  // Emails real invites, so it's confirmed first. On success we reload, letting
-  // the server re-render chips with the invited marker. Uses the same greyscale-
-  // gradient busy look as the other buttons while the batch sends.
+  // This emails real people, so it is confirmed in #sendInvitesModal first — and
+  // the dialog is filled from a GET on the same endpoint, so it states exactly
+  // which workplaces, how many invites and which addresses rather than asking in
+  // the abstract. On success we reload, letting the server re-render the chips
+  // with their invited marker.
   var SEND_INVITES_URL = cfg.sendInvitesUrl;
   var sendInvitesBtn = document.getElementById('sendInvitesBtn');
 
@@ -1959,35 +1981,143 @@
   }
 
   if (sendInvitesBtn && SEND_INVITES_URL) {
+    // Scoped server-side by each workplace's payroll period for this month — not
+    // the padded visible grid — so both calls name the viewed month, not a span.
+    var inviteUrl = function() {
+      return SEND_INVITES_URL + '?year=' + CURRENT_YEAR + '&month=' + CURRENT_MONTH;
+    };
+    var sendModalEl = document.getElementById('sendInvitesModal');
+    var sendModal = sendModalEl ? new bootstrap.Modal(sendModalEl) : null;
+    var confirmBtn = document.getElementById('sendInvitesConfirmBtn');
+
+    var el = function(id) { return document.getElementById(id); };
+    var toggle = function(id, on) {
+      var node = el(id);
+      if (node) node.classList.toggle('d-none', !on);
+    };
+
+    // One row per workplace: avatar + name, the new/update split, and every
+    // address those invites reach. Built as nodes — an address is never HTML.
+    function groupRow(wp) {
+      var row = document.createElement('div');
+      row.className = 'd-flex gap-2 align-items-start p-2 mb-2 rounded';
+      row.style.background = 'var(--bg-light)';
+
+      var avatar = document.createElement('span');
+      avatar.className = 'wp-avatar flex-shrink-0';
+      avatar.style.cssText = 'width:28px;height:28px;border-radius:50%;display:flex;' +
+        'align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;' +
+        'color:var(--on-accent);background:' + (wp.color || 'var(--primary)');
+      if (wp.icon_url) {
+        var img = document.createElement('img');
+        img.src = wp.icon_url;
+        img.alt = '';
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
+        avatar.appendChild(img);
+      } else if (wp.icon) {
+        var glyph = document.createElement('i');
+        glyph.className = 'bi ' + wp.icon;
+        glyph.style.fontSize = '0.7rem';
+        avatar.appendChild(glyph);
+      } else {
+        avatar.textContent = wp.initials || '';
+      }
+
+      var body = document.createElement('div');
+      body.className = 'flex-grow-1 min-w-0';
+
+      var name = document.createElement('div');
+      name.className = 'fw-medium small';
+      name.textContent = wp.name;
+
+      var counts = document.createElement('div');
+      counts.className = 'small text-muted';
+      var parts = [];
+      if (wp.new) parts.push(wp.new + (wp.new === 1 ? ' new invite' : ' new invites'));
+      if (wp.updates) parts.push(wp.updates + (wp.updates === 1 ? ' update' : ' updates'));
+      counts.textContent = parts.join(' · ');
+
+      var to = document.createElement('div');
+      to.className = 'small text-muted text-truncate';
+      to.title = wp.recipients.join(', ');
+      to.innerHTML = '<i class="bi bi-send me-1"></i>';
+      to.appendChild(document.createTextNode(wp.recipients.join(', ')));
+
+      body.append(name, counts, to);
+      row.append(avatar, body);
+      return row;
+    }
+
+    function renderPreview(data) {
+      toggle('sendInvitesLoading', false);
+      var groups = el('sendInvitesGroups');
+      groups.replaceChildren.apply(groups, data.workplaces.map(groupRow));
+
+      var has = data.total > 0;
+      toggle('sendInvitesGroups', has);
+      toggle('sendInvitesEmpty', !has);
+      // Only when the batch actually contains updates — otherwise it's a rule
+      // about something that isn't happening.
+      toggle('sendInvitesNote', has && data.updates > 0);
+      toggle('sendInvitesNoScheduler', has && !data.scheduler_alive);
+
+      var summary = data.total === 1 ? '1 invite' : data.total + ' invites';
+      if (data.updates && data.new) {
+        summary += ' (' + data.new + ' new, ' + data.updates + ' updated)';
+      } else if (data.updates) {
+        summary += ' — all updates to invites already out';
+      }
+      el('sendInvitesLead').innerHTML = has
+        ? 'About to email <strong>' + summary + '</strong> for <strong>' +
+          escapeHtml(MONTH_NAMES[String(CURRENT_MONTH)]) + ' ' + CURRENT_YEAR + '</strong>.'
+        : 'Nothing pending for <strong>' +
+          escapeHtml(MONTH_NAMES[String(CURRENT_MONTH)]) + ' ' + CURRENT_YEAR + '</strong>.';
+
+      confirmBtn.disabled = !has;
+      el('sendInvitesConfirmLabel').textContent =
+        has ? 'Send ' + summary.split(' (')[0].split(' —')[0] : 'Nothing to send';
+    }
+
     sendInvitesBtn.addEventListener('click', function() {
-      if (!window.confirm(
-        'Send calendar invites for this month’s planned shifts?\n\n' +
-        'Each invite-enabled workplace’s recipients (and your own calendar) ' +
-        'will be emailed. Shifts in a different payroll period, and ' +
-        'already-synced shifts, are skipped.'
-      )) return;
+      if (!sendModal) return;   // no modal on the page: nothing to confirm with
+      toggle('sendInvitesLoading', true);
+      toggle('sendInvitesGroups', false);
+      toggle('sendInvitesEmpty', false);
+      toggle('sendInvitesError', false);
+      toggle('sendInvitesNoScheduler', false);
+      toggle('sendInvitesNote', false);
+      confirmBtn.disabled = true;
+      el('sendInvitesConfirmLabel').textContent = 'Send invites';
+      sendModal.show();
 
-      // Scoped server-side by each workplace's payroll period for this month —
-      // not the padded visible grid — so send the viewed month, not a date span.
-      var url = SEND_INVITES_URL + '?year=' + CURRENT_YEAR + '&month=' + CURRENT_MONTH;
+      fetch(inviteUrl(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(r) { if (!r.ok) throw new Error('preview failed'); return r.json(); })
+        .then(renderPreview)
+        .catch(function() {
+          toggle('sendInvitesLoading', false);
+          var err = el('sendInvitesError');
+          err.textContent = "Couldn't work out what would be sent. Try again.";
+          err.classList.remove('d-none');
+        });
+    });
 
-      sendInvitesBtn.disabled = true;
-      sendInvitesBtn.classList.remove('btn-outline-primary');
-      sendInvitesBtn.classList.add('btn-primary');
-      sendInvitesBtn.innerHTML =
-        '<span class="spinner-border spinner-border-sm me-1"></span>Sending…';
+    confirmBtn.addEventListener('click', function() {
+      confirmBtn.disabled = true;
+      el('sendInvitesConfirmLabel').textContent = 'Sending…';
 
-      fetch(url, {
+      fetch(inviteUrl(), {
         method: 'POST',
         headers: { 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
       })
         .then(function(r) { return r.ok ? r.json() : { activated: 0 }; })
+        // Reload so the server re-renders the chips with their invited marker.
         .then(function() { window.location.reload(); })
         .catch(function() {
-          sendInvitesBtn.disabled = false;
-          sendInvitesBtn.classList.add('btn-outline-primary');
-          sendInvitesBtn.classList.remove('btn-primary');
-          sendInvitesBtn.innerHTML = '<i class="bi bi-envelope-paper me-1"></i>Send invites';
+          confirmBtn.disabled = false;
+          el('sendInvitesConfirmLabel').textContent = 'Send invites';
+          var err = el('sendInvitesError');
+          err.textContent = "The send couldn't be started. Try again.";
+          err.classList.remove('d-none');
         });
     });
   }
