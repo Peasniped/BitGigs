@@ -3,34 +3,43 @@
 
 
 ## Polish
-- When editing a workplace contract from Settings>Calendar, it should return you back there, when clicking save or cancel.
-- Add a bit more space between Send invites to personal calendar and the email input field, and change the input field border to primary accent.
+
+### Phase 1: Settings page layout & spacing  (style.css + settings.html)
 - In settings>calendar, there is a weird space between the sections for ingoing and outgoing calendar. I think you said in a previous setting that it is because the settings pane class should only be used for the upper pane (needs flat top to work well with the tabs) It is fixed in Settings > Email. -- Please update claude.md conventions so no new settings panes are created with wrong classes.
-- Can you show the color coding/iconography of shift types when creating/editing/approving a planned/approved shift?
 - Add a bit more padding to all the settings-page.
-usa- make a bit more spacing between items on the calendar, currently I have two overlapping events and the extra amber border makes them almost touch, making it look kind of strange.
-- - It is the same when you hover over a workplace and it shows the green highlight showing which days belong to the payroll period. The borders of neighboring green days almost merge together. Maybe this highlight can be inset ever so slightly into the day cell so the borders do not (or do not almost) overlap.
 - In Settings>Display and Analytics, add some space between the save button and the last setting on the page.
-- It seems that on the Add Pay Terms-page, the workplace accent is used to color employment type and working time selectors, while the save button uses the app accent color (most probably because of the gradient). Can you try to make the button use the company colors as well? I know you need two colors, and the workplace accent only has one color.
-- mirror Email>Allow password reset on the sign-in page so it can be changed/set both places. (If an email server is not setup, show warning on sign-in page)
+
+### Phase 2: Settings → Calendar & Email tabs  (master arms, mirroring, nav)
 - Make the calendar master arm switch background context aware, so it is red if disabled and green if enabled. Make it yellow if turned on and email master arm is turned off, and have the warning message inside the div, and only show the warning if calendar invites master is on.
 - Make the email master arm the same style as the calendar master arm.
-- We have a space issue for planned shifts that have all four indicators/icons active (invite sent, break active, shift type, hover over edit pencil icon) maybe we need to go back to the invite sent being a highlight around the shift and to make the shift type indicator a bit narrower -- do you have a better idea?
-- When I open the full manual/help from the more menu, I am always put into the "claiming the instance"-article. Maybe it would make more sense that you land on an article about how to use the help system? (meta, i know)
-- Improve Help>Search to also search body text (in addition to the super quick keyword search that is already implemented.)
-- On the workplace dashboard, make the accent strip a bit thicker, so it looks intentional, and make it glow subtly
+- Add a bit more space between Send invites to personal calendar and the email input field, and change the input field border to primary accent.
+- When editing a workplace contract from Settings>Calendar, it should return you back there, when clicking save or cancel.
+- mirror Email>Allow password reset on the sign-in page so it can be changed/set both places. (If an email server is not setup, show warning on sign-in page)
 
-- Implement propper logging
-- Take a look at the full test suite and see if all tests are necessary and no tests are testing old/stale code
-
-
-- UX Pass in settings
+### Phase 3: Settings UX pass  (the big one — do after 1 & 2 have settled the styling)
 - - Make all boolean switches the custom slider (please note this in claude.md under conventions such that future binary switches will also use the same slider design)
 - - Make all settings (that are not forms/modals) save on change, and remove the save buttons.
 - - make sure settings formatting and styling are contiguous
-- - ASK before you remove anything. 
+- - ASK before you remove anything.
 
+### Phase 4: Calendar & shift chip density  (planning.css + shift chips + shift modal)
+- make a bit more spacing between items on the calendar, currently I have two overlapping events and the extra amber border makes them almost touch, making it look kind of strange.
+- - It is the same when you hover over a workplace and it shows the green highlight showing which days belong to the payroll period. The borders of neighboring green days almost merge together. Maybe this highlight can be inset ever so slightly into the day cell so the borders do not (or do not almost) overlap.
+- We have a space issue for planned shifts that have all four indicators/icons active (invite sent, break active, shift type, hover over edit pencil icon) maybe we need to go back to the invite sent being a highlight around the shift and to make the shift type indicator a bit narrower -- do you have a better idea?
+- Can you show the color coding/iconography of shift types when creating/editing/approving a planned/approved shift?
+
+### Phase 5: Workplace accent polish  (per-workplace colour, not theme tokens)
+- It seems that on the Add Pay Terms-page, the workplace accent is used to color employment type and working time selectors, while the save button uses the app accent color (most probably because of the gradient). Can you try to make the button use the company colors as well? I know you need two colors, and the workplace accent only has one color.
+- On the workplace dashboard, make the accent strip a bit thicker, so it looks intentional, and make it glow subtly
+
+### Phase 6: Help system  (apps/help + articles)
+- When I open the full manual/help from the more menu, I am always put into the "claiming the instance"-article. Maybe it would make more sense that you land on an article about how to use the help system? (meta, i know)
+- Improve Help>Search to also search body text (in addition to the super quick keyword search that is already implemented.)
 - Go through help articles and make them shorter and more concise. A lot of articles could use with being split up into two or more articles. keep redundant information as short as possible and to a minimum and just cite to articles with the information.
+
+### Phase 7: Groundwork & housekeeping  (no UI surface, can run anytime)
+- Implement propper logging
+- Take a look at the full test suite and see if all tests are necessary and no tests are testing old/stale code
 
 
 
