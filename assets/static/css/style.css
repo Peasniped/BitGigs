@@ -1995,6 +1995,11 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
   border-color: var(--border) var(--border) var(--surface);
   color: var(--primary) !important;
 }
+/* ONLY the first card of a tab may carry .settings-pane: it flattens the top
+   corners and drops the top border so the card seams into the active tab. On a
+   second card that reads as a pane with its lid missing — a stray gap above it,
+   which is exactly how it looked on Calendar and Jobs. Every card after the
+   first is a plain `card mt-3` (see the Email tab for the pattern). */
 .settings-pane {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
@@ -2002,6 +2007,12 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
 }
 /* The lift-on-hover the other cards get would break the seam with the tab. */
 .settings-pane:hover { box-shadow: var(--card-shadow); }
+/* Settings panes are dense forms, and the app-wide 1rem card padding let
+   labels sit almost against the edge. Scoped to the settings column so no
+   other page's cards move. */
+.settings-page .card > .card-body { padding: 1.5rem; }
+/* Save belongs to the form, but not to the last setting in it. */
+.settings-save-row { margin-top: 2rem; }
 /* Settings → Jobs task queue. A failed row's Details cell holds the mail
    server's own words, which can be one long unbroken string — with auto layout
    the browser hands it the width and squeezes Task/Status/When down to a

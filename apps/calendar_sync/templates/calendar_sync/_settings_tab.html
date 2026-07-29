@@ -8,7 +8,7 @@
 {% load crispy_forms_tags %}
 
 {# ── Direction 1: Subscriptions ─────────────────────────────────────────── #}
-<div class="card settings-pane mb-3" data-calendar-settings
+<div class="card settings-pane" data-calendar-settings
      data-check-url="{% url 'calendar_sync:subscription-check' %}">
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
@@ -91,7 +91,8 @@
 </div>
 
 {# ── Direction 2: Invites ───────────────────────────────────────────────── #}
-<div class="card settings-pane" data-calendar-invites>
+{# Only the first pane butts against the tab strip — see .settings-pane. #}
+<div class="card mt-3" data-calendar-invites>
   <div class="card-body">
     <div class="fw-medium"><i class="bi bi-arrow-up-circle me-1"></i>Invites you send</div>
     <p class="form-text">

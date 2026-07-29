@@ -6,7 +6,8 @@
 
 {% block content %}
 <div class="row justify-content-center">
-  <div class="col-12 col-md-9 col-lg-7">
+  {% comment %} settings-page gives every pane on every tab its roomier padding. {% endcomment %}
+  <div class="col-12 col-md-9 col-lg-7 settings-page">
 
     {% comment %}
       Server-rendered tabs: only the active pane exists in the DOM. The Sign-in
@@ -746,7 +747,9 @@ OIDC_CLIENT_SECRET=</code></pre>
           </div>
           {% endfor %}
           {% endif %}
-          <div class="d-flex gap-2 mt-3">
+          {% comment %} Set off from the last setting, so Save doesn't read as
+          another row of the form it submits. {% endcomment %}
+          <div class="d-flex gap-2 settings-save-row">
             <button type="submit" class="btn btn-primary">
               <i class="bi bi-check-lg me-1"></i>Save
             </button>

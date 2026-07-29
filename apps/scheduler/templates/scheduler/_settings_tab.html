@@ -12,7 +12,7 @@
      data-cancel-url="{% url 'scheduler:task-cancel' %}">
 
   {% comment %} ── Scheduler process (watchdog) ─────────────────────────────── {% endcomment %}
-  <div class="card settings-pane mb-3">
+  <div class="card settings-pane">
     <div class="card-body">
       <div class="fw-medium mb-2">Scheduler process</div>
 
@@ -40,7 +40,8 @@
   </div>
 
   {% comment %} ── Scheduled jobs ───────────────────────────────────────────── {% endcomment %}
-  <div class="card settings-pane mb-3">
+  {% comment %} Only the first pane butts against the tab strip — see .settings-pane. {% endcomment %}
+  <div class="card mt-3">
     <div class="card-body">
       <div class="fw-medium">Scheduled jobs</div>
       <p class="form-text mb-3">
@@ -144,7 +145,7 @@
   </div>
 
   {% comment %} ── One-off task queue ───────────────────────────────────────── {% endcomment %}
-  <div class="card settings-pane">
+  <div class="card mt-3">
     <div class="card-body">
       <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
         <div>
