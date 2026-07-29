@@ -17,6 +17,7 @@ from .services import (
     valid_hex_color, valid_icon_class,
 )
 from core.utils import avatar_for_name, parse_int_param, prev_next_month, WEEKS_PER_MONTH, sanitize_svg
+from core.views import _safe_next
 
 # Curated icon choices for the workplace icon picker
 ICON_CHOICES = [
@@ -477,7 +478,11 @@ class ContractCreateView(View):
 
 class ContractUpdateView(View):
     """Edit a contract's label and its calendar-invite config. Its active dates
-    come from its term sets."""
+    come from its term sets.
+
+    Honours a same-origin ``next``: Settings → Calendar links here to fix a
+    contract's invites, and landing on the workplace page afterwards left the
+    owner to find their way back to the tab they came from."""
 
     def get(self, request, slug, cpk):
         workplace = get_object_or_404(Workplace, slug=slug)
@@ -486,6 +491,7 @@ class ContractUpdateView(View):
         return render(request, "workplaces/contract_form.html", {
             "form": form, "cal_form": _contract_calendar_form(contract),
             "workplace": workplace, "contract": contract,
+            "next_url": _safe_next(request, request.GET.get("next")),
             **_calendar_readiness(),
         })
 
@@ -494,8 +500,10 @@ class ContractUpdateView(View):
         contract = get_object_or_404(WorkplaceContract, pk=cpk, workplace=workplace)
         form = WorkplaceContractForm(request.POST, instance=contract, workplace=workplace)
         cal_form = _contract_calendar_form(contract, request.POST)
+        next_url = _safe_next(request, request.POST.get("next"))
         ctx = {"form": form, "cal_form": cal_form, "workplace": workplace,
-               "contract": contract, **_calendar_readiness()}
+               "contract": contract, "next_url": next_url,
+               **_calendar_readiness()}
         if form.is_valid() and cal_form.is_valid():
             updated = form.save(commit=False)
             try:
@@ -506,6 +514,8 @@ class ContractUpdateView(View):
                 return render(request, "workplaces/contract_form.html", ctx)
             updated.save()
             _save_contract_calendar(updated, cal_form, request)
+            if next_url:
+                return redirect(next_url)
             return redirect("workplaces:workplace-detail", slug=slug)
         return render(request, "workplaces/contract_form.html", ctx)
 

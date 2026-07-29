@@ -174,6 +174,7 @@ def calendar_settings_context(*, sub_form=None, invite_form=None, open_modal="",
     global invite settings + per-workplace configs (Direction 2), and whether
     mail is configured (invites ride the SMTP channel)."""
     import json
+    from urllib.parse import quote
 
     from core.constants import APP_ACCENT_CHOICES
     from core.models import EmailSettings
@@ -188,8 +189,12 @@ def calendar_settings_context(*, sub_form=None, invite_form=None, open_modal="",
     from . import reconcile
 
     invite_settings = CalendarInviteSettings.load()
+    email_settings = EmailSettings.load()
     subscriptions = list(CalendarSubscription.objects.all())
     drift_items = reconcile.drift_details()
+    # Every link out to a contract editor carries this back, so saving there
+    # returns to the tab rather than dropping the owner on the workplace page.
+    back_here = reverse("core:settings") + "?tab=calendar"
 
     # Read-only overview grouped workplace → contract (item 9). Editing lives on
     # the contract page, so each contract row links there rather than embedding a
@@ -219,7 +224,7 @@ def calendar_settings_context(*, sub_form=None, invite_form=None, open_modal="",
                     "label": f"{wp.name} — {contract.name}" if contract.name else wp.name,
                     "url": reverse(
                         "workplaces:contract-update", args=[wp.slug, contract.pk]
-                    ),
+                    ) + f"?next={quote(back_here, safe='')}",
                 })
         workplace_rows.append({"workplace": wp, "contracts": contracts})
     return {
@@ -229,9 +234,19 @@ def calendar_settings_context(*, sub_form=None, invite_form=None, open_modal="",
         "cal_invite_form": invite_form or CalendarInviteSettingsForm(instance=invite_settings),
         "cal_workplace_rows": workplace_rows,
         "cal_no_recipient_contracts": no_recipient,
-        "cal_mail_configured": EmailSettings.load().is_configured_for(
+        "cal_back_here": back_here,
+        "cal_mail_configured": email_settings.is_configured_for(
             EmailSettings.ROLE_CALENDAR
         ),
+        # is_configured_for() folds two separate things together — the mail
+        # master switch and whether the calendar role resolves to a usable
+        # connection. The master arm's warning has to name which one is
+        # missing, so it needs them apart. Connection first: with none at all,
+        # sending the owner off to flip the mail switch is a dead end, because
+        # EmailSettingsForm refuses to enable mail until one exists.
+        "cal_mail_has_connection": bool(
+            cal_conn := email_settings.connection_for(EmailSettings.ROLE_CALENDAR)
+        ) and cal_conn.is_configured,
         # Explicit-sync banner + review modal: active invites whose recipients
         # drifted from what they were last sent to (e.g. after a work/personal
         # e-mail change). ``items`` are grouped by change; ``count`` stays the

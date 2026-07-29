@@ -234,36 +234,42 @@ OIDC_CLIENT_SECRET=</code></pre>
         <hr class="my-3">
 
         {% comment %}
-          Password reset is configured on the Email tab (it needs a mail server),
-          but it's a sign-in concern, so mirror its state here read-only with a
-          link to where it's changed.
+          The Email tab's allow_password_reset, editable here too: it needs a
+          mail server to work (a mail concern) but it's a sign-in feature to
+          use, and being sent to another tab to flip one switch was the kind of
+          detour that makes a setting hard to find. Same row, both places.
+          Auto-submits — a lone switch with its own Save button reads as a step
+          you might forget.
         {% endcomment %}
-        <div class="d-flex justify-content-between align-items-center">
-          <div class="pe-3">
-            <div class="fw-medium">Password reset by email</div>
-            {% if password_reset_enabled %}
+        <form method="post" action="{% url 'core:password-signin' %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="password_reset">
+          <div class="d-flex justify-content-between align-items-start gap-3">
+            <div class="pe-3">
+              <div class="fw-medium">Password reset by email</div>
               <div class="form-text mb-0">
-                On &mdash; the login page can email you a reset link. Manage it on the
-                <a href="?tab=email">Email tab</a>.
+                Offer &ldquo;Forgot your password?&rdquo; on the login page. Console recovery
+                with <code>manage.py changepassword</code> always works, whatever this is set to.
               </div>
-            {% elif password_reset_allowed and not email_configured %}
-              <div class="form-text mb-0">
-                Turned on, but there's no working mail server yet. Set one up on the
-                <a href="?tab=email">Email tab</a> to enable reset links.
-              </div>
-            {% else %}
-              <div class="form-text mb-0">
-                Off &mdash; turn it on from the <a href="?tab=email">Email tab</a>.
-                Console recovery with <code>manage.py changepassword</code> always works.
-              </div>
-            {% endif %}
+            </div>
+            <div class="form-check form-switch mb-0 flex-shrink-0">
+              <input type="checkbox" class="form-check-input" role="switch"
+                     name="allow_password_reset" id="id_signin_password_reset"
+                     data-autosubmit aria-label="Password reset by email"
+                     {% if password_reset_allowed %}checked{% endif %}>
+            </div>
           </div>
-          {% if password_reset_enabled %}
-            <span class="badge text-bg-success">On</span>
-          {% else %}
-            <span class="badge text-bg-secondary">Off</span>
+          {% if password_reset_allowed and not email_configured %}
+          {% comment %} On, but nothing can send it — say so here rather than
+          letting the owner believe reset links are going out. {% endcomment %}
+          <div class="alert alert-warning py-2 px-3 mt-2 mb-0 small d-flex align-items-start gap-2"
+               role="alert">
+            <i class="bi bi-exclamation-triangle-fill mt-1 flex-shrink-0"></i>
+            <span>There's no working mail server yet, so no reset link can be sent.
+              Set one up on the <a href="?tab=email">Email tab</a>.</span>
+          </div>
           {% endif %}
-        </div>
+        </form>
 
       </div>
     </div>
@@ -296,7 +302,35 @@ OIDC_CLIENT_SECRET=</code></pre>
         <form method="post" action="{% url 'core:email-settings' %}">
           {% csrf_token %}
           <input type="hidden" name="section" value="switches">
-          {{ email_switch_form.enabled|as_crispy_field }}
+          {% comment %}
+            Hand-rendered rather than crispy so it can wear the same tinted
+            master arm as Settings → Calendar: green sending, red off, yellow
+            armed with no connection to send through. The form refuses to
+            enable mail without one, so the warning says so before the save
+            fails rather than after.
+          {% endcomment %}
+          <div class="master-arm mb-3" data-master-arm
+               data-arm-ready="{{ email_has_connection|yesno:'1,0' }}">
+            <div class="form-check form-switch mb-0">
+              <input type="checkbox" class="form-check-input" role="switch"
+                     name="{{ email_switch_form.enabled.html_name }}"
+                     id="{{ email_switch_form.enabled.id_for_label }}"
+                     {% if email_switch_form.enabled.value %}checked{% endif %}>
+              <label class="form-check-label fw-medium"
+                     for="{{ email_switch_form.enabled.id_for_label }}">Enable outgoing mail</label>
+            </div>
+            <p class="form-text mt-1 mb-0">{{ email_switch_form.enabled.help_text }}</p>
+            {% if not email_has_connection %}
+            <div class="master-arm__warn d-flex align-items-start gap-2" data-arm-warn hidden>
+              <i class="bi bi-exclamation-triangle-fill mt-1 flex-shrink-0"></i>
+              <span>There's no mail connection to send through yet, so nothing can
+                leave the server. Add one under &ldquo;Mail connections&rdquo; below.</span>
+            </div>
+            {% endif %}
+            {% for err in email_switch_form.enabled.errors %}
+              <div class="text-danger small mt-1">{{ err }}</div>
+            {% endfor %}
+          </div>
           {{ email_switch_form.allow_password_reset|as_crispy_field }}
           <button type="submit" class="btn btn-outline-primary">
             <i class="bi bi-check-lg me-1"></i>Save settings

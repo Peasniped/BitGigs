@@ -327,9 +327,14 @@ def email_context(switch_form=None, roles_form=None, conn_form=None,
     from .forms import MailConnectionForm
 
     config = EmailSettings.load()
+    system_conn = config.connection_for(EmailSettings.ROLE_SYSTEM)
     return {
         "email_settings": config,
         "email_configured": config.is_configured,
+        # The master arm's own state, so it can't be keyed on is_configured —
+        # that folds the master switch in, and the box would then stay red
+        # until the switch it reports on had already been saved.
+        "email_has_connection": bool(system_conn and system_conn.is_configured),
         "email_switch_form": switch_form or EmailSettingsForm(
             instance=config, section=EmailSettingsForm.SECTION_SWITCHES),
         "email_roles_form": roles_form or EmailSettingsForm(
@@ -884,6 +889,18 @@ class PasswordSignInView(View):
             # the owner straight out of the session they're doing this from.
             update_session_auth_hash(request, request.user)
             messages.success(request, f"Password sign-in is off. Use {provider} from now on.")
+            return redirect(_signin_tab_url(request))
+
+        if action == "password_reset":
+            # The same EmailSettings.allow_password_reset the Email tab owns.
+            # It's a mail concern to configure and a sign-in concern to use, so
+            # it's settable from both rather than read-only here with a link.
+            config = EmailSettings.load()
+            config.allow_password_reset = "allow_password_reset" in request.POST
+            config.save(update_fields=["allow_password_reset"])
+            messages.success(request, "Password reset by email is now on."
+                             if config.allow_password_reset
+                             else "Password reset by email is now off.")
             return redirect(_signin_tab_url(request))
 
         if action == "account_details":

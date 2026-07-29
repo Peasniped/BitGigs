@@ -102,14 +102,6 @@
       deletion cancels the event.
     </p>
 
-    {% if not cal_mail_configured %}
-    <div class="alert alert-warning py-2 d-flex align-items-center gap-2" role="alert">
-      <i class="bi bi-exclamation-triangle-fill"></i>
-      <span>Mail isn't configured yet, so invites can't be sent. Set it up on the
-        <a href="?tab=email">Email tab</a> first.</span>
-    </div>
-    {% endif %}
-
     {% comment %}
       Drift notice — active invites still addressed to an old mailbox (after a
       work/personal e-mail change). Explicit sync: withdraw the old, re-send the
@@ -140,27 +132,48 @@
         </div>
       {% endif %}
 
-      {# Master switch — highlighted, since it arms everything below it. #}
-      <div class="cal-master-arm mb-3">
+      {% comment %}
+        Master switch — highlighted, since it arms everything below it, and
+        tinted by its own state (settings.js): green sending, red off, yellow
+        armed but mail can't carry it. The mail warning lives inside the box
+        and only while armed — as a separate banner above it, it used to warn
+        about a send that wasn't going to be attempted anyway.
+      {% endcomment %}
+      <div class="master-arm mb-3" data-master-arm
+           data-arm-ready="{{ cal_mail_configured|yesno:'1,0' }}">
         <div class="form-check form-switch mb-0">
           <input type="checkbox" class="form-check-input" role="switch"
                  name="enabled" id="id_enabled" {% if cal_invite_form.enabled.value %}checked{% endif %}>
           <label class="form-check-label fw-medium" for="id_enabled">Enable calendar invites</label>
         </div>
         <p class="form-text mt-1 mb-0">{{ cal_invite_form.enabled.help_text }}</p>
+        {% if not cal_mail_configured %}
+        <div class="master-arm__warn d-flex align-items-start gap-2" data-arm-warn hidden>
+          <i class="bi bi-exclamation-triangle-fill mt-1 flex-shrink-0"></i>
+          {% if not cal_mail_has_connection %}
+          <span>No mail connection is set up for calendar invites yet, so they
+            can't be sent. Add one under <a href="?tab=email">Email</a>.</span>
+          {% else %}
+          <span>Outgoing mail is switched off, so no invite can leave the server.
+            Turn it on under <a href="?tab=email">Email</a>.</span>
+          {% endif %}
+        </div>
+        {% endif %}
       </div>
 
       {# Personal calendar: toggle + inline address revealed only when on. The #}
       {# row picks up the hint's bottom gap while the hint is hidden (.mb-3 #}
       {# comes after .mb-1 in Bootstrap, so it wins). #}
-      <div class="d-flex align-items-center gap-2 mb-1 flex-wrap{% if not cal_invite_form.send_to_personal.value %} mb-3{% endif %}">
+      <div class="d-flex align-items-center gap-3 mb-1 flex-wrap{% if not cal_invite_form.send_to_personal.value %} mb-3{% endif %}">
         <div class="form-check form-switch mb-0" style="min-width:16rem;">
           <input type="checkbox" class="form-check-input" role="switch"
                  name="send_to_personal" id="id_send_to_personal" data-cal-reveal="wrap_owner_address"
                  {% if cal_invite_form.send_to_personal.value %}checked{% endif %}>
           <label class="form-check-label" for="id_send_to_personal">Send invites to personal calendar</label>
         </div>
-        <div class="flex-grow-1{% if not cal_invite_form.send_to_personal.value %} d-none{% endif %}"
+        {# cal-inline gives the field the accent-tinted border every inline #}
+        {# reveal field carries, so it reads as this switch's value. #}
+        <div class="flex-grow-1 cal-inline{% if not cal_invite_form.send_to_personal.value %} d-none{% endif %}"
              id="wrap_owner_address" style="min-width:14rem;">
           <input type="email" name="owner_address" id="id_owner_address"
                  value="{{ cal_invite_form.owner_address.value|default_if_none:'' }}"
@@ -258,7 +271,7 @@
                   {% else %}—{% endif %}
                 </td>
                 <td class="text-end">
-                  <a href="{% url 'workplaces:contract-update' row.workplace.slug c.contract.pk %}"
+                  <a href="{% url 'workplaces:contract-update' row.workplace.slug c.contract.pk %}?next={{ cal_back_here|urlencode:"" }}"
                      class="btn btn-outline-secondary btn-sm" title="Edit this contract's invites">
                     <i class="bi bi-pencil me-1"></i>Edit
                   </a>

@@ -1309,12 +1309,39 @@ body[data-mask-money] .money-chart {
   border-color: color-mix(in srgb, var(--primary) 25%, var(--border));
 }
 
-/* Highlighted master-arm box around "Enable calendar invites". */
-.cal-master-arm {
+/* Master-arm box — the highlighted switch that arms a whole subsystem
+   (calendar invites, outgoing mail). The tint reports state at a glance:
+   green = armed and able to send, yellow = armed but something downstream is
+   off (the warning inside names it), red = switched off. settings.js re-tints
+   on toggle, so the box answers before the form is saved. Shared: use
+   .master-arm for any future master switch rather than a per-feature class. */
+.master-arm {
   padding: .75rem 1rem;
   border-radius: .6rem;
   background: color-mix(in srgb, var(--primary) 8%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+  transition: background var(--transition-base), border-color var(--transition-base);
+}
+.master-arm--on {
+  background: var(--success-tint);
+  border-color: color-mix(in srgb, var(--success) 35%, var(--border));
+}
+.master-arm--warn {
+  background: var(--warning-tint);
+  border-color: color-mix(in srgb, var(--warning) 40%, var(--border));
+}
+.master-arm--off {
+  background: var(--danger-tint);
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--border));
+}
+/* Sits inside the box, under the switch it belongs to — a separate alert above
+   the box used to show while the feature was off, warning about a send that
+   wasn't going to be attempted anyway. */
+.master-arm__warn {
+  margin-top: .6rem;
+  padding-top: .6rem;
+  border-top: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+  font-size: .875rem;
 }
 
 /* ---- Badges ---- */

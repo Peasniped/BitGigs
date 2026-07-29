@@ -4,17 +4,6 @@
 
 ## Polish
 
-### Phase 1: Settings page layout & spacing  (style.css + settings.html)
-- In settings>calendar, there is a weird space between the sections for ingoing and outgoing calendar. I think you said in a previous setting that it is because the settings pane class should only be used for the upper pane (needs flat top to work well with the tabs) It is fixed in Settings > Email. -- Please update claude.md conventions so no new settings panes are created with wrong classes.
-- Add a bit more padding to all the settings-page.
-- In Settings>Display and Analytics, add some space between the save button and the last setting on the page.
-
-### Phase 2: Settings → Calendar & Email tabs  (master arms, mirroring, nav)
-- Make the calendar master arm switch background context aware, so it is red if disabled and green if enabled. Make it yellow if turned on and email master arm is turned off, and have the warning message inside the div, and only show the warning if calendar invites master is on.
-- Make the email master arm the same style as the calendar master arm.
-- Add a bit more space between Send invites to personal calendar and the email input field, and change the input field border to primary accent.
-- When editing a workplace contract from Settings>Calendar, it should return you back there, when clicking save or cancel.
-- mirror Email>Allow password reset on the sign-in page so it can be changed/set both places. (If an email server is not setup, show warning on sign-in page)
 
 ### Phase 3: Settings UX pass  (the big one — do after 1 & 2 have settled the styling)
 - - Make all boolean switches the custom slider (please note this in claude.md under conventions such that future binary switches will also use the same slider design)

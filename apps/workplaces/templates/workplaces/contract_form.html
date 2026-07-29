@@ -36,6 +36,8 @@
 
         <form method="post">
           {% csrf_token %}
+          {# Where we came from (Settings → Calendar); survives a failed save. #}
+          {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
 
           {% if form.non_field_errors %}
             <div class="alert alert-danger py-2">
@@ -61,7 +63,7 @@
             <button type="submit" class="btn btn-primary flex-fill">
               <i class="bi bi-check-lg me-1"></i>{% if onboarding %}Save &amp; back to review{% elif contract %}Save{% else %}Create &amp; add terms{% endif %}
             </button>
-            <a href="{% if onboarding %}{% url 'core:onboarding-review' %}{% else %}{% url 'workplaces:workplace-detail' workplace.slug %}{% endif %}"
+            <a href="{% if onboarding %}{% url 'core:onboarding-review' %}{% elif next_url %}{{ next_url }}{% else %}{% url 'workplaces:workplace-detail' workplace.slug %}{% endif %}"
                class="btn btn-outline-secondary">{% if onboarding %}Back to review{% else %}Cancel{% endif %}</a>
           </div>
         </form>

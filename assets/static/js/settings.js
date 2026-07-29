@@ -75,6 +75,39 @@
     apply();
   })();
 
+  /* A switch that is its own Save — it posts the form it sits in as soon as it
+   * changes (same shape as the Jobs tab's per-job toggle). For a setting that
+   * is one switch and nothing else, a Save button beside it is a step that is
+   * easy to walk away without pressing. */
+  document.querySelectorAll('[data-autosubmit]').forEach(function (input) {
+    input.addEventListener('change', function () {
+      if (input.form) input.form.submit();
+    });
+  });
+
+  /* Master-arm boxes (calendar invites, outgoing mail). The tint answers "is
+   * this actually going to work?" — green armed and ready, yellow armed but
+   * something downstream is off, red switched off. data-arm-ready is the
+   * server's verdict on the downstream half (a mail connection exists, the
+   * mail master switch is on); it can't change without a reload, so only the
+   * switch is watched. The warning shows only while armed: what's missing
+   * downstream doesn't matter while nothing is being sent. */
+  document.querySelectorAll('[data-master-arm]').forEach(function (box) {
+    var input = box.querySelector('.form-check-input');
+    if (!input) return;
+    var warn = box.querySelector('[data-arm-warn]');
+    var ready = box.getAttribute('data-arm-ready') === '1';
+    function apply() {
+      var on = input.checked;
+      box.classList.toggle('master-arm--on', on && ready);
+      box.classList.toggle('master-arm--warn', on && !ready);
+      box.classList.toggle('master-arm--off', !on);
+      if (warn) warn.hidden = !(on && !ready);
+    }
+    input.addEventListener('change', apply);
+    apply();
+  });
+
   /* Settings → Features: a card dims when its switch goes off, and any settings
    * it owns fold away with it. The panel is only *hidden*, never removed, so
    * those fields still post — saving with a feature off must not wipe how it was
