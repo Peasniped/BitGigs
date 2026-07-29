@@ -1309,6 +1309,31 @@ body[data-mask-money] .money-chart {
   border-color: color-mix(in srgb, var(--primary) 25%, var(--border));
 }
 
+/* Save-on-change feedback (settings.js). The settings panes have no Save button,
+   so each control says for itself that it stored — a tick that fades, sitting
+   next to the thing that changed rather than as a banner at the top of the page.
+   A rejection keeps its message until the next attempt: the control has just
+   moved back on its own, and that needs explaining. */
+.autosave-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  margin-left: .5rem;
+  font-size: .8125rem;
+  font-weight: 500;
+  color: var(--success);
+  opacity: 0;
+  transition: opacity var(--transition-base);
+  pointer-events: none;
+}
+.autosave-flag.is-shown { opacity: 1; }
+.autosave-flag--error {
+  color: var(--danger);
+  /* Wraps rather than stretching the row — a validation message is a sentence,
+     not a word. */
+  white-space: normal;
+}
+
 /* Master-arm box — the highlighted switch that arms a whole subsystem
    (calendar invites, outgoing mail). The tint reports state at a glance:
    green = armed and able to send, yellow = armed but something downstream is
@@ -2038,8 +2063,31 @@ tbody.dash-approve-tbody tr.row-focused:hover > * { --bs-table-bg-state: rgba(va
    labels sit almost against the edge. Scoped to the settings column so no
    other page's cards move. */
 .settings-page .card > .card-body { padding: 1.5rem; }
-/* Save belongs to the form, but not to the last setting in it. */
+/* Save belongs to the form, but not to the last setting in it. Now only used by
+   the "Back" link a ?next leaves behind — the panes save on change. */
 .settings-save-row { margin-top: 2rem; }
+/* Every section inside a pane is titled the same way. Each tab had grown its own
+   habit — bare `fw-medium` here, `mb-1` there, `mb-2` somewhere else — so the
+   gap under a heading changed depending on which tab you were on, which is what
+   made the page read as several pages stapled together. `display:flex` keeps an
+   optional leading icon on the text's baseline without a margin hack. */
+.settings-page .settings-section {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-weight: 500;
+  margin-bottom: .5rem;
+}
+/* A heading with a control on the far right (Add connection, Add calendar). The
+   button makes the row taller, so it needs a little more under it — set here so
+   no template carries a margin class of its own. */
+.settings-page .settings-section--split {
+  justify-content: space-between;
+  margin-bottom: .75rem;
+}
+/* The description that follows a heading answers the heading, so it sits closer
+   to it than to whatever comes next. */
+.settings-page .settings-section + .form-text { margin-top: -.25rem; }
 /* Settings → Jobs task queue. A failed row's Details cell holds the mail
    server's own words, which can be one long unbroken string — with auto layout
    the browser hands it the width and squeezes Task/Status/When down to a

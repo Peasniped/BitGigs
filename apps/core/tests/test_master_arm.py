@@ -87,7 +87,8 @@ class PasswordResetMirrorTests(LoggedInTestCase):
     def test_signin_tab_renders_it_as_an_editable_switch(self):
         resp = self.client.get("/settings/?tab=signin")
         self.assertContains(resp, 'name="allow_password_reset"')
-        self.assertContains(resp, "data-autosubmit")
+        # Saves through the same scope as the Email tab — one field, one writer.
+        self.assertContains(resp, 'data-autosave="email"')
 
     def test_toggling_it_from_signin_writes_email_settings(self):
         config = EmailSettings.load()
@@ -116,10 +117,13 @@ class PasswordResetMirrorTests(LoggedInTestCase):
         config.save()
         resp = self.client.get("/settings/?tab=signin")
         self.assertContains(resp, "no working mail server")
+        self.assertContains(resp, "data-signin-reset-warn>")
 
-    def test_no_warning_while_it_is_off(self):
+    def test_the_warning_is_rendered_but_hidden_while_it_is_off(self):
+        """Hidden rather than absent: the switch saves without a reload, so
+        settings.js has to be able to reveal it the moment it's turned on."""
         config = EmailSettings.load()
         config.allow_password_reset = False
         config.save()
         resp = self.client.get("/settings/?tab=signin")
-        self.assertNotContains(resp, "no working mail server")
+        self.assertContains(resp, "data-signin-reset-warn hidden")

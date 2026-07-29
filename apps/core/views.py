@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.views import LoginView
+from django.core.serializers.json import DjangoJSONEncoder
 from django.http import JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.urls import reverse
@@ -256,6 +257,44 @@ class UserSettingsView(View):
             return redirect(next_url or f"{reverse('core:settings')}?tab={tab}")
         return render(request, "core/settings.html",
                       self._context(request, form, next_url, tab))
+
+
+class SettingsFieldView(View):
+    """Save one settings control the moment it changes (the settings panes carry
+    no Save button — see ``core.settings_fields``).
+
+    JSON in the sense that the *answer* is JSON; the request is an ordinary form
+    POST, so each field's own widget parses its value exactly as it would in a
+    full submit. A validation failure answers 400 with the field's own message —
+    the page shows it beside the control and puts the control back, so what's on
+    screen never claims a setting that wasn't stored."""
+
+    def post(self, request):
+        from .settings_fields import SettingsFieldError, save_field
+
+        scope = request.POST.get("scope", "")
+        field = request.POST.get("field", "")
+        try:
+            form = save_field(scope, field, request.POST)
+        except SettingsFieldError as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+
+        if form.errors:
+            # Field errors first — they name the setting the owner just touched.
+            # __all__ errors (EmailSettingsForm's "add a connection first") only
+            # surface when the field itself validated.
+            errors = form.errors.get(field) or form.non_field_errors()
+            return JsonResponse(
+                {"ok": False, "error": errors[0] if errors else "That didn't save."},
+                status=400,
+            )
+        # Echo what was actually stored, so the control can correct itself when
+        # the form normalised the input (a blank invite title becomes the
+        # built-in default; a hex is lower-cased).
+        value = form.cleaned_data.get(field)
+        if hasattr(value, "pk"):          # a model choice — send its id
+            value = value.pk
+        return JsonResponse({"ok": True, "value": value}, encoder=DjangoJSONEncoder)
 
 
 class SetThemeView(View):

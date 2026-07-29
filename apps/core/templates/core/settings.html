@@ -6,8 +6,12 @@
 
 {% block content %}
 <div class="row justify-content-center">
-  {% comment %} settings-page gives every pane on every tab its roomier padding. {% endcomment %}
-  <div class="col-12 col-md-9 col-lg-7 settings-page">
+  {% comment %} settings-page gives every pane on every tab its roomier padding.
+  The two data attributes are what every [data-autosave] control on every tab
+  saves through — one endpoint, one token, wherever the control lives. {% endcomment %}
+  <div class="col-12 col-md-9 col-lg-7 settings-page"
+       data-settings-autosave-url="{% url 'core:settings-field' %}"
+       data-csrf="{{ csrf_token }}">
 
     {% comment %}
       Server-rendered tabs: only the active pane exists in the DOM. The Sign-in
@@ -237,13 +241,11 @@ OIDC_CLIENT_SECRET=</code></pre>
           The Email tab's allow_password_reset, editable here too: it needs a
           mail server to work (a mail concern) but it's a sign-in feature to
           use, and being sent to another tab to flip one switch was the kind of
-          detour that makes a setting hard to find. Same row, both places.
-          Auto-submits — a lone switch with its own Save button reads as a step
-          you might forget.
+          detour that makes a setting hard to find. Same row, both places, and
+          the same autosave scope as the Email tab — one field, one way to write
+          it, whichever tab you're standing on.
         {% endcomment %}
-        <form method="post" action="{% url 'core:password-signin' %}">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="password_reset">
+        <div data-signin-reset>
           <div class="d-flex justify-content-between align-items-start gap-3">
             <div class="pe-3">
               <div class="fw-medium">Password reset by email</div>
@@ -255,21 +257,23 @@ OIDC_CLIENT_SECRET=</code></pre>
             <div class="form-check form-switch mb-0 flex-shrink-0">
               <input type="checkbox" class="form-check-input" role="switch"
                      name="allow_password_reset" id="id_signin_password_reset"
-                     data-autosubmit aria-label="Password reset by email"
+                     data-autosave="email" aria-label="Password reset by email"
                      {% if password_reset_allowed %}checked{% endif %}>
             </div>
           </div>
-          {% if password_reset_allowed and not email_configured %}
+          {% if not email_configured %}
           {% comment %} On, but nothing can send it — say so here rather than
-          letting the owner believe reset links are going out. {% endcomment %}
+          letting the owner believe reset links are going out. Rendered hidden
+          and revealed with the switch (settings.js), so flipping it on warns
+          straight away instead of only after the next page load. {% endcomment %}
           <div class="alert alert-warning py-2 px-3 mt-2 mb-0 small d-flex align-items-start gap-2"
-               role="alert">
+               role="alert" data-signin-reset-warn{% if not password_reset_allowed %} hidden{% endif %}>
             <i class="bi bi-exclamation-triangle-fill mt-1 flex-shrink-0"></i>
             <span>There's no working mail server yet, so no reset link can be sent.
               Set one up on the <a href="?tab=email">Email tab</a>.</span>
           </div>
           {% endif %}
-        </form>
+        </div>
 
       </div>
     </div>
@@ -292,7 +296,7 @@ OIDC_CLIENT_SECRET=</code></pre>
     <div class="card settings-pane">
       <div class="card-body">
         <div class="mb-3">
-          <div class="fw-medium">Outgoing mail</div>
+          <div class="settings-section">Outgoing mail</div>
           <p class="form-text mb-0">
             Optional. BitGigs sends nothing until you turn it on. It powers
             password reset and calendar invites, sent through the mail
@@ -315,6 +319,7 @@ OIDC_CLIENT_SECRET=</code></pre>
               <input type="checkbox" class="form-check-input" role="switch"
                      name="{{ email_switch_form.enabled.html_name }}"
                      id="{{ email_switch_form.enabled.id_for_label }}"
+                     data-autosave="email"
                      {% if email_switch_form.enabled.value %}checked{% endif %}>
               <label class="form-check-label fw-medium"
                      for="{{ email_switch_form.enabled.id_for_label }}">Enable outgoing mail</label>
@@ -331,10 +336,9 @@ OIDC_CLIENT_SECRET=</code></pre>
               <div class="text-danger small mt-1">{{ err }}</div>
             {% endfor %}
           </div>
-          {{ email_switch_form.allow_password_reset|as_crispy_field }}
-          <button type="submit" class="btn btn-outline-primary">
-            <i class="bi bi-check-lg me-1"></i>Save settings
-          </button>
+          {% comment %} Switch, not crispy's bare checkbox — every boolean
+          setting in the app wears the same on/off switch. {% endcomment %}
+          {% include "_switch_field.html" with field=email_switch_form.allow_password_reset autosave="email" wrapper_class="mb-0" %}
         </form>
       </div>
     </div>
@@ -342,9 +346,9 @@ OIDC_CLIENT_SECRET=</code></pre>
     {% comment %} ── Connections ─────────────────────────────────────────── {% endcomment %}
     <div class="card mt-3">
       <div class="card-body">
-        <div class="d-flex align-items-center gap-2 mb-3">
-          <div class="fw-medium">Mail connections</div>
-          <button type="button" class="btn btn-primary btn-sm ms-auto"
+        <div class="settings-section settings-section--split">
+          <span>Mail connections</span>
+          <button type="button" class="btn btn-primary btn-sm"
                   data-conn-add data-bs-toggle="modal" data-bs-target="#emailSettingsModal">
             <i class="bi bi-plus-lg me-1"></i>Add connection
           </button>
@@ -447,7 +451,7 @@ OIDC_CLIENT_SECRET=</code></pre>
         "here are your connections, here's what each is used for" ───────────── {% endcomment %}
         {% if email_connections %}
         <hr class="my-4">
-        <div class="fw-medium mb-2"><i class="bi bi-diagram-3 me-1"></i>Used for</div>
+        <div class="settings-section"><i class="bi bi-diagram-3"></i>Used for</div>
         <p class="form-text mt-0">
           Which connection sends each kind of mail. Leave on <em>Default</em> to
           use the connection marked as default.
@@ -459,9 +463,6 @@ OIDC_CLIENT_SECRET=</code></pre>
             <div class="col-sm-6">{{ email_roles_form.system_connection|as_crispy_field }}</div>
             <div class="col-sm-6">{{ email_roles_form.calendar_connection|as_crispy_field }}</div>
           </div>
-          <button type="submit" class="btn btn-outline-primary">
-            <i class="bi bi-check-lg me-1"></i>Save
-          </button>
         </form>
         {% endif %}
       </div>
@@ -471,7 +472,7 @@ OIDC_CLIENT_SECRET=</code></pre>
     {% if email_connections %}
     <div class="card mt-3">
       <div class="card-body">
-        <div class="fw-medium">Send a test message</div>
+        <div class="settings-section">Send a test message</div>
         <p class="form-text mt-0">
           Sends a real message through the chosen connection, so you can confirm
           it arrives. (The per-connection <em>Test</em> above checks the server
@@ -632,13 +633,15 @@ OIDC_CLIENT_SECRET=</code></pre>
             the colour pickers can sit where they belong: everyday toggles
             first, then the theme/colour section.
           {% endcomment %}
-          {% include "_switch_field.html" with field=form.show_shift_type_colors %}
-          {% include "_switch_field.html" with field=form.show_help_button %}
+          {% comment %} The partial hand-renders its input, so it can't pick the
+          scope up from the widget the way a crispy field does — pass it. {% endcomment %}
+          {% include "_switch_field.html" with field=form.show_shift_type_colors autosave="display" %}
+          {% include "_switch_field.html" with field=form.show_help_button autosave="display" %}
           {% comment %}Mask money: a demo/screenshot switch that hides every
           amount app-wide behind a fixed-length run of dots. The live example
           preview reveals only while the switch is on (money_mask.js on this page).{% endcomment %}
           <div data-mask-money-setting>
-            {% include "_switch_field.html" with field=form.mask_money %}
+            {% include "_switch_field.html" with field=form.mask_money autosave="display" %}
             <div class="ms-4 mb-3{% if not form.mask_money.value %} d-none{% endif %}" data-mask-style-wrap>
               <p class="form-text mt-0 mb-1">Preview (a real amount stays hidden like this):</p>
               <div class="p-2 rounded" style="background:var(--surface-2, var(--surface));display:inline-block;">
@@ -749,6 +752,7 @@ OIDC_CLIENT_SECRET=</code></pre>
                 <div class="form-check form-switch mb-1">
                   <input type="checkbox" class="form-check-input" role="switch"
                          name="{{ row.field.html_name }}" id="{{ row.field.id_for_label }}"
+                         data-autosave="features"
                          {% if row.field.value %}checked{% endif %}>
                   <label class="form-check-label fw-medium" for="{{ row.field.id_for_label }}">
                     {{ row.feature.label }}
@@ -773,7 +777,7 @@ OIDC_CLIENT_SECRET=</code></pre>
                      data-feature-settings>
                   {{ form.projection_method|as_crispy_field }}
                   {{ form.projection_trailing_months|as_crispy_field }}
-                  {% include "_switch_field.html" with field=form.use_planned_shifts wrapper_class="mb-0" %}
+                  {% include "_switch_field.html" with field=form.use_planned_shifts wrapper_class="mb-0" autosave="features" %}
                 </div>
                 {% endif %}
               </div>
@@ -781,18 +785,19 @@ OIDC_CLIENT_SECRET=</code></pre>
           </div>
           {% endfor %}
           {% endif %}
-          {% comment %} Set off from the last setting, so Save doesn't read as
-          another row of the form it submits. {% endcomment %}
+          {% comment %}
+            No Save button: every control here saves as it changes (see the
+            autosave convention). What's left is the way back for someone who
+            arrived with a ?next — and it can't say "Cancel" any more, because
+            by the time they press it their changes are already stored.
+          {% endcomment %}
+          {% if next_url %}
           <div class="d-flex gap-2 settings-save-row">
-            <button type="submit" class="btn btn-primary">
-              <i class="bi bi-check-lg me-1"></i>Save
-            </button>
-            {% if next_url %}
-              <a href="{{ next_url }}" class="btn btn-outline-secondary">
-                <i class="bi bi-x-lg me-1"></i>Cancel
-              </a>
-            {% endif %}
+            <a href="{{ next_url }}" class="btn btn-outline-secondary">
+              <i class="bi bi-arrow-left me-1"></i>Back
+            </a>
           </div>
+          {% endif %}
         </form>
       </div>
     </div>

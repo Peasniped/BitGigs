@@ -14,7 +14,7 @@
   {% comment %} ── Scheduler process (watchdog) ─────────────────────────────── {% endcomment %}
   <div class="card settings-pane">
     <div class="card-body">
-      <div class="fw-medium mb-2">Scheduler process</div>
+      <div class="settings-section">Scheduler process</div>
 
       <div class="alert alert-success d-flex align-items-center gap-2 py-2 mb-0"
            data-beat="up" {% if not scheduler_alive %}hidden{% endif %}>
@@ -43,7 +43,7 @@
   {% comment %} Only the first pane butts against the tab strip — see .settings-pane. {% endcomment %}
   <div class="card mt-3">
     <div class="card-body">
-      <div class="fw-medium">Scheduled jobs</div>
+      <div class="settings-section">Scheduled jobs</div>
       <p class="form-text mb-3">
         Background tasks that run on a schedule, whether or not anyone is using the
         app. Toggle one off to skip it, or click a row for details.
@@ -149,7 +149,7 @@
     <div class="card-body">
       <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
         <div>
-          <div class="fw-medium">Task queue</div>
+          <div class="settings-section">Task queue</div>
           <p class="form-text mb-0">
             One-off work handed to the scheduler by the app — sending a calendar
             invite, for instance. Nothing retries by itself (a re-sent invite would

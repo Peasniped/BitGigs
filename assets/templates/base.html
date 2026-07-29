@@ -82,9 +82,11 @@
             <a class="nav-link{% if ns == 'calendar_view' %} active{% endif %}" href="{% url 'calendar_view:planning' %}"><i class="bi bi-calendar2-week me-1"></i>Planning</a>
           </li>
           {% comment %} Switched off on Settings → Features: the entry goes and the
-             URL stops answering (FeatureEnabledMiddleware). {% endcomment %}
+             URL stops answering (FeatureEnabledMiddleware). data-feature-nav lets
+             the Features tab hide/show it the moment its switch is saved, so the
+             nav can't disagree with the setting you're looking at. {% endcomment %}
           {% if features.analytics %}
-          <li class="nav-item">
+          <li class="nav-item" data-feature-nav="analytics">
             <a class="nav-link{% if ns == 'analytics' %} active{% endif %}" href="{% url 'analytics:overview' %}"><i class="bi bi-bar-chart-line me-1"></i>Analytics</a>
           </li>
           {% endif %}
@@ -94,9 +96,9 @@
             <a class="nav-link dropdown-toggle" href="#" role="button"
                data-bs-toggle="dropdown"><i class="bi bi-three-dots me-1"></i>More</a>
             <ul class="dropdown-menu dropdown-menu-end">
-              {% if features.payroll %}<li><a class="dropdown-item" href="{% url 'payroll:period-list' %}"><i class="bi bi-cash-stack me-2"></i>Payroll</a></li>{% endif %}
-              {% if features.vacation %}<li><a class="dropdown-item" href="{% url 'payroll:vacation-overview' %}"><i class="bi bi-sun me-2"></i>Vacation</a></li>{% endif %}
-              {% if features.commuting %}<li><a class="dropdown-item" href="{% url 'payroll:commuting-list' %}"><i class="bi bi-bus-front me-2"></i>Commuting</a></li>{% endif %}
+              {% if features.payroll %}<li data-feature-nav="payroll"><a class="dropdown-item" href="{% url 'payroll:period-list' %}"><i class="bi bi-cash-stack me-2"></i>Payroll</a></li>{% endif %}
+              {% if features.vacation %}<li data-feature-nav="vacation"><a class="dropdown-item" href="{% url 'payroll:vacation-overview' %}"><i class="bi bi-sun me-2"></i>Vacation</a></li>{% endif %}
+              {% if features.commuting %}<li data-feature-nav="commuting"><a class="dropdown-item" href="{% url 'payroll:commuting-list' %}"><i class="bi bi-bus-front me-2"></i>Commuting</a></li>{% endif %}
               <li><a class="dropdown-item" href="{% url 'core:taxprofile-list' %}"><i class="bi bi-percent me-2"></i>Tax Profiles</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="{% url 'core:settings' %}"><i class="bi bi-gear me-2"></i>Settings</a></li>
@@ -191,12 +193,16 @@
   limits it to public-audience articles — but never on the minimal_chrome
   hand-off pages, which must keep nothing clickable.{% endcomment %}
   {% if help_enabled and not minimal_chrome %}{% if user.is_authenticated or onboarding %}
-    {% if show_help_button %}
+    {% comment %} Rendered either way and hidden with `hidden` when switched off,
+    so Settings → Display can show/hide it live when its switch saves — the
+    button is on the very page you toggle it from, and having to reload to see
+    the effect reads as the setting not working. F1 and More → Help are
+    unaffected either way. {% endcomment %}
     <button type="button" class="help-fab" data-bs-toggle="offcanvas" data-bs-target="#helpOffcanvas"
-            title="Help (F1)" aria-label="Open help">
+            title="Help (F1)" aria-label="Open help" data-help-fab
+            {% if not show_help_button %}hidden{% endif %}>
       <i class="bi bi-question-lg"></i>
     </button>
-    {% endif %}
     {% include "help/_help_offcanvas.html" %}
   {% endif %}{% endif %}
 

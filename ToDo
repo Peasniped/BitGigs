@@ -5,12 +5,6 @@
 ## Polish
 
 
-### Phase 3: Settings UX pass  (the big one — do after 1 & 2 have settled the styling)
-- - Make all boolean switches the custom slider (please note this in claude.md under conventions such that future binary switches will also use the same slider design)
-- - Make all settings (that are not forms/modals) save on change, and remove the save buttons.
-- - make sure settings formatting and styling are contiguous
-- - ASK before you remove anything.
-
 ### Phase 4: Calendar & shift chip density  (planning.css + shift chips + shift modal)
 - make a bit more spacing between items on the calendar, currently I have two overlapping events and the extra amber border makes them almost touch, making it look kind of strange.
 - - It is the same when you hover over a workplace and it shows the green highlight showing which days belong to the payroll period. The borders of neighboring green days almost merge together. Maybe this highlight can be inset ever so slightly into the day cell so the borders do not (or do not almost) overlap.

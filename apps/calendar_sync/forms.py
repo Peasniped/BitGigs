@@ -104,6 +104,11 @@ class CalendarInviteSettingsForm(forms.ModelForm):
             self.fields["owner_address"].help_text = (
                 f"Leave blank to use your account email ({acct})."
             )
+        # The tab has no Save button — every field saves on change. The crispy
+        # defaults need the attribute on their widget; the hand-rendered master
+        # arm, personal switch and address carry it inline.
+        for field in self.fields.values():
+            field.widget.attrs["data-autosave"] = "calendar"
 
     def clean_default_title_onsite(self):
         return self.cleaned_data.get("default_title_onsite") or TITLE_ONSITE_DEFAULT

@@ -6,7 +6,7 @@
 <div class="card settings-pane">
   <div class="card-body" data-api-settings>
 
-    <div class="fw-medium">API access</div>
+    <div class="settings-section">API access</div>
     <p class="form-text mb-3">
       Read your BitGigs data from scripts and other tools. Every request needs
       an API key, sent as <code>Authorization: Bearer bg_…</code> — create one
@@ -39,7 +39,7 @@
     {% endif %}
 
     {% comment %} ── Existing keys ─────────────────────────────────────────── {% endcomment %}
-    <div class="fw-medium mb-2">Your keys</div>
+    <div class="settings-section">Your keys</div>
     {% if api_keys %}
     <div class="table-responsive mb-3">
       <table class="table table-sm align-middle mb-0">
@@ -106,7 +106,7 @@
 
     {% comment %} ── Create key ────────────────────────────────────────────── {% endcomment %}
     <hr class="my-4">
-    <div class="fw-medium mb-2">Create a key</div>
+    <div class="settings-section">Create a key</div>
     <form method="post" action="{% url 'api:key-create' %}">
       {% csrf_token %}
       <div class="row g-3">
@@ -159,7 +159,7 @@
 
     {% comment %} ── Endpoint docs + sample requests ───────────────────────── {% endcomment %}
     <hr class="my-4">
-    <div class="fw-medium mb-1">Endpoints</div>
+    <div class="settings-section">Endpoints</div>
     <p class="form-text mb-3">
       Each endpoint below shows a ready-to-run Python example — paste in your
       key and go. All endpoints answer JSON; amounts are strings in DKK with a

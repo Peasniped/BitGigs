@@ -3,11 +3,14 @@
   on-off" for boolean *settings* (not selection checkboxes). Usage:
     {% include "_switch_field.html" with field=form.some_bool %}
   The input keeps the form's own id/name, so page JS keyed on `id_<name>` still
-  works. Pass `wrapper_class` to override the default spacing.
+  works. Pass `wrapper_class` to override the default spacing, and `autosave`
+  with a scope key (core.settings_fields.SCOPES) to make it save on change with
+  no Save button — see the autosave convention in CLAUDE.md.
 {% endcomment %}
 <div class="form-check form-switch {{ wrapper_class|default:'mb-3' }}">
   <input type="checkbox" class="form-check-input" role="switch"
          name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+         {% if autosave %}data-autosave="{{ autosave }}"{% endif %}
          {% if field.value %}checked{% endif %}
          {% if field.field.disabled %}disabled{% endif %}>
   <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>

@@ -222,6 +222,13 @@ class EmailSettingsForm(forms.ModelForm):
         elif section == self.SECTION_ROLES:
             del self.fields["enabled"]
             del self.fields["allow_password_reset"]
+        # Each section is its own autosave scope (the two cards can't share a
+        # <form>, and they don't share an allowlist either). The switches are
+        # hand-rendered and carry the attribute inline; the role dropdowns are
+        # crispy, so a widget attr is the only way in.
+        if section == self.SECTION_ROLES:
+            for role in ("system_connection", "calendar_connection"):
+                self.fields[role].widget.attrs["data-autosave"] = "email_roles"
 
     def clean(self):
         cleaned = super().clean()
@@ -333,6 +340,12 @@ class UserSettingsForm(forms.ModelForm):
             for name in list(self.fields):
                 if name not in keep:
                     del self.fields[name]
+            # Every field this tab still owns saves on change (no Save button) —
+            # the tab slug is its autosave scope. Set here rather than in the
+            # template because crispy renders most of these, and a widget attr
+            # is the only way in. Hand-rendered controls carry it inline.
+            for field in self.fields.values():
+                field.widget.attrs["data-autosave"] = tab
     def clean_accent_color(self):
         return self.cleaned_data["accent_color"].lower()
 

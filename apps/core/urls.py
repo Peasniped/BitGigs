@@ -47,6 +47,8 @@ urlpatterns = [
     ),
     path("settings/", views.UserSettingsView.as_view(), name="settings"),
     path("settings/theme/", views.SetThemeView.as_view(), name="set-theme"),
+    # One control, saved on change — the settings panes carry no Save button.
+    path("settings/field/", views.SettingsFieldView.as_view(), name="settings-field"),
     path("settings/email/", views.EmailSettingsView.as_view(), name="email-settings"),
     path("settings/email/connection/", views.MailConnectionSaveView.as_view(), name="mail-connection-save"),
     path("settings/email/connection/delete/", views.MailConnectionDeleteView.as_view(), name="mail-connection-delete"),
