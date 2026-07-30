@@ -10,6 +10,9 @@
 <div class="shift-legend__row"><span class="shift-legend__sample shift-legend__sample--approved"></span>Approved shift</div>
 <div class="shift-legend__row"><span class="shift-legend__sample shift-legend__sample--prior-period"></span>Different payroll period (read-only)</div>
 <div class="shift-legend__row"><span class="shift-legend__sample shift-legend__icon"><i class="bi bi-cup-hot"></i></span>Shift with break</div>
-<div class="shift-legend__row"><span class="shift-legend__sample shift-legend__icon"><i class="bi bi-envelope-check" style="color:var(--info);"></i></span>Calendar invite sent</div>
-<div class="shift-legend__row"><span class="shift-legend__sample shift-legend__icon"><i class="bi bi-envelope-exclamation" style="color:var(--warning-strong);"></i></span>Invite out of date (shift changed since)</div>
-<div class="shift-legend__row"><span class="shift-legend__sample shift-legend__icon"><i class="bi bi-envelope-slash" style="color:var(--danger-strong);"></i></span>Invite failed to send (open the shift to retry)</div>
+{% comment %}Invite state is a ring around the chip, not an icon in it — the chip
+ran out of room. These samples wear the real ring classes on a planned-chip
+sample, so they can't drift from what the grid draws.{% endcomment %}
+<div class="shift-legend__row"><span class="shift-legend__sample shift-legend__sample--ring shift-legend__sample--planned shift-chip--invited"></span>Calendar invite sent</div>
+<div class="shift-legend__row"><span class="shift-legend__sample shift-legend__sample--ring shift-legend__sample--planned shift-chip--invite-stale"></span>Invite out of date (shift changed since)</div>
+<div class="shift-legend__row"><span class="shift-legend__sample shift-legend__sample--ring shift-legend__sample--planned shift-chip--invite-failed"></span>Invite failed to send (open the shift to retry)</div>

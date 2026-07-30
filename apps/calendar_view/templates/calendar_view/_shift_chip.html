@@ -5,7 +5,10 @@
 {% if is_planned %}
 <div class="shift-chip shift-chip--planned{% if is_overlapping %} shift-chip--overlap{% endif %}{% if item.has_active_invite %} shift-chip--invited{% if item.invite_stale %} shift-chip--invite-stale{% endif %}{% if item.invite_failed %} shift-chip--invite-failed{% endif %}{% endif %}{% if show_shift_type_colors %} shift-chip--type-{{ item.shift_type }}{% endif %}"
      {% if item.workplace.accent_color %}style="border-color:{{ item.workplace.accent_color }};"{% elif item.workplace.color %}style="border-color:{{ item.workplace.color }};"{% endif %}
-     title="{% if is_overlapping %}⚠ Overlapping shift — {% endif %}[Planned] {{ item.workplace.name }}: {{ item.start_time|time:'H:i' }}-{{ item.end_time|time:'H:i' }} ({{ item.net_hours|dk }}h)"
+     {% comment %}The invite state has no icon of its own any more (see below), so
+     its wording rides here — the ring says *that* something is up, the tooltip
+     says what.{% endcomment %}
+     title="{% if is_overlapping %}⚠ Overlapping shift — {% endif %}[Planned] {{ item.workplace.name }}: {{ item.start_time|time:'H:i' }}-{{ item.end_time|time:'H:i' }} ({{ item.net_hours|dk }}h){% if item.has_active_invite %}{% if item.invite_failed %} — ⚠ Calendar invite failed to send; nobody received it. Open the shift to retry.{% elif item.invite_stale %} — ⚠ Calendar invite is out of date; this shift changed after it was sent.{% else %} — Calendar invite sent.{% endif %}{% endif %}"
      {% if draggable %}draggable="true" data-shift-id="{{ item.pk }}" data-workplace-id="{{ item.workplace_id }}"{% endif %}>
 {% else %}
 <div class="shift-chip shift-chip--approved{% if editable_shift %} shift-chip--editable-shift{% endif %}{% if is_overlapping %} shift-chip--overlap{% endif %}{% if show_shift_type_colors %} shift-chip--type-{{ item.shift_type }}{% endif %}"
@@ -25,17 +28,14 @@
   <small class="shift-chip__hours">({{ item.net_hours|dk }}h)</small>
   {% if item.break_minutes %}<i class="bi bi-cup-hot shift-chip__break" title="Includes a break"></i>{% endif %}
   {% comment %}
-    Invite marker — before the type band so the edge-flush band stays at the far
-    right (no overlap). **Planned shifts only**, like the ring class above and
-    like the modal's invite control (planning.js hideInviteBlock): the marker
-    answers "does this still need an invite?", which is a planning question. It
-    lives outside the planned/approved branch that sets the chip's classes, so
-    without the `is_planned` guard it kept showing after approval — `approve()`
-    deliberately carries `invite_uid` onto the Shift so the event follows the
-    approval rather than being orphaned, which means the flag is genuinely still
-    true; it's just not a thing to show here.
+    No envelope icon here any more — the invite state is carried entirely by the
+    chip's **ring** (.shift-chip--invited / --invite-stale / --invite-failed, set
+    in the planned branch above). A full chip wants ~175px and a day cell gives
+    ~145px, so with a break cup, an envelope, a 14px type band and the hover
+    pencil all competing, the pencil ended up drawn on top of the band and the
+    times were truncated. The ring costs no width at all. Its wording lives in
+    the chip's title attribute instead, so hovering still explains the state.
   {% endcomment %}
-  {% if is_planned and item.has_active_invite %}{% if item.invite_failed %}<i class="bi bi-envelope-slash shift-chip__invited shift-chip__invited--failed" title="Calendar invite failed to send — nobody received it. Open the shift to retry."></i>{% elif item.invite_stale %}<i class="bi bi-envelope-exclamation shift-chip__invited shift-chip__invited--stale" title="Calendar invite is out of date — this shift changed after it was sent"></i>{% else %}<i class="bi bi-envelope-check shift-chip__invited" title="Calendar invite sent"></i>{% endif %}{% endif %}
   {% if show_shift_type_colors %}<span class="shift-chip__type" title="{{ item.get_shift_type_display }}">{% if item.shift_type == "sick_leave" %}<span class="shift-chip__sym shift-chip__sym--sick"></span>{% elif item.shift_type == "vacation" %}<span class="shift-chip__sym shift-chip__sym--vacation"></span>{% endif %}</span>{% endif %}
   {% if is_planned and draggable %}<i class="bi bi-pencil shift-chip__edit"></i>{% endif %}
 </div>

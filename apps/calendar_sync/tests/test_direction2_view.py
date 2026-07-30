@@ -1,4 +1,5 @@
 """Phase 2d — the "Send invites" endpoint: bulk-activate planned shifts, idempotent."""
+import re
 from datetime import date, time
 from decimal import Decimal
 
@@ -153,28 +154,48 @@ class SendInvitesEndpointTests(TestCase):
     SCHEDULER_TASK_EAGER=True,
 )
 class ChipInviteMarkerTests(SendInvitesEndpointTests):
-    """The envelope on a shift chip is a **planning** marker — "does this still
-    need an invite?" — so it belongs to planned chips only, like the ring class
-    and like the modal's invite control.
+    """The invite marker on a shift chip is a **planning** signal — "does this
+    still need an invite?" — so it belongs to planned chips only, like the
+    modal's invite control.
+
+    The marker is the chip's **ring** (`shift-chip--invited`). It used to be an
+    envelope icon as well, dropped when the chip ran out of width; the ring costs
+    none. Either way the rule is the same, and it's the rule that broke: the icon
+    sat outside the planned/approved branch of the template, so approval left it
+    behind for good.
 
     ``PlannedShift.approve()`` deliberately carries ``invite_uid`` onto the new
     ``Shift`` (the event has to follow the approval instead of being orphaned),
-    so ``has_active_invite`` stays true afterwards. That's correct data; the bug
-    was the chip drawing it. The marker sat outside the planned/approved branch
-    of the template, so approval left the envelope behind for good.
+    so ``has_active_invite`` stays true afterwards. That's correct data — only
+    the chip should stop drawing it.
     """
 
-    def _grid(self):
-        return self.client.get("/calendar/planning/?year=2035&month=3")
+    def _chip_tags(self):
+        """Chip opening tags from the calendar cells only.
+
+        Not the whole page: the help panel's shift legend now wears the very same
+        ring classes on its sample swatches (so it can't drift from what the grid
+        draws), which means a page-wide assertContains would pass whether or not
+        any chip carries the marker.
+        """
+        resp = self.client.get("/calendar/planning/?year=2035&month=3")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        cells = re.findall(r"<td[^>]*data-date=\"[^\"]+\"(.*?)</td>", html, re.S)
+        return re.findall(r'<div class="shift-chip [^>]*>', "".join(cells))
 
     def test_a_planned_chip_shows_the_marker_once_invited(self):
         self._planned()
-        self.assertNotContains(self._grid(), "shift-chip__invited")
+        chips = self._chip_tags()
+        self.assertEqual(len(chips), 1)
+        self.assertNotIn("shift-chip--invited", chips[0])
 
         self._post()
-        resp = self._grid()
-        self.assertContains(resp, "shift-chip--invited")
-        self.assertContains(resp, "shift-chip__invited")
+        chips = self._chip_tags()
+        self.assertEqual(len(chips), 1)
+        self.assertIn("shift-chip--invited", chips[0])
+        # The state's wording moved into the chip's tooltip when the icon went.
+        self.assertIn("Calendar invite sent.", chips[0])
 
     def test_approving_an_invited_shift_drops_the_marker(self):
         shift = self._planned()
@@ -195,10 +216,11 @@ class ChipInviteMarkerTests(SendInvitesEndpointTests):
         )
 
         # Only the chip changes.
-        resp = self._grid()
-        self.assertContains(resp, "shift-chip--approved")
-        self.assertNotContains(resp, "shift-chip__invited")
-        self.assertNotContains(resp, "shift-chip--invited")
+        chips = self._chip_tags()
+        self.assertEqual(len(chips), 1)
+        self.assertIn("shift-chip--approved", chips[0])
+        self.assertNotIn("shift-chip--invited", chips[0])
+        self.assertNotIn("Calendar invite sent.", chips[0])
 
 
 @override_settings(

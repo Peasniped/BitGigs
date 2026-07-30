@@ -71,7 +71,12 @@ Params: title, icon, save_label.
             </div>
             <div class="col-6">
               <label class="form-label small">Type</label>
-              <select id="shiftType" class="form-select form-select-sm">
+              {% comment %}data-type-picker: app.js replaces this with a dropdown
+              whose rows carry the real chip colour band and symbol, so the type
+              reads the same here as it does on the calendar. The select stays the
+              value holder — write it with window.setShiftType, never .value =.
+              {% endcomment %}
+              <select id="shiftType" class="form-select form-select-sm" data-type-picker>
                 <option value="on_site">On-site</option>
                 <option value="remote">Remote</option>
                 <option value="sick_leave">Sick leave</option>

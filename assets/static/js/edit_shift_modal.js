@@ -177,7 +177,8 @@ function initEditShiftModal(opts) {
       window.setTimeValue(startEl, s.start_time);
       window.setTimeValue(endEl, s.end_time);
       breakEl.value = s.break_minutes;
-      typeEl.value = s.shift_type;
+      // setShiftType, not .value — the visible swatch dropdown syncs from it.
+      window.setShiftType(typeEl, s.shift_type);
       notesEl.value = s.notes;
       errorsEl.classList.add('d-none');
       deleteBtn.classList.remove('d-none');

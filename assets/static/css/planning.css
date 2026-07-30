@@ -107,8 +107,12 @@
 /* Planning calendar */
 .planning-calendar .calendar-day { min-height:6rem; transition:background 0.15s, outline 0.15s; }
 .planning-calendar .calendar-day.drag-over-invalid { background:rgba(var(--danger-rgb),.10) !important; outline:2px dashed var(--danger); outline-offset:-2px; }
-.planning-calendar .calendar-day.in-period-highlight { background:rgba(var(--success-rgb),.06) !important; outline:2px dashed rgba(var(--success-rgb),.35); outline-offset:-2px; }
-.planning-calendar .calendar-day.in-period-highlight.drag-over { background:rgba(var(--success-rgb),.14) !important; outline:2px solid rgba(var(--success-rgb),.5); outline-offset:-2px; }
+/* Payroll-period highlight (hovering a workplace card). Inset far enough that
+   two adjacent highlighted days keep a visible gap between their outlines — at
+   -2px the neighbours' borders nearly merged and a run of days read as one block
+   with stray lines through it instead of a row of marked days. */
+.planning-calendar .calendar-day.in-period-highlight { background:rgba(var(--success-rgb),.06) !important; outline:2px dashed rgba(var(--success-rgb),.35); outline-offset:-5px; }
+.planning-calendar .calendar-day.in-period-highlight.drag-over { background:rgba(var(--success-rgb),.14) !important; outline:2px solid rgba(var(--success-rgb),.5); outline-offset:-5px; }
 
 /* Prior-period shift chips (planned *and* approved): greyed out and read-only.
    Neither a click nor a drag edits them — planning.js answers both with the

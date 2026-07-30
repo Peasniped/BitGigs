@@ -63,6 +63,9 @@ document.addEventListener('DOMContentLoaded', function () {
   // ----- Time pickers (custom 24-hour segmented input) -----
   initTimePickers(document);
 
+  // ----- Shift-type dropdown (colour swatch per option) -----
+  initShiftTypePickers(document);
+
   // ----- Date pickers (dd/mm/yyyy display, ISO submit) -----
   initDatePickers(document);
 
@@ -274,6 +277,148 @@ function setTimeValue(el, val) {
   else if (el.dataset.time24) updateClockIcon(el);
 }
 window.setTimeValue = setTimeValue;
+
+/* ---- Shift-type picker ------------------------------------------------------
+ *
+ * A native <select> can't show a colour per option, so the shift-type field read
+ * as plain words while the calendar spoke in colours and symbols — you had to
+ * know that "Sick leave" meant the yellow band with the biohazard. This replaces
+ * a marked select with a dropdown whose every row carries the real chip swatch.
+ *
+ * Progressive enhancement on purpose: the template ships a working <select>, and
+ * this hides it only once the replacement is built, so a JS failure leaves a
+ * usable field rather than none. The select stays the value holder — `.value`
+ * reads are unchanged for every caller.
+ *
+ * Writing it is the one thing that changes: use `window.setShiftType(el, value)`,
+ * never `el.value = …`, because assigning to a select fires no event and the
+ * visible button would keep showing the old type. Same rule as setTimeValue.
+ */
+// Two types carry a symbol inside their band (see .shift-chip__sym in style.css).
+var SHIFT_TYPE_SYMS = { sick_leave: 'sick', vacation: 'vacation' };
+
+function shiftTypeSwatch(value) {
+  var sym = SHIFT_TYPE_SYMS[value];
+  return '<span class="type-picker__swatch shift-chip--type-' + value + '">' +
+         (sym ? '<span class="shift-chip__sym shift-chip__sym--' + sym + '"></span>' : '') +
+         '</span>';
+}
+
+function initShiftTypePickers(root) {
+  (root || document).querySelectorAll('select[data-type-picker]').forEach(function (select) {
+    if (select.dataset.typePickerReady) return;   // modals re-open; build once
+    select.dataset.typePickerReady = '1';
+
+    var wrap = document.createElement('div');
+    wrap.className = 'type-picker';
+    var toggle = document.createElement('button');
+    toggle.type = 'button';                       // never submits the shift form
+    toggle.className = 'form-select form-select-sm type-picker__toggle';
+    toggle.setAttribute('aria-haspopup', 'listbox');
+    toggle.setAttribute('aria-expanded', 'false');
+    var menu = document.createElement('div');
+    menu.className = 'type-picker__menu';
+    menu.setAttribute('role', 'listbox');
+    menu.hidden = true;
+
+    // Built from the select's own options, so adding a shift type to the
+    // template needs no edit here.
+    var options = Array.prototype.map.call(select.options, function (opt) {
+      var row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'type-picker__option';
+      row.setAttribute('role', 'option');
+      row.dataset.value = opt.value;
+      row.innerHTML = shiftTypeSwatch(opt.value) +
+                      '<span>' + opt.textContent + '</span>';
+      row.addEventListener('click', function () {
+        commit(opt.value);
+        close(true);
+      });
+      menu.appendChild(row);
+      return row;
+    });
+
+    function paint() {
+      var opt = select.options[select.selectedIndex] || select.options[0];
+      if (!opt) return;
+      toggle.innerHTML = shiftTypeSwatch(opt.value) +
+                         '<span class="type-picker__label">' + opt.textContent + '</span>';
+      options.forEach(function (row) {
+        var on = row.dataset.value === opt.value;
+        row.classList.toggle('is-selected', on);
+        row.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+    }
+
+    function commit(value) {
+      if (select.value === value) return;
+      select.value = value;
+      paint();
+      // Anything listening on the select (live duration, dirty tracking) must
+      // still hear about a change made through the custom UI.
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function open() {
+      menu.hidden = false;
+      toggle.setAttribute('aria-expanded', 'true');
+      var current = menu.querySelector('.is-selected') || options[0];
+      if (current) current.focus();
+    }
+    function close(focusToggle) {
+      menu.hidden = true;
+      toggle.setAttribute('aria-expanded', 'false');
+      if (focusToggle) toggle.focus();
+    }
+
+    toggle.addEventListener('click', function () {
+      if (menu.hidden) open(); else close(true);
+    });
+    // Arrow keys walk the list; Esc closes without changing anything.
+    menu.addEventListener('keydown', function (e) {
+      var i = options.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        var next = i + (e.key === 'ArrowDown' ? 1 : -1);
+        if (next < 0) next = options.length - 1;
+        if (next >= options.length) next = 0;
+        options[next].focus();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        close(true);
+      }
+    });
+    toggle.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); open(); }
+    });
+    // A click anywhere else closes it. Bound per picker, on the document, so it
+    // also catches clicks on the modal's own backdrop-adjacent chrome.
+    document.addEventListener('click', function (e) {
+      if (!menu.hidden && !wrap.contains(e.target)) close(false);
+    });
+
+    select.parentNode.insertBefore(wrap, select);
+    wrap.appendChild(toggle);
+    wrap.appendChild(menu);
+    // Moved inside the wrapper and hidden only now — until this point the plain
+    // select was the working control.
+    wrap.appendChild(select);
+    select.hidden = true;
+    select.tabIndex = -1;
+    paint();
+    select._typePickerPaint = paint;
+  });
+}
+window.initShiftTypePickers = initShiftTypePickers;
+
+/** Set a shift type programmatically. Use this instead of `el.value = …`. */
+function setShiftType(el, value) {
+  if (!el) return;
+  el.value = value;
+  if (el._typePickerPaint) el._typePickerPaint();
+}
+window.setShiftType = setShiftType;
 
 function timeSegs(el) {
   var v = el.value || TIME_PLACEHOLDER;

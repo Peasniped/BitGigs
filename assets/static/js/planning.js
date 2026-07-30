@@ -1297,7 +1297,7 @@
     window.setTimeValue(document.getElementById('shiftStart'), wp.default_start || '');
     window.setTimeValue(document.getElementById('shiftEnd'), wp.default_end || '');
     document.getElementById('shiftBreak').value = wp.default_break ?? 0;
-    document.getElementById('shiftType').value = wp.default_type || 'on_site';
+    window.setShiftType(document.getElementById('shiftType'), wp.default_type || 'on_site');
     document.getElementById('shiftNotes').value = '';
     document.getElementById('shiftModalErrors').classList.add('d-none');
     document.getElementById('shiftModalOverlap').classList.add('d-none');
@@ -1334,7 +1334,7 @@
       window.setTimeValue(document.getElementById('shiftStart'), s.start_time);
       window.setTimeValue(document.getElementById('shiftEnd'), s.end_time);
       document.getElementById('shiftBreak').value = s.break_minutes;
-      document.getElementById('shiftType').value = s.shift_type;
+      window.setShiftType(document.getElementById('shiftType'), s.shift_type);
       document.getElementById('shiftNotes').value = s.notes;
       document.getElementById('shiftModalErrors').classList.add('d-none');
       document.getElementById('shiftModalOverlap').classList.add('d-none');
@@ -1364,7 +1364,7 @@
       window.setTimeValue(document.getElementById('shiftStart'), s.start_time);
       window.setTimeValue(document.getElementById('shiftEnd'), s.end_time);
       document.getElementById('shiftBreak').value = s.break_minutes;
-      document.getElementById('shiftType').value = s.shift_type;
+      window.setShiftType(document.getElementById('shiftType'), s.shift_type);
       document.getElementById('shiftNotes').value = s.notes;
       document.getElementById('shiftModalErrors').classList.add('d-none');
       document.getElementById('shiftModalOverlap').classList.add('d-none');

@@ -812,7 +812,11 @@ a.navbar-brand:hover span { color: var(--primary); }
   line-height: 1.2;
   padding: 2px 4px;
   border-radius: 4px;
-  margin-bottom: 1px;
+  /* Rings (the amber overlap outline, the invite box-shadow) are drawn *outside*
+     the border and take no layout space, so at 1px two stacked chips had their
+     rings all but touching — which read as one smudged block rather than two
+     shifts. This has to clear the widest ring the chip can wear. */
+  margin-bottom: 4px;
   position: relative;
   white-space: nowrap;
   overflow: hidden;
@@ -950,49 +954,42 @@ body[data-mask-money] .money-chart {
   flex-shrink: 0;
 }
 
-/* Direction 2: a planned shift with an active calendar invite. An envelope
-   marker + a soft blue ring set it apart from an un-synced planned chip; the
-   amber overlap ring still wins when both apply (it uses !important). */
+/* Direction 2: a planned shift with an active calendar invite.
+   The ring is now the *whole* signal — the envelope icon is gone, because the
+   chip was over its width budget in a month-grid day cell (see the note in
+   _shift_chip.html). So it's firmer than it was, and its meaning rides in the
+   chip's title attribute.
+   It also has to survive the amber overlap marker, which is the one case where
+   you're most likely to be reading the chip closely. That marker is an `outline`
+   and this is a `box-shadow`, so they're different properties and both paint —
+   but at 1.5px the 1px amber outline covered nearly all of it. The 2.5px spread
+   leaves the amber at the chip's edge and the invite colour visible beyond it. */
 .shift-chip--invited {
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--info) 55%, transparent);
-}
-.shift-chip__invited {
-  font-size: 0.6rem;
-  color: var(--info);
-  flex-shrink: 0;
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--info) 70%, transparent);
 }
 /* On the dark planned-chip surface plain --info (#3b82f6) all but disappears —
-   use the brighter --info-strong (#93c5fd in dark) and firm up the ring. */
-[data-bs-theme="dark"] .shift-chip__invited { color: var(--info-strong); }
+   firm up the ring. */
 [data-bs-theme="dark"] .shift-chip--invited {
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--info) 75%, transparent);
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--info) 90%, transparent);
 }
 
 /* The shift changed after its invite went out, so what the recipients hold is
    wrong until it's re-sent. Warning-toned rather than the settled blue; declared
-   after --invited so it wins the ring (the amber overlap ring still beats both —
-   it uses !important). */
+   after --invited so it wins the ring. */
 .shift-chip--invite-stale {
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--warning) 65%, transparent);
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--warning) 80%, transparent);
 }
-.shift-chip__invited--stale { color: var(--warning-strong); }
-/* Re-stated at the dark selector's specificity, or the --invited blue above wins. */
-[data-bs-theme="dark"] .shift-chip__invited--stale { color: var(--warning-strong); }
 [data-bs-theme="dark"] .shift-chip--invite-stale {
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--warning) 85%, transparent);
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--warning) 95%, transparent);
 }
 
 /* Worse than stale: the send was *rejected*, so no recipient holds anything at
-   all. Danger-toned and declared after both of the above so it wins the ring
-   (the amber overlap ring still beats it — that one uses !important). */
+   all. Danger-toned and declared after both of the above so it wins the ring. */
 .shift-chip--invite-failed {
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--danger) 70%, transparent);
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--danger) 85%, transparent);
 }
-.shift-chip__invited--failed { color: var(--danger-strong); }
-/* Re-stated at the dark selector's specificity, or the --invited blue wins. */
-[data-bs-theme="dark"] .shift-chip__invited--failed { color: var(--danger-strong); }
 [data-bs-theme="dark"] .shift-chip--invite-failed {
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--danger) 90%, transparent);
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--danger) 100%, transparent);
 }
 
 /* Optional shift-type visualization (on by default; toggle in Settings) — a
@@ -1007,10 +1004,22 @@ body[data-mask-money] .money-chart {
 .shift-chip__type {
   flex-shrink: 0;
   align-self: stretch;
-  width: 20px;
+  /* 14px, down from 20px: the chip is over its width budget in a month-grid day
+     cell, and a colour band only has to be readable, not wide. */
+  width: 14px;
   margin: -2px -4px -2px 3px;
   position: relative;
   background: var(--chip-type, transparent);
+}
+/* The band owns the chip's right edge, so the hover affordances have to stand
+   clear of it — both the planned pencil and the approved tick were positioned at
+   `right: 4px`, i.e. drawn on top of the band. 14px clears its width, +3px for
+   air. Keyed on the band actually being present, since it only renders when
+   shift-type colours are switched on; where `:has()` isn't supported the
+   affordance simply overlaps as it used to rather than vanishing. */
+.shift-chip:has(.shift-chip__type) .shift-chip__edit,
+.shift-chip--editable-shift:has(.shift-chip__type)::before {
+  right: 17px;
 }
 /* Some shift types add an all-black symbol centered in the band (sick →
    biohazard, vacation → palms). The SVGs live in graphics/ and are painted
@@ -1020,7 +1029,8 @@ body[data-mask-money] .money-chart {
   position: absolute;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  width: 13px; height: 13px;
+  /* Follows the 14px band — the legend's wider swatch overrides this below. */
+  width: 11px; height: 11px;
   background-color: #000;
   -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
   -webkit-mask-position: center; mask-position: center;
@@ -1034,6 +1044,63 @@ body[data-mask-money] .money-chart {
   -webkit-mask-image: url("../graphics/icon_Palms.svg");
   mask-image: url("../graphics/icon_Palms.svg");
 }
+/* ---- Shift-type picker (the shift modal's Type field) ----
+   Built by app.js from the plain <select>, which stays as the value holder. The
+   swatches reuse .shift-chip--type-* / .shift-chip__sym, so the modal and the
+   calendar can't drift apart on what a type looks like. */
+.type-picker { position: relative; }
+/* Wears .form-select for the app's field chrome, so only the layout differs —
+   and the native arrow is kept, since it's what says "this opens". */
+.type-picker__toggle {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  text-align: left;
+}
+.type-picker__swatch {
+  flex-shrink: 0;
+  width: 26px; height: 15px;
+  border-radius: 3px;
+  position: relative;               /* anchors .shift-chip__sym's centring */
+  background: var(--chip-type, transparent);
+  /* The pale types (sick is near-yellow) need an edge or they vanish on the
+     field's own surface. */
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 20%, transparent);
+}
+.type-picker__menu {
+  position: absolute;
+  z-index: 5;                       /* above the modal body, below its header */
+  top: calc(100% + 2px);
+  left: 0; right: 0;
+  padding: .25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: .5rem;
+  box-shadow: 0 8px 24px -8px rgba(var(--shadow-rgb),.45), var(--card-shadow);
+}
+.type-picker__option {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  width: 100%;
+  padding: .3rem .4rem;
+  border: 0;
+  border-radius: .35rem;
+  background: transparent;
+  color: var(--text);
+  font-size: .8125rem;
+  text-align: left;
+}
+.type-picker__option:hover,
+.type-picker__option:focus-visible {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  outline: none;
+}
+.type-picker__option.is-selected {
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  font-weight: 500;
+}
+
 /* Shift-type legend (info-icon popover shown on every calendar). Opens on
    hover, centred below the icon, and closes when the cursor leaves. */
 .shift-legend { position: relative; }
@@ -1066,7 +1133,10 @@ body[data-mask-money] .money-chart {
   background: var(--chip-type, transparent);
 }
 /* The sick swatch's biohazard centres via the base .shift-chip__sym rule
-   (position:relative swatch + 50%/translate), so no override is needed. */
+   (position:relative swatch + 50%/translate), so no positioning override is
+   needed — but the size is: the chip's band shrank to 14px and took the symbol
+   down with it, and this swatch is 50px wide with room to spare. */
+.shift-legend__swatch .shift-chip__sym { width: 13px; height: 13px; }
 /* Chip-style / break rows — mirror the real planned/approved chip borders. */
 .shift-legend__sample {
   flex-shrink: 0;
@@ -1088,6 +1158,10 @@ body[data-mask-money] .money-chart {
   opacity: 0.45;
   filter: grayscale(0.6);
 }
+/* The invite-state rows wear the real chip ring classes, and a box-shadow takes
+   no layout space — without this margin the 2.5px ring crowds the rows above and
+   below it and the three read as one smudge. */
+.shift-legend__sample--ring { margin: 3px 3px 3px 0; }
 .shift-legend__icon {
   display: inline-flex;
   align-items: center;
