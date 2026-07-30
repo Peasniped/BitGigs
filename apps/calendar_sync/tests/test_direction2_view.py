@@ -152,6 +152,59 @@ class SendInvitesEndpointTests(TestCase):
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     SCHEDULER_TASK_EAGER=True,
 )
+class ChipInviteMarkerTests(SendInvitesEndpointTests):
+    """The envelope on a shift chip is a **planning** marker — "does this still
+    need an invite?" — so it belongs to planned chips only, like the ring class
+    and like the modal's invite control.
+
+    ``PlannedShift.approve()`` deliberately carries ``invite_uid`` onto the new
+    ``Shift`` (the event has to follow the approval instead of being orphaned),
+    so ``has_active_invite`` stays true afterwards. That's correct data; the bug
+    was the chip drawing it. The marker sat outside the planned/approved branch
+    of the template, so approval left the envelope behind for good.
+    """
+
+    def _grid(self):
+        return self.client.get("/calendar/planning/?year=2035&month=3")
+
+    def test_a_planned_chip_shows_the_marker_once_invited(self):
+        self._planned()
+        self.assertNotContains(self._grid(), "shift-chip__invited")
+
+        self._post()
+        resp = self._grid()
+        self.assertContains(resp, "shift-chip--invited")
+        self.assertContains(resp, "shift-chip__invited")
+
+    def test_approving_an_invited_shift_drops_the_marker(self):
+        shift = self._planned()
+        self._post()
+        shift.refresh_from_db()
+        uid = shift.invite_uid
+        self.assertIsNotNone(uid)
+
+        approved = shift.approve()
+
+        # The data is untouched on purpose — the uid moved to the Shift and the
+        # invite is still active, because the invitee still holds the event.
+        self.assertEqual(approved.invite_uid, uid)
+        self.assertTrue(
+            ShiftInvite.objects.filter(
+                invite_uid=uid, status=ShiftInvite.STATUS_ACTIVE
+            ).exists()
+        )
+
+        # Only the chip changes.
+        resp = self._grid()
+        self.assertContains(resp, "shift-chip--approved")
+        self.assertNotContains(resp, "shift-chip__invited")
+        self.assertNotContains(resp, "shift-chip--invited")
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    SCHEDULER_TASK_EAGER=True,
+)
 class SendInvitesPreviewTests(SendInvitesEndpointTests):
     """``GET`` on the send endpoint — what the confirm modal shows. It must
     describe the same plan the POST then performs, or the dialog promises sends

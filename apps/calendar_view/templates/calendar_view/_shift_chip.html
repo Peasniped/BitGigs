@@ -24,8 +24,18 @@
   <small class="shift-chip__time">{{ item.start_time|time:"H:i" }}-{{ item.end_time|time:"H:i" }}</small>
   <small class="shift-chip__hours">({{ item.net_hours|dk }}h)</small>
   {% if item.break_minutes %}<i class="bi bi-cup-hot shift-chip__break" title="Includes a break"></i>{% endif %}
-  {# Invite marker before the type band so the edge-flush band stays at the far right (no overlap). #}
-  {% if item.has_active_invite %}{% if item.invite_failed %}<i class="bi bi-envelope-slash shift-chip__invited shift-chip__invited--failed" title="Calendar invite failed to send — nobody received it. Open the shift to retry."></i>{% elif item.invite_stale %}<i class="bi bi-envelope-exclamation shift-chip__invited shift-chip__invited--stale" title="Calendar invite is out of date — this shift changed after it was sent"></i>{% else %}<i class="bi bi-envelope-check shift-chip__invited" title="Calendar invite sent"></i>{% endif %}{% endif %}
+  {% comment %}
+    Invite marker — before the type band so the edge-flush band stays at the far
+    right (no overlap). **Planned shifts only**, like the ring class above and
+    like the modal's invite control (planning.js hideInviteBlock): the marker
+    answers "does this still need an invite?", which is a planning question. It
+    lives outside the planned/approved branch that sets the chip's classes, so
+    without the `is_planned` guard it kept showing after approval — `approve()`
+    deliberately carries `invite_uid` onto the Shift so the event follows the
+    approval rather than being orphaned, which means the flag is genuinely still
+    true; it's just not a thing to show here.
+  {% endcomment %}
+  {% if is_planned and item.has_active_invite %}{% if item.invite_failed %}<i class="bi bi-envelope-slash shift-chip__invited shift-chip__invited--failed" title="Calendar invite failed to send — nobody received it. Open the shift to retry."></i>{% elif item.invite_stale %}<i class="bi bi-envelope-exclamation shift-chip__invited shift-chip__invited--stale" title="Calendar invite is out of date — this shift changed after it was sent"></i>{% else %}<i class="bi bi-envelope-check shift-chip__invited" title="Calendar invite sent"></i>{% endif %}{% endif %}
   {% if show_shift_type_colors %}<span class="shift-chip__type" title="{{ item.get_shift_type_display }}">{% if item.shift_type == "sick_leave" %}<span class="shift-chip__sym shift-chip__sym--sick"></span>{% elif item.shift_type == "vacation" %}<span class="shift-chip__sym shift-chip__sym--vacation"></span>{% endif %}</span>{% endif %}
   {% if is_planned and draggable %}<i class="bi bi-pencil shift-chip__edit"></i>{% endif %}
 </div>
