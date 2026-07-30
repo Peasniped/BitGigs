@@ -447,21 +447,40 @@
     return div;
   }
 
+  /* Grey a chip whose date falls outside its workplace's payroll period for the
+   * month on screen — an offset job's shifts after its cutoff belong to the next
+   * period, and reading them as this month's is what makes the totals look wrong.
+   *
+   * Shared by planned *and* approved chips, because the rule is about the date,
+   * not about which kind of shift it is. Only `wireShiftChip` used to apply it,
+   * and approved chips don't go through there — so a JKF shift after the 20th
+   * stayed blue once approved. Returns whether it marked the chip. */
+  function markIfPriorPeriod(chip, wpId, dateStr) {
+    if (!wpId || !dateStr || isInPeriod(wpId, dateStr)) return false;
+    chip.classList.add('shift-chip--prior-period');
+    // Read-only — but never *silently* inert. Both a drag attempt and a click
+    // name the period the shift belongs to and offer the jump there. The chip
+    // therefore stays draggable and clickable on purpose; refusing the gesture
+    // is what carries the explanation.
+    chip.addEventListener('dragstart', function (e) {
+      e.preventDefault();
+      showChipPeriodWarning(wpId, dateStr);
+    });
+    chip.addEventListener('click', function (e) {
+      // Without this the click reaches the day cell underneath and starts
+      // creating a shift on a date this workplace can't be scheduled on.
+      e.stopPropagation();
+      showChipPeriodWarning(wpId, dateStr, 'edit');
+    });
+    return true;
+  }
+
   // Attach drag, click, and hover handlers to a dynamically created or page-loaded chip.
   function wireShiftChip(chip, wpId) {
     var td = chip.closest('td[data-date]');
     var dateStr = td ? td.dataset.date : '';
 
-    if (wpId && dateStr && !isInPeriod(wpId, dateStr)) {
-      chip.classList.add('shift-chip--prior-period');
-      // Stays draggable so a drag *attempt* can be answered with the
-      // wrong-period warning instead of silently doing nothing.
-      chip.addEventListener('dragstart', function(e) {
-        e.preventDefault();
-        showChipPeriodWarning(wpId, dateStr);
-      });
-      return;
-    }
+    if (markIfPriorPeriod(chip, wpId, dateStr)) return;
 
     chip.addEventListener('dragstart', function(e) {
       e.stopPropagation();
@@ -787,8 +806,14 @@
     wireShiftChip(chip, parseInt(chip.dataset.workplaceId));
   });
 
-  // ----- Click approved sessions to edit -----
+  // ----- Click approved sessions to edit (+ grey the out-of-period ones) -----
   document.querySelectorAll('.shift-chip--editable-shift[data-session-id]').forEach(function(chip) {
+    var td = chip.closest('td[data-date]');
+    // Out-of-period approved shifts get the same read-only treatment planned
+    // ones do — greyed, and a click explains which period owns them instead of
+    // opening an editor for a shift this month's totals don't include.
+    if (markIfPriorPeriod(chip, parseInt(chip.dataset.workplaceId),
+                          td ? td.dataset.date : '')) return;
     chip.addEventListener('click', function(e) {
       e.stopPropagation();
       openEditApprovedShiftModal(parseInt(chip.dataset.sessionId));
@@ -946,11 +971,14 @@
 
   // Variant for dragging an existing chip that belongs to another payroll
   // period — same modal, but worded for moving rather than planning.
-  function showChipPeriodWarning(wpId, dateStr) {
+  // ``action`` is 'move' (a refused drag) or 'edit' (a click on a read-only
+  // out-of-period chip) — same modal, but it must name what was just refused.
+  function showChipPeriodWarning(wpId, dateStr, action) {
     var info = outOfPeriodMessage(wpId, dateStr);
     document.getElementById('periodWarningTitle').textContent = 'Wrong payroll period';
     document.getElementById('periodWarningText').textContent =
-      'This shift belongs to the ' + info.targetName + ' payroll period, so it can’t be moved from here.';
+      'This shift belongs to the ' + info.targetName + ' payroll period, so it can’t be ' +
+      (action === 'edit' ? 'edited' : 'moved') + ' from here.';
     document.getElementById('periodWarningHint').textContent =
       'Switch the calendar to ' + info.targetName + ' to move or edit it.';
     var go = document.getElementById('periodWarningGoBtn');

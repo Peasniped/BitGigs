@@ -110,16 +110,18 @@
 .planning-calendar .calendar-day.in-period-highlight { background:rgba(var(--success-rgb),.06) !important; outline:2px dashed rgba(var(--success-rgb),.35); outline-offset:-2px; }
 .planning-calendar .calendar-day.in-period-highlight.drag-over { background:rgba(var(--success-rgb),.14) !important; outline:2px solid rgba(var(--success-rgb),.5); outline-offset:-2px; }
 
-/* Prior-period shift chips: greyed out; clicks do nothing, but a drag
-   attempt is caught in planning.js and answered with the wrong-period
-   warning modal — which needs pointer events to reach the chip. */
+/* Prior-period shift chips (planned *and* approved): greyed out and read-only.
+   Neither a click nor a drag edits them — planning.js answers both with the
+   wrong-period warning modal, which needs pointer events to reach the chip. The
+   cursor stays `default` deliberately: the modal is a courtesy for a mis-click,
+   not an affordance being advertised. */
 .shift-chip--prior-period {
   opacity: 0.45;
   cursor: default !important;
   filter: grayscale(0.6);
 }
 /* …but without the --planned hover affordances (tint, pencil, mode outlines):
-   clicks still do nothing, so the chip must not look clickable. */
+   the chip can't be edited, so it must not look editable. */
 .shift-chip--planned.shift-chip--prior-period:hover {
   background: transparent;
   outline: none !important;
