@@ -320,38 +320,63 @@ class SalaryEstimateService:
         return terms.effective_from, end
 
     @classmethod
-    def active_day_split(
-        cls, terms: ContractTermSet, year: int, month: int, today: date,
+    def active_day_split_range(
+        cls, terms: ContractTermSet, start: date, end: date, today: date,
     ) -> tuple[int, int, int]:
-        """Split a month's calendar days by the days *terms* is the active pay
+        """Split the days of [start, end] by the days *terms* is the active pay
         rate: days on or before *today* are earned, later ones planned. The pay
         rate comes from the term set, so proration follows the term set's
         effective window (not the whole contract). Returns
-        (earned_days, planned_days, days_in_month)."""
-        start, end = cls._termset_active_range(terms)
-        days_in_month = calendar.monthrange(year, month)[1]
+        (earned_days, planned_days, days_in_range).
+
+        The range form is what an offset payroll period needs (a period may span
+        two calendar months); ``active_day_split`` is the calendar-month case.
+        """
+        ts_start, ts_end = cls._termset_active_range(terms)
+        days_in_range = (end - start).days + 1
         earned = planned = 0
-        for day in range(1, days_in_month + 1):
-            d = date(year, month, day)
-            if d < start or (end and d > end):
+        for offset in range(days_in_range):
+            d = start + timedelta(days=offset)
+            if d < ts_start or (ts_end and d > ts_end):
                 continue
             if d <= today:
                 earned += 1
             else:
                 planned += 1
-        return earned, planned, days_in_month
+        return earned, planned, days_in_range
+
+    @classmethod
+    def active_day_split(
+        cls, terms: ContractTermSet, year: int, month: int, today: date,
+    ) -> tuple[int, int, int]:
+        """Calendar-month form of ``active_day_split_range``. Returns
+        (earned_days, planned_days, days_in_month)."""
+        last_day = calendar.monthrange(year, month)[1]
+        return cls.active_day_split_range(
+            terms, date(year, month, 1), date(year, month, last_day), today,
+        )
+
+    @classmethod
+    def covered_salary_range(
+        cls, terms: ContractTermSet, start: date, end: date,
+    ) -> Decimal:
+        """Monthly salary prorated to the days of [start, end] this term set is
+        the active pay rate (Månedsløn × lønnede dage / dage i perioden). A term
+        set active for the whole range earns the full salary, so an offset
+        payroll period pays one month's salary like a calendar month does."""
+        earned, planned, days_in_range = cls.active_day_split_range(terms, start, end, end)
+        covered = earned + planned
+        salary = terms.monthly_salary or Decimal("0")
+        return (salary * covered / days_in_range).quantize(TWO_PLACES, ROUND_HALF_UP)
 
     @classmethod
     def covered_salary(cls, terms: ContractTermSet, year: int, month: int) -> Decimal:
         """Monthly salary prorated to the calendar days this term set is the
         active pay rate in the month (Månedsløn × lønnede dage / dage i måneden)."""
         last_day = calendar.monthrange(year, month)[1]
-        earned, planned, days_in_month = cls.active_day_split(
-            terms, year, month, date(year, month, last_day)
+        return cls.covered_salary_range(
+            terms, date(year, month, 1), date(year, month, last_day),
         )
-        covered = earned + planned
-        salary = terms.monthly_salary or Decimal("0")
-        return (salary * covered / days_in_month).quantize(TWO_PLACES, ROUND_HALF_UP)
 
     @classmethod
     def estimate_for_month(
@@ -380,33 +405,47 @@ class SalaryEstimateService:
         return cls.estimate(terms, hours, as_of=as_of)
 
     @classmethod
-    def salaried_month_lines(
-        cls, contract, year: int, month: int, today: date,
+    def salaried_period_lines(
+        cls, contract, start: date, end: date, today: date,
     ) -> list["SalariedMonthLine"]:
         """For every salaried term set of *contract* that is the active rate on
-        at least one day of the month, its day split by *today* and its salary
-        prorated to those active days. This is the shared basis for salaried
-        month pay — a month may hold several term sets (e.g. a mid-month raise),
-        each prorated by the days it is the active rate."""
-        month_end = date(year, month, calendar.monthrange(year, month)[1])
+        at least one day of [start, end], its day split by *today* and its salary
+        prorated to those active days. This is the shared basis for salaried pay
+        over a span — a span may hold several term sets (e.g. a mid-month raise),
+        each prorated by the days it is the active rate.
+
+        The range form is what an offset payroll period needs;
+        ``salaried_month_lines`` is the calendar-month case."""
         lines: list[SalariedMonthLine] = []
         term_sets = contract.term_sets.filter(
-            effective_from__lte=month_end,
+            effective_from__lte=end,
             employment_type=ContractTermSet.EmploymentType.SALARIED,
         )
         for ts in term_sets:
-            earned, planned, days_in_month = cls.active_day_split(ts, year, month, today)
+            earned, planned, days_in_range = cls.active_day_split_range(ts, start, end, today)
             covered_days = earned + planned
             if covered_days == 0:
                 continue
             covered_salary = (
-                (ts.monthly_salary or Decimal("0")) * covered_days / days_in_month
+                (ts.monthly_salary or Decimal("0")) * covered_days / days_in_range
             ).quantize(TWO_PLACES, ROUND_HALF_UP)
             lines.append(SalariedMonthLine(
                 termset=ts, earned_days=earned, planned_days=planned,
                 covered_days=covered_days, covered_salary=covered_salary,
             ))
         return lines
+
+    @classmethod
+    def salaried_month_lines(
+        cls, contract, year: int, month: int, today: date,
+    ) -> list["SalariedMonthLine"]:
+        """Calendar-month form of ``salaried_period_lines``."""
+        return cls.salaried_period_lines(
+            contract,
+            date(year, month, 1),
+            date(year, month, calendar.monthrange(year, month)[1]),
+            today,
+        )
 
     @staticmethod
     def _combine_estimates(ests: list[SalaryEstimate]) -> SalaryEstimate:

@@ -6,10 +6,28 @@
 {% block extra_css %}
 {# Shared filter-bar / picker / table styles live in static/css/style.css. #}
 <style>
-  /* Actual vs. Planned vs. Projected visual cues */
+  /* Actual vs. Planned vs. Projected visual cues. A period is often a mix of
+     approved and still-planned work; .row-actual-planned is a lighter wash than
+     a wholly planned one, because most of it is already banked. */
   .row-projected { background-color: color-mix(in srgb, var(--text-muted) 8%, transparent) !important; color:var(--text-muted); }
   .row-planned   { background-color: color-mix(in srgb, var(--chart-planned) 12%, transparent) !important; color:var(--chart-planned-strong); }
+  .row-actual-planned { background-color: color-mix(in srgb, var(--chart-planned) 5%, transparent) !important; }
   .row-inactive  { color:var(--text-subtle); background-color:var(--bg-light) !important; }
+
+  /* The payroll period behind a row's month label — rows are periods, not
+     calendar months, so an offset job's dates have to be readable. */
+  .period-dates {
+    display:inline-block; margin-left:0.45rem;
+    font-size:0.68rem; font-weight:400; color:var(--text-subtle);
+    white-space:nowrap; vertical-align:middle;
+  }
+
+  /* The hours breakdown under a mixed period's total. */
+  .part-split { display:block; font-size:0.68rem; font-weight:400; line-height:1.3; }
+  .part-split > span + span::before { content:" + "; color:var(--text-subtle); }
+  .part-split__actual    { color:var(--chart-actual-strong); }
+  .part-split__planned   { color:var(--chart-planned-strong); }
+  .part-split__projected { color:var(--text-muted); }
   .projected-tag, .planned-tag {
     display:inline-block; margin-left:0.4rem;
     font-size:0.65rem; font-weight:600;
@@ -231,26 +249,33 @@
           </thead>
           <tbody>
             {% for row in wp.months %}
-              <tr class="{% if not row.contract_active %}row-inactive{% elif row.is_planned %}row-planned{% elif row.is_projected %}row-projected{% else %}row-actual{% endif %}">
+              <tr class="row-{{ row.state }}">
                 <td>
                   {{ row.label }}
-                  {% if row.contract_active and row.is_planned %}
-                    <span class="planned-tag">planned</span>
-                  {% elif row.contract_active and row.is_projected %}
-                    <span class="projected-tag">projected</span>
+                  <span class="period-dates">{{ row.period_start|date:"j M" }}–{{ row.period_end|date:"j M" }}</span>
+                  {% if row.contract_active %}
+                    {% if row.state == 'planned' %}
+                      <span class="planned-tag">planned</span>
+                    {% elif row.state == 'projected' %}
+                      <span class="projected-tag">projected</span>
+                    {% elif row.state == 'actual-planned' %}
+                      <span class="planned-tag">part planned</span>
+                    {% endif %}
                   {% endif %}
                 </td>
                 {% if row.contract_active %}
                   {% if emp_type == 'salaried' %}
                     <td class="text-end">{{ row.hours|dk:1 }}</td>
+                    <td class="text-end">{{ row.logged_hours|dk:1 }}</td>
+                  {% else %}
                     <td class="text-end">
-                      {{ row.actual_hours|dk:1 }}
-                      {% if row.is_projected and row.actual_hours == 0 %}
-                        <span class="text-muted small">·</span>
+                      {{ row.hours|dk:1 }}
+                      {% if row.is_mixed %}
+                        <span class="part-split">
+                          {% for name, part in row.parts %}{% if part.hours %}<span class="part-split__{{ name }}">{{ part.hours|dk:1 }}</span>{% endif %}{% endfor %}
+                        </span>
                       {% endif %}
                     </td>
-                  {% else %}
-                    <td class="text-end">{{ row.hours|dk:1 }}</td>
                   {% endif %}
                   <td class="text-end money">{{ row.gross|dk:0 }}</td>
                   <td class="text-end money">{{ row.net|dk:0 }}</td>
@@ -367,21 +392,27 @@
       projected: { gross: PAL.alpha(PAL.projected, 0.65), grossBorder: PAL.projected, net: PAL.alpha(PAL.projectedStrong, 0.65), netBorder: PAL.projectedStrong },
     };
 
-    function monthCategory(ds, m) {
-      if (ds.planned && ds.planned[m]) return 'planned';
-      if (ds.projected && ds.projected[m]) return 'projected';
-      return 'actual';
+    // A period's state names its least certain band ('actual-planned' for the
+    // usual mix); the bands themselves carry their own amounts, see below.
+    function monthState(ds, m) {
+      return (ds.state && ds.state[m]) || 'actual';
     }
 
-    // Per-month gross/net totals split by category, summed across workplaces.
+    function partValue(ds, cat, metric, m) {
+      const band = ds.parts && ds.parts[cat];
+      return band ? parseFloat(band[metric][m]) || 0 : 0;
+    }
+
+    // Per-month gross/net totals split by category, summed across workplaces. A
+    // single period can contribute to several categories at once.
     function categoryTotals(metric) {
       const out = { actual: [], planned: [], projected: [] };
       labels.forEach((_, m) => {
-        const bucket = { actual: 0, planned: 0, projected: 0 };
-        distDatasets.forEach(ds => {
-          bucket[monthCategory(ds, m)] += parseFloat(ds[metric][m]);
+        CATS.forEach(cat => {
+          let sum = 0;
+          distDatasets.forEach(ds => { sum += partValue(ds, cat, metric, m); });
+          out[cat].push(sum);
         });
-        CATS.forEach(c => out[c].push(bucket[c]));
       });
       return out;
     }
@@ -419,15 +450,17 @@
     }
 
     function buildDistConfig() {
-      // Per-workplace stacked bars (net). A hidden category is zeroed out per
-      // month; the workplace hue is kept, planned/projected at lower opacity.
+      // Per-workplace stacked bars (net). Hiding a category subtracts just that
+      // band from each month rather than dropping the whole period, so a mixed
+      // period keeps the part you are still looking at. The workplace hue is
+      // kept, anything not yet banked at lower opacity.
       const datasets = distDatasets.map(ds => ({
         label: ds.label,
-        data: ds.net.map((v, m) =>
-          hiddenCats.has(monthCategory(ds, m)) ? 0 : parseFloat(v)
-        ),
+        data: ds.net.map((_, m) => CATS.reduce(
+          (sum, cat) => hiddenCats.has(cat) ? sum : sum + partValue(ds, cat, 'net', m), 0
+        )),
         backgroundColor: ds.net.map((_, m) =>
-          hexToRgba(ds.color, monthCategory(ds, m) === 'actual' ? 0.85 : 0.5)
+          hexToRgba(ds.color, monthState(ds, m) === 'actual' ? 0.85 : 0.5)
         ),
         borderColor: ds.color,
         borderWidth: 1,
@@ -460,8 +493,8 @@
                 if (!isDist) return '';  // total-mode labels already name the category
                 const ds = distDatasets[ctx.datasetIndex];
                 if (!ds) return '';
-                const cat = monthCategory(ds, ctx.dataIndex);
-                return cat === 'actual' ? '' : '(' + cat + ')';
+                const st = monthState(ds, ctx.dataIndex);
+                return st === 'actual' ? '' : '(' + st.replace('-', ' + ') + ')';
               }
             }
           }

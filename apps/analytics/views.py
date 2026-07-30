@@ -164,6 +164,10 @@ class AnalyticsView(View):
 
         # Distribution chart datasets: each workplace contributes a stacked
         # bar segment per month. Palette is stable across the page.
+        # A period is usually a *mix* of certainty bands (approved hours plus
+        # hours still planned), so each band ships its own amounts rather than a
+        # single flag per month — the chart stacks them instead of colouring the
+        # whole period by its weakest ingredient.
         distribution_datasets = []
         for idx, wp_proj in enumerate(projection.workplaces):
             color = wp_proj.workplace.accent_color or _DIST_COLORS[idx % len(_DIST_COLORS)]
@@ -172,8 +176,14 @@ class AnalyticsView(View):
                 "color": color,
                 "gross": [str(row.gross) for row in wp_proj.months],
                 "net": [str(row.net) for row in wp_proj.months],
-                "projected": [row.is_projected for row in wp_proj.months],
-                "planned": [row.is_planned for row in wp_proj.months],
+                "state": [row.state for row in wp_proj.months],
+                "parts": {
+                    name: {
+                        "gross": [str(getattr(row, name).gross) for row in wp_proj.months],
+                        "net": [str(getattr(row, name).net) for row in wp_proj.months],
+                    }
+                    for name in ("actual", "planned", "projected")
+                },
             })
 
         # Workplace context for collapsible cards

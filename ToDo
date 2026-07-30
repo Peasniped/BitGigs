@@ -4,12 +4,8 @@
 
 ## Polish
 
-
-### Phase 4: Calendar & shift chip density  (planning.css + shift chips + shift modal)
-- make a bit more spacing between items on the calendar, currently I have two overlapping events and the extra amber border makes them almost touch, making it look kind of strange.
-- - It is the same when you hover over a workplace and it shows the green highlight showing which days belong to the payroll period. The borders of neighboring green days almost merge together. Maybe this highlight can be inset ever so slightly into the day cell so the borders do not (or do not almost) overlap.
-- We have a space issue for planned shifts that have all four indicators/icons active (invite sent, break active, shift type, hover over edit pencil icon) maybe we need to go back to the invite sent being a highlight around the shift and to make the shift type indicator a bit narrower -- do you have a better idea?
-- Can you show the color coding/iconography of shift types when creating/editing/approving a planned/approved shift?
+- Editing an approved shift where an invite was sent out (when it was a planned shift), should not prompt the user to update the invite.
+- - I think in my example, I had a planned shift, where on the day I used the 'Arrived early' to change the start time. This does not prompt the user to update the invitation (which is good), but it may have something to do with the problem, as the shift now has an out of date invite.*
 
 ### Phase 5: Workplace accent polish  (per-workplace colour, not theme tokens)
 - It seems that on the Add Pay Terms-page, the workplace accent is used to color employment type and working time selectors, while the save button uses the app accent color (most probably because of the gradient). Can you try to make the button use the company colors as well? I know you need two colors, and the workplace accent only has one color.
@@ -23,6 +19,14 @@
 ### Phase 7: Groundwork & housekeeping  (no UI surface, can run anytime)
 - Implement propper logging
 - Take a look at the full test suite and see if all tests are necessary and no tests are testing old/stale code
+
+### Phase 8: BUG — personfradrag counted twice on a mid-period raise
+- `SalaryEstimateService._combine_estimates` (apps/payroll/services.py) sums the *tax breakdown* field by field, including `monthly_deduction`. So when one payroll period holds two term sets (a mid-period raise, or a mid-period start/end), the monthly personfradrag is subtracted once per term set → tax too low → **net pay overstated**.
+- Only bites when two term sets share one period. A single-term-set period returns `ests[0]` untouched and is correct.
+- Affects everything built on it: the dashboard (`_compute_pay`, which for the *hourly* path also estimates earned and planned separately — same double-count), the workplace page, the payslip editor, and analytics' `_compose_row`.
+- The **earned/planned** half of this is already fixed in analytics (v0.23.0): a period is estimated once and the bands allocated from that total, so only the multi-term-set case is left there. The dashboard still splits earned/planned into two estimates.
+- Right fix: combine the *bases* (taxable gross, employee pension, ATP) and run `TaxCalculationService.calculate` **once** on the combined basis, instead of summing per-term-set tax breakdowns. Gross is already correct — it is linear — so only tax/net move.
+- Deliberately left out of the v0.23.0 analytics rework: fixing it changes numbers on three other pages, so it wants its own commit + its own regression tests.
 
 
 
@@ -42,10 +46,6 @@
 *** Analytics Page: ***
 - On the rate history you should be able to click the records, which would expand showing the extra things that are counted in the total rate (such as company pension contrib, fritvalgskonto etc.+)
 - Is there anything you think could be helpful to add?
-- It seems like the workplace table showing Salaried H does not work with the proration.
-- Rework of Actual, Planned, Projection
-- - All salaried hours are planned, not projected. Projections are only for hourly positions
-- - In my currently loaded data, for july and august, it seems there is a mix of projection and planned hours, but it seems like my approved JKF shifts for july is not shown in the graph.
 - Hovering over the months should show the total gross/net amounts
 
 - Remove the limit on one active contract per workplace. -- for some workplaces it makes sense that you might have two active jobs that are more or less unrelated and has wildly different terms.
@@ -61,8 +61,6 @@
 - Workplace detail page — multi-rate months. The detail still renders a single term set's payslip (the mid-month rate). For a mid-month raise it shows one rate's slice (~30000), not the full 70000 the main dashboard shows. Making it sum multiple rates means reworking the payslip breakdown UI (feriepenge/pension/tax lines are built for one rate). Biggest remaining item.
 
 - Formal payslip (PayslipService). Still uses the full monthly salary — not prorated for partial months or multiple rates. Separate from the dashboards you flagged.
-
-- Net-tax approximation. Earned/planned and multi-term-set nets each apply the full monthly tax deduction per slice (same approximation the hourly path already used). Gross is exact; combined net can be slightly overstated. Correct-but-harder fix: tax the summed monthly gross once.
 
 - (from the 2026-07-08 audit) Back-to-back contracts within one month: active_termset_in_month picks only the latest-starting contract, so if contract A ends on the 10th and contract B starts on the 20th, the month's salaried figures omit A's partial-month pay. Related to the multi-rate item above.
 
