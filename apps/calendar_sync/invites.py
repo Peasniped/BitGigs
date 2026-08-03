@@ -83,6 +83,20 @@ def _is_past(shift) -> bool:
     return day is not None and day < timezone.localdate()
 
 
+def _is_approved(shift) -> bool:
+    """True for an approved ``Shift`` — a record of hours worked, not a plan.
+
+    Approval carries ``invite_uid`` onto the new Shift on purpose (the invitee
+    still holds the event, and that uid is what lets a deletion withdraw it), so
+    an approved shift keeps a live invite. But what it holds is what *happened*:
+    approving with "Arrived early" corrects the start time to reality, which is
+    bookkeeping, not a change of plan anyone needs mailing about.
+    """
+    from shifts.models import Shift
+
+    return isinstance(shift, Shift)
+
+
 def _config(shift):
     """Invite config for the contract active on the shift's date, or ``None``.
 
@@ -245,12 +259,16 @@ def backfill_content_keys():
 def is_stale(shift, *, invite=None, settings=None) -> bool:
     """True when *shift* has an active invite that no longer matches it.
 
-    Past shifts are never stale (the invite system stops caring — see
-    ``_is_past``), and neither is an invite with no recorded fingerprint: that is
-    "unknown", not "changed", and treating it as stale would light up every invite
-    that predates ``content_key``.
+    Staleness is a **planning** question — "does anyone need telling?" — so it is
+    asked only of planned shifts. Past shifts are never stale (the invite system
+    stops caring — see ``_is_past``), neither is an approved one (see
+    ``_is_approved``: an approval records the hours actually worked, and every
+    later edit corrects that record rather than the plan), and neither is an
+    invite with no recorded fingerprint: that is "unknown", not "changed", and
+    treating it as stale would light up every invite that predates
+    ``content_key``.
     """
-    if _is_past(shift):
+    if _is_past(shift) or _is_approved(shift):
         return False
     invite = invite if invite is not None else _active_invite(shift)
     if invite is None or not invite.content_key:

@@ -136,10 +136,10 @@ sent until you confirm, so you can back out if a recipient looks wrong.
 
 ### When a shift changes after its invite went out
 
-Editing a shift does **not** silently re-send its invite — that would spam the
-recipient every time you nudge a time. Instead, if your change affects what the
-invite says, a **Re-send calendar invite?** dialog appears once the shift is
-saved, showing the shift as it now stands and who would be mailed.
+Editing a **planned** shift does **not** silently re-send its invite — that would
+spam the recipient every time you nudge a time. Instead, if your change affects
+what the invite says, a **Re-send calendar invite?** dialog appears once the shift
+is saved, showing the shift as it now stands and who would be mailed.
 
 Choose **Not now** and nothing is sent, but the shift isn't forgotten: its chip
 switches to a **warning-toned envelope** meaning *invite is out of date*, the edit
@@ -160,7 +160,9 @@ So:
 - **Edit** a shift → you're asked whether to re-send; declining leaves it marked
   out of date until you re-send it, from the dialog or the Send invites button.
 - **Approve** a planned shift → the same event carries over to the approved
-  shift; it's not re-sent or duplicated.
+  shift; it's not re-sent or duplicated. From there the shift is a record of the
+  hours you worked rather than a plan, so editing it — correcting the start time
+  because you arrived early, say — never asks about the invite.
 - **Delete** a shift → a cancellation is sent and the event is withdrawn.
 
 The whole system only cares about **today and future** shifts. A shift whose day

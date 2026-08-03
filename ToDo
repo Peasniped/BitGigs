@@ -4,9 +4,6 @@
 
 ## Polish
 
-- Editing an approved shift where an invite was sent out (when it was a planned shift), should not prompt the user to update the invite.
-- - I think in my example, I had a planned shift, where on the day I used the 'Arrived early' to change the start time. This does not prompt the user to update the invitation (which is good), but it may have something to do with the problem, as the shift now has an out of date invite.*
-
 ### Phase 5: Workplace accent polish  (per-workplace colour, not theme tokens)
 - It seems that on the Add Pay Terms-page, the workplace accent is used to color employment type and working time selectors, while the save button uses the app accent color (most probably because of the gradient). Can you try to make the button use the company colors as well? I know you need two colors, and the workplace accent only has one color.
 - On the workplace dashboard, make the accent strip a bit thicker, so it looks intentional, and make it glow subtly
@@ -32,7 +29,7 @@
 
 ## Platform creation
 
-- Make the basis of this app into a base platform such that other Bit-apps can be made with a similar visual experience and the same deep set of features and integrations.
+- Make the basis of this app into a base platform such that other Bit-apps can be made with a similar visual identity and user experience and the same deep set of features and integrations.
 - Save it to D:\Github\BitBase\
 - The idea is that any platform upgrade made in the individual apps would also be made as a pull request to the base repository, so that all apps may benefit from them. 
 - Make sure to note this down in readme and in CLAUDE.md so that Claude automatically will think about if what we are doing now could be considered a platform upgrade, and if I would like them to draft up a pull request and send it off to the base platform repo.

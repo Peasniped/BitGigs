@@ -171,6 +171,21 @@ class InviteStalenessTests(TestCase):
 
         self.assertFalse(invites.is_stale(shift))
 
+    def test_approved_shift_is_never_stale(self):
+        """Approving with "Arrived early" rewrites the start time, so the invite
+        no longer matches the row — but an approved shift records what happened,
+        and correcting that record is not a change of plan to mail about. Dated
+        in the future so it is the *approval* being tested, not ``_is_past``."""
+        planned = self._planned()
+        self._sent(planned)
+
+        session = planned.approve()
+        session.start_time = time(8, 30)  # "Arrived early"
+        session.save()
+
+        self.assertEqual(session.invite_uid, ShiftInvite.objects.get().invite_uid)
+        self.assertFalse(invites.is_stale(session))
+
     def test_cancel_does_not_refresh_the_fingerprint(self):
         """Only a REQUEST re-states what the invitee holds. A CANCEL ends the
         series, so it must not quietly mark the invite as up to date."""
@@ -221,6 +236,21 @@ class InviteStalenessTests(TestCase):
             f"/calendar/planning/shifts/{shift.pk}/",
             data='{"notes": "park out back"}', content_type="application/json",
         )
+        self.assertFalse(resp.json()["shift"]["invite_stale"])
+
+    def test_session_api_never_reports_invite_stale(self):
+        """The reported bug: an approved shift kept its invite_uid, so editing it
+        answered ``invite_stale`` and the save popped the re-send prompt for a
+        shift that had already been worked."""
+        planned = self._planned()
+        self._sent(planned)
+        session = planned.approve()
+
+        resp = self.client.post(
+            f"/calendar/planning/sessions/{session.pk}/",
+            data='{"end_time": "18:00"}', content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
         self.assertFalse(resp.json()["shift"]["invite_stale"])
 
     # ── the bulk sweep picks up what the prompt was declined for ─────────────
