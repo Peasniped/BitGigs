@@ -17,6 +17,7 @@ Stdlib only, no dependencies. Extra arguments are forwarded to runserver
 (e.g. ``python scripts/dev.py 0.0.0.0:8001``).
 """
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -27,6 +28,17 @@ MANAGE = REPO / "manage.py"
 SETTINGS = "bitgigs.settings.local"
 GRACE_SECONDS = 8
 LOCK_PATH = REPO / "instance" / "dev.lock"
+
+# Exit codes that mean "the console Ctrl+C took this child down", i.e. a clean
+# stop rather than a crash. A console Ctrl+C reaches every process in the group,
+# so a child usually dies of it before our own KeyboardInterrupt is raised —
+# without this the shutdown reads as `[dev] runserver exited (-1073741510)` and
+# leaves a non-zero exit code behind.
+CTRL_C_EXIT_CODES = {
+    0xC000013A,   # STATUS_CONTROL_C_EXIT, as Windows reports it
+    -1073741510,  # the same value, signed
+    -signal.SIGINT,  # POSIX: killed by SIGINT
+}
 
 # Held open for the life of the process — releasing it is what frees the lock.
 _lock_handle = None
@@ -101,25 +113,73 @@ def _stop(proc):
         proc.terminate()
 
 
+def _wait(proc, timeout):
+    """``proc.wait()``, but a Ctrl+C arriving *during* it doesn't abort the wait.
+
+    Pressing Ctrl+C again because the first press seemed to do nothing is the
+    normal human response, and it used to land here — in the ``finally`` — where
+    it escaped as a traceback and turned a clean stop into what looks like a
+    crash. Shutdown has already been asked for; further presses are noise."""
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            return proc.wait(timeout=max(0.0, deadline - time.monotonic()))
+        except KeyboardInterrupt:
+            continue
+
+
 def _terminate(procs):
     """Ask both children to stop, then hard-kill any that overstay the grace."""
     for name, proc in procs.items():
         if proc.poll() is None:
-            _stop(proc)
+            try:
+                _stop(proc)
+            except KeyboardInterrupt:
+                pass
     deadline = time.monotonic() + GRACE_SECONDS
     for name, proc in procs.items():
         remaining = max(0.0, deadline - time.monotonic())
         try:
-            proc.wait(timeout=remaining)
+            _wait(proc, remaining)
         except subprocess.TimeoutExpired:
             print(f"[dev] {name} didn't stop in time — killing it.", file=sys.stderr)
             proc.kill()
 
 
+# Set by the Ctrl+C handler below; the poll loop watches it. A flag rather than
+# a raised KeyboardInterrupt so shutdown runs at a known point in the loop
+# instead of wherever the main thread happened to be.
+_interrupted = False
+
+
+def _on_interrupt(signum, frame):
+    global _interrupted
+    _interrupted = True
+
+
+def _install_interrupt_handler():
+    """Register Ctrl+C (and Windows' Ctrl+Break) as the ordinary way to stop.
+
+    Without an explicit handler the console's default one can terminate us
+    outright — the children are then orphaned and the console shows an abrupt
+    exit code instead of a stop."""
+    for name in ("SIGINT", "SIGBREAK", "SIGTERM"):
+        sig = getattr(signal, name, None)
+        if sig is None:
+            continue
+        try:
+            signal.signal(sig, _on_interrupt)
+        except (ValueError, OSError):
+            pass
+
+
 def main():
+    global _interrupted
+
     # A dev run always uses local settings; make that explicit for anything the
     # children read from the environment too.
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", SETTINGS)
+    _install_interrupt_handler()
     extra = [a for a in sys.argv[1:] if a != "--allow-multiple"]
 
     if len(extra) == len(sys.argv[1:]):  # the flag wasn't passed
@@ -143,21 +203,33 @@ def main():
 
     exit_code = 0
     try:
-        while True:
-            for name, proc in procs.items():
-                code = proc.poll()
-                if code is not None:
+        while not _interrupted:
+            done = [(n, p.poll()) for n, p in procs.items() if p.poll() is not None]
+            if done:
+                name, code = done[0]
+                if code in CTRL_C_EXIT_CODES:
+                    # The console Ctrl+C reached the children before it reached
+                    # us. That is the stop we were asked for, not a failure.
+                    _interrupted = True
+                else:
                     # One child exited on its own — take the other down with it.
                     print(f"[dev] {name} exited ({code}); shutting the other down.")
                     exit_code = code or 0
-                    raise KeyboardInterrupt
+                break
             time.sleep(0.5)
     except KeyboardInterrupt:
+        _interrupted = True  # a press the handler didn't catch
+    if _interrupted:
         print("\n[dev] stopping…")
-    finally:
+    try:
         _terminate(procs)
+    except KeyboardInterrupt:
+        pass
     return exit_code
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(0)

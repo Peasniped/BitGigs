@@ -273,3 +273,51 @@ class PlaceholderTermsTest(CoverageTestCase):
         stub.hourly_rate = Decimal("195")
         stub.save()
         self.assertTrue(self.cov().can_finish)
+
+
+class ResolveGotoTest(CoverageTestCase):
+    """Where "Next" lands.
+
+    The reported bug: restore a complete export, go back to fill in Tax, press
+    Next — and the wizard stops on the Workplace step offering to create a
+    *second* workplace beside the one the file brought in.
+    """
+
+    def post(self, path, data):
+        request = RequestFactory().post(path, data)
+        request.user = self.user
+        request.session = {}
+        return request
+
+    def test_next_steps_to_the_following_step_on_a_fresh_install(self):
+        request = self.post("/onboarding/tax/", {"onboarding_goto": "next"})
+        self.assertEqual(ob.resolve_goto(request, "tax"), "/onboarding/workplace/")
+
+    def test_next_skips_steps_an_import_already_wrote(self):
+        self.make_workplace()          # workplace + contract + pay terms in the DB
+        request = self.post("/onboarding/tax/", {"onboarding_goto": "next"})
+        self.assertEqual(ob.resolve_goto(request, "tax"), "/onboarding/review/")
+
+    def test_next_still_stops_on_terms_while_a_placeholder_survives(self):
+        """Term sets exist, but they are the import's zero-pay stub — that step
+        is the only place to fix it, so Next must not walk past it."""
+        wp = Workplace.objects.create(name="Ghost Co")
+        contract = WorkplaceContract.objects.create(workplace=wp)
+        ContractTermSet.objects.create(
+            contract=contract, effective_from=date(2000, 1, 1),
+            employment_type="hourly", hourly_rate=Decimal("0"),
+            weekly_hours_fixed=Decimal("37"))
+        request = self.post("/onboarding/tax/", {"onboarding_goto": "next"})
+        self.assertEqual(ob.resolve_goto(request, "tax"), "/onboarding/terms/")
+
+    def test_a_draft_the_user_typed_is_not_skipped(self):
+        """Only rows in the database are skipped. Re-showing a step the user
+        filled in re-binds their own input, which is helpful, not confusing."""
+        self.draft(workplace=WORKPLACE_DRAFT, terms=TERMS_DRAFT)
+        request = self.post("/onboarding/tax/", {"onboarding_goto": "next"})
+        self.assertEqual(ob.resolve_goto(request, "tax"), "/onboarding/workplace/")
+
+    def test_an_explicit_jump_is_honoured_even_when_covered(self):
+        self.make_workplace()
+        request = self.post("/onboarding/tax/", {"onboarding_goto": "workplace"})
+        self.assertEqual(ob.resolve_goto(request, "tax"), "/onboarding/workplace/")

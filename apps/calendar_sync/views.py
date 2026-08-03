@@ -115,6 +115,7 @@ class SendInvitesView(View):
                     group.workplace.custom_icon.url
                     if group.workplace.custom_icon else ""
                 ),
+                "accent": group.workplace.accent_color or "",
                 "new": len(group.new),
                 "updates": len(group.updates),
                 "recipients": group.recipients,

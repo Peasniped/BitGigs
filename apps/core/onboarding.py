@@ -203,18 +203,40 @@ STEP_TITLES = {
 }
 
 
+def _db_satisfied(cov, key):
+    """Does the *database* already answer this step, so "Next" should walk past it?
+
+    Only the imported case. A step the user filled in themselves is worth
+    re-showing on the way past — it re-binds their own input. But an import has
+    already created the workplace and its pay terms, and stopping there offers to
+    create a *second* workplace beside the one in the file, which is what made
+    Next unusable after restoring an export."""
+    if key == "workplace":
+        return cov.workplace.in_db
+    if key == "terms":
+        # Term sets exist but are the import's zero-pay stub: that step still has
+        # real work, and it's the only place to do it.
+        return cov.terms.in_db and not cov.placeholders
+    return False
+
+
 def resolve_goto(request, current):
     """Destination after saving `current`: the ``onboarding_goto`` field is
     ``next`` (the following step) or a step key (jump there). Guards against
     arbitrary values — note "finish" is deliberately not a target here; only the
-    Review step commits."""
+    Review step commits.
+
+    An explicit jump is honoured as-is; only "next" skips covered steps, since a
+    jump names a step the user asked to see."""
     goto = request.POST.get("onboarding_goto", "next")
     if goto in NAV_KEYS:
-        target = goto
-    else:  # "next" (or anything unexpected)
-        idx = NAV_KEYS.index(current)
-        target = NAV_KEYS[min(idx + 1, len(NAV_KEYS) - 1)]
-    return reverse(URLS[target])
+        return reverse(URLS[goto])
+
+    idx = min(NAV_KEYS.index(current) + 1, len(NAV_KEYS) - 1)
+    cov = coverage(request)
+    while idx < len(NAV_KEYS) - 1 and _db_satisfied(cov, NAV_KEYS[idx]):
+        idx += 1
+    return reverse(URLS[NAV_KEYS[idx]])
 
 
 def progress(cov, data):

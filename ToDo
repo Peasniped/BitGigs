@@ -4,20 +4,23 @@
 
 ## Polish
 
-### Phase 5: Workplace accent polish  (per-workplace colour, not theme tokens)
-- It seems that on the Add Pay Terms-page, the workplace accent is used to color employment type and working time selectors, while the save button uses the app accent color (most probably because of the gradient). Can you try to make the button use the company colors as well? I know you need two colors, and the workplace accent only has one color.
-- On the workplace dashboard, make the accent strip a bit thicker, so it looks intentional, and make it glow subtly
-
 ### Phase 6: Help system  (apps/help + articles)
 - When I open the full manual/help from the more menu, I am always put into the "claiming the instance"-article. Maybe it would make more sense that you land on an article about how to use the help system? (meta, i know)
 - Improve Help>Search to also search body text (in addition to the super quick keyword search that is already implemented.)
 - Go through help articles and make them shorter and more concise. A lot of articles could use with being split up into two or more articles. keep redundant information as short as possible and to a minimum and just cite to articles with the information.
 
 ### Phase 7: Groundwork & housekeeping  (no UI surface, can run anytime)
+- Pass over the entire codebase and look for things that could be improved, slimmed down.
+- - unused code
+- - duplicated code
+- - over explained comments and docstrings
+- - overly cautious tests of really far out edge cases
+
+### Phase 8: Groundwork & housekeeping  (no UI surface, can run anytime)
 - Implement propper logging
 - Take a look at the full test suite and see if all tests are necessary and no tests are testing old/stale code
 
-### Phase 8: BUG — personfradrag counted twice on a mid-period raise
+### Phase 9: BUG — personfradrag counted twice on a mid-period raise
 - `SalaryEstimateService._combine_estimates` (apps/payroll/services.py) sums the *tax breakdown* field by field, including `monthly_deduction`. So when one payroll period holds two term sets (a mid-period raise, or a mid-period start/end), the monthly personfradrag is subtracted once per term set → tax too low → **net pay overstated**.
 - Only bites when two term sets share one period. A single-term-set period returns `ests[0]` untouched and is correct.
 - Affects everything built on it: the dashboard (`_compute_pay`, which for the *hourly* path also estimates earned and planned separately — same double-count), the workplace page, the payslip editor, and analytics' `_compose_row`.

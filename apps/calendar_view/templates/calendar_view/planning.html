@@ -63,19 +63,7 @@
   {% for wp in workplaces %}
   <div class="wp-card" draggable="true" data-workplace-id="{{ wp.pk }}"
        style="--wp-accent:{{ wp.accent_color|default:wp.avatar_color }};">
-    {% if wp.custom_icon %}
-      <span class="wp-avatar" style="background:{{ wp.avatar_color }};">
-        <img src="{{ wp.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;">
-      </span>
-    {% elif wp.icon %}
-      <span class="wp-avatar" style="background:{{ wp.avatar_color }};">
-        <i class="bi {{ wp.icon }}" style="font-size:0.75rem;"></i>
-      </span>
-    {% else %}
-      <span class="wp-avatar" style="background:{{ wp.avatar_color }};">
-        {{ wp.avatar_initials }}
-      </span>
-    {% endif %}
+    {% include "workplaces/_avatar.html" with wp=wp klass="wp-avatar" %}
     <div class="wp-card__info">
       <span class="fw-medium">{{ wp.name }}</span>
       <span class="wp-card__hours" data-wp-hours="{{ wp.pk }}">.</span>

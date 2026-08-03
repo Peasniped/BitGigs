@@ -4,7 +4,11 @@
 
 {% if is_planned %}
 <div class="shift-chip shift-chip--planned{% if is_overlapping %} shift-chip--overlap{% endif %}{% if item.has_active_invite %} shift-chip--invited{% if item.invite_stale %} shift-chip--invite-stale{% endif %}{% if item.invite_failed %} shift-chip--invite-failed{% endif %}{% endif %}{% if show_shift_type_colors %} shift-chip--type-{{ item.shift_type }}{% endif %}"
-     {% if item.workplace.accent_color %}style="border-color:{{ item.workplace.accent_color }};"{% elif item.workplace.color %}style="border-color:{{ item.workplace.color }};"{% endif %}
+     {% comment %}The workplace's colour, handed to the CSS as --wp-accent rather
+     than painted on one property here: both chip states derive their border and
+     fill from it, so a shift keeps the same identity colour when it is approved.
+     No accent set falls back to --primary in the stylesheet.{% endcomment %}
+     {% if item.workplace.accent_color %}style="--wp-accent:{{ item.workplace.accent_color }};"{% elif item.workplace.color %}style="--wp-accent:{{ item.workplace.color }};"{% endif %}
      {% comment %}The invite state has no icon of its own any more (see below), so
      its wording rides here — the ring says *that* something is up, the tooltip
      says what.{% endcomment %}
@@ -12,18 +16,11 @@
      {% if draggable %}draggable="true" data-shift-id="{{ item.pk }}" data-workplace-id="{{ item.workplace_id }}"{% endif %}>
 {% else %}
 <div class="shift-chip shift-chip--approved{% if editable_shift %} shift-chip--editable-shift{% endif %}{% if is_overlapping %} shift-chip--overlap{% endif %}{% if show_shift_type_colors %} shift-chip--type-{{ item.shift_type }}{% endif %}"
+     {% if item.workplace.accent_color %}style="--wp-accent:{{ item.workplace.accent_color }};"{% elif item.workplace.color %}style="--wp-accent:{{ item.workplace.color }};"{% endif %}
      title="{% if is_overlapping %}⚠ Overlapping shift — {% endif %}{{ item.workplace.name }}: {{ item.start_time|time:'H:i' }}-{{ item.end_time|time:'H:i' }} ({{ item.net_hours|dk }}h)"
      {% if editable_shift %}data-session-id="{{ item.pk }}" data-workplace-id="{{ item.workplace_id }}"{% endif %}>
 {% endif %}
-  <span class="shift-chip__avatar" style="background:{{ item.workplace.avatar_color }};">
-    {% if item.workplace.custom_icon %}
-      <img src="{{ item.workplace.custom_icon.url }}" alt="">
-    {% elif item.workplace.icon %}
-      <i class="bi {{ item.workplace.icon }}"></i>
-    {% else %}
-      {{ item.workplace.avatar_initials|slice:":1" }}
-    {% endif %}
-  </span>
+  {% include "workplaces/_avatar.html" with wp=item.workplace klass="shift-chip__avatar" single_initial=True %}
   <small class="shift-chip__time">{{ item.start_time|time:"H:i" }}-{{ item.end_time|time:"H:i" }}</small>
   <small class="shift-chip__hours">({{ item.net_hours|dk }}h)</small>
   {% if item.break_minutes %}<i class="bi bi-cup-hot shift-chip__break" title="Includes a break"></i>{% endif %}

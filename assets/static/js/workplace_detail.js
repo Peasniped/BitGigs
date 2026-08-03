@@ -621,21 +621,26 @@ document.addEventListener('DOMContentLoaded', function() {
     saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
 
     var fd = new FormData();
-    // If user is on 'logo' tab and has a pending file, send it; clear bootstrap icon
-    if (currentMode === 'logo' && pendingFile) {
+    // Send exactly what the live preview shows. updatePreview() treats the logo
+    // pane as the winning choice only while it's the open pane and nothing has
+    // asked for the logo to go; anything else previews the Bootstrap icon (or
+    // the initials). The save used to disagree with that — picking an icon while
+    // a logo was stored sent the icon but kept the file, and every template
+    // prefers the file, so the change appeared to do nothing.
+    var keepLogo = currentMode === 'logo' && !willRemoveCustomIcon;
+    if (keepLogo && pendingFile) {
       fd.append('custom_icon', pendingFile);
       fd.append('icon', '');
-    } else if (currentMode === 'logo' && !willRemoveCustomIcon) {
-      // Keeping existing custom logo . don't touch icon/custom_icon fields
+    } else if (keepLogo) {
+      // Keeping the existing custom logo . don't touch icon/custom_icon fields
       fd.append('icon', '');
     } else {
       fd.append('icon', iconInput.value);
+      // The icon (or the initials) is the choice, so the stored logo goes with it.
+      fd.append('remove_custom_icon', '1');
     }
     fd.append('color', bgColorInput.value);
     fd.append('accent_color', accentColorInput.value);
-    if (willRemoveCustomIcon && !pendingFile) {
-      fd.append('remove_custom_icon', '1');
-    }
 
     fetch(cfg.customizeUrl, {
       method: 'POST',

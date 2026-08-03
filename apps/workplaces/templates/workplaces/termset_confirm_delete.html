@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% load wp_accent %}
 {% block title %}Delete Pay Terms &mdash; {{ workplace.name }} &middot; BitGigs{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
+<div {% wp_accent_scope workplace "row justify-content-center" %}>
   <div class="col-12 col-md-7 col-lg-5">
 
     <nav aria-label="breadcrumb" class="mb-3">

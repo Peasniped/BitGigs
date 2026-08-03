@@ -97,6 +97,17 @@ class Workplace(models.Model):
         return avatar_for_name(self.name)[0]
 
     @property
+    def accent_rgb(self) -> str:
+        """``accent_color`` as ``"14,97,222"`` — the form the ``--wp-accent-rgb``
+        CSS token wants. Empty when no accent is set or the stored value can't be
+        parsed, which is the signal not to open an accent scope at all."""
+        from core.utils import hex_to_rgb_str
+        try:
+            return hex_to_rgb_str(self.accent_color) if self.accent_color else ""
+        except (ValueError, IndexError):
+            return ""
+
+    @property
     def is_active(self) -> bool:
         """True when the workplace has at least one currently active contract."""
         return self.active_contract_on(timezone.localdate()) is not None

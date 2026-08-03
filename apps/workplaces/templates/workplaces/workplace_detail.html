@@ -1,12 +1,20 @@
 {% extends "base.html" %}
 {% load dk_filters %}
 {% load static %}
+{% load wp_accent %}
 {% block title %}{{ workplace.name }} &middot; BitGigs{% endblock %}
 
 {% block content %}
+{% comment %}
+  The whole page sits in this workplace's accent scope, so every control on it —
+  buttons, links, switches, badges, the calendar's washes — wears the workplace's
+  colour instead of the app accent. The navbar and help button are outside the
+  content block and deliberately stay on the app accent.
+{% endcomment %}
+<div {% wp_accent_scope workplace %}>
 {% if workplace.accent_color %}
 <!-- Accent banner -->
-<div class="workplace-accent-banner" style="background:{{ workplace.accent_color }};"></div>
+<div class="workplace-accent-banner"></div>
 {% endif %}
 
 <!-- Back button -->
@@ -19,17 +27,7 @@
 <!-- Header -->
 <div class="d-flex justify-content-between align-items-center mb-4">
   <div class="d-flex align-items-center gap-3">
-    {% if workplace.custom_icon %}
-      <span class="workplace-avatar" id="wpAvatar" style="background:{{ workplace.color|default:avatar_color }};width:48px;height:48px;font-size:1.2rem;overflow:hidden;">
-        <img src="{{ workplace.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
-      </span>
-    {% elif workplace.icon %}
-      <span class="workplace-avatar" id="wpAvatar" style="background:{{ workplace.color|default:avatar_color }};width:48px;height:48px;font-size:1.2rem;">
-        <i class="bi {{ workplace.icon }}"{% if workplace.accent_color %} style="color:{{ workplace.accent_color }}"{% endif %}></i>
-      </span>
-    {% else %}
-      <span class="workplace-avatar" id="wpAvatar" style="background:{{ workplace.color|default:avatar_color }};width:48px;height:48px;font-size:1.1rem;">{{ avatar_initials }}</span>
-    {% endif %}
+    {% include "workplaces/_avatar.html" with wp=workplace size=48 font_size="1.2rem" extra_style="" %}
     <div>
       <h2 class="mb-1">{{ workplace.name }}</h2>
       {% if active_termset %}<span class="workplace-card__type">{{ active_termset.get_employment_type_display }}</span>{% endif %}
@@ -801,6 +799,7 @@
 {% if pending_shifts_count %}
 {% include "_edit_shift_modal.html" with title="Edit Planned Shift" icon="bi-pencil" save_label="Save Changes" %}
 {% endif %}
+</div>{# /wp-accent-scope #}
 
 {% endblock %}
 

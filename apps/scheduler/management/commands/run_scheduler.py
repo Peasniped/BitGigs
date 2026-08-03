@@ -69,12 +69,19 @@ class Command(BaseCommand):
             ))
             return
 
-        if settings.DEBUG and not options["no_reload"]:
-            # Same reloader as runserver: it re-executes this command in a child
-            # process and restarts it whenever a watched file changes.
-            autoreload.run_with_reloader(self._loop, tick)
-        else:
-            self._loop(tick)
+        # Ctrl+C is how a dev run ends, so it must read as a stop, not a crash.
+        # Nothing below re-raises it: the engine's own guards catch `Exception`,
+        # which a KeyboardInterrupt (a BaseException) walks straight past, and
+        # `manage.py` would then print a traceback over the shutdown.
+        try:
+            if settings.DEBUG and not options["no_reload"]:
+                # Same reloader as runserver: it re-executes this command in a
+                # child process and restarts it whenever a watched file changes.
+                autoreload.run_with_reloader(self._loop, tick)
+            else:
+                self._loop(tick)
+        except KeyboardInterrupt:
+            self.stdout.write(self.style.WARNING("Scheduler stopped."))
 
     def _loop(self, tick):
         # Under the reloader this runs in a worker thread, so the signal handlers

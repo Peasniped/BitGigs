@@ -375,6 +375,7 @@ def get_todays_banner(today: date) -> tuple[dict | None, list, list]:
                 "icon": wp.icon or "",
                 "custom_icon_url": wp.custom_icon.url if wp.custom_icon else "",
                 "initials": avatar_for_name(wp.name)[0],
+                "accent_color": wp.accent_color or "",
             })
 
     # Oxford comma join

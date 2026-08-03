@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% load wp_accent %}
 {% block title %}{% if contract %}Edit Contract{% else %}Add Contract{% endif %} &mdash; {{ workplace.name }} &middot; BitGigs{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
+<div {% wp_accent_scope workplace "row justify-content-center" %}>
   <div class="col-12 col-md-8 col-lg-6">
 
     {% if onboarding %}

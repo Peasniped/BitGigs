@@ -75,7 +75,7 @@
               <div class="fw-medium">Tax details</div>
               <small class="text-muted">
                 {% if cov.tax.in_db %}Imported from your file.
-                {% elif cov.tax.from_draft %}Entered in step 3 — will be created when you finish.
+                {% elif cov.tax.from_draft %}Entered in step 3.
                 {% else %}Not in your file, and not filled in yet.
                 {% endif %}
               </small>
@@ -95,7 +95,7 @@
               <div class="fw-medium">A workplace and its pay terms</div>
               <small class="text-muted">
                 {% if cov.terms.in_db %}Imported from your file.
-                {% elif cov.has_terms %}Entered in steps 4&ndash;5 — will be created when you finish.
+                {% elif cov.has_terms %}Entered in steps 4&ndash;5.
                 {% elif cov.workplace.covered %}Workplace ready, but it has no pay terms yet.
                 {% else %}Not in your file, and not filled in yet.
                 {% endif %}

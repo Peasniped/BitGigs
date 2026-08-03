@@ -1,0 +1,29 @@
+{% comment %}
+The workplace avatar circle — the single place the custom-logo / Bootstrap-icon /
+initials fallback is decided, and the single place the workplace's accent colour
+tints that icon.
+
+This markup used to be hand-rolled at every call site, which is exactly how the
+accent tint came to be applied on two pages out of eight (the planning workplace
+chips, the shift chips and the dashboard rows all rendered an untinted glyph).
+Add a new avatar site by including this, not by copying it.
+
+Context:
+  wp           a Workplace instance (required)
+  klass        classes on the circle (default "workplace-avatar" — pass
+               "wp-avatar" / "shift-chip__avatar" where that CSS sizes it)
+  size         diameter in px; omit to let `klass` do the sizing
+  font_size    glyph / initials size, any CSS length; omit for the class default
+  single_initial show one initial instead of two (the shift chip has no room)
+  extra_style  extra inline CSS on the circle
+{% endcomment %}
+<span class="{{ klass|default:'workplace-avatar' }}"
+      style="background:{{ wp.avatar_color }};{% if size %}width:{{ size }}px;height:{{ size }}px;{% endif %}{% if font_size %}font-size:{{ font_size }};{% endif %}{% if wp.custom_icon %}overflow:hidden;{% endif %}{{ extra_style|default:'' }}">
+  {% if wp.custom_icon %}
+    <img src="{{ wp.custom_icon.url }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+  {% elif wp.icon %}
+    <i class="bi {{ wp.icon }}"{% if wp.accent_color %} style="color:{{ wp.accent_color }};"{% endif %}></i>
+  {% else %}
+    {% if single_initial %}{{ wp.avatar_initials|slice:":1" }}{% else %}{{ wp.avatar_initials }}{% endif %}
+  {% endif %}
+</span>

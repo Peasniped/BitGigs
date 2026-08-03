@@ -96,15 +96,13 @@ function initEditShiftModal(opts) {
   }
 
   function renderBanner(s) {
-    var avatar = document.getElementById('shiftModalAvatar');
-    avatar.style.background = s.workplace_color || 'var(--primary)';
-    if (s.workplace_custom_icon_url) {
-      avatar.innerHTML = '<img src="' + escapeHtml(s.workplace_custom_icon_url) + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
-    } else if (s.workplace_icon) {
-      avatar.innerHTML = '<i class="bi ' + escapeHtml(s.workplace_icon) + '" style="font-size:0.7rem;"></i>';
-    } else {
-      avatar.textContent = s.workplace_initials || '';
-    }
+    window.renderWorkplaceAvatar(document.getElementById('shiftModalAvatar'), {
+      color: s.workplace_color,
+      icon_url: s.workplace_custom_icon_url,
+      icon: s.workplace_icon,
+      initials: s.workplace_initials,
+      accent: s.workplace_accent_color,
+    });
     document.getElementById('shiftModalWorkplace').textContent = s.workplace_name;
   }
 

@@ -674,11 +674,17 @@ a.navbar-brand:hover span { color: var(--primary); }
 }
 
 /* ---- Workplace accent banner on detail page ---- */
+/* The strip across the top of a workplace's own pages. Thick enough to read as
+   a deliberate band rather than a hairline, and lit from behind by its own
+   colour so it sits on the page instead of being printed on it. Takes its
+   colour from the surrounding .wp-accent-scope, so it needs no inline style. */
 .workplace-accent-banner {
-  height: 5px;
+  height: 7px;
   border-radius: 999px;
   margin-bottom: 1.25rem;
-  opacity: .85;
+  background: var(--wp-accent);
+  box-shadow: 0 2px 14px -2px color-mix(in srgb, var(--wp-accent) 60%, transparent),
+              0 0 4px color-mix(in srgb, var(--wp-accent) 45%, transparent);
 }
 .workplace-card__name {
   font-weight: 600;
@@ -822,22 +828,30 @@ a.navbar-brand:hover span { color: var(--primary); }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* A chip answers two questions, and each gets its own channel: **colour says
+   whose job it is** (the workplace accent, set inline by _shift_chip.html and
+   inherited from a .wp-accent-scope where there is one), **border style says
+   whether it is settled** (solid = approved, dashed = planned). Colour used to
+   carry both — approved chips were painted in the app accent regardless — so
+   approving a shift silently changed which employer it looked like it belonged
+   to. Falls back to --primary for a workplace with no accent colour. */
+.shift-chip { --chip-accent: var(--wp-accent, var(--primary)); }
 .shift-chip--approved {
-  background: rgba(var(--primary-rgb),.08);
-  border: 1px solid rgba(var(--primary-rgb),.2);
+  background: color-mix(in srgb, var(--chip-accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--chip-accent) 20%, transparent);
 }
-/* The accent is a dark blue, so on a dark cell an 8%/20% tint of it all but
-   disappears — the chip needs to carry its own weight here. */
+/* On a dark cell an 8%/20% tint all but disappears — the chip needs to carry
+   its own weight here. */
 [data-bs-theme="dark"] .shift-chip--approved {
-  background: rgba(var(--primary-rgb),.42);
-  border-color: rgba(var(--primary-rgb),.85);
+  background: color-mix(in srgb, var(--chip-accent) 42%, transparent);
+  border-color: color-mix(in srgb, var(--chip-accent) 85%, transparent);
 }
 .shift-chip--planned {
   background: color-mix(in srgb, var(--surface) 70%, transparent);
-  border: 1.5px dashed var(--primary);
+  border: 1.5px dashed var(--chip-accent);
   cursor: pointer;
 }
-.shift-chip--planned:hover { background: rgba(var(--primary-rgb),.06); }
+.shift-chip--planned:hover { background: color-mix(in srgb, var(--chip-accent) 6%, transparent); }
 .shift-chip__avatar {
   width: 16px; height: 16px;
   border-radius: 50%;
@@ -1331,35 +1345,98 @@ body[data-mask-money] .money-chart {
   box-shadow: 0 0 0 0.2rem rgba(var(--primary-rgb),.15);
 }
 
-/* Per-workplace accent form styling.
-   Scope: an .accent-form wrapper that supplies the colour inline via --wp-accent.
-   Alpha tints use color-mix (equivalent to the old 8-digit hex suffixes). */
-.accent-form .accent-btn-group .btn-check:checked + .btn {
-  background: linear-gradient(135deg, var(--wp-accent), color-mix(in srgb, var(--wp-accent) 80%, transparent)) !important;
-  border-color: var(--wp-accent) !important;
+/* ============================================================================
+   Per-workplace accent scope.
+
+   A workplace's own pages wear that workplace's colour rather than the app
+   accent. Instead of overriding rule by rule (which is how the old .accent-form
+   ended up colouring three controls and leaving the rest of the page blue), this
+   **re-points the theme tokens** on a wrapper element — exactly what base.html
+   does on <html> for a custom app accent. Every rule that already follows
+   --primary then follows the workplace: gradient buttons, links, switches, focus
+   rings, .bg-primary badges, stat-card hover, the calendar's today/week washes.
+
+   The --bs-* and derived tokens have to be re-declared, not just --primary: they
+   are declared at :root, so `var(--primary)` resolves *there* and inherits down
+   as a fixed value. Redefining --primary deeper never reaches them.
+
+   Two rules for callers (see workplaces/templatetags/wp_accent.py):
+     1. The class and the inline --wp-accent/--wp-accent-rgb are emitted
+        together, and only when the workplace actually has an accent colour.
+        A `--wp-accent: var(--primary)` fallback would be a custom-property
+        *cycle*, which makes both tokens invalid and drains the colour out of
+        everything inside the scope.
+     2. Always both vars. --primary-rgb cannot be derived from a hex in CSS, and
+        without it .bg-primary and the focus ring resolve to nothing.
+   ========================================================================== */
+.wp-accent-scope {
+  --primary: var(--wp-accent);
+  --primary-rgb: var(--wp-accent-rgb);
+  /* The brand gradient needs two colours and a workplace has one: derive the
+     lighter companion, mirroring what --secondary is to --primary. */
+  --secondary: color-mix(in oklch, var(--wp-accent) 55%, white);
+  --primary-tint:   color-mix(in srgb, var(--primary) 9%, var(--surface));
+  --primary-border: color-mix(in srgb, var(--primary) 35%, var(--surface));
+  --primary-strong: color-mix(in oklch, var(--primary) 85%, black);
+  --bs-primary: var(--primary);      --bs-primary-rgb: var(--primary-rgb);
+  --bs-link-color: var(--primary);   --bs-link-color-rgb: var(--primary-rgb);
+  --bs-link-hover-color: var(--primary-strong);
+  --bs-primary-bg-subtle: var(--primary-tint);
+  --bs-primary-border-subtle: var(--primary-border);
+  --bs-primary-text-emphasis: var(--primary-strong);
+  --bs-focus-ring-color: rgba(var(--primary-rgb), .25);
+  --cal-today: color-mix(in srgb, var(--primary) 9%, var(--cal-day));
+  --cal-week:  color-mix(in srgb, var(--primary) 6%, var(--cal-day));
+  --target-flash: rgba(var(--primary-rgb), .18);
+  --target-flash-mid: rgba(var(--primary-rgb), .12);
+}
+/* Same inversion the root dark block makes: "strong" text on a tinted wash has
+   to lighten, not darken, once the surface is dark. */
+[data-bs-theme="dark"] .wp-accent-scope {
+  --primary-strong: color-mix(in oklch, var(--primary) 72%, white);
+  --target-flash: rgba(var(--primary-rgb), .42);
+  --target-flash-mid: rgba(var(--primary-rgb), .28);
+}
+
+/* Segmented radio group (the Pay Terms form's employment type / working time /
+   hour-goal pickers). The selected half fills with the same travelling gradient
+   as .btn-primary and .choice-group rather than a flat faded wash, so it reads
+   as one family of control. Keyed on --primary, so it follows the app accent on
+   its own and the workplace accent inside a .wp-accent-scope. */
+.accent-btn-group .btn-check:checked + .btn {
+  background-image: linear-gradient(135deg,
+                    var(--primary) 0%,
+                    var(--secondary) 50%,
+                    var(--primary) 100%) !important;
+  background-size: 230% 230%;
+  background-position: 0% 0%;
+  border-color: var(--primary) !important;
+  color: var(--on-accent) !important;
+  transition: background-position .9s cubic-bezier(.22, .61, .36, 1);
+}
+.accent-btn-group .btn-check:checked + .btn:hover {
+  background-position: 100% 100%;
   color: var(--on-accent) !important;
 }
-.accent-form .accent-btn-group .btn-outline-primary,
-.accent-form .accent-btn-group .btn-outline-secondary {
-  border-color: color-mix(in srgb, var(--wp-accent) 33%, transparent);
-  color: var(--wp-accent);
+.accent-btn-group .btn-outline-primary,
+.accent-btn-group .btn-outline-secondary {
+  border-color: color-mix(in srgb, var(--primary) 33%, transparent);
+  color: var(--primary);
 }
-.accent-form .accent-btn-group .btn-outline-primary:hover,
-.accent-form .accent-btn-group .btn-outline-secondary:hover {
-  background: color-mix(in srgb, var(--wp-accent) 8%, transparent);
+/* The unselected halves stay quiet — a soft wash, never the full gradient the
+   plain .btn-outline-primary:hover paints, or hover would read as selected. */
+.accent-btn-group .btn-check:not(:checked) + .btn:hover {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  color: var(--primary);
 }
-.accent-form .form-check-input:checked {
-  background-color: var(--wp-accent) !important;
-  border-color: var(--wp-accent) !important;
+@media (prefers-reduced-motion: reduce) {
+  .accent-btn-group .btn-check:checked + .btn { transition: none; }
 }
-.accent-form .form-check-input:focus {
-  border-color: color-mix(in srgb, var(--wp-accent) 53%, transparent) !important;
-  box-shadow: 0 0 0 .25rem color-mix(in srgb, var(--wp-accent) 15%, transparent) !important;
-}
-/* Carry-over prompt box: a light wash of the workplace accent. */
-.accent-form .supersede-prompt {
-  background: color-mix(in srgb, var(--wp-accent) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--wp-accent) 28%, transparent);
+
+/* Carry-over prompt box on the pay-terms form: a light wash of the accent. */
+.supersede-prompt {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
 }
 
 /* ---- On/off switches & checkboxes ----

@@ -1,9 +1,12 @@
 {% extends "base.html" %}
 {% load dk_filters %}
 {% load static %}
+{% load wp_accent %}
 {% block title %}Payroll Period {{ period.start_date }} &middot; BitGigs{% endblock %}
 
 {% block content %}
+{% comment %}The editor belongs to one workplace, so it wears that workplace's accent like the rest of its pages.{% endcomment %}
+<div {% wp_accent_scope period.workplace %}>
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
     <h2 class="mb-1">{{ period.workplace.name }}</h2>
@@ -247,6 +250,7 @@
   </div>
 </div>
 {% endif %}
+</div>{# /wp-accent-scope #}
 {% endblock %}
 
 {% block extra_js %}

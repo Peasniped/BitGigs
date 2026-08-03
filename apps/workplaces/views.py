@@ -370,7 +370,11 @@ class WorkplaceCustomizeView(View):
             else:
                 workplace.custom_icon = custom_icon_file
             workplace.icon = ""
-        elif remove_custom_icon and workplace.custom_icon:
+        elif (remove_custom_icon or icon) and workplace.custom_icon:
+            # A named Bootstrap icon and a stored logo are mutually exclusive —
+            # every template prefers the logo, so keeping both would silently
+            # ignore the icon. The upload branch above already enforces the same
+            # rule in reverse (it clears `icon`).
             workplace.custom_icon.delete(save=False)
             workplace.custom_icon = ""
 

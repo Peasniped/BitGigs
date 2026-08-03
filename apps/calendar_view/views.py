@@ -653,6 +653,7 @@ def _shift_to_dict(shift):
         "workplace_color": shift.workplace.avatar_color,
         "workplace_initials": shift.workplace.avatar_initials,
         "workplace_icon": shift.workplace.icon,
+        "workplace_accent_color": shift.workplace.accent_color or "",
         "workplace_custom_icon_url": shift.workplace.custom_icon.url if shift.workplace.custom_icon else "",
         "date": shift.date.isoformat(),
         "start_time": shift.start_time.strftime("%H:%M"),

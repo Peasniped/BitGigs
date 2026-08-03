@@ -412,22 +412,16 @@
     if (SHOW_TYPE_COLORS && s.shift_type) {
       div.classList.add('shift-chip--type-' + s.shift_type);
     }
+    // The colour goes in as --wp-accent, not on one property: both chip states
+    // derive their border and fill from it (see .shift-chip in style.css).
     if (wp && (wp.accent_color || wp.color)) {
-      div.style.borderColor = wp.accent_color || wp.color;
+      div.style.setProperty('--wp-accent', wp.accent_color || wp.color);
     }
     div.setAttribute('draggable', 'true');
     div.dataset.shiftId = s.id;
     div.dataset.workplaceId = s.workplace_id;
     div.title = '[Planned] ' + s.workplace_name + ': ' + s.start_time + '-' + s.end_time + ' (' + toDanish(s.net_hours) + 'h)';
 
-    var avatarHtml = '';
-    if (wp && wp.custom_icon_url) {
-      avatarHtml = '<img src="' + wp.custom_icon_url + '" alt="">';
-    } else if (wp && wp.icon) {
-      avatarHtml = '<i class="bi ' + wp.icon + '"></i>';
-    } else {
-      avatarHtml = escapeHtml(wp ? (wp.initials ? wp.initials.charAt(0) : wp.name.charAt(0)) : '?');
-    }
     var breakHtml = s.break_minutes ? '<i class="bi bi-cup-hot shift-chip__break" title="Includes a break"></i>' : '';
     var typeHtml = '';
     if (SHOW_TYPE_COLORS) {
@@ -437,11 +431,19 @@
       typeHtml = '<span class="shift-chip__type" title="' + (s.shift_type_display || '') + '">' + symInner + '</span>';
     }
     div.innerHTML =
-      '<span class="shift-chip__avatar" style="background:' + (wp && wp.color ? escapeHtml(wp.color) : 'var(--primary)') + ';">' + avatarHtml + '</span>' +
+      '<span class="shift-chip__avatar"></span>' +
       '<small class="shift-chip__time">' + s.start_time + '-' + s.end_time + '</small>' +
       '<small class="shift-chip__hours">(' + toDanish(s.net_hours) + 'h)</small>' +
       breakHtml + typeHtml +
       '<i class="bi bi-pencil shift-chip__edit"></i>';
+    window.renderWorkplaceAvatar(div.querySelector('.shift-chip__avatar'), {
+      color: wp && wp.color,
+      icon_url: wp && wp.custom_icon_url,
+      icon: wp && wp.icon,
+      initials: wp ? (wp.initials || wp.name || '?').charAt(0) : '?',
+      accent: wp && wp.accent_color,
+      glyph_size: '0.5rem',
+    });
 
     wireShiftChip(div, s.workplace_id);
     return div;
@@ -1379,15 +1381,13 @@
   }
 
   function updateModalBanner(wp) {
-    var avatar = document.getElementById('shiftModalAvatar');
-    avatar.style.background = wp.color || 'var(--primary)';
-    if (wp.custom_icon_url) {
-      avatar.innerHTML = '<img src="' + escapeHtml(wp.custom_icon_url) + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
-    } else if (wp.icon) {
-      avatar.innerHTML = '<i class="bi ' + escapeHtml(wp.icon) + '" style="font-size:0.7rem;"></i>';
-    } else {
-      avatar.textContent = wp.initials;
-    }
+    window.renderWorkplaceAvatar(document.getElementById('shiftModalAvatar'), {
+      color: wp.color,
+      icon_url: wp.custom_icon_url,
+      icon: wp.icon,
+      initials: wp.initials,
+      accent: wp.accent_color,
+    });
     document.getElementById('shiftModalWorkplace').textContent = wp.name;
   }
 
@@ -2035,21 +2035,8 @@
       avatar.className = 'wp-avatar flex-shrink-0';
       avatar.style.cssText = 'width:28px;height:28px;border-radius:50%;display:flex;' +
         'align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;' +
-        'color:var(--on-accent);background:' + (wp.color || 'var(--primary)');
-      if (wp.icon_url) {
-        var img = document.createElement('img');
-        img.src = wp.icon_url;
-        img.alt = '';
-        img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
-        avatar.appendChild(img);
-      } else if (wp.icon) {
-        var glyph = document.createElement('i');
-        glyph.className = 'bi ' + wp.icon;
-        glyph.style.fontSize = '0.7rem';
-        avatar.appendChild(glyph);
-      } else {
-        avatar.textContent = wp.initials || '';
-      }
+        'color:var(--on-accent);overflow:hidden;';
+      window.renderWorkplaceAvatar(avatar, wp);
 
       var body = document.createElement('div');
       body.className = 'flex-grow-1 min-w-0';

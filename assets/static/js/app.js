@@ -18,6 +18,27 @@ window.escapeHtml = function (value) {
   });
 };
 
+// Paint a workplace avatar into an existing circle element — the JS twin of
+// workplaces/_avatar.html, and for the same reason: the custom-logo / Bootstrap
+// icon / initials fallback plus the accent tint on the glyph were hand-rolled at
+// every site, so the tint kept being left off. Callers normalise their own field
+// names into `wp` = {color, icon_url, icon, initials, accent, glyph_size}.
+window.renderWorkplaceAvatar = function (el, wp) {
+  if (!el) return;
+  wp = wp || {};
+  el.style.background = wp.color || 'var(--primary)';
+  if (wp.icon_url) {
+    el.innerHTML = '<img src="' + window.escapeHtml(wp.icon_url) +
+      '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
+  } else if (wp.icon) {
+    el.innerHTML = '<i class="bi ' + window.escapeHtml(wp.icon) + '" style="font-size:' +
+      window.escapeHtml(wp.glyph_size || '0.7rem') +
+      (wp.accent ? ';color:' + window.escapeHtml(wp.accent) : '') + ';"></i>';
+  } else {
+    el.textContent = wp.initials || '';
+  }
+};
+
 // Auto theme (UserSettings.theme == "auto" → base.html sets data-theme-auto):
 // keep following the OS scheme while the page is open. The pre-paint pick
 // happens in an inline <head> script; this only tracks later OS changes.
@@ -1469,16 +1490,14 @@ function offerInviteResend(shift, done) {
     var toRow = document.getElementById('resendToRow');
 
     // ----- fill in what is about to be re-sent -----
-    var avatar = document.getElementById('resendAvatar');
-    avatar.style.background = shift.workplace_color || 'var(--primary)';
-    if (shift.workplace_custom_icon_url) {
-        avatar.innerHTML = '<img src="' + escapeHtml(shift.workplace_custom_icon_url) +
-            '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
-    } else if (shift.workplace_icon) {
-        avatar.innerHTML = '<i class="bi ' + escapeHtml(shift.workplace_icon) + '" style="font-size:0.6rem;"></i>';
-    } else {
-        avatar.textContent = shift.workplace_initials || '';
-    }
+    window.renderWorkplaceAvatar(document.getElementById('resendAvatar'), {
+        color: shift.workplace_color,
+        icon_url: shift.workplace_custom_icon_url,
+        icon: shift.workplace_icon,
+        initials: shift.workplace_initials,
+        accent: shift.workplace_accent_color,
+        glyph_size: '0.6rem',
+    });
     document.getElementById('resendWorkplace').textContent = shift.workplace_name || '';
 
     var d = dateFromIso(shift.date);
