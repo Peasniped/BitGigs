@@ -74,6 +74,19 @@ _SEARCH_KEYS = [
 ]
 _ENABLED_KEY = "help:enabled"
 
+# How much of an article body the client search index carries. The client
+# searches — and quotes a snippet from — whatever lands here, so a cut body is
+# silently unsearchable past the cut. Generous enough that no shipped article is
+# truncated, bounded so one pasted novel can't bloat the JSON for everyone.
+BODY_INDEX_CHARS = 8000
+
+# The manual's front door when no article is named. It has to be an explicit
+# slug: the model orders by ``order`` then title, and the lowest ``order`` in the
+# tree belongs to a nested onboarding child — so "the first article" landed
+# readers on *Claiming the instance*. The fallback is the first **root** article
+# in reading order, never simply articles[0].
+LANDING_SLUG = "using-help"
+
 
 def render_markdown(text):
     """Render trusted (staff-authored) Markdown to an HTML string.
@@ -131,6 +144,15 @@ def build_tree(articles):
     return roots
 
 
+def landing_article(articles, tree=None):
+    """The article the manual opens on when no slug is given (see LANDING_SLUG)."""
+    for article in articles:
+        if article.slug == LANDING_SLUG:
+            return article
+    roots = build_tree(articles) if tree is None else tree
+    return roots[0]["article"] if roots else None
+
+
 def flatten_tree(nodes):
     """Depth-first list of articles in reading order (matches the sidebar tree),
     used to compute prev/next navigation on the manual."""
@@ -164,7 +186,7 @@ def build_search_index(user):
                 "title": art.title,
                 "summary": art.summary,
                 "keywords": [k.name for k in art.keywords.all()],
-                "body": _plain_text(art.body_html)[:1500],
+                "body": _plain_text(art.body_html)[:BODY_INDEX_CHARS],
                 "url": reverse("help:manual-article", args=[art.slug]),
             }
         )

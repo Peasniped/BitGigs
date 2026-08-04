@@ -26,14 +26,14 @@ class HelpManualView(View):
         articles = list(
             HelpArticle.objects.visible_to(request.user).select_related("parent")
         )
+        tree = services.build_tree(articles)
         current = None
         if slug:
             current = get_object_or_404(
                 HelpArticle.objects.visible_to(request.user), slug=slug
             )
         elif articles:
-            current = articles[0]
-        tree = services.build_tree(articles)
+            current = services.landing_article(articles, tree)
         prev_article = next_article = None
         if current:
             ordered = services.flatten_tree(tree)

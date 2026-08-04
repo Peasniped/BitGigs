@@ -152,41 +152,108 @@
         return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
       });
     }
-    function highlight(text, q) {
-      var i = text.toLowerCase().indexOf(q);
-      if (i === -1) return escapeHtml(text);
-      return (
-        escapeHtml(text.slice(0, i)) +
-        "<mark>" + escapeHtml(text.slice(i, i + q.length)) + "</mark>" +
-        escapeHtml(text.slice(i + q.length))
-      );
+    // Every occurrence of any term, merged so overlapping terms ("pay",
+    // "payroll") don't produce nested <mark>s.
+    function matchRanges(text, terms) {
+      var lower = text.toLowerCase(), ranges = [];
+      terms.forEach(function (t) {
+        var i = lower.indexOf(t);
+        while (i !== -1) { ranges.push([i, i + t.length]); i = lower.indexOf(t, i + t.length); }
+      });
+      ranges.sort(function (a, b) { return a[0] - b[0]; });
+      var merged = [];
+      ranges.forEach(function (r) {
+        var last = merged[merged.length - 1];
+        if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+        else merged.push([r[0], r[1]]);
+      });
+      return merged;
     }
-    function score(article, q) {
-      var title = (article.title || "").toLowerCase();
-      var kws = (article.keywords || []).join(" ").toLowerCase();
-      var summary = (article.summary || "").toLowerCase();
-      var body = (article.body || "").toLowerCase();
-      var s = 0;
-      if (title.indexOf(q) === 0) s += 100;
-      else if (title.indexOf(q) !== -1) s += 60;
-      if (kws.indexOf(q) !== -1) s += 30;
-      if (summary.indexOf(q) !== -1) s += 15;
-      if (body.indexOf(q) !== -1) s += 5;
-      return s;
+    function highlight(text, terms) {
+      var out = "", pos = 0;
+      matchRanges(text, terms).forEach(function (r) {
+        out += escapeHtml(text.slice(pos, r[0])) +
+          "<mark>" + escapeHtml(text.slice(r[0], r[1])) + "</mark>";
+        pos = r[1];
+      });
+      return out + escapeHtml(text.slice(pos));
+    }
+    // The sentence fragment a body-only match was found in. Without it a hit
+    // deep in an article is indistinguishable from no reason to be listed.
+    var SNIPPET_PAD = 70;
+    function bodySnippet(body, terms) {
+      var lower = body.toLowerCase(), at = -1, hitLen = 0;
+      terms.forEach(function (t) {
+        var j = lower.indexOf(t);
+        if (j !== -1 && (at === -1 || j < at)) { at = j; hitLen = t.length; }
+      });
+      if (at === -1) return "";
+      var start = Math.max(0, at - SNIPPET_PAD);
+      var end = Math.min(body.length, at + hitLen + SNIPPET_PAD * 2);
+      if (start > 0) { // don't open mid-word
+        var sp = body.indexOf(" ", start);
+        if (sp !== -1 && sp < at) start = sp + 1;
+      }
+      if (end < body.length) {
+        var sp2 = body.lastIndexOf(" ", end);
+        if (sp2 > at) end = sp2;
+      }
+      return (start > 0 ? "…" : "") + body.slice(start, end).trim() +
+        (end < body.length ? "…" : "");
+    }
+    // Lower-cased fields are cached on the record: runSearch re-scores the whole
+    // index on every keystroke.
+    function fields(article) {
+      if (!article._lc) {
+        article._lc = {
+          title: (article.title || "").toLowerCase(),
+          kws: (article.keywords || []).join(" ").toLowerCase(),
+          summary: (article.summary || "").toLowerCase(),
+          body: (article.body || "").toLowerCase(),
+        };
+      }
+      return article._lc;
+    }
+    // Each term must appear *somewhere* (AND), so extra words narrow rather
+    // than widen. ``bodyOnly`` records that a term was found only in the body —
+    // that's the result that needs a snippet to explain itself.
+    function score(article, terms, phrase) {
+      var f = fields(article), total = 0, bodyOnly = false;
+      for (var i = 0; i < terms.length; i++) {
+        var t = terms[i], named = 0;
+        if (f.title.indexOf(t) === 0) named += 100;
+        else if (f.title.indexOf(t) !== -1) named += 60;
+        if (f.kws.indexOf(t) !== -1) named += 30;
+        if (f.summary.indexOf(t) !== -1) named += 15;
+        var inBody = f.body.indexOf(t) !== -1;
+        if (!named && !inBody) return { s: 0 };
+        if (inBody && !named) bodyOnly = true;
+        total += named + (inBody ? 8 : 0);
+      }
+      // A multi-word query that appears verbatim beats the same words scattered.
+      if (terms.length > 1) {
+        if (f.title.indexOf(phrase) !== -1) total += 40;
+        if (f.body.indexOf(phrase) !== -1) total += 10;
+      }
+      return { s: total, bodyOnly: bodyOnly };
     }
     function runSearch(rawQuery) {
-      var q = rawQuery.trim().toLowerCase();
-      if (!q) { showView("context"); activeIdx = -1; return; }
+      var phrase = rawQuery.trim().toLowerCase();
+      if (!phrase) { showView("context"); activeIdx = -1; return; }
+      var terms = phrase.split(/\s+/).filter(function (t) { return t; });
       ensureIndex().then(function (items) {
         var matches = items
-          .map(function (a) { return { a: a, s: score(a, q) }; })
+          .map(function (a) {
+            var r = score(a, terms, phrase);
+            return { a: a, s: r.s, bodyOnly: r.bodyOnly };
+          })
           .filter(function (m) { return m.s > 0; })
           .sort(function (x, y) { return y.s - x.s; })
           .slice(0, 20);
-        renderResults(matches, q);
+        renderResults(matches, terms);
       });
     }
-    function renderResults(matches, q) {
+    function renderResults(matches, terms) {
       showView("results");
       activeIdx = -1;
       resultsList.innerHTML = "";
@@ -196,9 +263,15 @@
         li.className = "help-result";
         li.setAttribute("data-help-open", m.a.slug);
         li.setAttribute("data-idx", i);
-        var summary = m.a.summary
-          ? '<div class="help-result-summary">' + escapeHtml(m.a.summary) + "</div>" : "";
-        li.innerHTML = '<div class="help-result-title">' + highlight(m.a.title, q) + "</div>" + summary;
+        var html = '<div class="help-result-title">' + highlight(m.a.title, terms) + "</div>";
+        if (m.a.summary) {
+          html += '<div class="help-result-summary">' + highlight(m.a.summary, terms) + "</div>";
+        }
+        if (m.bodyOnly) {
+          var snip = bodySnippet(m.a.body || "", terms);
+          if (snip) html += '<div class="help-result-snippet">' + highlight(snip, terms) + "</div>";
+        }
+        li.innerHTML = html;
         resultsList.appendChild(li);
       });
     }

@@ -9,31 +9,32 @@ published: true
 keywords: [navigation, navbar, menu, more, links, pages, log out, theme toggle, where]
 pages: []
 ---
-BitGigs keeps the navigation small: a logo, three main links, and a **More**
-menu for everything else.
+BitGigs keeps navigation small: a logo, three main links, and a **More** menu for
+everything else.
 
 - The **BitGigs logo** (top left) always takes you home to the
   [dashboard](/help/dashboard/).
-- The three centre links — **Workplaces**, **Planning**, **Analytics** — are
-  the pages you'll live on. The link for the section you're currently in is
-  highlighted, so you always know where you are.
+- The three centre links — **Workplaces**, **Planning**, **Analytics** — are the
+  pages you'll live on. The section you're currently in is highlighted, so you
+  always know where you are.
 
 ## The More menu
 
 | Item | What's there |
 |---|---|
-| **Payroll** | Estimated payslips per period. |
-| **Vacation** | Accrued holiday pay across workplaces. |
-| **Commuting** | Commuting days for the transport deduction. |
-| **Tax Profiles** | Your date-versioned tax numbers. |
-| **Settings** | Display, analytics, email and sign-in preferences. |
-| **Import / Export** | Backups and data migration. |
-| **Dark / Light mode** | One-tap theme switch. With **Auto** theme active it links to the setting instead. |
-| **Help** | The full manual. |
+| **[Payroll](/help/payroll/)** | Estimated payslips per period. |
+| **[Vacation](/help/vacation-pay/)** | Accrued holiday pay across workplaces. |
+| **[Commuting](/help/commuting/)** | Commuting days for the transport deduction. |
+| **[Tax Profiles](/help/tax-profiles/)** | Your date-versioned tax numbers. |
+| **[Settings](/help/settings-and-sign-in/)** | Display, features, email, calendar, API and sign-in. |
+| **[Import / Export](/help/import-export/)** | Backups and data migration. |
+| **Dark / Light mode** | One-tap theme switch. With **Auto** active it links to the setting instead. |
+| **Help** | The [full manual](/help/using-help/). |
 | **Log out** | Ends your session. |
 
-## Help is everywhere
+Some of these can be switched off if you don't use them — a hidden entry means
+that feature is off, not missing. See
+[Settings & sign-in](/help/settings-and-sign-in/).
 
-Press **F1** or click the floating **?** button in the corner to open help for
-the page you're on — it works on top of open dialogs too. Green confirmation
-notices dismiss themselves after a few seconds (hover one to pause it).
+> Green confirmation notices dismiss themselves after a few seconds; hover one to
+> pause it.

@@ -27,7 +27,10 @@ Three things decide where an article surfaces:
 
 - **Pages** — tick the app pages it belongs to; the **F1 / ?** popup shows it
   there first.
-- **Keywords** — extra search terms (they rank just below the title).
+- **Keywords** — extra search terms. Search covers titles, keywords, summaries
+  **and the article text**, in that order of weight, so keywords are for words a
+  reader would type that don't appear in the article at all — synonyms, the
+  Danish term for an English heading, the name of a button.
 - **Parent & order** — where it nests in the manual's table of contents, and
   its position among siblings.
 - **Audience** — who may read it. Most articles are *Everyone* (any logged-in
@@ -37,7 +40,12 @@ Three things decide where an article surfaces:
 
 You can deep-link into the app from an article — plain Markdown links to
 paths like `/settings/?tab=display` work, and anchors can point at a specific
-setting.
+setting. Links to `/help/<slug>/` open in the popup rather than navigating away.
+
+> The manual opens on the article with the slug **`using-help`**. Rename or
+> unpublish that one and it falls back to the first top-level article instead —
+> never to whichever article happens to sort first, which used to land readers
+> deep inside the setup steps.
 
 ## Safety nets
 

@@ -16,4 +16,7 @@ the days you worked.
 - Set the commuting distance for a workplace.
 - BitGigs combines it with your worked days to estimate the yearly deduction.
 
+Only **on-site** shifts count as commuting days — a day worked remotely doesn't
+involve a journey. See [Shift types](/help/shift-types/).
+
 This is an estimate for planning; SKAT has the final say on the rate and rules.

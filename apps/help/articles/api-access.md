@@ -4,29 +4,27 @@ slug: api-access
 summary: Read your BitGigs data from scripts with an API key created in Settings → API.
 parent: settings-and-sign-in
 audience: everyone
-order: 78
+order: 40
 published: true
 keywords: [api, key, token, bearer, script, python, income, endpoint, scope, revoke, expire, automation]
 pages: [core:settings]
 ---
-BitGigs has a small read-only HTTP API so your own scripts and tools can pull
-your data — for example monthly gross/net income. Everything runs against your
-own server; nothing is sent anywhere else.
+BitGigs has a small read-only HTTP API so your own scripts can pull your data —
+for example monthly gross/net income. It runs against your own server; nothing is
+sent anywhere else.
 
 ## API keys
 
-Every request needs an **API key**, created under **Settings → API**. A key
+Every request needs an **API key**, created under **Settings → API**. A key has a
+**name**, an optional **expiration date**, and **granular access**: all endpoints,
+or only the ones you tick.
 
-- has a **name** so you can tell your keys apart,
-- can carry an optional **expiration date**,
-- and has **granular access**: all endpoints, or only the ones you tick.
+The full key is shown **exactly once**, right after you create it — BitGigs stores
+only a fingerprint, so it cannot be shown again. Copy it somewhere safe; if you
+lose it, revoke the key and create a new one.
 
-The full key is shown **exactly once**, right after you create it — BitGigs
-stores only a fingerprint, so it cannot be shown again. Copy it somewhere safe;
-if you lose it, revoke the key and create a new one.
-
-**Revoking** a key stops it working immediately. Revoked or expired keys stay
-in the list (so you can see what existed) until you delete them.
+**Revoking** stops a key working immediately. Revoked or expired keys stay in the
+list until you delete them.
 
 ## Making a request
 

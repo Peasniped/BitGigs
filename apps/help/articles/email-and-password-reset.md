@@ -1,60 +1,54 @@
 ---
 title: Email & password reset
 slug: email-and-password-reset
-summary: Connect a mail server so BitGigs can send you a password reset link.
+summary: Connect a mail server so BitGigs can email you a password reset link and send calendar invites.
 parent: settings-and-sign-in
 audience: everyone
-order: 75
+order: 20
 published: true
-keywords: [email, smtp, mail, gmail, outlook, password reset, forgot password, app password, starttls, port 587, port 465, test connection, email log, failed email, clear configuration, mail connection, no-reply, calendar invites, used for, roles, multiple mail servers]
+keywords: [email, smtp, mail, gmail, outlook, fastmail, app password, starttls, port 587, port 465, mail connection, no-reply, roles, used for, multiple mail servers, password reset, forgot password]
 pages: [core:settings]
 ---
-BitGigs can send mail through a mail server **you** choose. It is entirely
-optional — everything else in the app works without it — and it is **off until
-you turn it on**. It powers the "forgot your password" link and, if you use them,
-[calendar invites](/help/calendar-integration/).
+BitGigs can send mail through a mail server **you** choose. It's entirely
+optional — everything else works without it — and **off until you turn it on**.
+It powers the "forgot your password" link and, if you use them,
+[calendar invites](/help/calendar-invites/).
 
 Set it up under **[Settings → Email](/settings/?tab=email)**.
 
 ## What gets sent where
 
-Only what you ask BitGigs to send: a password reset link, addressed to your own
-sign-in address, and calendar invites to the addresses you name on a contract.
-Nothing about your shifts, pay or workplaces goes anywhere else.
+Only what you ask for: a password reset link to your own sign-in address, and
+calendar invites to the addresses you name on a contract. Nothing about your
+shifts, pay or workplaces goes anywhere else.
 
-Bear in mind that the mail server you point this at *is* a third party unless you
-run it yourself — if you use Gmail, your reset emails pass through Google. That's
-your call to make about your own mail account, which is exactly why this is
-opt-in and why BitGigs never picks a provider for you.
+Bear in mind the mail server you point this at *is* a third party unless you run
+it yourself — with Gmail, your reset emails pass through Google. That's your call
+about your own mail account, which is exactly why this is opt-in and why BitGigs
+never picks a provider for you.
 
-## Mail connections and what they're used for
+## Connections and what they're used for
 
-A **mail connection** is one SMTP setup — a server, a sign-in, and a from-address.
-You can keep **more than one** and choose which one sends which kind of mail:
+A **mail connection** is one SMTP setup — a server, a sign-in, a from-address.
+You can keep more than one and choose which sends which kind of mail:
 
 - **System mail** — the transactional stuff, i.e. password reset links.
 - **Calendar invites** — the invites your shifts turn into.
 
-A common reason to keep two: send system mail from a **no-reply** mailbox, and
-send calendar invites from **your own address** so replies reach you. Set this up
-in the **Used for** panel — pick a connection for each kind of mail, or leave it
-on **Default** to use whichever connection you marked as the default. If you only
-ever want one server, just add one connection and leave both on Default.
+A common reason to keep two: send system mail from a **no-reply** mailbox and
+invites from **your own address** so replies reach you. Pick a connection for
+each in the **Used for** panel, or leave both on **Default**. One server? Add one
+connection and leave both on Default.
 
-The **master switch** at the top turns all outgoing mail on or off. Below it,
-each connection is shown as a card; a **Clear all** button wipes every connection
-back to a fresh, disabled state — handy when a setup has gone wrong and you'd
-rather start over.
+The **master switch** turns all outgoing mail on or off. **Clear all** wipes every
+connection back to a fresh, disabled state.
 
 ## Adding a connection
 
-Press **Add connection** (or **Edit** on an existing card). Use **Quick setup** to
-fill in the server address, port and encryption for a common provider, then add
-your own credentials. Give the connection a **name** so you can tell your setups
-apart (e.g. "No-reply" and "My mailbox"). The dialog groups the fields —
-**Server**, **Sign-in**, **Sender** — so the password and the from-address stay
-well apart. The first connection you add becomes the **default**; use **Make
-default** on any card to move that.
+Press **Add connection** (or **Edit** on a card). **Quick setup** fills in server,
+port and encryption for a common provider; then add your own credentials. Give it
+a **name** so you can tell setups apart. The first connection becomes the
+**default**; **Make default** on any card moves that.
 
 | Provider | Server | Port | Encryption |
 |---|---|---|---|
@@ -64,79 +58,27 @@ default** on any card to move that.
 
 Anything else: ask your provider for their **SMTP** (outgoing) settings.
 
-> **Your normal account password will usually not work.** Gmail, Outlook and
-> Fastmail all require an **app password** — a separate password generated for
-> one application. For Gmail you must turn on 2-step verification first, then
-> create an App Password in your Google account's security settings.
+> **Your normal account password usually won't work.** Gmail, Outlook and
+> Fastmail all require an **app password** — a separate password generated for one
+> application. For Gmail, turn on 2-step verification first, then create an App
+> Password in your Google account's security settings.
 
-**From address** is what recipients see. Most providers only let you send from
-the account you signed in as, so if in doubt make it the same as the username.
+**From address** is what recipients see. Most providers only let you send from the
+account you signed in as, so if in doubt make it the same as the username.
 
-Your password is stored **encrypted**, using a key derived from the server's
-`DJANGO_SECRET_KEY`. A stolen copy of the database alone doesn't reveal it. The
-flip side: if that key is ever changed, the stored password can no longer be
-read and BitGigs will ask you to enter it again.
-
-## Testing it
-
-Each connection card has a **Test** button that checks that saved connection,
-step by step, without sending anything. There's also a **Send a test message**
-panel below the list: pick a connection, enter an address, and it delivers a real
-message so you can confirm it arrives. Either way, save any edits first — the test
-runs against the **saved** connection. The report walks through the same steps a
-real send does, so the first ✗ tells you which setting is wrong:
-
-1. **Configuration** — are the required fields filled in at all
-2. **Resolve hostname** — does the server address exist
-3. **Connect** — is anything listening on that port
-4. **Secure the connection** — does the encryption mode match the port
-5. **Authenticate** — are the username and password accepted
-6. **Send a test message** — *optional*, only if you fill in an address
-
-That last step is worth doing. A connection can pass every earlier check and
-still fail to deliver, because the server refuses to relay mail *from* your
-chosen from-address. Only an actual send catches that.
-
-Common results:
-
-- **"Nothing is accepting connections on that port"** — the port is wrong for the
-  encryption mode. Use 587 with STARTTLS, or 465 with implicit TLS.
-- **"Timed out"** — a firewall is dropping the connection, or your internet
-  provider blocks outbound mail ports.
-- **"The server rejected the credentials"** — usually a normal password where an
-  app password is required. The server's own explanation is shown too.
-- **"The server refused the from address"** — set the from address to match the
-  account you authenticate as.
-
-## The email log
-
-Every message BitGigs tries to send — test messages and real mail alike — is
-recorded in the **Email log** (the button is on the Email tab). Each row shows
-when it was sent, which **connection** sent it, to whom, the subject, and the
-outcome; a failure also shows **why**. Only this metadata is kept, never the
-contents of the message. The log holds the most recent 200 attempts.
-
-A result of **Accepted** means the mail server took the message for delivery —
-it is *not* proof it landed in the inbox. Mail works in relays: the server can
-accept a message and only later discover the address doesn't exist, at which
-point a "delivery failed" notice bounces back to your own inbox a few minutes
-later. There is no reliable way for BitGigs to know that at send time, so
-"Accepted" is as far as the log can honestly go. If in doubt, send yourself a
-test message and check it actually arrives.
-
-If a send **fails**, a red banner appears on your **dashboard** with a link
-straight to the log. It stays until you press **Dismiss** — just opening the log
-doesn't clear it — so a failure that happened while you weren't looking (a reset
-link that never arrived, say) can't slip by unnoticed.
+Your password is stored **encrypted**, keyed off the server's
+`DJANGO_SECRET_KEY` — a stolen copy of the database alone doesn't reveal it. The
+flip side: change that key and the stored password can no longer be read, so
+BitGigs will ask you to enter it again.
 
 ## Resetting a forgotten password
 
 Once mail works, the login page's **Forgot your password?** offers to email you a
-reset link. The link lasts **two hours** and works **once** — requesting a new one
-cancels any older link. You can turn this off with **Offer 'Forgot your
-password?'** on the Email tab if you would rather keep recovery console-only.
+reset link. The link lasts **two hours** and works **once**; requesting a new one
+cancels any older link. Turn it off with **Offer 'Forgot your password?'** if you'd
+rather keep recovery console-only.
 
-If mail is not configured, or the mail server is the thing that broke, recovery
+If mail isn't configured — or the mail server is the thing that broke — recovery
 is always available from the server console:
 
 ```
@@ -146,6 +88,9 @@ python manage.py changepassword your@email.address
 Run it in the BitGigs project directory with the virtualenv active (in
 development, add `--settings=bitgigs.settings.local`).
 
-If you sign in with single sign-on and have no password set, there is nothing to
+If you sign in with single sign-on and have no password set, there's nothing to
 reset — recover through your identity provider instead. See
-[Settings & sign-in](/help/settings-and-sign-in/).
+[Sign-in & single sign-on](/help/sign-in-and-sso/).
+
+> Not arriving? [Email problems](/help/email-troubleshooting/) covers the
+> connection test, the common failures and the activity log.

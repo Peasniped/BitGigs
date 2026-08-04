@@ -1,84 +1,64 @@
 ---
 title: Settings & sign-in
 slug: settings-and-sign-in
-summary: Display preferences, switching features on and off, and how you sign in to BitGigs.
+summary: Display preferences, switching features on and off, and where the rest of the settings live.
 parent:
 audience: everyone
 order: 70
 published: true
-keywords: [settings, preferences, password, sso, oidc, authentik, sign in, theme, dark mode, accent, colour, color, features, turn off, hide, disable, payroll, vacation, commuting, analytics]
+keywords: [settings, preferences, theme, dark mode, light mode, auto, accent, colour, color, mask money, features, turn off, hide, disable, payroll, vacation, commuting, analytics, tabs]
 pages: [core:settings]
 ---
-## Display preferences
+Everything configurable lives under **More › Settings**, split across tabs.
+Changes **save as you make them** — there's no Save button to remember.
 
-- **Colour shifts by type** — tint calendar chips by shift type.
-- **[Theme](/settings/?tab=display#div_id_theme)** — Light, Dark, or **Auto**
-  (follows your operating system, switching live when it does). There's also a
-  one-tap **Dark mode / Light mode** toggle in the **More** menu; while Auto is
-  active that menu item instead links back to this setting.
+## Display
+
+- **Theme** — Light, Dark, or **Auto** (follows your operating system, switching
+  live when it does). There's also a one-tap toggle in the **More** menu; while
+  Auto is active that menu item links back to this setting instead.
 - **[Accent colour](/settings/?tab=display#div_id_accent_color_picker)** — one
-  colour drives the whole app: buttons, links, tints, gradients and focus
-  rings. Pick a preset swatch, use the colour wheel, or type a hex value — the
-  page previews the colour live, and **Save** makes it stick. *Reset to
-  default* returns to BitGigs indigo. (Charts keep their fixed
-  actual/planned/projected colours so their meaning never changes.)
+  colour drives buttons, links, tints, gradients and focus rings. Pick a swatch,
+  use the colour wheel, or type a hex value. (Charts keep their fixed
+  actual/planned/projected colours so their meaning never changes.) A workplace
+  with [its own accent](/help/workplace-editing/) overrides this on its own pages.
+- **Colour shifts by type** — tint calendar chips by
+  [shift type](/help/shift-types/).
+- **Mask money** — replace every amount with dots, for demos and screenshots.
+  Hours, dates and percentages stay readable.
 
 ## Features
 
-BitGigs covers more ground than most people need. The **Features** tab is where
-you switch off the parts you don't use — each one gets a card with a switch and a
-plain description of what goes away:
-
-- **Payroll periods** — generated periods and the payslip editor.
-- **Vacation & feriepenge** — the holiday-pay overview.
-- **Commuting** — commuting days for the transport deduction.
-- **Analytics** — income projection and rate history.
+BitGigs covers more ground than most people need. The **Features** tab switches
+off the parts you don't use — **Payroll periods**, **Vacation & feriepenge**,
+**Commuting** and **Analytics** — each with a switch and a description of what
+goes away.
 
 Switching one off does two things: its menu entry disappears, and its pages stop
 opening. That second part matters — a bookmark or an old link would otherwise
-still walk you into a page you'd turned off. If you follow one anyway, BitGigs
-takes you to the dashboard and says which feature is off.
+still walk you into a page you'd turned off. Follow one anyway and BitGigs takes
+you to the dashboard and says which feature is off.
 
 **Nothing is deleted.** A switch only changes what you can *reach*; your shifts,
-payslip lines and commuting days stay exactly where they are, and turning it back
-on brings the pages back unchanged. So there's no risk in trying it.
+payslip lines and commuting days stay exactly where they are. There's no risk in
+trying it.
 
-A feature that has settings of its own keeps them here, on its own card, so its
-on/off switch and its behaviour sit together:
+A feature with settings of its own keeps them on its card, so its on/off switch
+and its behaviour sit together — Analytics carries **projection method**,
+**trailing months** and **use planned shifts** there. Those fold away when the
+feature is off, but they're remembered.
 
-- **Projection method** and **trailing months** — how Analytics estimates future
-  hours from your history.
-- **Use planned shifts** — let Analytics use your planned shifts for a future
-  month instead of the trailing average (on by default).
+## The other tabs
 
-Those fold away when Analytics is switched off, but they're remembered — turn it
-back on and it's configured exactly as you left it.
+| Tab | What's there |
+|---|---|
+| **[Email](/help/email-and-password-reset/)** | Mail connections, so BitGigs can send you a password reset link. |
+| **[Calendar](/help/calendar-integration/)** | Read a personal calendar in; send shifts out as invites. |
+| **[API](/help/api-access/)** | Keys for reading your data from your own scripts. |
+| **Jobs** | The background scheduler and its task queue. |
+| **[Sign-in](/help/sign-in-and-sso/)** | Your password, and an optional identity provider. |
+| **About** | Version, build and deployment facts about this install. |
 
-## Sign-in
-
-BitGigs works standalone with a **password**, and can optionally link an identity
-from **any OpenID Connect provider** (Authentik, Keycloak, Auth0, …). One rule
-always holds: **at least one way in must survive** — you can only turn the
-password off while an identity is linked, and only unlink the identity while a
-usable password exists.
-
-> Forgotten your password? If you've connected a mail server the login page can
-> email you a reset link — see [Email & password reset](/help/email-and-password-reset/).
-> Otherwise recovery is done from the command line (`manage.py changepassword`),
-> which also stays available as the fallback when mail itself is broken.
-
-### Naming the sign-in button
-
-Single sign-on is set up in `.env` (`OIDC_SERVER_URL`, `OIDC_CLIENT_ID`,
-`OIDC_CLIENT_SECRET`) and takes effect after a restart. Until you say otherwise
-the button just reads **SSO** — correct for every provider, branded for none.
-
-To brand it:
-
-- `OIDC_PROVIDER_BRAND=authentik` — one line, gives Authentik's own icon and colour.
-- `OIDC_PROVIDER_NAME`, `OIDC_PROVIDER_COLOR`, `OIDC_PROVIDER_ICON` — set your
-  own. For the icon, drop an SVG or PNG into `assets/static/graphics/` and point
-  the variable at it (e.g. `graphics/my_idp.svg`).
-
-The label colour is chosen automatically so it stays readable on whatever colour
-you pick, and your own icon is used exactly as supplied — never recoloured.
+> Email and Calendar are the only two settings that reach outside your server,
+> and both go somewhere you named — see
+> [Your data stays with you](/help/your-data/).

@@ -6,11 +6,12 @@ parent:
 audience: everyone
 order: 60
 published: true
-keywords: [tax, profile, trækprocent, personfradrag, am-bidrag, church]
+keywords: [tax, profile, trækprocent, personfradrag, am-bidrag, church, forskudsopgørelse, skat, new year]
 pages: [core:taxprofile-list, core:onboarding-tax]
 ---
 A **tax profile** holds the personal numbers BitGigs uses to estimate what's
-withheld from your pay.
+withheld from your pay. Copy them from your **forskudsopgørelse** at
+[skat.dk](https://skat.dk).
 
 | Field | What it is |
 |---|---|
@@ -19,10 +20,16 @@ withheld from your pay.
 | **AM-bidrag** | Labour-market contribution (typically 8%). |
 | **Church tax** | Set to 0 if you're not a member. |
 
+Longer explanations of each term: [Danish pay concepts](/help/danish-pay-terms/).
+
 ## Date-versioned
 
 Profiles are dated: each applies **from its date forward**. When your numbers
-change (e.g. a new tax year), **add a new profile** with the new
-`effective from` — don't edit the old one, so past estimates stay accurate.
+change — typically each new tax year — **add a new profile** with the new
+`effective from`. Don't edit the old one, or past estimates silently stop
+matching what you were actually paid. The same rule governs
+[pay terms](/help/contracts-and-terms/).
 
-You can copy these from your **forskudsopgørelse** at skat.dk.
+Only the **hovedkort** job gets the personfradrag, so which tax card each
+workplace uses matters as much as these numbers do — that's set per term set in
+[Filling in pay terms](/help/pay-terms-editing/).

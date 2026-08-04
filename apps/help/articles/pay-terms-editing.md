@@ -26,7 +26,7 @@ part of the form means — the Danish concepts themselves are explained in
 |---|---|
 | **Employment type** | **Hourly** (paid per worked hour) or **Salaried** (fixed monthly pay). Fill in the matching field: hourly rate *or* monthly salary. |
 | **Weekly hours** | **Fixed** (e.g. full time, 37) or **variable** with a min–max range. Feeds salary proration and analytics. |
-| **Payroll period start day** | The day your employer's pay month begins. Many hourly jobs run e.g. the 20th → 19th; shifts count toward the payroll month they belong to, not the calendar month. |
+| **Payroll period start day** | The day your employer's pay month begins. Many hourly jobs run e.g. the 20th → 19th; shifts then count toward the [payroll period](/help/payroll/) they belong to, not the calendar month. |
 | **Hour goal** | An optional monthly target (or range) of hours — shown as the progress bar on the dashboard and planning cards. |
 
 ## Tax & extras
@@ -41,7 +41,6 @@ part of the form means — the Danish concepts themselves are explained in
 
 ## Getting a raise? Add, don't edit
 
-Term sets are **date-versioned**: when your rate or terms change, add a **new
-term set** effective from the change date. Editing the old one would silently
-rewrite history — past payslips and analytics would no longer match what you
-were actually paid. Only edit a term set to fix a typo in it.
+Add a **new term set** effective from the change date; only edit an existing one
+to fix a typo in it. Why that matters — and how the dates are read — is in
+[Contracts & pay terms](/help/contracts-and-terms/).

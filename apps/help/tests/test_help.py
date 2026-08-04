@@ -119,6 +119,40 @@ class HelpServiceTests(HelpTestMixin, TestCase):
         self.assertNotIn("p", choices)  # can't be its own parent
         self.assertNotIn("c", choices)  # can't parent under a descendant
 
+    def _landing_scenario(self):
+        """A nested child carrying the lowest ``order`` beside a later root —
+        the shape that used to hand the manual's landing spot to the child,
+        since the model orders by order-then-title across the whole tree."""
+        HelpArticle.objects.all().delete()  # drop the seeded corpus
+        root = self.make_article(slug="root-a", title="Root", order=10)
+        self.make_article(slug="deep", title="Deep", parent=root, order=1)
+        return root
+
+    def test_landing_article_prefers_named_slug(self):
+        self._landing_scenario()
+        landing = self.make_article(
+            slug=services.LANDING_SLUG, title="Using this manual", order=5
+        )
+        articles = list(HelpArticle.objects.visible_to(self.user))
+        self.assertEqual(services.landing_article(articles), landing)
+
+    def test_landing_article_falls_back_to_first_root(self):
+        root = self._landing_scenario()
+        articles = list(HelpArticle.objects.visible_to(self.user))
+        self.assertEqual(services.landing_article(articles), root)
+
+    def test_search_index_carries_body_text(self):
+        # The client searches (and quotes a snippet from) whatever lands in the
+        # index, so a body cut short is silently unsearchable past the cut.
+        marker = "sesquipedalian"
+        body = ("filler word " * 400) + marker
+        self.assertGreater(len(body), 1500)  # past the old truncation point
+        self.make_article(slug="long", title="Long", body_md=body)
+        index = services.build_search_index(self.user)
+        record = next(a for a in index if a["slug"] == "long")
+        self.assertIn(marker, record["body"])
+        self.assertNotIn("<p>", record["body"])  # tags stripped, text only
+
     def test_export_import_round_trip(self):
         article = self.make_article(slug="round", title="Round Trip")
         article.keywords.set([HelpKeyword.get_or_create_by_name("alpha")])
@@ -154,6 +188,13 @@ class HelpReaderViewTests(HelpTestMixin, TestCase):
         resp = self.client.get(reverse("help:manual"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Alpha")
+
+    def test_manual_opens_on_the_landing_article(self):
+        # Against the seeded corpus, which is what the owner actually gets: the
+        # lowest ``order`` in it belongs to a nested onboarding article, so this
+        # pins the manual to its front door rather than to whatever sorts first.
+        resp = self.client.get(reverse("help:manual"))
+        self.assertEqual(resp.context["current"].slug, services.LANDING_SLUG)
 
     def test_manual_shows_prev_next(self):
         self.make_article(slug="one", title="One", order=1)
