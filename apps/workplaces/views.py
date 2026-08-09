@@ -16,7 +16,10 @@ from .services import (
     ALLOWED_ICON_CONTENT_TYPES, ALLOWED_ICON_EXTS, MAX_ICON_SIZE,
     valid_hex_color, valid_icon_class,
 )
-from core.utils import avatar_for_name, parse_int_param, prev_next_month, WEEKS_PER_MONTH, sanitize_svg
+from core.utils import (
+    avatar_for_name, month_bounds, parse_int_param, prev_next_month,
+    WEEKS_PER_MONTH, sanitize_svg,
+)
 from core.views import _safe_next
 
 # Curated icon choices for the workplace icon picker
@@ -105,9 +108,7 @@ class WorkplaceDetailView(View):
             )
             tax_pull_date = PayrollPeriodService.get_tax_pull_date(viewed_termset, year, month)
         else:
-            last_day = _cal_mod.monthrange(year, month)[1]
-            period_start = date(year, month, 1)
-            period_end = date(year, month, last_day)
+            period_start, period_end = month_bounds(year, month)
             tax_pull_date = date(year, month, 18)
 
         sessions_in_period = Shift.objects.filter(

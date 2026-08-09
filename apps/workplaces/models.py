@@ -1,4 +1,3 @@
-import calendar as _cal
 import os
 from datetime import date as _date, timedelta
 from decimal import Decimal
@@ -8,7 +7,9 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from core.utils import date_spans_overlap, dk_slugify, weekly_to_monthly_hours
+from core.utils import (
+    date_spans_overlap, dk_slugify, month_bounds, weekly_to_monthly_hours,
+)
 
 
 def workplace_icon_upload_to(instance, filename):
@@ -152,9 +153,7 @@ class Workplace(models.Model):
         Robust to contracts/term sets that start or end anywhere in the month
         (a fixed mid-month probe would miss e.g. a contract starting on the 20th).
         """
-        last_day = _cal.monthrange(year, month)[1]
-        month_start = _date(year, month, 1)
-        month_end = _date(year, month, last_day)
+        month_start, month_end = month_bounds(year, month)
         active = self.contracts_in_period(month_start, month_end)
         if not active:
             return None

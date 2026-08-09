@@ -14,7 +14,7 @@ from django.db import transaction
 from workplaces.models import Workplace, ContractTermSet
 from shifts.models import Shift
 from core.services import TaxCalculationService, TaxBreakdown, ATPService
-from core.utils import weekly_to_monthly_hours
+from core.utils import month_bounds, weekly_to_monthly_hours
 
 TWO_PLACES = Decimal("0.01")
 # Danish standard vacation accrual: 25 days/year over 12 months.
@@ -440,12 +440,7 @@ class SalaryEstimateService:
         cls, contract, year: int, month: int, today: date,
     ) -> list["SalariedMonthLine"]:
         """Calendar-month form of ``salaried_period_lines``."""
-        return cls.salaried_period_lines(
-            contract,
-            date(year, month, 1),
-            date(year, month, calendar.monthrange(year, month)[1]),
-            today,
-        )
+        return cls.salaried_period_lines(contract, *month_bounds(year, month), today)
 
     @staticmethod
     def _combine_estimates(ests: list[SalaryEstimate]) -> SalaryEstimate:
@@ -504,7 +499,7 @@ class SalaryEstimateService:
         by field. Handles a mid-month raise and a partial-month start/end. Month
         end is the reference, so all active days count. Returns None when no
         salaried term set is active in the month."""
-        month_end = date(year, month, calendar.monthrange(year, month)[1])
+        month_end = month_bounds(year, month)[1]
         lines = cls.salaried_month_lines(contract, year, month, month_end)
         if not lines:
             return None

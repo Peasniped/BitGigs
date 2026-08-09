@@ -1938,13 +1938,6 @@ a.setup-step--started:hover .setup-step__circle { background: var(--warning); bo
   padding: 1.25rem;
 }
 
-/* ---- Session total helper ---- */
-.session-total-display {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--primary);
-}
-
 /* ---- Color picker selected ring ---- */
 .ring-selected {
   box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--primary) !important;

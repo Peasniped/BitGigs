@@ -13,8 +13,8 @@ from workplaces.models import Workplace
 from workplaces.services import workplaces_active_in_period, hidden_workplace_count
 from shifts.models import PlannedShift, Shift
 from core.utils import (
-    avatar_for_name, parse_int_param, parse_iso_date_param, parse_iso_time_param,
-    prev_next_month,
+    avatar_for_name, month_bounds, parse_int_param, parse_iso_date_param,
+    parse_iso_time_param, prev_next_month,
 )
 from .services import CalendarService, approve_planned_shifts
 
@@ -39,10 +39,7 @@ class MonthCalendarView(View):
         # Navigation
         prev_year, prev_month, next_year, next_month = prev_next_month(year, month)
 
-        import calendar as _cal_mod
-        _m_start = date(year, month, 1)
-        _m_end = date(year, month, _cal_mod.monthrange(year, month)[1])
-        workplaces = workplaces_active_in_period(_m_start, _m_end)
+        workplaces = workplaces_active_in_period(*month_bounds(year, month))
 
         return render(
             request,
@@ -72,10 +69,7 @@ class PayrollPeriodCalendarView(View):
 
         if not workplace_id:
             # If no workplace selected, show workplace picker
-            import calendar as _cal_mod
-            _m_start = date(year, month, 1)
-            _m_end = date(year, month, _cal_mod.monthrange(year, month)[1])
-            workplaces = workplaces_active_in_period(_m_start, _m_end)
+            workplaces = workplaces_active_in_period(*month_bounds(year, month))
             return render(
                 request,
                 "calendar_view/payroll_period_select.html",
@@ -123,11 +117,9 @@ class PlanningCalendarView(View):
         grid = CalendarService.planning_calendar(year, month)
         has_overlaps = grid.annotate_overlaps()
 
-        import calendar as _cal_mod
-        _m_start = date(year, month, 1)
-        _m_end = date(year, month, _cal_mod.monthrange(year, month)[1])
         workplaces = list(
-            workplaces_active_in_period(_m_start, _m_end).prefetch_related("contracts")
+            workplaces_active_in_period(*month_bounds(year, month))
+            .prefetch_related("contracts")
         )
 
         # Direction 2: flag each shift chip whose invite is active, and decide

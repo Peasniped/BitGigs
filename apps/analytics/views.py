@@ -67,6 +67,19 @@ def _avatar_payload(wp: Workplace) -> dict:
     }
 
 
+def _picker_cards(workplaces, selected_slugs) -> list[dict]:
+    """The workplace cards for the shared filter bar (see `picker-row`)."""
+    return [
+        {
+            "slug": wp.slug,
+            "name": wp.name,
+            "selected": wp.slug in selected_slugs,
+            "avatar": _avatar_payload(wp),
+        }
+        for wp in workplaces
+    ]
+
+
 def _resolve_period(request, today: date):
     """
     Return (start, end, mode, year) where mode is 'year' or 'range'.
@@ -140,14 +153,7 @@ class AnalyticsView(View):
         )
 
         # Picker cards
-        workplaces_for_picker = []
-        for wp in all_workplaces_qs:
-            workplaces_for_picker.append({
-                "slug": wp.slug,
-                "name": wp.name,
-                "selected": wp.slug in selected_slugs,
-                "avatar": _avatar_payload(wp),
-            })
+        workplaces_for_picker = _picker_cards(all_workplaces_qs, selected_slugs)
 
         # Year picker — only years with data (plus current + selected)
         year_options = _data_years(today, year)
@@ -315,14 +321,7 @@ class RateHistoryView(View):
                 "employment_type_display": ts_today.get_employment_type_display() if ts_today else "",
             })
 
-        workplaces_for_picker = []
-        for wp in all_workplaces_qs:
-            workplaces_for_picker.append({
-                "slug": wp.slug,
-                "name": wp.name,
-                "selected": wp.slug in selected_slugs,
-                "avatar": _avatar_payload(wp),
-            })
+        workplaces_for_picker = _picker_cards(all_workplaces_qs, selected_slugs)
 
         return render(request, self.template_name, {
             "workplace_rows": workplace_rows,

@@ -112,10 +112,6 @@ def run_abandon_hooks(rows, reason: str, *, log=None) -> None:
             log.exception("on_abandon hook for task %r failed", row.task)
 
 
-def registered_ids() -> set[str]:
-    return set(_HANDLERS)
-
-
 def enqueue(task_id: str, payload: dict | None = None, *, run_at=None, max_attempts: int = 1):
     """Add a one-off task to the queue. Returns the created ``ScheduledTask``.
 

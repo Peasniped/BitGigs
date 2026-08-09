@@ -1,7 +1,5 @@
 """Phase 3 — Settings → Calendar tab: subscriptions CRUD + test, invite
 settings, per-workplace config, and the test-invite button."""
-from datetime import date, time
-from decimal import Decimal
 from unittest import mock
 
 from django.contrib.auth.models import User
@@ -16,7 +14,7 @@ from calendar_sync.models import (
 )
 from calendar_sync.services import build_calendar, build_event
 from core.models import EmailSettings, MailConnection
-from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
+from workplaces.models import Workplace, WorkplaceContract
 
 
 class CalendarTabBase(TestCase):

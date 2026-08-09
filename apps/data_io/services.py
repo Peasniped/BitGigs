@@ -163,6 +163,27 @@ def detect_contract_overlaps(data):
     return problems
 
 
+OVERLAP_DISCARD_MESSAGE = (
+    "Import cancelled — the file contains workplaces with "
+    "overlapping contracts. Nothing was imported."
+)
+
+
+def overlapping_created_workplaces(data, workplace_mapping) -> set[str]:
+    """Names whose contracts overlap **and** which this run would create.
+
+    An overlap only bites a workplace being created from the file — one mapped
+    onto an existing workplace, or skipped, never has those contracts written.
+    Shared by both import flows (Settings → Import and the onboarding wizard) so
+    they can't disagree about what the file's overlaps affect.
+    """
+    overlaps = detect_contract_overlaps(data)
+    return {
+        name for name in overlaps
+        if workplace_mapping.get(name, {}).get("action") == "create"
+    }
+
+
 def import_summary(data):
     """Row counts for the review page, per export section."""
     return {

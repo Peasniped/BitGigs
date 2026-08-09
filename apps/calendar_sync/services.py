@@ -22,7 +22,6 @@ import logging
 import socket
 import urllib.error
 import urllib.request
-from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from urllib.parse import urlparse
@@ -31,6 +30,8 @@ from dateutil.rrule import rrulestr
 from django.core.cache import cache
 from django.utils import timezone
 from icalendar import Calendar, Event, vCalAddress
+
+from core.utils import month_bounds
 
 logger = logging.getLogger(__name__)
 
@@ -582,6 +583,5 @@ def _event_to_cells(event, color, window_start, window_end):
 def month_window(year: int, month: int, pad_days: int = 7):
     """The (start, end) date window for a month's planning grid, padded so the
     leading/trailing days of adjacent months shown in the grid are covered."""
-    start = date(year, month, 1) - timedelta(days=pad_days)
-    end = date(year, month, monthrange(year, month)[1]) + timedelta(days=pad_days)
-    return start, end
+    first, last = month_bounds(year, month)
+    return first - timedelta(days=pad_days), last + timedelta(days=pad_days)

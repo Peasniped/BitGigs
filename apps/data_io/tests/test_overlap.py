@@ -4,7 +4,7 @@ from datetime import date
 from django.test import TestCase
 
 from data_io import services
-from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
+from workplaces.models import Workplace, WorkplaceContract
 
 
 def _wp_dict(name, contracts):

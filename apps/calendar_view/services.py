@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from core.models import UserSettings
 from core.services import TaxCalculationService
-from core.utils import parse_int_param, parse_iso_time_param
+from core.utils import month_bounds, parse_int_param, parse_iso_time_param
 from shifts.models import Shift, PlannedShift
 
 
@@ -197,8 +197,7 @@ class CalendarService:
         workplace_id: int | None = None,
     ) -> CalendarGrid:
         """Standard month calendar view."""
-        first_day = date(year, month, 1)
-        last_day = date(year, month, calendar.monthrange(year, month)[1])
+        first_day, last_day = month_bounds(year, month)
         month_name = calendar.month_name[month]
         title = f"{month_name} {year}"
 
@@ -242,8 +241,7 @@ class CalendarService:
         from payroll.services import PayrollPeriodService
 
         # Start with the calendar month as the baseline range
-        first_day = date(year, month, 1)
-        last_day = date(year, month, calendar.monthrange(year, month)[1])
+        first_day, last_day = month_bounds(year, month)
         workplaces = workplaces_active_in_period(first_day, last_day)
         range_start = first_day
         range_end = last_day

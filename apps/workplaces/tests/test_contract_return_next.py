@@ -3,12 +3,10 @@
 The tab links here to fix a contract's invites; redirecting to the workplace
 page afterwards left the owner to navigate back to the tab themselves. Both Save
 and Cancel honour a same-origin ``next`` — and nothing else."""
-from django.test import TestCase
 from django.urls import reverse
 
+from core.testing import LoggedInTestCase
 from workplaces.models import Workplace, WorkplaceContract
-
-from .test_contract_overlap import LoggedInTestCase
 
 
 class ContractEditReturnsToNextTests(LoggedInTestCase):

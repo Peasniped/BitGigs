@@ -14,7 +14,7 @@ from calendar_sync.models import (
     ShiftInvite,
 )
 from core.models import EmailSettings, MailConnection
-from shifts.models import PlannedShift, Shift
+from shifts.models import PlannedShift
 from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
 
 

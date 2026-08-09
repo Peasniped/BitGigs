@@ -14,7 +14,6 @@ project's Unicode minus; bare ``{{ value }}`` already renders Danish decimals.
 from django import template
 from django.template.defaultfilters import floatformat
 from django.utils.html import format_html
-from django.utils.safestring import mark_safe
 
 register = template.Library()
 

@@ -6,22 +6,17 @@ The interesting part isn't that a field saves — it's what a single-field POST 
 bound is each scope's own field set, so most of these tests are about a request
 that names a real field on a real model through the wrong scope.
 """
-from django.contrib.auth.models import User
-from django.test import TestCase
 from django.urls import reverse
 
 from calendar_sync.models import CalendarInviteSettings, TITLE_ONSITE_DEFAULT
 from core.models import EmailSettings, MailConnection, UserSettings
 from core.settings_fields import SettingsFieldError, save_field
+from core.testing import LoggedInTestCase
 
 
-class LoggedInTestCase(TestCase):
+class AutosaveTestCase(LoggedInTestCase):
     def setUp(self):
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
+        super().setUp()
         self.url = reverse("core:settings-field")
 
     def save(self, scope, field, value=None, **extra):
@@ -31,7 +26,7 @@ class LoggedInTestCase(TestCase):
         return self.client.post(self.url, data)
 
 
-class ScopedSaveTests(LoggedInTestCase):
+class ScopedSaveTests(AutosaveTestCase):
     def test_a_display_switch_saves(self):
         UserSettings.load()  # ensure the singleton exists
         resp = self.save("display", "show_help_button")   # nothing posted = off
@@ -87,7 +82,7 @@ class ScopedSaveTests(LoggedInTestCase):
         self.assertEqual(EmailSettings.load().calendar_connection, conn)
 
 
-class AllowlistTests(LoggedInTestCase):
+class AllowlistTests(AutosaveTestCase):
     """A scope's surviving ``form.fields`` is the allowlist. These all name real
     fields on the real model — they're refused because the *scope* doesn't own
     them, which is what stops one pane writing another pane's settings."""
@@ -126,7 +121,7 @@ class AllowlistTests(LoggedInTestCase):
             save_field("nope", "show_help_button", {})
 
 
-class ValidationTests(LoggedInTestCase):
+class ValidationTests(AutosaveTestCase):
     def test_mail_cannot_be_enabled_without_a_connection(self):
         """The form's own rule, unchanged by saving one field at a time — the
         message has to come back so the switch can explain why it moved back."""
@@ -154,7 +149,7 @@ class ValidationTests(LoggedInTestCase):
         )
 
 
-class PaneMarkupTests(LoggedInTestCase):
+class PaneMarkupTests(AutosaveTestCase):
     """The panes have to actually be wired to the endpoint — and to have lost
     their Save buttons, which is what the wiring replaces."""
 

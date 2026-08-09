@@ -1,6 +1,7 @@
 """
 Shared utilities used across multiple apps.
 """
+import calendar as _calendar
 import re
 from datetime import date, time
 from decimal import Decimal, InvalidOperation
@@ -221,6 +222,15 @@ def avatar_for_name(name: str) -> tuple[str, str]:
         initials = "?"
     color = _AVATAR_COLORS[sum(ord(c) for c in name) % len(_AVATAR_COLORS)]
     return initials, color
+
+
+def month_bounds(year: int, month: int) -> tuple[date, date]:
+    """Return (first_day, last_day) of a calendar month.
+
+    Note this is the *calendar* month, not a payroll period — anything working
+    in periods wants ``PayrollPeriodService.resolve_period_bounds`` instead.
+    """
+    return date(year, month, 1), date(year, month, _calendar.monthrange(year, month)[1])
 
 
 def prev_next_month(year: int, month: int) -> tuple[int, int, int, int]:

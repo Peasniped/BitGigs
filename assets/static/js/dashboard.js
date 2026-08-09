@@ -11,45 +11,12 @@
 // ═══════ Shared shift modal + backdrop ═══════
 // One instance of the shared edit-shift modal for the whole page (the approve
 // modal's pencil buttons and the arrival banner both open it, passing their own
-// callbacks to open()). It runs backdrop-less, as does the approve modal, and the
-// dashboard keeps a single backdrop up while either is open — Bootstrap would
-// otherwise tear its own down with each modal, flashing the undimmed page every
-// time the approve modal steps aside for the edit modal.
+// callbacks to open()). Both it and the approve modal run backdrop-less and
+// register with trackModalBackdrop (app.js), which keeps a single backdrop up
+// while either is open — see the comment there.
 var editShift = initEditShiftModal({ backdrop: false });
-var backdrop = null;
-var openModals = 0;
-
-function raiseBackdrop() {
-  if (backdrop) return;
-  backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop fade';
-  document.body.appendChild(backdrop);
-  backdrop.offsetHeight;                                    // reflow, so the fade runs
-  backdrop.classList.add('show');
-  backdrop.addEventListener('click', function() {           // click-outside to close
-    var top = document.querySelector('.modal.show');
-    if (top) bootstrap.Modal.getInstance(top).hide();       // may prompt — see the guard
-  });
-}
-function dropBackdrop() {
-  if (!backdrop) return;
-  var el = backdrop;
-  backdrop = null;
-  el.classList.remove('show');
-  setTimeout(function() { el.remove(); }, 150);             // matches Bootstrap's fade
-}
-// Deferred, so a modal that hides only to hand over to another (approve -> edit)
-// has re-opened by the time we count.
-function trackModal(el) {
-  if (!el) return;
-  el.addEventListener('show.bs.modal', function() { openModals++; raiseBackdrop(); });
-  el.addEventListener('hidden.bs.modal', function() {
-    openModals--;
-    setTimeout(function() { if (openModals <= 0) dropBackdrop(); }, 0);
-  });
-}
-if (editShift) trackModal(editShift.el);
-trackModal(document.getElementById('dashApproveModal'));
+if (editShift) trackModalBackdrop(editShift.el);
+trackModalBackdrop(document.getElementById('dashApproveModal'));
 
 // â•â•â•â•â•â•â• Goal Tooltip â•â•â•â•â•â•â•
 (function() {

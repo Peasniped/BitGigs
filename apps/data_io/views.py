@@ -135,21 +135,14 @@ class ImportConfirmView(View):
 
         workplace_mapping = services.build_workplace_mapping(request.POST, conflicts)
 
-        # Overlapping contracts only bite workplaces actually being created.
-        overlaps = services.detect_contract_overlaps(data)
-        overlapping_created = {
-            name for name in overlaps
-            if workplace_mapping.get(name, {}).get("action") == "create"
-        }
+        overlapping_created = services.overlapping_created_workplaces(
+            data, workplace_mapping
+        )
         skip_workplaces = set()
         if overlapping_created:
             if request.POST.get("overlap_action") == "discard_all":
                 del request.session["import_data"]
-                messages.error(
-                    request,
-                    "Import cancelled — the file contains workplaces with "
-                    "overlapping contracts. Nothing was imported.",
-                )
+                messages.error(request, services.OVERLAP_DISCARD_MESSAGE)
                 return redirect("data_io:main")
             # Default: skip just the overlapping workplace(s)
             skip_workplaces = overlapping_created

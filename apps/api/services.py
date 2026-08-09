@@ -4,12 +4,12 @@ The income endpoint deliberately computes nothing itself: it calls the same
 ``AnalyticsService.project_period`` the Analytics page uses, with the same
 settings, so the API and the UI can never disagree about a month's numbers.
 """
-import calendar
 import re
 from datetime import date
 from decimal import Decimal
 
 from core.models import UserSettings
+from core.utils import month_bounds
 from analytics.services import AnalyticsService, MonthRow
 
 
@@ -55,7 +55,7 @@ def resolve_income_period(year, month, start, end) -> tuple[date, date]:
         n_months = (ey - sy) * 12 + (em - sm) + 1
         if n_months > MAX_MONTHS:
             raise PeriodError(f"The range spans {n_months} months — the maximum is {MAX_MONTHS}.")
-        return date(sy, sm, 1), date(ey, em, calendar.monthrange(ey, em)[1])
+        return month_bounds(sy, sm)[0], month_bounds(ey, em)[1]
 
     if month is not None and year is None:
         raise PeriodError("'month' needs a 'year' as well.")
@@ -67,7 +67,7 @@ def resolve_income_period(year, month, start, end) -> tuple[date, date]:
     if month is not None:
         if not 1 <= month <= 12:
             raise PeriodError(f"'month' is {month} — months run 1–12.")
-        return date(year, month, 1), date(year, month, calendar.monthrange(year, month)[1])
+        return month_bounds(year, month)
     return date(year, 1, 1), date(year, 12, 31)
 
 

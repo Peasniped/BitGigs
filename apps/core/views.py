@@ -387,6 +387,42 @@ def email_context(switch_form=None, roles_form=None, conn_form=None,
     }
 
 
+def _validated_send_to(request):
+    """Read the optional ``send_to`` off a mail-test POST.
+
+    Returns ``(address, error_response)`` — blank is legal and means "test the
+    connection but don't actually send anything", so only a *malformed* address
+    produces the 400.
+    """
+    from django.core.exceptions import ValidationError
+    from django.core.validators import validate_email
+
+    send_to = (request.POST.get("send_to") or "").strip()
+    if send_to:
+        try:
+            validate_email(send_to)
+        except ValidationError:
+            return "", JsonResponse(
+                {"error": f"'{send_to}' is not a valid email address."}, status=400
+            )
+    return send_to, None
+
+
+def _signin_invalid_render(request, ctx, **extra):
+    """Re-render the settings page on the Sign-in tab with a bounced form.
+
+    *extra* carries the form plus its ``open_*_modal`` flag, so the errors land
+    where the user is instead of on a closed modal.
+    """
+    return render(request, "core/settings.html", {
+        "form": UserSettingsForm(instance=UserSettings.load(), tab="display"),
+        "next_url": None,
+        "active_tab": "signin",
+        **ctx,
+        **extra,
+    })
+
+
 def _email_invalid_render(request, *, switch_form=None, roles_form=None,
                           conn_form=None, modal_open=False, edit_pk=None):
     """Re-render the settings page on the Email tab with a bounced form."""
@@ -537,19 +573,11 @@ class EmailTestView(View):
     """
 
     def post(self, request):
-        from django.core.validators import validate_email
-        from django.core.exceptions import ValidationError
-
         from .mail import run_and_record
 
-        send_to = (request.POST.get("send_to") or "").strip()
-        if send_to:
-            try:
-                validate_email(send_to)
-            except ValidationError:
-                return JsonResponse(
-                    {"error": f"'{send_to}' is not a valid email address."}, status=400
-                )
+        send_to, invalid = _validated_send_to(request)
+        if invalid:
+            return invalid
         # Which connection to test: the named one, else the system default.
         pk = parse_int_param(request.POST.get("connection"))
         config = MailConnection.objects.filter(pk=pk).first() if pk else None
@@ -949,15 +977,9 @@ class PasswordSignInView(View):
                 form.save()
                 messages.success(request, "Account details updated.")
                 return redirect(_signin_tab_url(request))
-            # Re-render with the modal open, so the errors are where the user is.
-            return render(request, "core/settings.html", {
-                "form": UserSettingsForm(instance=UserSettings.load(), tab="display"),
-                "next_url": None,
-                "active_tab": "signin",
-                **ctx,
-                "account_details_form": form,
-                "open_account_modal": True,
-            })
+            return _signin_invalid_render(
+                request, ctx, account_details_form=form, open_account_modal=True
+            )
 
         if action == "set_password":
             form = SetPasswordForm(request.user, request.POST)
@@ -968,15 +990,9 @@ class PasswordSignInView(View):
                 messages.success(request, "Password changed." if had_one
                                  else "Password sign-in is on.")
                 return redirect(_signin_tab_url(request))
-            # Re-render with the modal open, so the errors are where the user is.
-            return render(request, "core/settings.html", {
-                "form": UserSettingsForm(instance=UserSettings.load(), tab="display"),
-                "next_url": None,
-                "active_tab": "signin",
-                **ctx,
-                "set_password_form": form,
-                "open_password_modal": True,
-            })
+            return _signin_invalid_render(
+                request, ctx, set_password_form=form, open_password_modal=True
+            )
 
         return redirect(_signin_tab_url(request))
 
@@ -1288,8 +1304,6 @@ class OnboardingEmailTestView(View):
     /onboarding/ so the AJAX escapes the funnel."""
 
     def post(self, request):
-        from django.core.validators import validate_email
-        from django.core.exceptions import ValidationError
         from .forms import MailConnectionForm
 
         from .mail import diagnose
@@ -1302,14 +1316,9 @@ class OnboardingEmailTestView(View):
             )
         config = form.save(commit=False)  # transient — never persisted
 
-        send_to = (request.POST.get("send_to") or "").strip()
-        if send_to:
-            try:
-                validate_email(send_to)
-            except ValidationError:
-                return JsonResponse(
-                    {"error": f"'{send_to}' is not a valid email address."}, status=400
-                )
+        send_to, invalid = _validated_send_to(request)
+        if invalid:
+            return invalid
         return JsonResponse(diagnose(config, send_to=send_to or None).as_dict())
 
 
@@ -1618,19 +1627,12 @@ class OnboardingImportConfirmView(View):
             return redirect("core:onboarding-import")
 
         mapping = io_services.build_workplace_mapping(request.POST, conflicts)
-        overlaps = io_services.detect_contract_overlaps(data)
-        overlapping_created = {
-            name for name in overlaps if mapping.get(name, {}).get("action") == "create"
-        }
+        overlapping_created = io_services.overlapping_created_workplaces(data, mapping)
         skip_workplaces = set()
         if overlapping_created:
             if request.POST.get("overlap_action") == "discard_all":
                 del request.session["import_data"]
-                messages.error(
-                    request,
-                    "Import cancelled — the file contains workplaces with "
-                    "overlapping contracts. Nothing was imported.",
-                )
+                messages.error(request, io_services.OVERLAP_DISCARD_MESSAGE)
                 return redirect("core:onboarding-import")
             skip_workplaces = overlapping_created
 

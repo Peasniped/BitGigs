@@ -1,14 +1,12 @@
 """The contract-create form forces an explicit Yes/No on calendar invites and
 warns (without blocking) when invites can't actually send yet. Contract edit is
 deliberately left as a plain switch."""
-from django.test import TestCase
 from django.urls import reverse
 
 from calendar_sync.models import CalendarInviteSettings, ContractCalendarConfig
 from core.models import EmailSettings, MailConnection
+from core.testing import LoggedInTestCase
 from workplaces.models import Workplace, WorkplaceContract
-
-from .test_contract_overlap import LoggedInTestCase
 
 
 class ContractCreateInvitePromptTests(LoggedInTestCase):

@@ -1,17 +1,7 @@
-from django.contrib.auth.models import User
-from django.test import TestCase
 from django.urls import reverse
 
 from core.models import EmailSettings, MailConnection
-
-
-class LoggedInTestCase(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
+from core.testing import LoggedInTestCase
 
 
 class MasterArmStateTests(LoggedInTestCase):

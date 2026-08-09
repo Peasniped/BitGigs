@@ -59,13 +59,6 @@ ENDPOINTS: list[Endpoint] = [
 ]
 
 
-def get_endpoint(endpoint_id: str) -> Endpoint | None:
-    for ep in ENDPOINTS:
-        if ep.id == endpoint_id:
-            return ep
-    return None
-
-
 def scoped_endpoints() -> list[Endpoint]:
     return [ep for ep in ENDPOINTS if ep.scoped]
 

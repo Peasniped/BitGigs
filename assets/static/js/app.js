@@ -1546,3 +1546,47 @@ function offerInviteResend(shift, done) {
 }
 window.offerInviteResend = offerInviteResend;
 
+
+/* ═══════ Shared modal backdrop ═══════
+   Bootstrap tears its own backdrop down with each modal, so a page where one
+   modal steps aside for another (approve -> edit) flashes the undimmed page in
+   between. Both such pages run their modals `backdrop: false` and register them
+   here instead: one backdrop of ours stays up while *any* registered modal is
+   open. Used by dashboard.js and workplace_detail.js. */
+(function () {
+  var backdrop = null;
+  var openModals = 0;
+
+  function raiseBackdrop() {
+    if (backdrop) return;
+    backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop fade';
+    document.body.appendChild(backdrop);
+    backdrop.offsetHeight;                                  // reflow, so the fade runs
+    backdrop.classList.add('show');
+    backdrop.addEventListener('click', function () {         // click-outside to close
+      var top = document.querySelector('.modal.show');
+      if (top) bootstrap.Modal.getInstance(top).hide();      // may prompt — see the guard
+    });
+  }
+
+  function dropBackdrop() {
+    if (!backdrop) return;
+    var el = backdrop;
+    backdrop = null;
+    el.classList.remove('show');
+    setTimeout(function () { el.remove(); }, 150);           // matches Bootstrap's fade
+  }
+
+  // The drop is deferred, so a modal that hides only to hand over to another has
+  // re-opened by the time we count.
+  window.trackModalBackdrop = function (el) {
+    if (!el) return;
+    el.addEventListener('show.bs.modal', function () { openModals++; raiseBackdrop(); });
+    el.addEventListener('hidden.bs.modal', function () {
+      openModals--;
+      setTimeout(function () { if (openModals <= 0) dropBackdrop(); }, 0);
+    });
+  };
+})();
+

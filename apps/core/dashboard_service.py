@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from django.utils import timezone
 
-from core.utils import WEEKS_PER_MONTH, avatar_for_name
+from core.utils import WEEKS_PER_MONTH, avatar_for_name, month_bounds
 from payroll.services import PayrollPeriodService, SalaryEstimateService
 from shifts.models import Shift, PlannedShift
 from workplaces.models import Workplace, ContractTermSet
@@ -84,9 +84,7 @@ class DashboardDataService:
         """Compute stat-card values only (used by the JSON API)."""
         stats = DashboardStats()
         today = timezone.localdate()
-        _m_start = date(year, month, 1)
-        _m_end = date(year, month, cal_mod.monthrange(year, month)[1])
-        workplaces = workplaces_active_in_period(_m_start, _m_end)
+        workplaces = workplaces_active_in_period(*month_bounds(year, month))
 
         for wp in workplaces:
             # Bootstrap period using the month's representative termset
@@ -122,9 +120,7 @@ class DashboardDataService:
         """Compute full dashboard data (stats + workplace cards + cross-period info)."""
         data = DashboardData()
         today = timezone.localdate()
-        _m_start = date(year, month, 1)
-        _m_end = date(year, month, cal_mod.monthrange(year, month)[1])
-        workplaces = workplaces_active_in_period(_m_start, _m_end)
+        workplaces = workplaces_active_in_period(*month_bounds(year, month))
 
         for wp in workplaces:
             # Bootstrap period using the month's representative termset.
@@ -291,7 +287,7 @@ class DashboardDataService:
                 })
 
         # Shifts in this month belonging to next payroll period
-        last_of_month = date(year, month, cal_mod.monthrange(year, month)[1])
+        last_of_month = month_bounds(year, month)[1]
         if period_end < last_of_month:
             next_shifts = Shift.objects.filter(
                 workplace=wp, date__gt=period_end, date__lte=last_of_month,

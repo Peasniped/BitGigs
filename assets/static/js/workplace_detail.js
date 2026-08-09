@@ -681,8 +681,8 @@ document.addEventListener('DOMContentLoaded', function() {
   var warnEl = document.getElementById('approveWarning');
 
   var approveModalEl = document.getElementById('approveModal');
-  // backdrop-less: we keep one backdrop of our own up while either modal is open,
-  // so stepping from approve to edit and back never re-dims the page.
+  // backdrop-less: trackModalBackdrop (app.js) keeps one backdrop of ours up while
+  // either modal is open, so stepping approve -> edit never re-dims the page.
   var approveModal = bootstrap.Modal.getOrCreateInstance(approveModalEl, { backdrop: false });
   var editShift = initEditShiftModal({ backdrop: false });
   var dirty = false;          // inline edits made, not yet sent to the server
@@ -690,39 +690,8 @@ document.addEventListener('DOMContentLoaded', function() {
   var stepAside = false;      // approve modal is hiding to make way for the edit modal
   var confirmedClose = false; // the discard prompt has been answered
 
-  var backdrop = null;
-  var openModals = 0;
-  function raiseBackdrop() {
-    if (backdrop) return;
-    backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop fade';
-    document.body.appendChild(backdrop);
-    backdrop.offsetHeight;                                   // reflow, so the fade runs
-    backdrop.classList.add('show');
-    backdrop.addEventListener('click', function() {          // click-outside to close
-      var top = document.querySelector('.modal.show');
-      if (top) bootstrap.Modal.getInstance(top).hide();      // may prompt - see the guard
-    });
-  }
-  function dropBackdrop() {
-    if (!backdrop) return;
-    var el = backdrop;
-    backdrop = null;
-    el.classList.remove('show');
-    setTimeout(function() { el.remove(); }, 150);            // matches Bootstrap's fade
-  }
-  // Deferred, so a modal that hides only to hand over to another (approve -> edit)
-  // has re-opened by the time we count.
-  function trackModal(el) {
-    if (!el) return;
-    el.addEventListener('show.bs.modal', function() { openModals++; raiseBackdrop(); });
-    el.addEventListener('hidden.bs.modal', function() {
-      openModals--;
-      setTimeout(function() { if (openModals <= 0) dropBackdrop(); }, 0);
-    });
-  }
-  trackModal(approveModalEl);
-  if (editShift) trackModal(editShift.el);
+  trackModalBackdrop(approveModalEl);
+  if (editShift) trackModalBackdrop(editShift.el);
 
   function renderTable() {
     rendering = true;

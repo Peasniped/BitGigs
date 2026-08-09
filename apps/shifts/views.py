@@ -98,17 +98,6 @@ class ShiftUpdateView(View):
         )
 
 
-class ShiftDeleteView(View):
-    def post(self, request, pk):
-        shift = get_object_or_404(Shift, pk=pk)
-        wp_slug = shift.workplace.slug if shift.workplace_id else None
-        shift.delete()
-        next_page = request.GET.get("next") or request.POST.get("next")
-        if next_page == "workplace" and wp_slug:
-            return redirect("workplaces:workplace-detail", slug=wp_slug)
-        return redirect("core:dashboard")
-
-
 class DailyOverviewView(View):
     """Show all shifts for a given date, grouped by workplace."""
 
