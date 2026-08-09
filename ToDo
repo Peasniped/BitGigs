@@ -2,15 +2,8 @@
 # NU     --------------------------------------------------------
 
 
+
 ## Polish
-
-
-### Phase 7: Groundwork & housekeeping  (no UI surface, can run anytime)
-- Pass over the entire codebase and look for things that could be improved, slimmed down.
-- - unused code
-- - duplicated code
-- - over explained comments and docstrings
-- - overly cautious tests of really far out edge cases
 
 ### Phase 8: Groundwork & housekeeping  (no UI surface, can run anytime)
 - Implement propper logging
