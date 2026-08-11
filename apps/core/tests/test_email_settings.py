@@ -15,6 +15,7 @@ from django.utils import timezone
 from core import mail as core_mail
 from core.crypto import decrypt_secret, encrypt_secret
 from core.mail_backend import DbConfiguredEmailBackend
+from core.testing import LoggedInTestCase
 from core.models import EmailLog, EmailSettings, MailConnection, UserSettings
 from core.mail import FAILED, OK, SKIPPED
 
@@ -560,13 +561,7 @@ class EmailLogModelTests(TestCase):
         self.assertEqual(EmailLog.objects.count(), 0)
 
 
-class EmailLogViewTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user("owner@example.com", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
+class EmailLogViewTests(LoggedInTestCase):
 
     def test_log_page_renders_entries(self):
         EmailLog.record("a@b.com", "A subject", ok=False, error="it broke")

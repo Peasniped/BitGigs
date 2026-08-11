@@ -209,7 +209,7 @@ class FootgunGuardTests(TestCase):
         _configure_mail()
         _configure_invites(enabled=False)
         self._drifted_invite()
-        self.assertEqual(reconcile.drift_summary()["count"], 0)
+        self.assertEqual(reconcile.drift_details(), [])
         self.assertEqual(reconcile.sync_all(),
                          {"moved": 0, "withdrawn": 0, "failed": 0})
         self.assertEqual(len(mail.outbox), 0)
@@ -218,7 +218,7 @@ class FootgunGuardTests(TestCase):
         _configure_mail(enabled=False)
         _configure_invites(enabled=True)
         self._drifted_invite()
-        self.assertEqual(reconcile.drift_summary()["count"], 0)
+        self.assertEqual(reconcile.drift_details(), [])
         self.assertEqual(len(mail.outbox), 0)
 
 
@@ -302,7 +302,7 @@ class FutureOnlyTests(TestCase):
         shift = _shift(self.wp, day=PAST)
         invite = _link_active_invite(self.wp, shift, "oldboss@work.example")
         self.assertIsNone(reconcile.invite_drift(invite))
-        self.assertEqual(reconcile.drift_summary()["count"], 0)
+        self.assertEqual(reconcile.drift_details(), [])
 
 
 class GroupedDriftTests(TestCase):

@@ -4,11 +4,11 @@ The load-bearing case is that Payroll, Vacation and Commuting all live in the
 ``payroll:`` namespace — a namespace- or path-based guard would switch off all
 three together, which is why the registry matches on view-name prefixes.
 """
-from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
 from core import features
+from core.testing import LoggedInTestCase
 from core.models import UserSettings
 
 
@@ -43,13 +43,7 @@ class FeatureRegistryTests(TestCase):
         self.assertIsNone(features.feature_for_view(""))
 
 
-class FeatureGateTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
+class FeatureGateTests(LoggedInTestCase):
 
     def _switch(self, **flags):
         settings = UserSettings.load()
@@ -96,13 +90,7 @@ class FeatureGateTests(TestCase):
         self.assertEqual(self.client.get("/admin/").status_code, 200)
 
 
-class FeatureSettingsTabTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
+class FeatureSettingsTabTests(LoggedInTestCase):
 
     def test_saving_the_tab_writes_the_switches(self):
         resp = self.client.post("/settings/", {

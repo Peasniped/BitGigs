@@ -1,5 +1,3 @@
-import json
-
 from django.http import HttpResponse
 from django.shortcuts import render, redirect
 from django.urls import reverse
@@ -47,7 +45,7 @@ class ExportView(View):
             wid for wid in (parse_int_param(x) for x in raw_ids) if wid is not None
         ] or None
 
-        data = services.export_data(
+        content = services.export_json(
             date_from=date_from,
             date_to=date_to,
             include_workplaces=include_workplaces,
@@ -56,8 +54,6 @@ class ExportView(View):
             include_tax=include_tax,
             workplace_ids=workplace_ids,
         )
-
-        content = json.dumps(data, cls=services._Encoder, indent=2, ensure_ascii=False)
         response = HttpResponse(content, content_type="application/json")
         filename = f"bitgigs_export_{timezone.localdate().isoformat()}.json"
         response["Content-Disposition"] = f'attachment; filename="{filename}"'

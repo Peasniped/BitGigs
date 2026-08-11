@@ -1,4 +1,5 @@
 """Orphaned-icon cleanup: prune_orphan_icons + the once-a-day opportunistic guard."""
+import io
 import os
 import shutil
 import tempfile
@@ -63,10 +64,14 @@ class PruneOrphanIconsTests(IconPruneMixin, TestCase):
         self.assertEqual(services.prune_orphan_icons(), [])
 
     def test_command_dry_run(self):
+        # Capture the command's own output — left on stdout it printed into the
+        # middle of the suite's results, reading like a stray production run.
+        out = io.StringIO()
         self._stray_file("ghost_icon.png")
-        call_command("prune_workplace_icons", "--dry-run")
+        call_command("prune_workplace_icons", "--dry-run", stdout=out)
         self.assertTrue((self.icon_dir / "ghost_icon.png").exists())
-        call_command("prune_workplace_icons")
+        self.assertIn("ghost_icon.png", out.getvalue())
+        call_command("prune_workplace_icons", stdout=out)
         self.assertFalse((self.icon_dir / "ghost_icon.png").exists())
 
 

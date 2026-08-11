@@ -10,6 +10,7 @@ from django.utils import timezone
 from api.models import ApiKey, SCOPE_ALL, hash_key
 from api.services import PeriodError, resolve_income_period
 from core.models import TaxProfile
+from core.testing import LoggedInTestCase
 from workplaces.models import Workplace, WorkplaceContract, ContractTermSet
 from shifts.models import Shift
 
@@ -204,15 +205,8 @@ class IncomeEndpointTest(TestCase):
         self.assertEqual(response.json()["error"], "bad_request")
 
 
-class KeyManagementViewsTest(TestCase):
+class KeyManagementViewsTest(LoggedInTestCase):
     """Settings-tab management endpoints — session-gated like every page."""
-
-    def setUp(self):
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
 
     def test_create_flow_shows_key_once(self):
         response = self.client.post(reverse("api:key-create"), {

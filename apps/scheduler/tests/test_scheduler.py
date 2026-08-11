@@ -7,6 +7,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from core.testing import LoggedInTestCase
 from scheduler import registry, services, tasks, views
 from scheduler.models import ScheduledJob, ScheduledTask, SchedulerHeartbeat
 
@@ -162,15 +163,8 @@ class SeedTests(TestCase):
         self.assertTrue(ScheduledJob.objects.filter(key="prune_workplace_icons").exists())
 
 
-class JobsSettingsTabTests(TestCase):
+class JobsSettingsTabTests(LoggedInTestCase):
     """The Settings → Jobs tab and its toggle endpoint."""
-
-    def setUp(self):
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
 
     def test_tab_renders_with_the_job(self):
         resp = self.client.get(reverse("core:settings") + "?tab=jobs")
@@ -526,15 +520,8 @@ class HeartbeatTests(TestCase):
         self.assertFalse(SchedulerHeartbeat.is_alive())
 
 
-class InviteTestEnqueueTests(TestCase):
+class InviteTestEnqueueTests(LoggedInTestCase):
     """The 'send myself a test invite' button now enqueues instead of blocking."""
-
-    def setUp(self):
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
 
     def test_configured_send_enqueues_and_returns_instantly(self):
         from core.models import EmailSettings

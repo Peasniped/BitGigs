@@ -2,18 +2,12 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from core.models import UserSettings
+from core.testing import LoggedInTestCase
 
 
-class SettingsTabsTest(TestCase):
+class SettingsTabsTest(LoggedInTestCase):
     """The settings page renders one tab at a time, so each tab's Save posts only
     that tab's fields. The other tabs' values must survive that partial POST."""
-
-    def setUp(self):
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
 
     def test_display_tab_shows_only_its_own_fields(self):
         resp = self.client.get("/settings/?tab=display")

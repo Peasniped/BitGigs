@@ -2,9 +2,8 @@
 settings, per-workplace config, and the test-invite button."""
 from unittest import mock
 
-from django.contrib.auth.models import User
 from django.core import mail
-from django.test import TestCase, override_settings
+from django.test import override_settings
 from django.utils import timezone
 
 from calendar_sync.models import (
@@ -14,19 +13,11 @@ from calendar_sync.models import (
 )
 from calendar_sync.services import build_calendar, build_event
 from core.models import EmailSettings, MailConnection
+from core.testing import LoggedInTestCase
 from workplaces.models import Workplace, WorkplaceContract
 
 
-class CalendarTabBase(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
-
-
-class TabRenderTests(CalendarTabBase):
+class TabRenderTests(LoggedInTestCase):
     def test_calendar_tab_renders(self):
         resp = self.client.get("/settings/?tab=calendar")
         self.assertEqual(resp.status_code, 200)
@@ -34,7 +25,7 @@ class TabRenderTests(CalendarTabBase):
         self.assertContains(resp, "Invites you send")
 
 
-class SubscriptionCrudTests(CalendarTabBase):
+class SubscriptionCrudTests(LoggedInTestCase):
     def test_create_requires_url_then_saves_encrypted(self):
         # Missing URL on create → no row, error re-render.
         resp = self.client.post("/calendar-sync/subscriptions/save/", {
@@ -87,7 +78,7 @@ class SubscriptionCrudTests(CalendarTabBase):
         self.assertTrue(sub.last_fetch_ok)
 
 
-class InviteConfigTests(CalendarTabBase):
+class InviteConfigTests(LoggedInTestCase):
     def test_save_global_invite_settings(self):
         resp = self.client.post("/calendar-sync/invites/settings/", {
             "enabled": "on", "owner_address": "me@home.example",
@@ -226,7 +217,7 @@ class InviteConfigTests(CalendarTabBase):
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
-class TestInviteButtonTests(CalendarTabBase):
+class TestInviteButtonTests(LoggedInTestCase):
     def test_sends_test_invite_to_owner(self):
         mail.outbox = []
         MailConnection.objects.create(name="Default", host="smtp.zink.nu",

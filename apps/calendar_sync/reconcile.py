@@ -127,12 +127,6 @@ def drifted_invites(queryset=None):
             yield drift
 
 
-def drift_summary(queryset=None):
-    """Cheap ``{"count": n}`` of drifted active invites for the Settings banner —
-    no sends. Zero when the master arm is off or mail isn't configured."""
-    return {"count": sum(1 for _ in drifted_invites(queryset))}
-
-
 def drift_details(queryset=None):
     """A human-facing preview of what a sync would do, **grouped** by the change
     itself — one row per (workplace, withdraw-from, send-to) rather than per
