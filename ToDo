@@ -8,7 +8,7 @@
 ## Polish
 
 ### Logging
-- Can you add an INFO log message to the start that states "Using Loglevel: XXX"
+- Can you add a log message to the start that states "Using Loglevel: XXX" emitted at the configured loglevel.
 - I have tried to set the log level to different things in the .ne, but I am getting INFO logs no matter what I set.
 
 ### Phase 8: Groundwork & housekeeping  (no UI surface, can run anytime)  — DONE v0.26.0
