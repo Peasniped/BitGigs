@@ -21,6 +21,14 @@ ALLOWED_HOSTS = ["*"]
 if "test" in sys.argv:
     PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
+    # The suite deliberately drives failure paths (a refused SMTP send, an
+    # unparseable feed, a job that raises), and each one logs its traceback. Left
+    # on, that buries the actual test results. assertLogs() is unaffected — it
+    # installs its own handler on the logger under test — so nothing that checks
+    # log output loses coverage. Set DJANGO_LOG_LEVEL to watch them anyway.
+    if not os.environ.get("DJANGO_LOG_LEVEL"):
+        LOGGING["handlers"]["console"]["level"] = "CRITICAL"
+
 # A dev checkout often keeps a db.sqlite3.bak with real data pointed at the same
 # media/ directory, so icons that DB references would look orphaned to this one.
 # Never auto-delete them in dev; run `manage.py prune_workplace_icons` by hand if

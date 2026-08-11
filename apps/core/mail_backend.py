@@ -8,10 +8,14 @@ host/port/credentials from ``EmailSettings`` at connect time.
 Wiring it as the *default* backend is what lets code that knows nothing about
 BitGigs — notably Django's own password-reset views — send mail correctly.
 """
+import logging
+
 from django.core.mail.backends.smtp import EmailBackend as SMTPEmailBackend
 
 from .mail import MailNotConfigured, stamp_message_id
 from .models import EmailLog, EmailSettings, MailConnection
+
+logger = logging.getLogger(__name__)
 
 
 class DbConfiguredEmailBackend(SMTPEmailBackend):
@@ -74,6 +78,12 @@ class DbConfiguredEmailBackend(SMTPEmailBackend):
         try:
             sent = super().send_messages(messages)
         except Exception as exc:
+            # EmailLog is the owner's trail; this is the operator's. It also
+            # covers the case the EmailLog write is itself what went wrong.
+            logger.warning(
+                "Mail send failed for %d message(s) via connection %r: %s",
+                len(messages), getattr(self, "connection_name", ""), exc,
+            )
             for message in messages:
                 self._log_message(message, ok=False, error=str(exc))
             if self.fail_silently:

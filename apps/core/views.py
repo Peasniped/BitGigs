@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_not_required
@@ -15,11 +16,13 @@ from django.utils import timezone
 from .constants import APP_ACCENT_CHOICES, DEFAULT_ACCENT, DEFAULT_SECONDARY
 from .models import EmailLog, EmailSettings, MailConnection, TaxProfile, UserSettings
 from .forms import EmailSettingsForm, TaxProfileForm, UserSettingsForm
-from .utils import parse_int_param, prev_next_month
+from .utils import client_ip, parse_int_param, prev_next_month
 from .dashboard_service import DashboardDataService, get_pending_shifts, get_todays_banner
 from . import onboarding as ob
 from .about import about_context, slogan
 from api.views import api_settings_context
+
+logger = logging.getLogger(__name__)
 
 
 def _safe_next(request, raw):
@@ -351,6 +354,24 @@ class BitGigsLoginView(LoginView):
         context["password_reset_enabled"] = password_reset_available()
         return context
 
+    # Django logs nothing about sign-ins, which for a self-hosted app on the open
+    # internet is the one trail worth having: a run of failures from an address
+    # that isn't the owner is the whole signal. A failure is therefore WARNING —
+    # it survives a deployment that raised the level to quieten the log — while a
+    # success is routine INFO. The attempted username is recorded (as sshd does);
+    # the submitted password never is.
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        logger.info("Sign-in succeeded for %r from %s",
+                    self.request.user.get_username(), client_ip(self.request))
+        return response
+
+    def form_invalid(self, form):
+        # form.cleaned_data is unavailable on some failures; the raw field is not.
+        attempted = (form.data.get("username") or "").strip()
+        logger.warning("Sign-in failed for %r from %s", attempted, client_ip(self.request))
+        return super().form_invalid(form)
+
 
 def email_context(switch_form=None, roles_form=None, conn_form=None,
                   modal_open=False, edit_pk=None):
@@ -653,19 +674,9 @@ RESET_RATE_WINDOW = 60 * 60  # seconds
 
 
 def _reset_rate_key(request):
-    """Cache key for the per-IP reset budget.
-
-    X-Forwarded-For is client-supplied, so honouring it unconditionally would
-    let anyone bypass the limit by rotating the header. It is only trusted when
-    the operator declares a reverse proxy (DJANGO_TRUST_PROXY_IP), where
-    REMOTE_ADDR would otherwise be the proxy for every client."""
-    from django.conf import settings as django_settings
-    ip = ""
-    if getattr(django_settings, "TRUST_PROXY_IP", False):
-        forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-        ip = forwarded.split(",")[0].strip()
-    ip = ip or request.META.get("REMOTE_ADDR", "unknown")
-    return f"pwreset:{ip}"
+    """Cache key for the per-IP reset budget. See ``core.utils.client_ip`` for
+    why the proxy header is only honoured when the operator asks for it."""
+    return f"pwreset:{client_ip(request)}"
 
 
 @method_decorator(login_not_required, name="dispatch")
@@ -841,6 +852,9 @@ class SSOEndIdPSessionView(View):
                 end_session_url = provider.get_oauth2_adapter(request).openid_config.get(
                     "end_session_endpoint") or ""
             except Exception:  # discovery is a network call — never 500 over it
+                # The owner is told the IdP was unreachable; only the log says why.
+                logger.warning("SSO: OIDC discovery failed, cannot resolve "
+                               "end_session_endpoint", exc_info=True)
                 end_session_url = ""
 
         if not end_session_url:

@@ -489,6 +489,13 @@ def subscription_busy(subscription, window_start, window_end, *, refresh=False):
     try:
         return parse_calendar(data, window_start, window_end)
     except Exception:  # a malformed feed must never break the planning page
+        # The stored error is deliberately generic (it is shown to the owner, and
+        # a parser traceback is not an answer), so the log is the only place the
+        # actual reason survives.
+        logger.exception(
+            "calendar_sync: subscription %s returned a feed that could not be parsed",
+            subscription.pk,
+        )
         _record_fetch(
             subscription, ok=False, error="The feed could not be parsed as iCalendar."
         )

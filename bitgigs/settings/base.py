@@ -63,6 +63,23 @@ ALLOWED_HOSTS = (
 # client-supplied and therefore spoofable when no proxy strips it.
 TRUST_PROXY_IP = os.environ.get("DJANGO_TRUST_PROXY_IP", "").lower() in ("1", "true", "yes", "on")
 
+# BitGigs' own apps, named once. INSTALLED_APPS takes these verbatim and the
+# LOGGING block below derives a logger from each import name, so a new app is
+# covered by the log configuration without a second edit.
+LOCAL_APPS = [
+    "core.apps.CoreConfig",
+    "workplaces.apps.WorkplacesConfig",
+    "shifts.apps.ShiftsConfig",
+    "payroll.apps.PayrollConfig",
+    "calendar_view.apps.CalendarViewConfig",
+    "calendar_sync.apps.CalendarSyncConfig",
+    "data_io.apps.DataIoConfig",
+    "analytics.apps.AnalyticsConfig",
+    "help.apps.HelpConfig",
+    "api.apps.ApiConfig",
+    "scheduler.apps.SchedulerConfig",
+]
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -82,17 +99,7 @@ INSTALLED_APPS = [
     "allauth.socialaccount",
     "allauth.socialaccount.providers.openid_connect",
     # Local apps
-    "core.apps.CoreConfig",
-    "workplaces.apps.WorkplacesConfig",
-    "shifts.apps.ShiftsConfig",
-    "payroll.apps.PayrollConfig",
-    "calendar_view.apps.CalendarViewConfig",
-    "calendar_sync.apps.CalendarSyncConfig",
-    "data_io.apps.DataIoConfig",
-    "analytics.apps.AnalyticsConfig",
-    "help.apps.HelpConfig",
-    "api.apps.ApiConfig",
-    "scheduler.apps.SchedulerConfig",
+    *LOCAL_APPS,
 ]
 
 MIDDLEWARE = [
@@ -198,6 +205,94 @@ ICON_PRUNE_MARKER_PATH = BASE_DIR / "instance" / "last_icon_prune"
 # auto-sweep is on here and turned OFF in local.py; `manage.py prune_workplace_icons`
 # stays available everywhere as a deliberate, explicit action.
 ICON_PRUNE_AUTO = True
+
+# ─── Logging ─────────────────────────────────────────────────────────────────
+# Django configures a handler for its own `django` logger only, so without this
+# block a module's logger.info() went nowhere at all and a logger.exception()
+# reached stderr through Python's last-resort handler — unformatted, untimestamped
+# and impossible to tell apart from a traceback. This is the single place that
+# decides where BitGigs' log lines go.
+#
+# The console is the primary sink on purpose: both supported deployments already
+# capture a process's stdout/stderr (`docker compose logs`, journald for the
+# systemd units), so writing there needs no volume, no rotation and no file
+# permissions. A file is opt-in for setups that want one — see DJANGO_LOG_FILE.
+
+_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+
+# Level for BitGigs' own loggers. A typo must not stop the app from booting, so
+# an unrecognised value falls back to the default rather than raising out of
+# dictConfig (same rule as OIDC_PROVIDER_COLOR).
+LOG_LEVEL = os.environ.get("DJANGO_LOG_LEVEL", "INFO").upper()
+if LOG_LEVEL not in _LOG_LEVELS:
+    LOG_LEVEL = "INFO"
+
+# Optional second sink: an absolute or BASE_DIR-relative path, rotated at ~2 MB
+# with five generations kept. Unset (the default) means console only.
+LOG_FILE = os.environ.get("DJANGO_LOG_FILE", "")
+
+LOGGING = {
+    "version": 1,
+    # Loggers already created by an imported module (every logging.getLogger at
+    # module scope) must keep working — disabling them is the classic way to
+    # silence exactly the app code this config exists to capture.
+    "disable_existing_loggers": False,
+    "formatters": {
+        "bitgigs": {
+            "format": "{asctime} {levelname:<8} {name}: {message}",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        # Deliberately unfiltered: Django's own `console` handler carries a
+        # require_debug_true filter, which is why nothing ever appeared in
+        # production. Redefining the name replaces that one.
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "bitgigs",
+        },
+    },
+    # Third-party libraries inherit this: warnings and worse, nothing routine.
+    "root": {"handlers": ["console"], "level": "WARNING"},
+    "loggers": {
+        # propagate=False so Django's framework messages don't also reach root's
+        # handler and print twice. Dropping mail_admins with it is intended —
+        # BitGigs sets no ADMINS, and its mail backend needs a configured
+        # connection, so a 500 must never try to mail its own traceback out.
+        "django": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        # One logger per app, so `logging.getLogger(__name__)` in e.g.
+        # calendar_sync/invites.py lands under the app's own level.
+        **{
+            entry.split(".")[0]: {"level": LOG_LEVEL, "propagate": True}
+            for entry in LOCAL_APPS
+        },
+    },
+}
+
+if LOG_FILE:
+    _log_path = Path(LOG_FILE)
+    if not _log_path.is_absolute():
+        _log_path = BASE_DIR / _log_path
+    try:
+        _log_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # An unwritable log directory is an operator mistake, not a reason to
+        # refuse to boot: keep the console sink and carry on.
+        LOG_FILE = ""
+    else:
+        LOGGING["handlers"]["file"] = {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(_log_path),
+            "maxBytes": 2 * 1024 * 1024,
+            "backupCount": 5,
+            "encoding": "utf-8",
+            # Don't create the file until something is actually logged.
+            "delay": True,
+            "formatter": "bitgigs",
+        }
+        LOGGING["root"]["handlers"].append("file")
+        LOGGING["loggers"]["django"]["handlers"].append("file")
 
 # ─── Task scheduler ──────────────────────────────────────────────────────────
 # The standalone `manage.py run_scheduler` loop checks the DB schedule table

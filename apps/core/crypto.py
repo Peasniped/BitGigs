@@ -12,9 +12,12 @@ the operator to re-enter the value rather than crash.
 """
 import base64
 import hashlib
+import logging
 
 from cryptography.fernet import Fernet, InvalidToken
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 # Bumping this invalidates every stored secret, so treat it as a migration.
 _KEY_INFO = b"bitgigs.email.v1"
@@ -44,4 +47,11 @@ def decrypt_secret(token):
     try:
         return _fernet().decrypt(token.encode("ascii")).decode("utf-8")
     except (InvalidToken, ValueError, UnicodeDecodeError):
+        # Never log the token itself. The settings page asks the operator to
+        # re-enter the value, but that only helps whoever opens it — this is the
+        # line that explains a mail server that quietly stopped authenticating.
+        logger.warning(
+            "A stored secret could not be decrypted — has DJANGO_SECRET_KEY changed? "
+            "Re-enter it in Settings → Email."
+        )
         return None

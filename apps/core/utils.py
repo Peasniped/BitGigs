@@ -55,6 +55,23 @@ def parse_iso_time_param(value):
         return None
 
 
+def client_ip(request) -> str:
+    """The requesting client's address, for rate limiting and the auth log.
+
+    X-Forwarded-For is client-supplied, so honouring it unconditionally would let
+    anyone forge their own address by rotating the header. It is trusted only
+    when the operator declares a reverse proxy (DJANGO_TRUST_PROXY_IP), where
+    REMOTE_ADDR would otherwise be the proxy for every client.
+    """
+    from django.conf import settings
+
+    ip = ""
+    if getattr(settings, "TRUST_PROXY_IP", False):
+        forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
+        ip = forwarded.split(",")[0].strip()
+    return ip or request.META.get("REMOTE_ADDR", "unknown")
+
+
 WEEKS_PER_YEAR = Decimal("52")
 MONTHS_PER_YEAR = Decimal("12")
 # Exact average weeks per month (52/12 = 4.3333...). Matches the Danish

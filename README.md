@@ -125,25 +125,54 @@ The project ships with three settings modules under `bitgigs/settings/`:
 | `POSTGRES_PASSWORD` | *(empty)* | PostgreSQL password |
 | `POSTGRES_HOST` | `localhost` | PostgreSQL host |
 | `POSTGRES_PORT` | `5432` | PostgreSQL port |
+| `DJANGO_LOG_LEVEL` | `INFO` | Level for BitGigs' own loggers. An unrecognised value falls back to `INFO` |
+| `DJANGO_LOG_FILE` | *(empty)* | Also write to this file (rotated at 2 MB, 5 kept). Relative paths resolve against the repo root |
+
+### Logging
+
+BitGigs logs to the console, because both supported deployments already capture
+it: `docker compose logs -f app` for the container, `journalctl -u bitgigs` for
+the systemd units. Nothing extra is needed to read the log.
+
+Its own apps log at `DJANGO_LOG_LEVEL` (default `INFO`); third-party libraries
+are held at `WARNING` so their routine chatter doesn't bury it. Set
+`DJANGO_LOG_FILE` as well if you want a file on disk — under Docker, point it
+inside the `instance` volume (`DJANGO_LOG_FILE=instance/bitgigs.log`) so it
+survives a container replacement.
+
+Worth knowing what lands there: failed and successful sign-ins (with the client
+address), mail sends that the server refused, a stored secret that can no longer
+be decrypted because `DJANGO_SECRET_KEY` changed, scheduler job and task
+failures, and calendar feeds that could not be parsed.
 
 ## Project Structure
 
 ```
-bitgigs/          # Project settings and root URL config
-core/             # Tax profiles, ATP configuration, and main dashboard
-workplaces/       # Workplace models, per-workplace settings and views
-shifts/              # Approved and planned shifts
-payroll/          # Payroll periods, payslip lines and payslip editor
-calendar_view/    # Month calendar view across all workplaces
-templates/        # Base HTML templates
-static/           # CSS and JavaScript assets
+bitgigs/              # Project settings (base/local/production) and root URL config
+apps/                 # Feature apps . a plain directory on sys.path, not a package
+  core/               # Tax profiles, ATP configuration, settings page, dashboard
+  workplaces/         # Workplaces, contracts and date-versioned pay terms
+  shifts/             # Approved and planned shifts
+  payroll/            # Payroll periods, payslip lines and payslip editor
+  calendar_view/      # Month calendar across all workplaces, planning and approval
+  calendar_sync/      # Calendar subscriptions in, calendar invites out
+  analytics/          # Income projection and rate history
+  data_io/            # Import and export
+  help/               # Built-in manual and context-aware help popup
+  api/                # Read-only HTTP API under /api/v1/
+  scheduler/          # Background job and task scheduler
+assets/               # Project-level templates/ and static/ (css, js, graphics)
+instance/             # Runtime state . database, uploaded media, setup key
 ```
 
 ## Running Tests
 
 ```bash
-python manage.py test --settings=bitgigs.settings.local
+python manage.py test apps --settings=bitgigs.settings.local
 ```
+
+The `apps` label is required: `apps/` is a plain directory on `sys.path` rather
+than a package, so an unqualified `manage.py test` discovers nothing.
 
 ## License
 
