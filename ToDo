@@ -5,6 +5,8 @@
 
 - When I start the dev server, it lists the prune icons job as scheduled for 03:30. The dev server is not going to run at 03:30, so the job never runs. Would it make sense to check for expired jobs and run them on startup? -- I know this is not really a problem when the app is moved to production at the server will be running 24/7
 
+- on the main dashboard, in the hour goal stat card, color the two hours counters that are added (planned + approved) in the same colors as on the progress bar. Also switch their positions around so it matches the bar (approved first, then planned)
+
 ## Polish
 
 ### Logging
