@@ -16,7 +16,24 @@ sys.path.insert(0, str(BASE_DIR / "apps"))
 DATA_DIR = BASE_DIR / "data"
 
 # Load BASE_DIR/.env into the environment (KEY=VALUE lines; # comments and
-# blanks skipped). Real environment variables always win over .env values.
+# blanks skipped). Real environment variables always win over .env values —
+# that is what lets Docker and systemd override the file without editing it.
+#
+# The two sets record *which* names came from where, so a setting can report its
+# own origin. That matters because the losing case is silent and baffling: a
+# `$env:FOO='x'` typed once into a PowerShell session persists for the life of
+# that console, so every later run in the same window quietly ignores .env.
+_ENV_FILE_KEYS = set()  # supplied by .env
+_ENV_FILE_SHADOWED = set()  # present in .env, but a real env var already won
+
+# Names a *previous* run of this loader put into the environment. Django's
+# autoreloader re-execs the process, so the child inherits everything the parent
+# read out of .env as ordinary environment variables — without this marker the
+# child re-reads .env, finds the keys already set, and reports its own parent as
+# something that overrode the file.
+_MARKER = "BITGIGS_ENV_FILE_KEYS"
+_INHERITED = {k for k in os.environ.get(_MARKER, "").split(",") if k}
+
 _env_file = BASE_DIR / ".env"
 if _env_file.is_file():
     for _line in _env_file.read_text(encoding="utf-8").splitlines():
@@ -24,9 +41,39 @@ if _env_file.is_file():
         if not _line or _line.startswith("#") or "=" not in _line:
             continue
         _key, _, _value = _line.partition("=")
+        _key = _key.strip()
         _value = _value.strip().strip("'\"")
         if _value:  # an empty value would mask defaults (e.g. dev SECRET_KEY)
-            os.environ.setdefault(_key.strip(), _value)
+            if _key not in os.environ:
+                os.environ[_key] = _value
+                _ENV_FILE_KEYS.add(_key)
+            elif _key in _INHERITED:
+                _ENV_FILE_KEYS.add(_key)  # our own earlier run put it there
+            else:
+                _ENV_FILE_SHADOWED.add(_key)
+
+# Names only — never values, so nothing secret is written into the environment
+# that wasn't already there.
+os.environ[_MARKER] = ",".join(sorted(_ENV_FILE_KEYS))
+
+
+def _config_source(*names):
+    """Where a setting's value came from, in the words a log line can print.
+
+    Takes names in precedence order, so a renamed variable can name its own
+    fallback. "shadowing .env" is the whole point of the function: it is the one
+    outcome someone can stare at for a while without working out.
+    """
+    for name in names:
+        if name in _ENV_FILE_KEYS:
+            return "from .env"
+        if name in os.environ:
+            return (
+                "from the environment, shadowing .env"
+                if name in _ENV_FILE_SHADOWED
+                else "from the environment"
+            )
+    return "the built-in default"
 
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
@@ -216,7 +263,7 @@ ICON_PRUNE_AUTO = True
 # The console is the primary sink on purpose: both supported deployments already
 # capture a process's stdout/stderr (`docker compose logs`, journald for the
 # systemd units), so writing there needs no volume, no rotation and no file
-# permissions. A file is opt-in for setups that want one — see DJANGO_LOG_FILE.
+# permissions. A file is opt-in for setups that want one — see LOG_FILE.
 
 _LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
@@ -227,15 +274,21 @@ _LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 # DJANGO_LOG_LEVEL is the old name for this, still honoured so that upgrading
 # doesn't silently drop an existing deployment back to INFO — the quiet kind of
 # regression nobody notices until they need the logs.
-LOG_LEVEL = (
-    os.environ.get("LOG_LEVEL") or os.environ.get("DJANGO_LOG_LEVEL") or "INFO"
-).upper()
+_LOG_LEVEL_RAW = os.environ.get("LOG_LEVEL") or os.environ.get("DJANGO_LOG_LEVEL") or ""
+LOG_LEVEL = _LOG_LEVEL_RAW.upper() or "INFO"
+# Reported on the startup line beside the level itself, so "I set it and nothing
+# happened" answers itself instead of costing an afternoon.
+LOG_LEVEL_SOURCE = _config_source("LOG_LEVEL", "DJANGO_LOG_LEVEL")
 if LOG_LEVEL not in _LOG_LEVELS:
     LOG_LEVEL = "INFO"
+    if _LOG_LEVEL_RAW:
+        LOG_LEVEL_SOURCE = f"{_LOG_LEVEL_RAW!r} is not a level, so the default"
 
 # Optional second sink: an absolute or BASE_DIR-relative path, rotated at ~2 MB
 # with five generations kept. Unset (the default) means console only.
-LOG_FILE = os.environ.get("DJANGO_LOG_FILE", "")
+# DJANGO_LOG_FILE is the old name, honoured for the same reason as
+# DJANGO_LOG_LEVEL: an upgrade must not quietly stop writing someone's log file.
+LOG_FILE = os.environ.get("LOG_FILE") or os.environ.get("DJANGO_LOG_FILE") or ""
 
 LOGGING = {
     "version": 1,

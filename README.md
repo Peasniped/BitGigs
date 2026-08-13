@@ -126,7 +126,7 @@ The project ships with three settings modules under `bitgigs/settings/`:
 | `POSTGRES_HOST` | `localhost` | PostgreSQL host |
 | `POSTGRES_PORT` | `5432` | PostgreSQL port |
 | `LOG_LEVEL` | `INFO` | Level for BitGigs' own loggers and Django's. An unrecognised value falls back to `INFO`. (`DJANGO_LOG_LEVEL` is the old name and still works) |
-| `DJANGO_LOG_FILE` | *(empty)* | Also write to this file (rotated at 2 MB, 5 kept). Relative paths resolve against the repo root |
+| `LOG_FILE` | *(empty)* | Also write to this file (rotated at 2 MB, 5 kept). Relative paths resolve against the repo root. (`DJANGO_LOG_FILE` is the old name and still works) |
 
 ### Logging
 
@@ -153,9 +153,10 @@ startup and `DEBUG` a detailed one. Third-party libraries are held at `WARNING`
 either way, so their routine chatter never buries it, and SQL logging is the one
 thing `DEBUG` does *not* switch on (a line per query would bury everything else).
 Whichever level is in force is logged at that level on startup, so you can always
-see which one took. Set `DJANGO_LOG_FILE` as well if you want a file on disk —
-under Docker, point it inside the `instance` volume
-(`DJANGO_LOG_FILE=instance/bitgigs.log`) so it survives a container replacement.
+see which one took, along with which process is reporting and whether the value
+came from `.env`, the environment, or the built-in default. Set `LOG_FILE` as
+well if you want a file on disk — under Docker, point it inside the `instance`
+volume (`LOG_FILE=instance/bitgigs.log`) so it survives a container replacement.
 
 Worth knowing what lands there: failed and successful sign-ins (with the client
 address), mail sends that the server refused, a stored secret that can no longer

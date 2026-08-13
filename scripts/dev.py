@@ -13,9 +13,10 @@ a second scheduler draining the same queue, which quietly doubles the rate mail
 leaves the server at — enough to trip a provider's sending limit on its own, and
 maddening to diagnose. Pass ``--allow-multiple`` if you really do want two.
 
-Stdlib only, no dependencies. Extra arguments are forwarded to runserver
+No third-party dependencies. Extra arguments are forwarded to runserver
 (e.g. ``python scripts/dev.py 0.0.0.0:8001``).
 """
+import logging
 import os
 import signal
 import subprocess
@@ -29,10 +30,35 @@ SETTINGS = "bitgigs.settings.local"
 GRACE_SECONDS = 8
 LOCK_PATH = REPO / "instance" / "dev.lock"
 
+# The launcher writes to the same console as the two processes it starts, so it
+# speaks their language rather than bare print()s — one console should read as
+# one thing. This is not a Django process (it runs before django.setup() and has
+# no settings), but core.logformat is stdlib-only by design, so borrowing the
+# formatter costs nothing and keeps the layout defined in exactly one place.
+sys.path.insert(0, str(REPO / "apps"))
+from core.logformat import BitGigsFormatter  # noqa: E402
+
+logger = logging.getLogger("dev")
+
+
+def _setup_logging():
+    """Wire `dev` to stderr with the app's formatter.
+
+    Fixed at INFO rather than following LOG_LEVEL: this logger carries five
+    messages, all of them "the launcher did something you need to know about",
+    and reading LOG_LEVEL properly would mean duplicating settings' .env loader
+    out here — which is exactly the kind of second copy that drifts.
+    """
+    handler = logging.StreamHandler()
+    handler.setFormatter(BitGigsFormatter())
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
 # Exit codes that mean "the console Ctrl+C took this child down", i.e. a clean
 # stop rather than a crash. A console Ctrl+C reaches every process in the group,
 # so a child usually dies of it before our own KeyboardInterrupt is raised —
-# without this the shutdown reads as `[dev] runserver exited (-1073741510)` and
+# without this the shutdown is reported as "runserver exited (-1073741510)" and
 # leaves a non-zero exit code behind.
 CTRL_C_EXIT_CODES = {
     0xC000013A,   # STATUS_CONTROL_C_EXIT, as Windows reports it
@@ -142,7 +168,7 @@ def _terminate(procs):
         try:
             _wait(proc, remaining)
         except subprocess.TimeoutExpired:
-            print(f"[dev] {name} didn't stop in time — killing it.", file=sys.stderr)
+            logger.warning("%s didn't stop in time — killing it.", name)
             proc.kill()
 
 
@@ -179,19 +205,19 @@ def main():
     # A dev run always uses local settings; make that explicit for anything the
     # children read from the environment too.
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", SETTINGS)
+    _setup_logging()
     _install_interrupt_handler()
     extra = [a for a in sys.argv[1:] if a != "--allow-multiple"]
 
     if len(extra) == len(sys.argv[1:]):  # the flag wasn't passed
         holder = _take_lock()
         if holder:
-            print(
-                f"[dev] A dev stack is already running (PID {holder}).\n"
-                "[dev] Starting a second one would run a second scheduler against "
-                "the same queue,\n[dev] which doubles how fast mail leaves the "
-                "server. Stop the other console first,\n[dev] or pass "
-                "--allow-multiple if that's really what you want.",
-                file=sys.stderr,
+            logger.error("A dev stack is already running (PID %s).", holder)
+            logger.error(
+                "Starting a second one would run a second scheduler against the "
+                "same queue, which doubles how fast mail leaves the server. Stop "
+                "the other console first, or pass --allow-multiple if that's "
+                "really what you want."
             )
             return 1
 
@@ -199,7 +225,7 @@ def main():
         "runserver": _spawn("runserver", extra),
         "scheduler": _spawn("run_scheduler"),
     }
-    print("[dev] runserver + run_scheduler started. Ctrl+C to stop both.")
+    logger.info("runserver + run_scheduler started. Ctrl+C to stop both.")
 
     exit_code = 0
     try:
@@ -213,14 +239,17 @@ def main():
                     _interrupted = True
                 else:
                     # One child exited on its own — take the other down with it.
-                    print(f"[dev] {name} exited ({code}); shutting the other down.")
+                    logger.warning(
+                        "%s exited (%s); shutting the other down.", name, code
+                    )
                     exit_code = code or 0
                 break
             time.sleep(0.5)
     except KeyboardInterrupt:
         _interrupted = True  # a press the handler didn't catch
     if _interrupted:
-        print("\n[dev] stopping…")
+        print()  # break out of the line the console's ^C echo left open
+        logger.info("Stopping…")
     try:
         _terminate(procs)
     except KeyboardInterrupt:

@@ -7,7 +7,9 @@ noise does not — plus the sign-in trail, which is the one thing a self-hosted
 install on the open internet really wants recorded.
 """
 import logging
+import os
 import re
+import sys
 from unittest import mock
 
 from django.contrib.auth.models import User
@@ -104,6 +106,164 @@ class LoggingConfigTests(TestCase):
         self.assertEqual(len(captured.records), 1)
         self.assertEqual(captured.records[0].levelname, settings.LOG_LEVEL)
         self.assertIn(f"Using Loglevel: {settings.LOG_LEVEL}", captured.output[0])
+
+    def test_the_announcement_says_where_the_level_came_from(self):
+        """A real environment variable beats .env by design, and that outcome is
+        otherwise invisible — a `$env:LOG_LEVEL` typed once into a PowerShell
+        session silently outranks the file for the life of that console. Naming
+        the source is what makes "I set it and nothing happened" answer itself."""
+        from django.conf import settings
+
+        from core.apps import _announce_log_level
+
+        with self.assertLogs("core.apps", level=settings.LOG_LEVEL) as captured:
+            _announce_log_level()
+        self.assertIn(settings.LOG_LEVEL_SOURCE, captured.output[0])
+
+    def test_the_announcement_names_its_process(self):
+        """Every process announces from core/apps.py, so the source column reads
+        [core.apps] for all of them and dev.py's two lines were indistinguishable."""
+        from django.conf import settings
+
+        from core.apps import _announce_log_level
+
+        with mock.patch.object(sys, "argv", ["manage.py", "run_scheduler"]):
+            with self.assertLogs("core.apps", level=settings.LOG_LEVEL) as captured:
+                _announce_log_level()
+        self.assertIn("run_scheduler", captured.output[0])
+
+    def test_process_label_picks_the_command(self):
+        from core.apps import _process_label
+
+        cases = {
+            ("manage.py", "runserver"): "runserver",
+            ("manage.py", "run_scheduler", "--no-reload"): "run_scheduler",
+            ("manage.py", "--settings=x", "migrate"): "migrate",
+            ("gunicorn", "bitgigs.wsgi:application"): "bitgigs.wsgi:application",
+        }
+        for argv, expected in cases.items():
+            with self.subTest(argv=argv):
+                with mock.patch.object(sys, "argv", list(argv)):
+                    self.assertEqual(_process_label(), expected)
+
+    def test_process_label_survives_having_nothing_to_read(self):
+        """A bare interpreter has no subcommand and an argv[0] of '-c'; the label
+        is cosmetic, so it must degrade rather than raise into startup."""
+        from core.apps import _process_label
+
+        for argv in ([], ["-c"], [""], ["manage.py"]):
+            with self.subTest(argv=argv):
+                with mock.patch.object(sys, "argv", argv):
+                    self.assertTrue(_process_label())
+
+
+class ReloaderParentTests(TestCase):
+    """`_is_reloader_parent` — which processes stay quiet at startup.
+
+    dev.py runs two commands, each under the autoreloader, so one startup line
+    appeared four times. Suppressing the watcher parents halves that; the risk
+    to guard against is over-suppressing until a line appears nowhere at all.
+    """
+
+    def _ask(self, argv, run_main=None, debug=True):
+        from core.apps import _is_reloader_parent
+
+        env = {"RUN_MAIN": run_main} if run_main else {}
+        with mock.patch.object(sys, "argv", ["manage.py", *argv]), \
+                mock.patch.dict(os.environ, env, clear=False), \
+                override_settings(DEBUG=debug):
+            if run_main is None:
+                os.environ.pop("RUN_MAIN", None)
+            return _is_reloader_parent()
+
+    def test_the_watcher_parent_is_the_only_quiet_one(self):
+        self.assertTrue(self._ask(["runserver"]))
+        self.assertTrue(self._ask(["run_scheduler"]))
+
+    def test_the_worker_child_speaks(self):
+        """It is the process that actually serves; RUN_MAIN marks it."""
+        self.assertFalse(self._ask(["runserver"], run_main="true"))
+        self.assertFalse(self._ask(["run_scheduler"], run_main="true"))
+
+    def test_a_run_that_never_reloads_speaks(self):
+        """The bug this caught: --once returns before the reloader branch, so it
+        is the only process there will be — suppressing it printed nothing."""
+        self.assertFalse(self._ask(["run_scheduler", "--once"]))
+        self.assertFalse(self._ask(["run_scheduler", "--no-reload"]))
+        self.assertFalse(self._ask(["runserver", "--noreload"]))
+
+    def test_production_speaks(self):
+        """DEBUG off means no reloader, so there is no second process coming."""
+        self.assertFalse(self._ask(["runserver"], debug=False))
+
+    def test_an_ordinary_command_speaks(self):
+        for argv in (["check"], ["migrate"], ["shell"], []):
+            with self.subTest(argv=argv):
+                self.assertFalse(self._ask(argv))
+
+
+class ConfigSourceTests(TestCase):
+    """`_config_source` in bitgigs/settings/base.py — which of .env, the real
+    environment, or the built-in default supplied a value."""
+
+    def _patched(self, env_file_keys=(), shadowed=(), environ=None):
+        from bitgigs.settings import base
+
+        return (
+            mock.patch.object(base, "_ENV_FILE_KEYS", set(env_file_keys)),
+            mock.patch.object(base, "_ENV_FILE_SHADOWED", set(shadowed)),
+            mock.patch.dict(os.environ, environ or {}, clear=False),
+        )
+
+    def test_each_origin_is_named(self):
+        from bitgigs.settings import base
+
+        patches = self._patched(
+            env_file_keys={"FROM_FILE"},
+            shadowed={"SHADOWED"},
+            environ={"SHADOWED": "x", "PLAIN": "y"},
+        )
+        with patches[0], patches[1], patches[2]:
+            self.assertEqual(base._config_source("FROM_FILE"), "from .env")
+            self.assertEqual(
+                base._config_source("SHADOWED"),
+                "from the environment, shadowing .env",
+            )
+            self.assertEqual(base._config_source("PLAIN"), "from the environment")
+            self.assertEqual(
+                base._config_source("NOT_SET_ANYWHERE_AT_ALL"), "the built-in default"
+            )
+
+    def test_precedence_order_decides_which_name_answers(self):
+        """A renamed variable passes both names, so the source reported has to be
+        the one that actually won — not whichever is set at all."""
+        from bitgigs.settings import base
+
+        patches = self._patched(
+            env_file_keys={"OLD_NAME"}, environ={"NEW_NAME": "x"}
+        )
+        with patches[0], patches[1], patches[2]:
+            self.assertEqual(
+                base._config_source("NEW_NAME", "OLD_NAME"), "from the environment"
+            )
+            self.assertEqual(
+                base._config_source("OLD_NAME", "NEW_NAME"), "from .env"
+            )
+
+    def test_env_file_never_overwrites_a_real_variable(self):
+        """The precedence itself, which is what makes Docker/systemd able to
+        override the file without editing it."""
+        from django.conf import settings
+
+        self.assertIn(
+            settings.LOG_LEVEL_SOURCE,
+            {
+                "from .env",
+                "from the environment",
+                "from the environment, shadowing .env",
+                "the built-in default",
+            },
+        )
 
 
 class LogFormatTests(TestCase):
@@ -214,6 +374,42 @@ class LogFormatTests(TestCase):
         from django.conf import settings
 
         self.assertIs(settings.LOGGING["formatters"]["bitgigs"]["color"], False)
+
+
+class RenamedLogVariableTests(TestCase):
+    """LOG_LEVEL/LOG_FILE were DJANGO_-prefixed. Both old names stay honoured:
+    an upgrade must not silently drop a deployment to INFO, nor stop writing a
+    log file someone is collecting."""
+
+    def _resolve(self, env):
+        """Re-run the settings module's own resolution against a given env."""
+        with mock.patch.dict(os.environ, env, clear=True):
+            level = (
+                os.environ.get("LOG_LEVEL") or os.environ.get("DJANGO_LOG_LEVEL") or "INFO"
+            ).upper()
+            file = os.environ.get("LOG_FILE") or os.environ.get("DJANGO_LOG_FILE") or ""
+        return level, file
+
+    def test_new_names_win_over_old(self):
+        level, file = self._resolve(
+            {
+                "LOG_LEVEL": "DEBUG", "DJANGO_LOG_LEVEL": "ERROR",
+                "LOG_FILE": "new.log", "DJANGO_LOG_FILE": "old.log",
+            }
+        )
+        self.assertEqual((level, file), ("DEBUG", "new.log"))
+
+    def test_old_names_still_work_alone(self):
+        level, file = self._resolve(
+            {"DJANGO_LOG_LEVEL": "WARNING", "DJANGO_LOG_FILE": "old.log"}
+        )
+        self.assertEqual((level, file), ("WARNING", "old.log"))
+
+    def test_settings_expose_both_resolved_values(self):
+        from django.conf import settings
+
+        self.assertIn(settings.LOG_LEVEL, ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"))
+        self.assertIsInstance(settings.LOG_FILE, str)
 
 
 class SignInLoggingTests(TestCase):
