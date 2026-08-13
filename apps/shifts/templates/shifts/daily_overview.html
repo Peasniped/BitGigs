@@ -37,7 +37,7 @@
 <p class="text-muted">No Shifts on this day.</p>
 {% endfor %}
 
-<a href="{% url 'shifts:Shift-create' %}?date={{ date|date:'Y-m-d' }}" class="btn btn-primary">
+<a href="{% url 'shifts:shift-create' %}?date={{ date|date:'Y-m-d' }}" class="btn btn-primary">
   + Log Shift for {{ date }}
 </a>
 {% endblock %}
