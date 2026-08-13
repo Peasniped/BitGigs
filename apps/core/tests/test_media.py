@@ -11,11 +11,16 @@ from pathlib import Path
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 
+from core.testing import login_client
+
 _MEDIA = tempfile.mkdtemp()
 
 
 @override_settings(MEDIA_ROOT=_MEDIA)
 class MediaServingTest(TestCase):
+    """Stays a plain TestCase: half of these run anonymous, so the client signs
+    in per-test rather than in setUp."""
+
     def setUp(self):
         icons = Path(_MEDIA) / "workplace_icons"
         icons.mkdir(parents=True, exist_ok=True)
@@ -23,10 +28,7 @@ class MediaServingTest(TestCase):
         self.url = "/media/workplace_icons/acme_icon.png"
 
     def _login(self):
-        self.client.force_login(User.objects.create_user("tester", password="pw"))
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
+        login_client(self.client, User.objects.create_user("tester", password="pw"))
 
     def test_served_to_logged_in_user(self):
         self._login()

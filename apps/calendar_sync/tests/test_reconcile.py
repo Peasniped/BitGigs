@@ -13,6 +13,7 @@ from calendar_sync.models import (
     ShiftInvite,
 )
 from core.models import EmailSettings, MailConnection
+from core.testing import LoggedInTestCase
 from shifts.models import PlannedShift, Shift
 from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
 
@@ -223,23 +224,17 @@ class FootgunGuardTests(TestCase):
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
-class SyncViewTests(TestCase):
+class SyncViewTests(LoggedInTestCase):
     """The review modal drives the sync over fetch and renders its own status, so
     the endpoint answers JSON on an XHR (rather than the redirect + flash a plain
     POST gets)."""
 
     def setUp(self):
-        from django.contrib.auth.models import User
-
+        super().setUp()
         mail.outbox = []
         _configure_mail()
         _configure_invites(owner="me@home.example")
         self.wp = _workplace_with_config(recipient="boss@work.example")
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
 
     def test_ajax_sync_returns_json_counts(self):
         shift = _shift(self.wp)

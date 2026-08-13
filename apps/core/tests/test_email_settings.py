@@ -238,15 +238,11 @@ class DiagnoseTests(TestCase):
         self.assertIsNotNone(conn.last_test_at)
 
 
-class MailConnectionViewTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user("owner@example.com", password="pw")
-        self.user.email = "owner@example.com"
-        self.user.save()
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
+class MailConnectionViewTests(LoggedInTestCase):
+    def create_user(self):
+        return User.objects.create_user(
+            "owner@example.com", email="owner@example.com", password="pw"
+        )
 
     def test_tab_renders(self):
         response = self.client.get(reverse("core:settings"), {"tab": "email"})

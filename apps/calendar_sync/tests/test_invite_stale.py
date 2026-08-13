@@ -9,12 +9,12 @@ never nags. See ``invites.event_fingerprint`` / ``invites.is_stale``.
 from datetime import date, time, timedelta
 from decimal import Decimal
 
-from django.contrib.auth.models import User
 from django.core import mail
-from django.test import TestCase, override_settings
+from django.test import override_settings
 from django.utils import timezone
 
 from calendar_sync import invites
+from core.testing import LoggedInTestCase
 from calendar_sync.models import (
     CalendarInviteSettings,
     ContractCalendarConfig,
@@ -29,14 +29,10 @@ from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     SCHEDULER_TASK_EAGER=True,  # invite sends are queued — run them inline
 )
-class InviteStalenessTests(TestCase):
+class InviteStalenessTests(LoggedInTestCase):
     def setUp(self):
+        super().setUp()
         mail.outbox = []
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
 
         MailConnection.objects.create(name="Default", host="smtp.zink.nu",
                                       from_email="robot@zink.nu", is_default=True)

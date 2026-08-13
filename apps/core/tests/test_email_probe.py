@@ -3,11 +3,11 @@ and the resolve_host / check_port helpers it shares with the staged test."""
 import socket
 from unittest import mock
 
-from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
 from core import mail as core_mail
+from core.testing import LoggedInTestCase
 
 
 class ProbeHelperTests(TestCase):
@@ -44,13 +44,11 @@ class ProbeHelperTests(TestCase):
         self.assertTrue(probe.ok)
 
 
-class EmailProbeViewTests(TestCase):
+class EmailProbeViewTests(LoggedInTestCase):
+    username = "owner@example.com"
+
     def setUp(self):
-        self.user = User.objects.create_user("owner@example.com", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
+        super().setUp()
         self.url = reverse("core:email-probe")
 
     def test_blank_host_checks_nothing(self):

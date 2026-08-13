@@ -1,22 +1,8 @@
 
 # NU     --------------------------------------------------------
 
-- When I run the app, all of the Django Apps are created as folders with pycache, tests and migrations in the root dir and not in their apps/[app_folder] directories. Is this something we can change?
-
-- When I start the dev server, it lists the prune icons job as scheduled for 03:30. The dev server is not going to run at 03:30, so the job never runs. Would it make sense to check for expired jobs and run them on startup? -- I know this is not really a problem when the app is moved to production at the server will be running 24/7
-
-- on the main dashboard, in the hour goal stat card, color the two hours counters that are added (planned + approved) in the same colors as on the progress bar. Also switch their positions around so it matches the bar (approved first, then planned)
 
 ## Polish
-
-### Logging
-- Can you add a log message to the start that states "Using Loglevel: XXX" emitted at the configured loglevel.
-- I have tried to set the log level to different things in the .ne, but I am getting INFO logs no matter what I set.
-
-### Phase 8: Groundwork & housekeeping  (no UI surface, can run anytime)  — DONE v0.26.0
-- ~~Implement propper logging~~ — `LOGGING` in `bitgigs/settings/base.py`; console-first (both deployments capture stdout), optional `DJANGO_LOG_FILE`, level via `DJANGO_LOG_LEVEL`. Sign-ins, refused mail sends, undecryptable secrets and unparseable feeds now leave a trail.
-- ~~Take a look at the full test suite~~ — audited 858 tests across 56 files. No duplicated test bodies, no skips, no vacuous assertions. Removed the one genuinely dead function a test was keeping alive (`reconcile.drift_summary`) and wired the other (`data_io.export_json`) into the view that was duplicating it. 8 hand-rolled login `setUp`s folded into `LoggedInTestCase`.
-- Remaining from that audit (small, mechanical, not urgent): **33 more test classes still hand-roll the login `setUp`** alongside their own fixture work — each needs a `super().setUp()` rather than a straight delete, which is why they were left. Files: test_api, test_direction1, test_direction2_view, test_invite_failure, test_invite_stale, test_reconcile, test_planning_invites, test_planning_prior_period, test_email_probe, test_email_settings, test_media, test_settings_tabs, test_services (data_io), test_help, test_scheduler, test_accent_scope, test_customize.
 
 ### Phase 9: BUG — personfradrag counted twice on a mid-period raise
 - `SalaryEstimateService._combine_estimates` (apps/payroll/services.py) sums the *tax breakdown* field by field, including `monthly_deduction`. So when one payroll period holds two term sets (a mid-period raise, or a mid-period start/end), the monthly personfradrag is subtracted once per term set → tax too low → **net pay overstated**.

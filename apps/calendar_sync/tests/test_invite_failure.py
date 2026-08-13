@@ -12,9 +12,8 @@ from datetime import date, time
 from decimal import Decimal
 from unittest import mock
 
-from django.contrib.auth.models import User
 from django.core import mail
-from django.test import TestCase, override_settings
+from django.test import override_settings
 from django.urls import reverse
 
 from calendar_sync import invites
@@ -24,6 +23,7 @@ from calendar_sync.models import (
     ShiftInvite,
 )
 from core.models import EmailLog, EmailSettings, MailConnection
+from core.testing import LoggedInTestCase
 from scheduler.models import ScheduledTask
 from shifts.models import PlannedShift
 from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
@@ -37,14 +37,10 @@ class Rejected(Exception):
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     SCHEDULER_TASK_EAGER=True,  # invite sends are queued — run them inline
 )
-class InviteSendFailureTests(TestCase):
+class InviteSendFailureTests(LoggedInTestCase):
     def setUp(self):
+        super().setUp()
         mail.outbox = []
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
 
         MailConnection.objects.create(name="Default", host="smtp.zink.nu",
                                       from_email="robot@zink.nu", is_default=True)

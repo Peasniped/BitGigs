@@ -1,5 +1,4 @@
 from django.contrib.auth.models import User
-from django.test import TestCase
 
 from core.models import UserSettings
 from core.testing import LoggedInTestCase
@@ -99,18 +98,14 @@ class SettingsTabsTest(LoggedInTestCase):
         self.assertFalse(settings_row.show_shift_type_colors)
 
 
-class AccountDetailsTest(TestCase):
+class AccountDetailsTest(LoggedInTestCase):
     """Settings → Sign-in lets the owner rename themselves and change the email.
     The email doubles as the username, so both must move together."""
 
-    def setUp(self):
-        self.user = User.objects.create_user(
+    def create_user(self):
+        return User.objects.create_user(
             "me@example.com", email="me@example.com", password="pw", first_name="Alex"
         )
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
 
     def post(self, **overrides):
         payload = {

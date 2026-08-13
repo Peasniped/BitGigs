@@ -9,10 +9,10 @@ everything inside it — see the CSS block in assets/static/css/style.css:
 * nothing is emitted at all without an accent colour, because a
   ``--wp-accent: var(--primary)`` fallback is a custom-property *cycle*.
 """
-from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
+from core.testing import LoggedInTestCase
 from workplaces.models import Workplace
 from workplaces.templatetags.wp_accent import wp_accent_scope
 
@@ -49,15 +49,13 @@ class AccentScopeTagTests(TestCase):
         self.assertNotIn("wp-accent-scope", out)
 
 
-class AccentScopeOnPagesTests(TestCase):
+class AccentScopeOnPagesTests(LoggedInTestCase):
     """Every workplace-owned page opens the scope; the rest of the app doesn't."""
 
+    username = "owner"
+
     def setUp(self):
-        self.user = User.objects.create_user("owner", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
+        super().setUp()
         self.wp = Workplace.objects.create(name="Acme", slug="acme",
                                            accent_color="#0e61de")
         self.plain = Workplace.objects.create(name="Beta", slug="beta")

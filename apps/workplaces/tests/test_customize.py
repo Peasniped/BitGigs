@@ -9,15 +9,17 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
-from django.test import TestCase, override_settings
+from django.test import override_settings
 from django.urls import reverse
 
+from core.testing import LoggedInTestCase
 from workplaces.models import Workplace
 
 
-class CustomizeIconTests(TestCase):
+class CustomizeIconTests(LoggedInTestCase):
+    username = "owner"
+
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp, True)
@@ -25,11 +27,7 @@ class CustomizeIconTests(TestCase):
         self._override.enable()
         self.addCleanup(self._override.disable)
 
-        self.user = User.objects.create_user("owner", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
+        super().setUp()
 
         self.wp = Workplace.objects.create(name="Acme", slug="acme")
         self.wp.custom_icon.save("acme_icon.png", ContentFile(b"logo"), save=True)

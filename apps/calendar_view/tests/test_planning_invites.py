@@ -9,13 +9,13 @@ covers had already gone out. Pressing it again then sent nothing, silently.
 from datetime import date, time, timedelta
 from decimal import Decimal
 
-from django.contrib.auth.models import User
 from django.core import mail
-from django.test import TestCase, override_settings
+from django.test import override_settings
 
 from calendar_sync import invites
 from calendar_sync.models import CalendarInviteSettings, ContractCalendarConfig
 from core.models import EmailSettings, MailConnection
+from core.testing import LoggedInTestCase
 from shifts.models import PlannedShift
 from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
 
@@ -24,16 +24,12 @@ from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     SCHEDULER_TASK_EAGER=True,
 )
-class InvitePendingCountTests(TestCase):
+class InvitePendingCountTests(LoggedInTestCase):
     """A 20th→19th job, viewed in March: the send covers 20 Feb – 19 Mar."""
 
     def setUp(self):
+        super().setUp()
         mail.outbox = []
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
 
         MailConnection.objects.create(name="Default", host="smtp.zink.nu",
                                       from_email="robot@zink.nu", is_default=True)

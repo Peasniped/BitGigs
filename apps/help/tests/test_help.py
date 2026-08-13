@@ -2,9 +2,9 @@ import tempfile
 from pathlib import Path
 
 from django.contrib.auth.models import User
-from django.test import TestCase
 from django.urls import reverse
 
+from core.testing import LoggedInTestCase
 from help import services
 from help.models import HelpArticle, HelpArticleRevision, HelpKeyword, HelpPage
 
@@ -16,13 +16,12 @@ class HelpTestMixin:
 
     def setUp(self):
         services.sync_page_contexts()
-        self.user = User.objects.create_user(
-            "tester", password="pw", is_staff=self.is_staff
+        super().setUp()
+
+    def create_user(self):
+        return User.objects.create_user(
+            self.username, password="pw", is_staff=self.is_staff
         )
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
 
     def make_article(self, slug="alpha", **kwargs):
         defaults = dict(
@@ -37,7 +36,7 @@ class HelpTestMixin:
 # ── Models / services ─────────────────────────────────────────────────────────
 
 
-class HelpModelTests(HelpTestMixin, TestCase):
+class HelpModelTests(HelpTestMixin, LoggedInTestCase):
     def test_save_renders_and_caches_html(self):
         article = self.make_article(body_md="# Title\n\n| a | b |\n|---|---|\n| 1 | 2 |")
         self.assertIn("<h1", article.body_html)
@@ -84,7 +83,7 @@ class HelpModelTests(HelpTestMixin, TestCase):
         self.assertEqual(article.revisions.count(), HelpArticleRevision.PRUNE_KEEP)
 
 
-class HelpServiceTests(HelpTestMixin, TestCase):
+class HelpServiceTests(HelpTestMixin, LoggedInTestCase):
     def test_render_markdown_no_external_calls_and_html(self):
         html = services.render_markdown("**bold** and `code`")
         self.assertIn("<strong>bold</strong>", html)
@@ -182,7 +181,7 @@ class HelpServiceTests(HelpTestMixin, TestCase):
 # ── Views ─────────────────────────────────────────────────────────────────────
 
 
-class HelpReaderViewTests(HelpTestMixin, TestCase):
+class HelpReaderViewTests(HelpTestMixin, LoggedInTestCase):
     def test_manual_page(self):
         self.make_article(slug="alpha", title="Alpha")
         resp = self.client.get(reverse("help:manual"))
@@ -235,7 +234,7 @@ class HelpReaderViewTests(HelpTestMixin, TestCase):
         self.assertIn("alpha", slugs)
 
 
-class HelpEditorViewTests(HelpTestMixin, TestCase):
+class HelpEditorViewTests(HelpTestMixin, LoggedInTestCase):
     def test_create_article_writes_revision(self):
         resp = self.client.post(
             reverse("help:create"),
@@ -308,7 +307,7 @@ class HelpEditorViewTests(HelpTestMixin, TestCase):
         self.assertContains(resp, "<strong>hi</strong>")
 
 
-class HelpEditorGatingTests(HelpTestMixin, TestCase):
+class HelpEditorGatingTests(HelpTestMixin, LoggedInTestCase):
     is_staff = False  # a logged-in but non-staff user
 
     def test_editor_forbidden_for_non_staff(self):

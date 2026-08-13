@@ -17,9 +17,7 @@ import re
 from datetime import date, time
 from decimal import Decimal
 
-from django.contrib.auth.models import User
-from django.test import TestCase
-
+from core.testing import LoggedInTestCase
 from shifts.models import PlannedShift
 from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
 
@@ -29,13 +27,9 @@ IN_PERIOD = date(2030, 3, 10)
 OUT_OF_PERIOD = date(2030, 3, 25)
 
 
-class PriorPeriodChipMarkupTests(TestCase):
+class PriorPeriodChipMarkupTests(LoggedInTestCase):
     def setUp(self):
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
+        super().setUp()
 
         self.wp = Workplace.objects.create(name="Offset", slug="offset")
         contract = WorkplaceContract.objects.create(workplace=self.wp)

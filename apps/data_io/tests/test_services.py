@@ -9,6 +9,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 
 from core.models import TaxProfile
+from core.testing import LoggedInTestCase
 from data_io import services
 from shifts.models import PlannedShift, Shift
 from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
@@ -294,16 +295,8 @@ class IconRoundTripTest(TestCase):
         wp2.custom_icon.close()
 
 
-class ImportConfirmLayoutTest(TestCase):
+class ImportConfirmLayoutTest(LoggedInTestCase):
     """Outside the wizard the same page is a normal full-width settings page."""
-
-    def setUp(self):
-        from django.contrib.auth.models import User
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
 
     def test_no_wizard_column_or_step_bar(self):
         _populate()

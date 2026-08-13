@@ -10,6 +10,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from core.setup_key import SESSION_FLAG
+from core.testing import login_client
 from core.tests.test_auth import SetupKeyMixin
 
 
@@ -33,11 +34,7 @@ class PasswordFieldsLoadTheRevealScriptTest(SetupKeyMixin, TestCase):
             self.client.get(reverse("core:onboarding-account-email")), "account step")
 
     def test_settings_password_modal(self):
-        user = User.objects.create_superuser("me@example.com", password="pw")
-        self.client.force_login(user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
+        login_client(self.client, User.objects.create_superuser("me@example.com", password="pw"))
         self.assert_reveal_available(
             self.client.get(reverse("core:settings") + "?tab=signin"), "settings")
 

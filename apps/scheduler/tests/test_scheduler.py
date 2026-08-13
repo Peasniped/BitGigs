@@ -2,7 +2,6 @@
 from datetime import time, timedelta
 from unittest import mock
 
-from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -265,16 +264,12 @@ class JobsSettingsTabTests(LoggedInTestCase):
         self.assertEqual(data["hidden_count"], 5)
 
 
-class TaskRetryTests(TestCase):
+class TaskRetryTests(LoggedInTestCase):
     """Retrying a failed queue row — the only route back for work whose origin is
     gone (a calendar CANCEL whose shift was deleted has no shift left to press)."""
 
     def setUp(self):
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
+        super().setUp()
         self.ran = []
         tasks.register("demo.retryable")(lambda payload: self.ran.append(payload))
         self.addCleanup(tasks._HANDLERS.pop, "demo.retryable", None)
@@ -421,17 +416,13 @@ class TaskQueueTests(TestCase):
         )
 
 
-class StuckTaskTests(TestCase):
+class StuckTaskTests(LoggedInTestCase):
     """The watchdog. A task is flipped to RUNNING *before* it runs, so a process
     that dies mid-task leaves a row nothing can touch — not re-claimable, not
     clearable, not retryable. These pin the two ways out of that."""
 
     def setUp(self):
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
+        super().setUp()
         self.abandoned = []
         tasks.register(
             "demo.stuck",

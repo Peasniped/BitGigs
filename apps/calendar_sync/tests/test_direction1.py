@@ -6,7 +6,6 @@ addresses (no DNS), and the fetch is stubbed everywhere a feed would be pulled.
 from datetime import date
 from unittest import mock
 
-from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.test import TestCase
 from django.utils import timezone
@@ -20,6 +19,7 @@ from calendar_sync.services import (
     build_event,
     own_uid,
 )
+from core.testing import LoggedInTestCase
 
 
 def _aware(y, mo, d, h=0, mi=0):
@@ -193,14 +193,10 @@ class EventToCellsTests(TestCase):
         self.assertEqual(cells[1]["start_time"], "00:00")
 
 
-class BusyEndpointTests(TestCase):
+class BusyEndpointTests(LoggedInTestCase):
     def setUp(self):
+        super().setUp()
         cache.clear()
-        self.user = User.objects.create_user("tester", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
         self.sub = CalendarSubscription.objects.create(label="Personal", color="#ff0000")
         self.sub.url = "https://cal.example.com/a.ics"
         self.sub.save()
@@ -267,16 +263,14 @@ class BusyEndpointTests(TestCase):
         self.assertEqual(resp.json()["busy"], [])
 
 
-class SubscriptionCheckViewTests(TestCase):
+class SubscriptionCheckViewTests(LoggedInTestCase):
     """The JSON auto-check endpoint the Calendar tab hits on load."""
 
+    username = "checker"
+
     def setUp(self):
+        super().setUp()
         cache.clear()
-        self.user = User.objects.create_user("checker", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
         self.sub = CalendarSubscription.objects.create(label="Personal", color="#ff0000")
         self.sub.url = "https://cal.example.com/a.ics"
         self.sub.save()
@@ -317,16 +311,14 @@ class SubscriptionCheckViewTests(TestCase):
         self.assertEqual(resp.status_code, 302)
 
 
-class SubscriptionToggleViewTests(TestCase):
+class SubscriptionToggleViewTests(LoggedInTestCase):
     """The planning page's per-calendar sliders persist CalendarSubscription.enabled."""
 
+    username = "toggler"
+
     def setUp(self):
+        super().setUp()
         cache.clear()
-        self.user = User.objects.create_user("toggler", password="pw")
-        self.client.force_login(self.user)
-        session = self.client.session
-        session["onboarding_complete"] = True
-        session.save()
         self.sub = CalendarSubscription.objects.create(
             label="Personal", color="#ff0000", enabled=True
         )
