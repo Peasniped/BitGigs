@@ -2,6 +2,26 @@
 
 BitGigs is an open-source Django web application for tracking work hours, estimating net pay, and managing shifts . built with Danish payroll rules in mind.
 
+## Screenshots
+
+**Dashboard** . the shift you are on right now, what is waiting to be approved, and the month so far across every job.
+
+![BitGigs dashboard showing today's shift, five shifts awaiting approval and month-to-date earnings across four workplaces](docs/screenshots/dashboard.png)
+
+**Planning calendar** . every workplace in one month grid. Solid chips are approved, dashed ones are still planned, and the colour is the workplace.
+
+![Month planning calendar with colour-coded shift chips across four workplaces, approved and planned](docs/screenshots/planning-calendar.png)
+
+**Income analytics** . what you have earned, what is already planned, and what the remaining periods are forecast to pay . each as its own band.
+
+![Income analytics chart in dark mode with actual, planned and projected bands across two years](docs/screenshots/income-analytics.png)
+
+**Workplace** . each job's own page wears that job's accent colour, with its current terms, feriepenge and calendar.
+
+![Workplace detail page in dark mode showing hourly terms, feriepenge breakdown and a month of shifts](docs/screenshots/workplace-detail.png)
+
+BitGigs ships light and dark themes . the first two shots are light, the last two dark.
+
 ## Features
 
 - **Multi-workplace support** . manage multiple jobs, each with its own employment type (hourly or salaried), payroll period, and appearance (custom icons and accent colours).
@@ -60,6 +80,25 @@ python manage.py runserver --settings=bitgigs.settings.local
 ```
 
 Visit `http://127.0.0.1:8000/` in your browser.
+
+### Demo data (optional)
+
+To see the app with something in it . the screenshots above are this dataset .
+fill the database with a generated two-year working life:
+
+```bash
+python manage.py seed_demo_data --settings=bitgigs.settings.local
+```
+
+Six workplaces, hourly and salaried, contracts that start, end and hand over,
+mid-contract raises and an offset payroll period, with shifts running from ~19
+months ago to the end of next month . so there is real history behind today,
+planned work ahead, and forecast months after that. Sign in as
+`demo@bitgigs.dk` / `Screenshot2026!`.
+
+**It replaces everything in the database it is pointed at**, so it asks first
+and prints which database that is. Point it somewhere harmless, not at a
+database you care about.
 
 ### Developing against PostgreSQL (optional)
 
