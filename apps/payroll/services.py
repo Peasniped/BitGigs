@@ -200,6 +200,7 @@ class SalaryEstimate:
     total_pension: Decimal
     employee_atp: Decimal
     employer_atp: Decimal
+    atp_hours: Decimal            # the hours ATP was charged on — see _combine_estimates
     tax_breakdown: TaxBreakdown | None
 
 
@@ -226,6 +227,7 @@ class SalaryEstimateService:
         monthly_salary_override: Decimal | None = None,
     ) -> SalaryEstimate:
         hourly_rate, monthly_salary = terms.get_rate_as_of(as_of)
+        full_monthly_salary = monthly_salary
         if monthly_salary_override is not None:
             monthly_salary = monthly_salary_override
 
@@ -261,9 +263,17 @@ class SalaryEstimateService:
             pension_basis * terms.pension_employer_percent / Decimal("100")
         ).quantize(TWO_PLACES, ROUND_HALF_UP)
 
+        # ATP is charged on the month's *hours*. Hourly pay already reports its
+        # own share; a salaried term set notionally works a full month, so a
+        # prorated salary has to prorate the hours by the same ratio — otherwise
+        # each half of a split month claims a whole month of ATP and
+        # _combine_estimates adds them up to two.
         if terms.employment_type == ContractTermSet.EmploymentType.SALARIED:
             weekly = terms.expected_weekly_hours or Decimal("37")
-            atp_hours = weekly_to_monthly_hours(weekly).quantize(TWO_PLACES)
+            atp_hours = weekly_to_monthly_hours(weekly)
+            if monthly_salary_override is not None and full_monthly_salary:
+                atp_hours = atp_hours * monthly_salary_override / full_monthly_salary
+            atp_hours = atp_hours.quantize(TWO_PLACES)
         else:
             atp_hours = total_hours
         employee_atp, employer_atp = ATPService.get_contributions(atp_hours, as_of=as_of)
@@ -301,6 +311,7 @@ class SalaryEstimateService:
             total_pension=employee_pension + employer_pension,
             employee_atp=employee_atp,
             employer_atp=employer_atp,
+            atp_hours=atp_hours,
             tax_breakdown=tax_breakdown,
         )
 
@@ -482,11 +493,14 @@ class SalaryEstimateService:
         money fields are summed; rate/config fields come from the last (latest)
         term set, which is the representative rate for the period.
 
-        **Tax is recomputed once on the combined bases**, never summed from the
-        per-term-set breakdowns. The monthly personfradrag is subtracted once per
-        call to TaxCalculationService.calculate, so adding up two term sets'
-        breakdowns deducted it twice — understating A-skat and overstating net on
-        every mid-period raise (and every mid-period start/end).
+        **Tax and ATP are both recomputed once on the combined bases**, never
+        summed from the per-term-set figures — they are per-*month* quantities,
+        so adding two term sets' up charges the month twice. For tax that is the
+        monthly personfradrag, subtracted once per call to
+        TaxCalculationService.calculate (understating A-skat and overstating net);
+        for ATP it is the whole contribution, and its brackets are threshold-based
+        (39/78/117 h/month), so two 60-hour term sets are one 120-hour month in a
+        higher bracket, not two in a lower one.
         """
         if len(ests) == 1:
             return ests[0]
@@ -495,6 +509,11 @@ class SalaryEstimateService:
         def s(attr: str) -> Decimal:
             return sum((getattr(e, attr) for e in ests), Decimal("0"))
 
+        atp_hours = s("atp_hours")
+        employee_atp, employer_atp = ATPService.get_contributions(
+            atp_hours, as_of=as_of,
+        )
+
         tax_breakdown = None
         if all(e.tax_breakdown for e in ests):
             tax_breakdown = TaxCalculationService.calculate(
@@ -502,7 +521,7 @@ class SalaryEstimateService:
                 as_of=as_of,
                 tax_card_type=SalaryEstimateService._card_at(ests, as_of),
                 employee_pension=s("employee_pension"),
-                employee_atp=s("employee_atp"),
+                employee_atp=employee_atp,
             )
 
         return SalaryEstimate(
@@ -522,8 +541,9 @@ class SalaryEstimateService:
             employee_pension=s("employee_pension"),
             employer_pension=s("employer_pension"),
             total_pension=s("total_pension"),
-            employee_atp=s("employee_atp"),
-            employer_atp=s("employer_atp"),
+            employee_atp=employee_atp,
+            employer_atp=employer_atp,
+            atp_hours=atp_hours,
             tax_breakdown=tax_breakdown,
         )
 

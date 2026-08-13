@@ -2,19 +2,6 @@
 # NU     --------------------------------------------------------
 
 
-## Polish
-
-### Phase 9: BUG — ATP counted once per term set on a mid-period raise
-*(Found while fixing the personfradrag double-count in v0.26.2 — same shape, deliberately left for its own commit.)*
-- `SalaryEstimateService._combine_estimates` now recomputes **tax** once on the combined bases, but it still **sums `employee_atp`/`employer_atp`** across term sets. ATP is a *per-month* contribution, so a month holding two term sets contributes it twice (~99 kr employee each) → AM-basis too low → **net understated by ~57 kr/month**.
-- Opposite direction and ~25× smaller than the personfradrag bug, which is why it was visible only once that one was fixed.
-- Salaried is the clear case: `estimate` derives `atp_hours` from `expected_weekly_hours` **without prorating**, so each half of a split month claims a full month of ATP hours.
-- Hourly is subtler: summing per-term-set ATP is also wrong because the brackets are threshold-based (39/78/117 h/month) — two 60-hour term sets are one 120-hour month, a higher bracket, not two of the lower one.
-- Right fix: carry `atp_hours` on `SalaryEstimate` and have `_combine_estimates` re-run `ATPService.get_contributions` **once** on the summed hours (and prorate the salaried hours by covered days), mirroring what was done for tax.
-- Pinned indirectly today: `payroll/tests/test_personfradrag.py` asserts against the estimate's *own* `employee_atp` rather than a hardcoded net, so those tests stay honest when this is fixed.
-
-
-
 ## Platform creation
 
 - Make the basis of this app into a base platform such that other Bit-apps can be made with a similar visual identity and user experience and the same deep set of features and integrations.
