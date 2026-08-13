@@ -25,8 +25,8 @@ if "test" in sys.argv:
     # unparseable feed, a job that raises), and each one logs its traceback. Left
     # on, that buries the actual test results. assertLogs() is unaffected — it
     # installs its own handler on the logger under test — so nothing that checks
-    # log output loses coverage. Set DJANGO_LOG_LEVEL to watch them anyway.
-    if not os.environ.get("DJANGO_LOG_LEVEL"):
+    # log output loses coverage. Set LOG_LEVEL to watch them anyway.
+    if not (os.environ.get("LOG_LEVEL") or os.environ.get("DJANGO_LOG_LEVEL")):
         LOGGING["handlers"]["console"]["level"] = "CRITICAL"
 
 # A dev checkout often keeps a db.sqlite3.bak with real data pointed at the same

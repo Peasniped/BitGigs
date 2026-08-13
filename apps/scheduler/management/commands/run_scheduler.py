@@ -103,7 +103,7 @@ class Command(BaseCommand):
                 logger.exception("Scheduler tick failed")
             self._stop.wait(tick)
 
-        self.stdout.write(self.style.WARNING("Scheduler stopped."))
+        logger.info("Scheduler stopped.")
 
     # ── helpers ──────────────────────────────────────────────────────────────
 
@@ -124,17 +124,30 @@ class Command(BaseCommand):
         self._stop.set()
 
     def _announce(self, tick):
-        self.stdout.write(
-            self.style.SUCCESS(f"Scheduler started (tick {tick:g}s). Registered jobs:")
+        """Report the schedule through **logging**, not self.stdout.
+
+        This is a long-lived daemon: its output is read in `docker compose logs`
+        and journald next to everything else the app logs, so a bare stdout line
+        with no timestamp, level or source is the odd one out. (The `--once`
+        branch keeps writing to stdout — that one is a one-shot CLI report to
+        whoever typed the command.)
+        """
+        rows = list(ScheduledJob.objects.all())
+        logger.info(
+            "Scheduler started (tick %gs) — %d job(s) registered.", tick, len(rows)
         )
-        rows = ScheduledJob.objects.all()
-        if not rows:
-            self.stdout.write("  (none)")
+        now = timezone.now()
         for row in rows:
             state = "on" if row.enabled else "OFF"
-            nxt = (
-                timezone.localtime(row.next_run_at).strftime("%Y-%m-%d %H:%M")
-                if row.next_run_at
-                else "—"
+            if not row.next_run_at:
+                nxt = "—"
+            elif row.enabled and row.next_run_at <= now:
+                # The slot passed while nothing was running. The first tick picks
+                # it up (due_jobs takes anything overdue), so report that rather
+                # than a date in the past, which reads as a job that never fires.
+                nxt = "overdue — running now"
+            else:
+                nxt = timezone.localtime(row.next_run_at).strftime("%Y-%m-%d %H:%M")
+            logger.info(
+                "  [%3s] %s — %s, next %s", state, row.key, row.cadence_label, nxt
             )
-            self.stdout.write(f"  [{state:>3}] {row.key} — {row.cadence_label}, next {nxt}")

@@ -624,6 +624,23 @@ a.navbar-brand:hover span { color: var(--primary); }
               var(--info) 100%);
   box-shadow: 0 0 10px 0 rgba(var(--info-rgb), .6);
 }
+/* The two hour counters above the bar read as plain card values at rest; hovering
+   the card lights each one in the colour of the segment it feeds, carrying the
+   same glow as that segment (as a text-shadow rather than a box-shadow). So the
+   reading order of the card matches the reading order of the bar, and the whole
+   card lights together — this replaces the blanket --primary the other stat
+   cards get from .stat-card:hover .stat-card__value. */
+.goal-count {
+  transition: color var(--transition-base), text-shadow var(--transition-base);
+}
+.stat-card:hover .goal-count--approved {
+  color: var(--success);
+  text-shadow: 0 0 10px rgba(var(--success-rgb), .65);
+}
+.stat-card:hover .goal-count--planned {
+  color: var(--info);
+  text-shadow: 0 0 10px rgba(var(--info-rgb), .6);
+}
 
 /* ---- Workplace cards on dashboard ---- */
 .workplace-card {

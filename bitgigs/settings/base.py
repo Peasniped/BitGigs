@@ -220,10 +220,16 @@ ICON_PRUNE_AUTO = True
 
 _LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
-# Level for BitGigs' own loggers. A typo must not stop the app from booting, so
-# an unrecognised value falls back to the default rather than raising out of
-# dictConfig (same rule as OIDC_PROVIDER_COLOR).
-LOG_LEVEL = os.environ.get("DJANGO_LOG_LEVEL", "INFO").upper()
+# Level for BitGigs' own loggers and Django's. A typo must not stop the app from
+# booting, so an unrecognised value falls back to the default rather than raising
+# out of dictConfig (same rule as OIDC_PROVIDER_COLOR).
+#
+# DJANGO_LOG_LEVEL is the old name for this, still honoured so that upgrading
+# doesn't silently drop an existing deployment back to INFO — the quiet kind of
+# regression nobody notices until they need the logs.
+LOG_LEVEL = (
+    os.environ.get("LOG_LEVEL") or os.environ.get("DJANGO_LOG_LEVEL") or "INFO"
+).upper()
 if LOG_LEVEL not in _LOG_LEVELS:
     LOG_LEVEL = "INFO"
 
@@ -237,12 +243,14 @@ LOGGING = {
     # module scope) must keep working — disabling them is the classic way to
     # silence exactly the app code this config exists to capture.
     "disable_existing_loggers": False,
+    # Same layout for both sinks (see core/logformat.py); they differ only in
+    # whether the severity is coloured. The console decides that for itself from
+    # the stream — a terminal gets colour, a pipe into `docker compose logs` or
+    # journald gets none — while the file is never coloured, since escape codes
+    # in a log file are just noise every later grep has to strip.
     "formatters": {
-        "bitgigs": {
-            "format": "{asctime} {levelname:<8} {name}: {message}",
-            "datefmt": "%Y-%m-%d %H:%M:%S",
-            "style": "{",
-        },
+        "bitgigs": {"()": "core.logformat.BitGigsFormatter", "color": False},
+        "bitgigs_console": {"()": "core.logformat.BitGigsFormatter"},
     },
     "handlers": {
         # Deliberately unfiltered: Django's own `console` handler carries a
@@ -250,7 +258,7 @@ LOGGING = {
         # production. Redefining the name replaces that one.
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "bitgigs",
+            "formatter": "bitgigs_console",
         },
     },
     # Third-party libraries inherit this: warnings and worse, nothing routine.
@@ -260,7 +268,19 @@ LOGGING = {
         # handler and print twice. Dropping mail_admins with it is intended —
         # BitGigs sets no ADMINS, and its mail backend needs a configured
         # connection, so a 500 must never try to mail its own traceback out.
-        "django": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        #
+        # This follows LOG_LEVEL like the app loggers do. It used to be
+        # pinned at INFO, which made the variable look broken: django.server and
+        # django.utils.autoreload are *the* lines a dev sees at startup, so
+        # setting the level to WARNING appeared to change nothing at all.
+        "django": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        # …with one exception. Django logs every SQL query on this logger at
+        # DEBUG, which is a different kind of firehose from "more detail about
+        # what the app is doing" — it would bury exactly the lines someone set
+        # LOG_LEVEL=DEBUG to read. It stays at INFO regardless of the
+        # variable; there is deliberately no env var to turn it on (add one if a
+        # real need turns up, rather than making DEBUG mean two things).
+        "django.db.backends": {"level": "INFO", "propagate": True},
         # One logger per app, so `logging.getLogger(__name__)` in e.g.
         # calendar_sync/invites.py lands under the app's own level.
         **{

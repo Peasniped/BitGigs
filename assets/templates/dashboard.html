@@ -59,7 +59,9 @@
   <div class="col-6 col-md-3">
     <div class="stat-card" style="position:relative;overflow:hidden;padding-bottom: 1.0 rem;">
       <div class="stat-card__label">Hour Goal</div>
-      <div class="stat-card__value" style="font-size:1.05rem;"><span id="stat-planned-hours">{{ total_planned_hours|dk }}</span>h <small class="stat-card__sub">+</small> <span id="stat-approved-hours">{{ total_approved_hours|dk }}</span>h <small class="stat-card__sub">/ <span id="stat-goal-range">{{ total_goal_min|dk:0 }}{% if total_goal_max %}.{{ total_goal_max|dk:0 }}{% endif %}</span>h</small></div>
+      {% comment %} Order matches the bar below: approved first, then planned. The
+      goal-count spans light in their segment's colour on card hover — see style.css. {% endcomment %}
+      <div class="stat-card__value" style="font-size:1.05rem;"><span class="goal-count goal-count--approved"><span id="stat-approved-hours">{{ total_approved_hours|dk }}</span>h</span> <small class="stat-card__sub">+</small> <span class="goal-count goal-count--planned"><span id="stat-planned-hours">{{ total_planned_hours|dk }}</span>h</span> <small class="stat-card__sub">/ <span id="stat-goal-range">{{ total_goal_min|dk:0 }}{% if total_goal_max %}.{{ total_goal_max|dk:0 }}{% endif %}</span>h</small></div>
       <div class="stat-card__sub" style="visibility:hidden;">&nbsp;</div>
       <div class="goal-bar" style="position:absolute;bottom:0;left:0;right:0;height:10px;background:var(--border);display:flex;">
         <div id="goal-bar-approved" class="goal-bar__seg goal-bar__seg--approved" style="width:{{ goal_approved_pct }}%;"

@@ -125,7 +125,7 @@ The project ships with three settings modules under `bitgigs/settings/`:
 | `POSTGRES_PASSWORD` | *(empty)* | PostgreSQL password |
 | `POSTGRES_HOST` | `localhost` | PostgreSQL host |
 | `POSTGRES_PORT` | `5432` | PostgreSQL port |
-| `DJANGO_LOG_LEVEL` | `INFO` | Level for BitGigs' own loggers. An unrecognised value falls back to `INFO` |
+| `LOG_LEVEL` | `INFO` | Level for BitGigs' own loggers and Django's. An unrecognised value falls back to `INFO`. (`DJANGO_LOG_LEVEL` is the old name and still works) |
 | `DJANGO_LOG_FILE` | *(empty)* | Also write to this file (rotated at 2 MB, 5 kept). Relative paths resolve against the repo root |
 
 ### Logging
@@ -134,11 +134,28 @@ BitGigs logs to the console, because both supported deployments already capture
 it: `docker compose logs -f app` for the container, `journalctl -u bitgigs` for
 the systemd units. Nothing extra is needed to read the log.
 
-Its own apps log at `DJANGO_LOG_LEVEL` (default `INFO`); third-party libraries
-are held at `WARNING` so their routine chatter doesn't bury it. Set
-`DJANGO_LOG_FILE` as well if you want a file on disk — under Docker, point it
-inside the `instance` volume (`DJANGO_LOG_FILE=instance/bitgigs.log`) so it
-survives a container replacement.
+Lines look like this, with the severity coloured on a terminal (cyan debug,
+green info, yellow warning, red error and worse) and left plain when the output
+is a pipe or a file:
+
+```
+2026-08-13 09:45:47  INFO      [core.apps]               -> Using Loglevel: INFO (console)
+2026-08-13 09:45:48  WARNING   [core.views]              -> Failed sign-in for admin@example.dk from 10.0.0.4
+2026-08-13 09:45:52  ERROR     [workplaces.services]     -> Could not prune orphaned icons
+```
+
+The severity and the source name are both padded to a fixed width, so the
+messages line up into one column however long the source names are.
+
+`LOG_LEVEL` (default `INFO`) covers BitGigs' own apps *and* Django's own loggers
+— `django.server`'s request lines, the autoreloader — so `WARNING` gives a quiet
+startup and `DEBUG` a detailed one. Third-party libraries are held at `WARNING`
+either way, so their routine chatter never buries it, and SQL logging is the one
+thing `DEBUG` does *not* switch on (a line per query would bury everything else).
+Whichever level is in force is logged at that level on startup, so you can always
+see which one took. Set `DJANGO_LOG_FILE` as well if you want a file on disk —
+under Docker, point it inside the `instance` volume
+(`DJANGO_LOG_FILE=instance/bitgigs.log`) so it survives a container replacement.
 
 Worth knowing what lands there: failed and successful sign-ins (with the client
 address), mail sends that the server refused, a stored secret that can no longer

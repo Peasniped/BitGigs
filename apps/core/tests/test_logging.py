@@ -7,6 +7,8 @@ noise does not — plus the sign-in trail, which is the one thing a self-hosted
 install on the open internet really wants recorded.
 """
 import logging
+import re
+from unittest import mock
 
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
@@ -67,6 +69,151 @@ class LoggingConfigTests(TestCase):
         """`django` has its own handler, so it must not also propagate to root —
         that would print every framework message twice."""
         self.assertFalse(logging.getLogger("django").propagate)
+
+    def test_django_logger_follows_the_configured_level(self):
+        """django.server and django.utils.autoreload are *the* lines a dev sees
+        at startup. While `django` was pinned at INFO, turning LOG_LEVEL down
+        changed nothing visible and the variable looked broken."""
+        from django.conf import settings
+
+        for name in ("django", "django.server", "django.utils.autoreload"):
+            with self.subTest(logger=name):
+                self.assertEqual(
+                    logging.getLogger(name).getEffectiveLevel(),
+                    getattr(logging, settings.LOG_LEVEL),
+                )
+
+    def test_sql_logging_is_not_swept_up_by_debug(self):
+        """django.db.backends logs every query at DEBUG. That firehose would bury
+        the app lines LOG_LEVEL=DEBUG was set to read, so it stays at INFO
+        whatever the variable says."""
+        self.assertEqual(
+            logging.getLogger("django.db.backends").getEffectiveLevel(), logging.INFO
+        )
+
+    def test_log_level_announcement_is_emitted_at_that_level(self):
+        """The startup line has to survive whatever level is configured — logging
+        it at a fixed INFO would hide it exactly when someone set WARNING to check
+        the setting took."""
+        from django.conf import settings
+
+        from core.apps import _announce_log_level
+
+        with self.assertLogs("core.apps", level=settings.LOG_LEVEL) as captured:
+            _announce_log_level()
+        self.assertEqual(len(captured.records), 1)
+        self.assertEqual(captured.records[0].levelname, settings.LOG_LEVEL)
+        self.assertIn(f"Using Loglevel: {settings.LOG_LEVEL}", captured.output[0])
+
+
+class LogFormatTests(TestCase):
+    """core/logformat.py — the line layout and the colour on its severity."""
+
+    def _record(self, level=logging.INFO, msg="hello"):
+        return logging.LogRecord("core.demo", level, "demo.py", 7, msg, (), None)
+
+    def test_layout(self):
+        from core.logformat import BitGigsFormatter
+
+        line = BitGigsFormatter(color=False).format(self._record())
+        # <time> <severity> [<source>] -> <message>
+        self.assertRegex(
+            line, r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\s+INFO\s+\[core\.demo\]\s+-> hello$"
+        )
+
+    def test_columns_align_across_records(self):
+        """The whole point of padding both columns: the messages form one column
+        down the page rather than each starting wherever its source name ended."""
+        from core.logformat import BitGigsFormatter
+
+        fmt = BitGigsFormatter(color=False)
+        lines = [
+            fmt.format(logging.LogRecord(name, logging.INFO, "d.py", 1, "hello", (), None))
+            for name in ("core.apps", "django.utils.autoreload", "scheduler")
+        ]
+        starts = {line.index("-> hello") for line in lines}
+        self.assertEqual(len(starts), 1, f"messages start at differing columns: {lines}")
+
+    def test_an_overlong_source_name_still_renders(self):
+        """Longer than SOURCE_WIDTH costs that line its alignment, but must never
+        truncate the name or crash on a negative pad."""
+        from core.logformat import BitGigsFormatter
+
+        name = "a.very.long.logger.name.that.exceeds.the.column"
+        record = logging.LogRecord(name, logging.INFO, "d.py", 1, "hello", (), None)
+        line = BitGigsFormatter(color=False).format(record)
+        self.assertIn(f"[{name}] -> hello", line)
+
+    def test_each_severity_gets_its_own_colour(self):
+        from core.logformat import LEVEL_COLORS, RESET, BitGigsFormatter
+
+        fmt = BitGigsFormatter(color=True)
+        expected = {
+            logging.DEBUG: "36",      # cyan
+            logging.INFO: "32",       # green
+            logging.WARNING: "33",    # yellow
+            logging.ERROR: "31",      # red
+            logging.CRITICAL: "1;31",  # bold red
+        }
+        for level, code in expected.items():
+            with self.subTest(level=logging.getLevelName(level)):
+                self.assertEqual(LEVEL_COLORS[level], f"\033[{code}m")
+                line = fmt.format(self._record(level))
+                self.assertIn(f"\033[{code}m", line)
+                self.assertIn(RESET, line)
+
+    def test_severity_column_stays_aligned_when_coloured(self):
+        """The escape codes have no width on screen but full width to
+        str.format, so padding a *coloured* string indents each level
+        differently. Padding happens first; stripping the codes must therefore
+        give back exactly the uncoloured line."""
+        from core.logformat import BitGigsFormatter
+
+        plain = BitGigsFormatter(color=False)
+        coloured = BitGigsFormatter(color=True)
+        for level in (logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR):
+            with self.subTest(level=logging.getLevelName(level)):
+                record = self._record(level)
+                stripped = re.sub(r"\033\[[0-9;]*m", "", coloured.format(record))
+                self.assertEqual(stripped, plain.format(record))
+
+    def test_source_name_is_purple_but_its_brackets_are_not(self):
+        """The brackets are punctuation holding the name, not part of it."""
+        from core.logformat import SOURCE_COLOR, RESET, BitGigsFormatter
+
+        line = BitGigsFormatter(color=True).format(self._record())
+        self.assertEqual(SOURCE_COLOR, "\033[35m")
+        self.assertIn(f"[{SOURCE_COLOR}core.demo{RESET}]", line)
+
+    def test_colour_never_leaks_into_a_second_handler(self):
+        """One record is handed to every handler in turn. The colour lives on
+        derived attributes rather than on levelname/name, or the file sink would
+        inherit whatever the console formatter just wrote."""
+        from core.logformat import BitGigsFormatter
+
+        record = self._record(logging.WARNING)
+        BitGigsFormatter(color=True).format(record)
+        self.assertEqual(record.levelname, "WARNING")
+        self.assertEqual(record.name, "core.demo")
+        self.assertNotIn("\033", BitGigsFormatter(color=False).format(record))
+
+    def test_non_tty_streams_get_no_escape_codes(self):
+        """A pipe into `docker compose logs` or journald, and the file handler,
+        must never receive escape sequences — every later grep would have to
+        account for them."""
+        import io
+
+        from core.logformat import BitGigsFormatter
+
+        fmt = BitGigsFormatter()  # auto-detect
+        fmt._color = None
+        with mock.patch("core.logformat.sys.stderr", io.StringIO()):
+            self.assertFalse(fmt.uses_color())
+
+    def test_file_handler_is_configured_without_colour(self):
+        from django.conf import settings
+
+        self.assertIs(settings.LOGGING["formatters"]["bitgigs"]["color"], False)
 
 
 class SignInLoggingTests(TestCase):
