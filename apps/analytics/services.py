@@ -202,10 +202,46 @@ class MonthRow:
 
 
 @dataclass
+class HistoricAverage:
+    """What a workplace actually averaged over the *selected* range.
+
+    Distinct from the trailing average, which is anchored at today and exists to
+    feed the forecast: a contract that ended eleven months ago has no recent
+    periods at all, so the trailing window comes back empty and reports 0 — which
+    reads as "averaged zero hours" rather than "nothing recent to average". This
+    figure is scoped to the range on screen instead, so a finished job describes
+    the months it *was* worked.
+
+    ``has_data`` is the point of the dataclass: an empty window must render as
+    "—", never as a confident zero. It is also False for a job whose first period
+    has not closed yet, which the trailing average got wrong the same way.
+    """
+
+    monthly: Decimal = Decimal("0")
+    weekly: Decimal = Decimal("0")
+    periods: int = 0
+    first: date | None = None
+    last: date | None = None
+
+    @property
+    def has_data(self) -> bool:
+        return self.periods > 0
+
+
+@dataclass
 class WorkplaceProjection:
     workplace: Workplace
     trailing_avg_monthly_hours: Decimal
     trailing_avg_weekly_hours: Decimal
+    historic: HistoricAverage = field(default_factory=HistoricAverage)
+    # Whether a forecast means anything here — a contract that has ended has
+    # nothing to project, so its projection figure is suppressed rather than
+    # printed as 0 (the same mistake in the other direction).
+    has_projection: bool = False
+    # …and whether there is any history to base one on. A job that started this
+    # month has no closed period yet, so its trailing window is empty and
+    # averages to 0 — "not enough history", not "we forecast nothing".
+    has_projection_basis: bool = False
     months: list[MonthRow] = field(default_factory=list)
     year_gross: Decimal = Decimal("0")
     year_net: Decimal = Decimal("0")
@@ -341,12 +377,75 @@ class AnalyticsService:
         # Only periods where the contract was actually active count. Periods
         # before the workplace was even a job would otherwise sit at 0 hours
         # and drag the average right down for the first few months of work.
-        hours = [
+        return cls._aggregate(cls._trailing_hours(workplace, n_months, ref), method)
+
+    @classmethod
+    def _trailing_hours(
+        cls, workplace: Workplace, n_months: int, ref: date,
+    ) -> list[Decimal]:
+        """Hours from the trailing window, with periods the contract wasn't
+        active in dropped — periods before the job existed would otherwise sit at
+        0 and drag a new job's average down for its first few months.
+
+        The list is exposed rather than only its average because *empty* is
+        meaningful: it means the window had nothing to learn from, which is not
+        the same as an average of zero.
+        """
+        return [
             _shift_hours_in_period(workplace, ps, pe)
             for (_y, _m, ps, pe) in cls._trailing_periods(workplace, n_months, ref)
             if workplace.contracts_in_period(ps, pe)
         ]
-        return cls._aggregate(hours, method)
+
+    @staticmethod
+    def _closed_active_periods(
+        workplace: Workplace, start: date, end: date, ref: date,
+    ) -> list[tuple[int, int, date, date]]:
+        """Every payroll period between ``start`` and ``end`` that has closed
+        before ``ref`` and had a contract active, oldest first.
+
+        Closed-ness is tested on the period's own end date for the same reason
+        ``_trailing_periods`` does it: an offset period closes on its own
+        schedule, not the calendar month's. The still-running period is excluded
+        — counting a half-finished month would make every average sag mid-period
+        and recover by payday, which is movement with no meaning behind it.
+        """
+        out: list[tuple[int, int, date, date]] = []
+        y, m = start.year, start.month
+        while (y, m) <= (end.year, end.month):
+            _terms, ps, pe = _period_bounds(workplace, y, m)
+            if pe < ref and workplace.contracts_in_period(ps, pe):
+                out.append((y, m, ps, pe))
+            y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+        return out
+
+    @classmethod
+    def historic_average_hours(
+        cls, workplace: Workplace, start: date, end: date, ref: date | None = None,
+    ) -> HistoricAverage:
+        """The workplace's average over the closed periods inside [start, end].
+
+        Deliberately a **plain mean**, not the user's ``projection_method``: this
+        describes months that have already happened, and an exponential moving
+        average is a forecasting tool — weighting the last few periods higher
+        would make a figure labelled as the selected period's average mostly
+        report its final months. The EMA still drives the projection, which is
+        what that setting is for.
+        """
+        ref = ref or timezone.localdate()
+        periods = cls._closed_active_periods(workplace, start, end, ref)
+        if not periods:
+            return HistoricAverage()
+
+        hours = [_shift_hours_in_period(workplace, ps, pe) for (_y, _m, ps, pe) in periods]
+        monthly = cls._aggregate(hours, "avg")
+        return HistoricAverage(
+            monthly=monthly,
+            weekly=(monthly / WEEKS_PER_MONTH).quantize(TWO_PLACES, ROUND_HALF_UP),
+            periods=len(periods),
+            first=periods[0][2],
+            last=periods[-1][3],
+        )
 
     # ------------------------------------------------------------------
     # Yearly projection
@@ -415,6 +514,16 @@ class AnalyticsService:
                 workplace=wp,
                 trailing_avg_monthly_hours=trailing_avg,
                 trailing_avg_weekly_hours=weekly_avg,
+                historic=cls.historic_average_hours(wp, start, end, ref=today),
+                # A forecast only means something while there is still a contract
+                # to work under — on or after today, anywhere in the range.
+                has_projection=any(
+                    pe >= today and wp.contracts_in_period(ps, pe)
+                    for (_t, ps, pe) in (_period_bounds(wp, y, m) for (y, m) in months)
+                ),
+                has_projection_basis=bool(
+                    cls._trailing_hours(wp, trailing_months, today)
+                ),
             )
 
             # Each period projects from its *own* trailing window, so a projection

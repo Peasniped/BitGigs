@@ -158,14 +158,18 @@ class AnalyticsView(View):
         # Year picker — only years with data (plus current + selected)
         year_options = _data_years(today, year)
 
-        # Combined trailing average across selected workplaces
+        # Combined averages across selected workplaces. The summary cards report
+        # the *historic* figure, so they describe the range on screen rather than
+        # a window anchored at today — a job that ended inside the range would
+        # otherwise contribute 0 and drag the total below what was worked.
         combined_avg_monthly = sum(
-            (wp.trailing_avg_monthly_hours for wp in projection.workplaces),
-            Decimal("0"),
+            (wp.historic.monthly for wp in projection.workplaces), Decimal("0"),
         )
         combined_avg_weekly = sum(
-            (wp.trailing_avg_weekly_hours for wp in projection.workplaces),
-            Decimal("0"),
+            (wp.historic.weekly for wp in projection.workplaces), Decimal("0"),
+        )
+        combined_periods = max(
+            (wp.historic.periods for wp in projection.workplaces), default=0,
         )
 
         # Distribution chart datasets: each workplace contributes a stacked
@@ -216,6 +220,7 @@ class AnalyticsView(View):
             "year_options": year_options,
             "combined_avg_monthly": combined_avg_monthly,
             "combined_avg_weekly": combined_avg_weekly,
+            "combined_periods": combined_periods,
             "today": today,
             "distribution_datasets": distribution_datasets,
             "workplaces_view": workplaces_view,

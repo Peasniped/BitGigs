@@ -155,14 +155,14 @@
     <div class="stat-card">
       <div class="stat-card__label">Avg hours / month</div>
       <div class="stat-card__value">{{ combined_avg_monthly|dk:1 }} <small class="stat-card__sub">h</small></div>
-      <div class="stat-card__sub">Across selected</div>
+      <div class="stat-card__sub">Selected period</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="stat-card">
       <div class="stat-card__label">Avg hours / week</div>
       <div class="stat-card__value">{{ combined_avg_weekly|dk:1 }} <small class="stat-card__sub">h</small></div>
-      <div class="stat-card__sub">{{ method|upper }} · {{ trailing_months }} mo</div>
+      <div class="stat-card__sub">{{ combined_periods }} closed period{{ combined_periods|pluralize }}</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
@@ -222,8 +222,24 @@
       <div class="flex-grow-1">
         <div class="fw-semibold">{{ wp.workplace.name }}</div>
         <div class="text-muted" style="font-size:0.78rem;">
-          Avg {{ wp.trailing_avg_monthly_hours|dk:1 }} h/mo
-          ({{ wp.trailing_avg_weekly_hours|dk:1 }} h/wk)
+          {% if wp.historic.has_data %}
+            <span title="Plain average of the {{ wp.historic.periods }} payroll period{{ wp.historic.periods|pluralize }} that closed between {{ wp.historic.first|date:'j M Y' }} and {{ wp.historic.last|date:'j M Y' }}.">
+              Historic avg {{ wp.historic.monthly|dk:1 }} h/mo
+              ({{ wp.historic.weekly|dk:1 }} h/wk)
+            </span>
+          {% else %}
+            <span title="No payroll period inside the selected range has closed with an active contract yet.">Historic avg —</span>
+          {% endif %}
+          {% if wp.has_projection and wp.has_projection_basis %}
+            ·
+            <span title="Basis for the projected months: {{ method|upper }} over the last {{ trailing_months }} closed period{{ trailing_months|pluralize }}.">
+              {{ method|upper }} projection {{ wp.trailing_avg_monthly_hours|dk:1 }} h/mo
+            </span>
+          {% elif wp.has_projection %}
+            · <span title="No closed payroll period yet, so there is no history to project from.">too new to project</span>
+          {% else %}
+            · <span title="This contract has ended, so there is nothing left to project.">no longer active</span>
+          {% endif %}
         </div>
       </div>
       <div class="text-end small">

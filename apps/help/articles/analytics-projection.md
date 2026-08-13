@@ -66,8 +66,16 @@ before it.
   past month is a fact, not a gap to guess at.
 - Each shift is priced at the rate in force on **its own date**, so a mid-period
   raise pays the old rate before it and the new rate after.
-- **Avg h/mo** on a workplace card looks back at what you actually worked. It's a
-  summary, not the forecast, so it can differ from the projected months below it.
+- A workplace card carries **two** figures, and they answer different questions.
+  **Historic avg** is a plain average of what you actually worked over the closed
+  payroll periods inside the period you've selected — change the filter and it
+  changes with it. **EMA projection** is the basis for the projected months, and
+  looks only at the last few closed periods regardless of the filter. They can
+  differ, and that's fine: one describes, the other forecasts.
+- Where there's nothing to say, the card says so rather than showing a zero. A
+  job whose first period hasn't closed yet reads **too new to project**; one
+  whose contract has ended reads **no longer active**, and keeps its historic
+  average for the months it *was* worked.
 - A period the contract only partly covers gets a **partial** projection — a job
   ending on the 15th projects about half a period.
 - The Actual / Planned / Projected legend entries are **clickable** — use them to
