@@ -2059,13 +2059,26 @@ a.setup-step--started:hover .setup-step__circle { background: var(--warning); bo
   background:var(--primary-tint);
   box-shadow:0 0 0 1.5px var(--primary), 0 4px 12px rgba(var(--primary-rgb),.18);
 }
-.wp-picker-card .all-badge,
+/* The "All workplaces" badge. Deliberately NOT scoped to .wp-picker-card: it is
+   also the avatar on rate history's combined-chart collapse header, where the
+   scoped version left it with no circle at all and the glyph sitting on the
+   baseline instead of centred like the real workplace avatars beside it. */
+.all-badge,
 .wp-picker-card .period-badge {
   width:36px; height:36px; border-radius:50%;
   display:inline-flex; align-items:center; justify-content:center;
-  background:var(--text); color:var(--on-accent); font-weight:700; flex-shrink:0;
+  background:var(--text); color:var(--surface); font-weight:700; flex-shrink:0;
 }
 .wp-picker-card .period-badge { background:var(--primary); }
+/* The badge stays a dark disc in both themes rather than inverting with the
+   surface. Light mode gets that for free from --text; in dark mode --text is
+   near-white, so pairing it with --on-accent (which does not flip) drew a white
+   glyph on a white circle. Sink the disc below the card instead and step the
+   glyph down to muted, so it reads as an icon rather than as a lit chip. */
+[data-bs-theme="dark"] .all-badge {
+  background: var(--canvas);
+  color: var(--text-muted);
+}
 
 .period-card {
   background:var(--surface); border:1.5px solid var(--border); border-radius:0.75rem;
