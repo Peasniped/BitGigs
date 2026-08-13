@@ -5,6 +5,7 @@ from django.test import TestCase
 
 from core.dashboard_service import DashboardDataService
 from core.models import TaxProfile
+from payroll.services import SalaryEstimateService
 from workplaces.models import Workplace, WorkplaceContract, ContractTermSet
 
 
@@ -227,3 +228,95 @@ class SalaryProrationTest(TestCase):
         )
         self.assertEqual(pay.earned_gross, Decimal("70000.00"))
         self.assertEqual(pay.planned_gross, Decimal("0"))
+
+
+class ComputePayDeductionTests(TestCase):
+    """_compute_pay estimates the month once and allocates the earned/planned
+    split out of it. Estimating the halves separately applied the monthly
+    personfradrag to each and overstated net — see
+    payroll.tests.test_personfradrag for the same defect in _combine_estimates.
+    """
+
+    def setUp(self):
+        TaxProfile.objects.create(
+            monthly_deduction=Decimal("4000.00"), tax_percent=Decimal("37.00"),
+            church_tax_percent=Decimal("0.00"), am_bidrag_percent=Decimal("8.00"),
+            effective_from=date(2025, 1, 1),
+        )
+        self.wp = Workplace.objects.create(name="Split Pay Corp")
+        self.contract = WorkplaceContract.objects.create(workplace=self.wp)
+
+    def _hourly(self):
+        return ContractTermSet.objects.create(
+            contract=self.contract, effective_from=date(2025, 6, 1),
+            employment_type=ContractTermSet.EmploymentType.HOURLY,
+            hourly_rate=Decimal("200.00"), weekly_hours_fixed=Decimal("37.00"),
+            payroll_period_start_day=1,
+        )
+
+    def test_hourly_earned_plus_planned_prices_as_one_month(self):
+        """100 approved + 50 planned hours must cost the same tax as 150 hours
+        in one go — it is one month's pay, taxed once."""
+        terms = self._hourly()
+        pay = DashboardDataService._compute_pay(
+            terms, Decimal("100"), Decimal("50"),
+            2025, 6, date(2025, 6, 18), date(2025, 6, 20),
+        )
+        whole = SalaryEstimateService.estimate(
+            terms, Decimal("150"), as_of=date(2025, 6, 18),
+        )
+
+        self.assertEqual(pay.earned_gross + pay.planned_gross, whole.taxable_gross)
+        self.assertEqual(
+            pay.earned_net + pay.planned_net, whole.tax_breakdown.net_pay,
+        )
+
+    def test_hourly_split_matches_the_hours_ratio(self):
+        terms = self._hourly()
+        pay = DashboardDataService._compute_pay(
+            terms, Decimal("100"), Decimal("50"),
+            2025, 6, date(2025, 6, 18), date(2025, 6, 20),
+        )
+        # 100:50 of 30000 gross.
+        self.assertEqual(pay.earned_gross, Decimal("20000.00"))
+        self.assertEqual(pay.planned_gross, Decimal("10000.00"))
+
+    def test_hourly_with_no_planned_hours_is_unchanged(self):
+        terms = self._hourly()
+        pay = DashboardDataService._compute_pay(
+            terms, Decimal("100"), Decimal("0"),
+            2025, 6, date(2025, 6, 18), date(2025, 6, 20),
+        )
+        whole = SalaryEstimateService.estimate(
+            terms, Decimal("100"), as_of=date(2025, 6, 18),
+        )
+        self.assertEqual(pay.earned_net, whole.tax_breakdown.net_pay)
+        self.assertEqual(pay.planned_net, Decimal("0"))
+
+    def test_salaried_mid_month_raise_deducts_once(self):
+        """The gross split is already pinned above; this pins the net, which is
+        what the double deduction moved."""
+        ts_first = ContractTermSet.objects.create(
+            contract=self.contract, effective_from=date(2025, 6, 1),
+            employment_type=ContractTermSet.EmploymentType.SALARIED,
+            monthly_salary=Decimal("60000.00"), weekly_hours_fixed=Decimal("37.00"),
+            payroll_period_start_day=1,
+        )
+        ContractTermSet.objects.create(
+            contract=self.contract, effective_from=date(2025, 6, 21),
+            effective_until=date(2025, 6, 30),
+            employment_type=ContractTermSet.EmploymentType.SALARIED,
+            monthly_salary=Decimal("90000.00"), weekly_hours_fixed=Decimal("37.00"),
+            payroll_period_start_day=1,
+        )
+        pay = DashboardDataService._compute_pay(
+            ts_first, Decimal("0"), Decimal("0"),
+            2025, 6, date(2025, 6, 18), date(2025, 7, 1),
+        )
+        combined = SalaryEstimateService.salaried_month_estimate(
+            self.contract, 2025, 6, as_of=date(2025, 6, 18),
+        )
+
+        self.assertEqual(pay.earned_gross, Decimal("70000.00"))
+        self.assertEqual(pay.earned_net, combined.tax_breakdown.net_pay)
+        self.assertEqual(combined.tax_breakdown.monthly_deduction, Decimal("4000.00"))

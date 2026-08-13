@@ -4,13 +4,14 @@
 
 ## Polish
 
-### Phase 9: BUG — personfradrag counted twice on a mid-period raise
-- `SalaryEstimateService._combine_estimates` (apps/payroll/services.py) sums the *tax breakdown* field by field, including `monthly_deduction`. So when one payroll period holds two term sets (a mid-period raise, or a mid-period start/end), the monthly personfradrag is subtracted once per term set → tax too low → **net pay overstated**.
-- Only bites when two term sets share one period. A single-term-set period returns `ests[0]` untouched and is correct.
-- Affects everything built on it: the dashboard (`_compute_pay`, which for the *hourly* path also estimates earned and planned separately — same double-count), the workplace page, the payslip editor, and analytics' `_compose_row`.
-- The **earned/planned** half of this is already fixed in analytics (v0.23.0): a period is estimated once and the bands allocated from that total, so only the multi-term-set case is left there. The dashboard still splits earned/planned into two estimates.
-- Right fix: combine the *bases* (taxable gross, employee pension, ATP) and run `TaxCalculationService.calculate` **once** on the combined basis, instead of summing per-term-set tax breakdowns. Gross is already correct — it is linear — so only tax/net move.
-- Deliberately left out of the v0.23.0 analytics rework: fixing it changes numbers on three other pages, so it wants its own commit + its own regression tests.
+### Phase 9: BUG — ATP counted once per term set on a mid-period raise
+*(Found while fixing the personfradrag double-count in v0.26.2 — same shape, deliberately left for its own commit.)*
+- `SalaryEstimateService._combine_estimates` now recomputes **tax** once on the combined bases, but it still **sums `employee_atp`/`employer_atp`** across term sets. ATP is a *per-month* contribution, so a month holding two term sets contributes it twice (~99 kr employee each) → AM-basis too low → **net understated by ~57 kr/month**.
+- Opposite direction and ~25× smaller than the personfradrag bug, which is why it was visible only once that one was fixed.
+- Salaried is the clear case: `estimate` derives `atp_hours` from `expected_weekly_hours` **without prorating**, so each half of a split month claims a full month of ATP hours.
+- Hourly is subtler: summing per-term-set ATP is also wrong because the brackets are threshold-based (39/78/117 h/month) — two 60-hour term sets are one 120-hour month, a higher bracket, not two of the lower one.
+- Right fix: carry `atp_hours` on `SalaryEstimate` and have `_combine_estimates` re-run `ATPService.get_contributions` **once** on the summed hours (and prorate the salaried hours by covered days), mirroring what was done for tax.
+- Pinned indirectly today: `payroll/tests/test_personfradrag.py` asserts against the estimate's *own* `employee_atp` rather than a hardcoded net, so those tests stay honest when this is fixed.
 
 
 

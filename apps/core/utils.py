@@ -4,10 +4,12 @@ Shared utilities used across multiple apps.
 import calendar as _calendar
 import re
 from datetime import date, time
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.utils.formats import get_format
 from django.utils.text import slugify as _slugify
+
+_TWO_PLACES = Decimal("0.01")
 
 
 _DK_TRANSLIT = str.maketrans({
@@ -85,6 +87,26 @@ def weekly_to_monthly_hours(weekly_hours: Decimal) -> Decimal:
     Returns the unrounded product; callers quantize as needed.
     """
     return weekly_hours * WEEKS_PER_YEAR / MONTHS_PER_YEAR
+
+
+def allocate_proportionally(total: Decimal, shares: list[Decimal]) -> list[Decimal]:
+    """Split *total* across *shares* in proportion, the last non-zero share taking
+    the rounding remainder so the parts always sum back to *total* exactly.
+
+    Used wherever a figure has to be computed once and then broken out — tax is
+    not linear, so the parts of a payroll period are allocated from the period's
+    single estimate rather than estimated one by one.
+    """
+    basis = sum(shares, Decimal("0"))
+    if basis <= 0:
+        return [Decimal("0") for _ in shares]
+    out = [
+        (total * s / basis).quantize(_TWO_PLACES, ROUND_HALF_UP) if s else Decimal("0")
+        for s in shares
+    ]
+    last = max(i for i, s in enumerate(shares) if s)
+    out[last] += total - sum(out, Decimal("0"))
+    return out
 
 
 def date_spans_overlap(a_start, a_end, b_start, b_end) -> bool:

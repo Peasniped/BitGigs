@@ -184,6 +184,7 @@ class PayrollPeriodService:
 class SalaryEstimate:
     workplace_name: str
     employment_type: str
+    tax_card_type: str
     total_hours: Decimal
     hourly_rate: Decimal | None
     effective_hourly_rate: Decimal | None
@@ -283,6 +284,7 @@ class SalaryEstimateService:
         return SalaryEstimate(
             workplace_name=wp_name,
             employment_type=terms.employment_type,
+            tax_card_type=terms.tax_card_type,
             total_hours=total_hours,
             hourly_rate=hourly_rate,
             effective_hourly_rate=terms.effective_hourly_rate,
@@ -443,10 +445,19 @@ class SalaryEstimateService:
         return cls.salaried_period_lines(contract, *month_bounds(year, month), today)
 
     @staticmethod
-    def _combine_estimates(ests: list[SalaryEstimate]) -> SalaryEstimate:
-        """Sum several per-term-set estimates into one month estimate. Additive
+    def _combine_estimates(
+        ests: list[SalaryEstimate], as_of: date | None = None,
+    ) -> SalaryEstimate:
+        """Sum several per-term-set estimates into one period estimate. Additive
         money fields are summed; rate/config fields come from the last (latest)
-        term set, which is the representative rate for the month."""
+        term set, which is the representative rate for the period.
+
+        **Tax is recomputed once on the combined bases**, never summed from the
+        per-term-set breakdowns. The monthly personfradrag is subtracted once per
+        call to TaxCalculationService.calculate, so adding up two term sets'
+        breakdowns deducted it twice — understating A-skat and overstating net on
+        every mid-period raise (and every mid-period start/end).
+        """
         if len(ests) == 1:
             return ests[0]
         rep = ests[-1]
@@ -456,23 +467,26 @@ class SalaryEstimateService:
 
         tax_breakdown = None
         if all(e.tax_breakdown for e in ests):
-            first = ests[0].tax_breakdown
-
-            def stb(attr: str) -> Decimal:
-                return sum((getattr(e.tax_breakdown, attr) for e in ests), Decimal("0"))
-
-            tax_breakdown = TaxBreakdown(
-                gross=stb("gross"), employee_atp=stb("employee_atp"),
-                employee_pension=stb("employee_pension"), am_basis=stb("am_basis"),
-                am_bidrag=stb("am_bidrag"), income_after_am=stb("income_after_am"),
-                monthly_deduction=stb("monthly_deduction"), taxable_income=stb("taxable_income"),
-                tax_percent=first.tax_percent, church_tax_percent=first.church_tax_percent,
-                a_skat=stb("a_skat"), net_pay=stb("net_pay"),
+            # A raise doesn't change your tax card, so these normally agree. If
+            # they don't, the hovedkort wins: the personfradrag is a monthly
+            # allowance that follows that card, and the period did earn it.
+            card = (
+                "hovedkort"
+                if any(e.tax_card_type == "hovedkort" for e in ests)
+                else rep.tax_card_type
+            )
+            tax_breakdown = TaxCalculationService.calculate(
+                s("taxable_gross"),
+                as_of=as_of,
+                tax_card_type=card,
+                employee_pension=s("employee_pension"),
+                employee_atp=s("employee_atp"),
             )
 
         return SalaryEstimate(
             workplace_name=rep.workplace_name,
             employment_type=rep.employment_type,
+            tax_card_type=rep.tax_card_type,
             total_hours=s("total_hours"),
             hourly_rate=rep.hourly_rate,
             effective_hourly_rate=rep.effective_hourly_rate,
@@ -510,7 +524,7 @@ class SalaryEstimateService:
             )
             for line in lines
         ]
-        return cls._combine_estimates(ests)
+        return cls._combine_estimates(ests, as_of=as_of)
 
     @classmethod
     def salaried_month_totals(

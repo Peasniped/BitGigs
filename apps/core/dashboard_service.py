@@ -10,7 +10,12 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from django.utils import timezone
 
-from core.utils import WEEKS_PER_MONTH, avatar_for_name, month_bounds
+from core.utils import (
+    WEEKS_PER_MONTH,
+    allocate_proportionally,
+    avatar_for_name,
+    month_bounds,
+)
 from payroll.services import PayrollPeriodService, SalaryEstimateService
 from shifts.models import Shift, PlannedShift
 from workplaces.models import Workplace, ContractTermSet
@@ -183,42 +188,75 @@ class DashboardDataService:
         active. Days on or before *today* are earned, later days planned — so a
         contract starting mid-month shows its prorated salary as planned until
         each day arrives (Månedsløn × lønnede dage / dage i måneden).
+
+        Either way the month is estimated **once** and the two halves allocated
+        from that total by gross share. Tax is not linear — the monthly
+        personfradrag comes off once per estimate — so estimating earned and
+        planned separately (or one term set at a time) deducted it twice and
+        overstated net.
         """
         pay = PayBreakdown()
         if terms is None:
             return pay
 
         if terms.employment_type == ContractTermSet.EmploymentType.HOURLY:
-            earned = SalaryEstimateService.estimate(terms, actual_hours, as_of=tax_pull_date)
-            pay.earned_gross = earned.taxable_gross
-            pay.earned_net = earned.tax_breakdown.net_pay if earned.tax_breakdown else earned.taxable_gross
-            if planned_hours:
-                planned = SalaryEstimateService.estimate(terms, planned_hours, as_of=tax_pull_date)
-                pay.planned_gross = planned.taxable_gross
-                pay.planned_net = planned.tax_breakdown.net_pay if planned.tax_breakdown else planned.taxable_gross
+            est = SalaryEstimateService.estimate(
+                terms, actual_hours + planned_hours, as_of=tax_pull_date,
+            )
+            total_gross = est.taxable_gross
+            total_net = est.tax_breakdown.net_pay if est.tax_breakdown else total_gross
+            # Hours are the honest share here: one term set, so one rate.
+            gross_parts = allocate_proportionally(
+                total_gross, [actual_hours, planned_hours],
+            )
+            net_parts = allocate_proportionally(
+                total_net, [actual_hours, planned_hours],
+            )
+            pay.earned_gross, pay.planned_gross = gross_parts
+            pay.earned_net, pay.planned_net = net_parts
             return pay
 
         # Salaried — a month may span several term sets (e.g. a mid-month
         # raise). salaried_month_lines gives each one's prorated salary and its
-        # earned/planned day split (relative to today); we estimate tax per line
-        # and split earned vs planned linearly by day.
-        for line in SalaryEstimateService.salaried_month_lines(
+        # earned/planned day split (relative to today).
+        lines = SalaryEstimateService.salaried_month_lines(
             terms.contract, year, month, today
-        ):
-            est = SalaryEstimateService.estimate(
+        )
+        if not lines:
+            return pay
+
+        estimates = [
+            SalaryEstimateService.estimate(
                 line.termset, Decimal("0"), as_of=tax_pull_date,
                 monthly_salary_override=line.covered_salary,
             )
-            total_gross = est.taxable_gross
-            total_net = est.tax_breakdown.net_pay if est.tax_breakdown else est.taxable_gross
+            for line in lines
+        ]
+        combined = SalaryEstimateService._combine_estimates(
+            estimates, as_of=tax_pull_date,
+        )
+        total_gross = combined.taxable_gross
+        total_net = (
+            combined.tax_breakdown.net_pay
+            if combined.tax_breakdown else total_gross
+        )
 
-            earned_ratio = Decimal(line.earned_days) / Decimal(line.covered_days)
-            earned_gross = (total_gross * earned_ratio).quantize(TWO_PLACES)
-            earned_net = (total_net * earned_ratio).quantize(TWO_PLACES)
-            pay.earned_gross += earned_gross
-            pay.earned_net += earned_net
-            pay.planned_gross += total_gross - earned_gross
-            pay.planned_net += total_net - earned_net
+        # Each line's gross is exact (its own prorated salary); net is allocated
+        # from the single month figure by gross share.
+        earned_gross = Decimal("0")
+        for line, est in zip(lines, estimates):
+            earned, _planned = allocate_proportionally(
+                est.taxable_gross,
+                [Decimal(line.earned_days), Decimal(line.planned_days)],
+            )
+            earned_gross += earned
+
+        pay.earned_gross, pay.planned_gross = allocate_proportionally(
+            total_gross, [earned_gross, total_gross - earned_gross],
+        )
+        pay.earned_net, pay.planned_net = allocate_proportionally(
+            total_net, [pay.earned_gross, pay.planned_gross],
+        )
         return pay
 
     @staticmethod

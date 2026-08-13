@@ -15,7 +15,11 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.utils import timezone
 
-from core.utils import WEEKS_PER_MONTH, weekly_to_monthly_hours
+from core.utils import (
+    WEEKS_PER_MONTH,
+    allocate_proportionally as _allocate,
+    weekly_to_monthly_hours,
+)
 from payroll.services import PayrollPeriodService, SalaryEstimateService
 from shifts.models import Shift, PlannedShift
 from workplaces.models import Workplace, ContractTermSet
@@ -94,19 +98,6 @@ def _hours_by_termset(
     return buckets, actual_total, planned_total
 
 
-def _allocate(total: Decimal, shares: list[Decimal]) -> list[Decimal]:
-    """Split *total* across *shares* in proportion, the last non-zero share taking
-    the rounding remainder so the parts always sum back to *total* exactly."""
-    basis = sum(shares, Decimal("0"))
-    if basis <= 0:
-        return [Decimal("0") for _ in shares]
-    out = [
-        (total * s / basis).quantize(TWO_PLACES, ROUND_HALF_UP) if s else Decimal("0")
-        for s in shares
-    ]
-    last = max(i for i, s in enumerate(shares) if s)
-    out[last] += total - sum(out, Decimal("0"))
-    return out
 
 
 # ---------------------------------------------------------------------------
@@ -566,7 +557,7 @@ class AnalyticsService:
             SalaryEstimateService.estimate(b.termset, b.total, as_of=as_of)
             for b in buckets
         ]
-        combined = SalaryEstimateService._combine_estimates(estimates)
+        combined = SalaryEstimateService._combine_estimates(estimates, as_of=as_of)
         total_gross = combined.taxable_gross
         total_net = (
             combined.tax_breakdown.net_pay
@@ -632,7 +623,7 @@ class AnalyticsService:
             )
             for line in lines
         ]
-        combined = SalaryEstimateService._combine_estimates(estimates)
+        combined = SalaryEstimateService._combine_estimates(estimates, as_of=as_of)
         total_gross = combined.taxable_gross
         total_net = (
             combined.tax_breakdown.net_pay
