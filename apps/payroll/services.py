@@ -185,6 +185,7 @@ class SalaryEstimate:
     workplace_name: str
     employment_type: str
     tax_card_type: str
+    effective_from: date | None   # of the term set behind it — see _card_at
     total_hours: Decimal
     hourly_rate: Decimal | None
     effective_hourly_rate: Decimal | None
@@ -285,6 +286,7 @@ class SalaryEstimateService:
             workplace_name=wp_name,
             employment_type=terms.employment_type,
             tax_card_type=terms.tax_card_type,
+            effective_from=terms.effective_from,
             total_hours=total_hours,
             hourly_rate=hourly_rate,
             effective_hourly_rate=terms.effective_hourly_rate,
@@ -445,6 +447,34 @@ class SalaryEstimateService:
         return cls.salaried_period_lines(contract, *month_bounds(year, month), today)
 
     @staticmethod
+    def _card_at(ests: list[SalaryEstimate], as_of: date | None) -> str:
+        """The tax card that applies to a whole combined period.
+
+        A payroll period is one payslip and one payment, so it carries exactly
+        one card — an employer cannot run part of a payslip on the hovedkort.
+        They fetch the card from SKAT on ``tax_pull_day``, which is what *as_of*
+        is at every call site, so the card in force on that date governs the
+        period even if a later term set changes it.
+
+        (Splitting the period per term set would be worse, not better: the
+        personfradrag is a *monthly* allowance, so charging a whole month's worth
+        against a part-period's pay is the same double-count this method exists
+        to remove. A proper split needs a daily fradrag, which TaxProfile does
+        not model.)
+
+        Falls back to the earliest term set when *as_of* precedes them all,
+        matching ``core.utils.active_dated_row``.
+        """
+        if as_of is not None:
+            live = [e for e in ests if e.effective_from and e.effective_from <= as_of]
+            if live:
+                return max(live, key=lambda e: e.effective_from).tax_card_type
+        dated = [e for e in ests if e.effective_from]
+        if dated:
+            return min(dated, key=lambda e: e.effective_from).tax_card_type
+        return ests[-1].tax_card_type
+
+    @staticmethod
     def _combine_estimates(
         ests: list[SalaryEstimate], as_of: date | None = None,
     ) -> SalaryEstimate:
@@ -467,18 +497,10 @@ class SalaryEstimateService:
 
         tax_breakdown = None
         if all(e.tax_breakdown for e in ests):
-            # A raise doesn't change your tax card, so these normally agree. If
-            # they don't, the hovedkort wins: the personfradrag is a monthly
-            # allowance that follows that card, and the period did earn it.
-            card = (
-                "hovedkort"
-                if any(e.tax_card_type == "hovedkort" for e in ests)
-                else rep.tax_card_type
-            )
             tax_breakdown = TaxCalculationService.calculate(
                 s("taxable_gross"),
                 as_of=as_of,
-                tax_card_type=card,
+                tax_card_type=SalaryEstimateService._card_at(ests, as_of),
                 employee_pension=s("employee_pension"),
                 employee_atp=s("employee_atp"),
             )
@@ -487,6 +509,7 @@ class SalaryEstimateService:
             workplace_name=rep.workplace_name,
             employment_type=rep.employment_type,
             tax_card_type=rep.tax_card_type,
+            effective_from=rep.effective_from,
             total_hours=s("total_hours"),
             hourly_rate=rep.hourly_rate,
             effective_hourly_rate=rep.effective_hourly_rate,

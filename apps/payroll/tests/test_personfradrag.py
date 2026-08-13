@@ -119,16 +119,33 @@ class CombinedEstimateDeductionTests(TestCase):
         self.assertEqual(est.tax_breakdown.net_pay, expected.net_pay)
         self.assertEqual(est.tax_breakdown.monthly_deduction, DEDUCTION)
 
-    def test_hovedkort_wins_when_the_cards_disagree(self):
-        """The personfradrag follows the hovedkort, and the period did earn it —
-        so one bikort term set must not swallow the whole month's deduction."""
-        self._salaried(date(2026, 6, 1), date(2026, 6, 15), "50000",
+    def test_card_follows_the_tax_pull_date_not_the_latest_term_set(self):
+        """One payslip carries one card: the one the employer pulls from SKAT on
+        tax_pull_day. Here that date (the 18th) falls inside the *first* term
+        set, so its hovedkort governs the month even though the period ends on
+        the second term set's bikort."""
+        self._salaried(date(2026, 6, 1), date(2026, 6, 20), "50000",
                        tax_card_type="hovedkort")
-        self._salaried(date(2026, 6, 16), date(2026, 6, 30), "50000",
+        self._salaried(date(2026, 6, 21), date(2026, 6, 30), "50000",
                        tax_card_type="bikort")
 
-        est = SalaryEstimateService.salaried_month_estimate(self.contract, 2026, 6)
+        est = SalaryEstimateService.salaried_month_estimate(
+            self.contract, 2026, 6, as_of=date(2026, 6, 18),
+        )
         self.assertEqual(est.tax_breakdown.monthly_deduction, DEDUCTION)
+
+    def test_card_switched_before_the_pull_date_governs_the_period(self):
+        """The mirror: the switch to bikort lands on the 10th, before the 18th
+        pull, so the whole period is taxed on the bikort — no deduction."""
+        self._salaried(date(2026, 6, 1), date(2026, 6, 9), "50000",
+                       tax_card_type="hovedkort")
+        self._salaried(date(2026, 6, 10), date(2026, 6, 30), "50000",
+                       tax_card_type="bikort")
+
+        est = SalaryEstimateService.salaried_month_estimate(
+            self.contract, 2026, 6, as_of=date(2026, 6, 18),
+        )
+        self.assertEqual(est.tax_breakdown.monthly_deduction, Decimal("0.00"))
 
     def test_bikort_only_gets_no_deduction(self):
         self._salaried(date(2026, 6, 1), date(2026, 6, 15), "50000",
@@ -138,3 +155,17 @@ class CombinedEstimateDeductionTests(TestCase):
 
         est = SalaryEstimateService.salaried_month_estimate(self.contract, 2026, 6)
         self.assertEqual(est.tax_breakdown.monthly_deduction, Decimal("0.00"))
+
+    def test_card_falls_back_to_the_earliest_when_the_pull_predates_them_all(self):
+        """A period estimated before any of its term sets start (a projection
+        reaching back) has no card in force — take the earliest, as
+        active_dated_row does, rather than dropping the deduction."""
+        self._salaried(date(2026, 6, 1), date(2026, 6, 15), "50000",
+                       tax_card_type="hovedkort")
+        self._salaried(date(2026, 6, 16), date(2026, 6, 30), "50000",
+                       tax_card_type="hovedkort")
+
+        est = SalaryEstimateService.salaried_month_estimate(
+            self.contract, 2026, 6, as_of=date(2026, 5, 1),
+        )
+        self.assertEqual(est.tax_breakdown.monthly_deduction, DEDUCTION)
