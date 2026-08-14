@@ -4,23 +4,41 @@ BitGigs is an open-source Django web application for tracking work hours, estima
 
 ## Screenshots
 
-**Dashboard** . the shift you are on right now, what is waiting to be approved, and the month so far across every job.
+<!-- A plain markdown table would centre the captions under half-width images;
+     the explicit td widths keep the two columns even whatever the shots are. -->
 
-![BitGigs dashboard showing today's shift, five shifts awaiting approval and month-to-date earnings across four workplaces](docs/screenshots/dashboard.png)
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/dashboard.png">
+        <img width="100%" alt="BitGigs dashboard showing today's shift, five shifts awaiting approval and month-to-date earnings across four workplaces" src="docs/screenshots/dashboard.png">
+      </a>
+      <p><b>Dashboard</b> &mdash; the shift you are on right now, what is waiting to be approved, and the month so far across every job.</p>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/planning-calendar.png">
+        <img width="100%" alt="Month planning calendar with colour-coded shift chips across four workplaces, approved and planned" src="docs/screenshots/planning-calendar.png">
+      </a>
+      <p><b>Planning calendar</b> &mdash; every workplace in one month grid. Solid chips are approved, dashed ones are still planned, and the colour is the workplace.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/income-analytics.png">
+        <img width="100%" alt="Income analytics chart in dark mode with actual, planned and projected bands across two years" src="docs/screenshots/income-analytics.png">
+      </a>
+      <p><b>Income analytics</b> &mdash; what you have earned, what is already planned, and what the remaining periods are forecast to pay, each as its own band.</p>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/workplace-detail.png">
+        <img width="100%" alt="Workplace detail page in dark mode showing hourly terms, feriepenge breakdown and a month of shifts" src="docs/screenshots/workplace-detail.png">
+      </a>
+      <p><b>Workplace</b> &mdash; each job's own page wears that job's accent colour, with its current terms, feriepenge and calendar.</p>
+    </td>
+  </tr>
+</table>
 
-**Planning calendar** . every workplace in one month grid. Solid chips are approved, dashed ones are still planned, and the colour is the workplace.
-
-![Month planning calendar with colour-coded shift chips across four workplaces, approved and planned](docs/screenshots/planning-calendar.png)
-
-**Income analytics** . what you have earned, what is already planned, and what the remaining periods are forecast to pay . each as its own band.
-
-![Income analytics chart in dark mode with actual, planned and projected bands across two years](docs/screenshots/income-analytics.png)
-
-**Workplace** . each job's own page wears that job's accent colour, with its current terms, feriepenge and calendar.
-
-![Workplace detail page in dark mode showing hourly terms, feriepenge breakdown and a month of shifts](docs/screenshots/workplace-detail.png)
-
-BitGigs ships light and dark themes . the first two shots are light, the last two dark.
+BitGigs ships light and dark themes &mdash; the top row is light, the bottom row dark. Click any shot for full size.
 
 ## Features
 
