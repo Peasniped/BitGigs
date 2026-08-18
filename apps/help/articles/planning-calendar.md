@@ -24,6 +24,8 @@ ahead of time and confirm the ones you've actually worked.
   there.
 - Times are always entered in [24-hour format](/help/numbers-and-times/).
 - Overlapping shifts are highlighted in amber and flagged before you save.
+- **Drag a chip to another day** to move it. If it lands on top of something
+  else, you're told straight away and offered **Cancel move** or **Edit shift**.
 
 ## In this section
 

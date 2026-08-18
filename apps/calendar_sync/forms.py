@@ -72,6 +72,7 @@ class CalendarInviteSettingsForm(forms.ModelForm):
         fields = [
             "enabled",
             "send_to_personal", "owner_address",
+            "ask_before_resend",
             "default_title_onsite", "default_title_remote",
             "default_remote_address",
         ]
@@ -79,6 +80,7 @@ class CalendarInviteSettingsForm(forms.ModelForm):
             "enabled": "Enable calendar invites",
             "send_to_personal": "Send invites to personal calendar",
             "owner_address": "Personal calendar address",
+            "ask_before_resend": "Offer to re-send an invite when a shift changes",
             "default_title_onsite": "Default on-site event title",
             "default_title_remote": "Default remote event title",
             "default_remote_address": "Default remote location",

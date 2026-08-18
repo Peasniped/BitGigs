@@ -6,14 +6,24 @@
   works. Pass `wrapper_class` to override the default spacing, and `autosave`
   with a scope key (core.settings_fields.SCOPES) to make it save on change with
   no Save button — see the autosave convention in CLAUDE.md.
+
+  Help text sits *inside* the check by default, indented under the label, which
+  is what a switch with its own follow-on content wants (Display's mask-money
+  preview lines up with it via `ms-4`). Pass `help_outside` on a pane whose other
+  hints start at the left margin — the Calendar tab hand-renders its personal-
+  calendar hint that way, and one indented paragraph among them reads as a stray
+  indent rather than as a switch.
 {% endcomment %}
-<div class="form-check form-switch {{ wrapper_class|default:'mb-3' }}">
+<div class="form-check form-switch {% if help_outside and field.help_text %}mb-1{% else %}{{ wrapper_class|default:'mb-3' }}{% endif %}">
   <input type="checkbox" class="form-check-input" role="switch"
          name="{{ field.html_name }}" id="{{ field.id_for_label }}"
          {% if autosave %}data-autosave="{{ autosave }}"{% endif %}
          {% if field.value %}checked{% endif %}
          {% if field.field.disabled %}disabled{% endif %}>
   <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-  {% if field.help_text %}<div class="form-text mt-0">{{ field.help_text }}</div>{% endif %}
+  {% if field.help_text and not help_outside %}<div class="form-text mt-0">{{ field.help_text }}</div>{% endif %}
   {% for err in field.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
 </div>
+{% if help_outside and field.help_text %}
+<p class="form-text mt-0 mb-3">{{ field.help_text }}</p>
+{% endif %}

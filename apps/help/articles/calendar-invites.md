@@ -6,7 +6,7 @@ parent: calendar-integration
 audience: everyone
 order: 20
 published: true
-keywords: [invite, invitation, invites, send invites, all invites sent, test invite, per contract, work address, personal calendar, event title, location, re-send, resend, out of date, stale invite, changed shift, update, cancel, withdraw, sequence]
+keywords: [invite, invitation, invites, send invites, all invites sent, test invite, per contract, work address, personal calendar, event title, location, re-send, resend, out of date, stale invite, changed shift, update, cancel, withdraw, sequence, stop asking, don't ask again, clash, collision, drag, move shift]
 pages: [calendar_view:planning]
 ---
 Invites ride your **Email** connection, so
@@ -62,8 +62,10 @@ Invites aren't sent the moment you plan a shift — you send them deliberately, 
 each shift is invited **once**. On the planning calendar press **Send invites**
 to mail the planned shifts in the month you're looking at. Shifts that already
 have an up-to-date invite are skipped, so pressing it again while you keep
-planning never re-sends. When there's nothing left the button reads **All invites
-sent**.
+planning never re-sends — but a shift you *changed* since is offered again as an
+**update**. When there's nothing new and nothing out of date the button reads
+**All invites sent**; it re-checks itself as you plan, so it follows what you do
+without a reload.
 
 Pressing it opens a **summary of exactly what would go out** — each workplace,
 how many invites are new versus updates, and every address they'd reach. Nothing
@@ -89,13 +91,34 @@ month's **Send invites** button lights up again and will re-send it. A re-send
 updates the existing event rather than adding a second one, and its subject reads
 **“Update: …”** so it's clear in the inbox which mail is current.
 
+If you'd rather not be asked every time, press **No, and stop asking me** in the
+dialog — or turn off **Offer to re-send an invite when a shift changes** on
+Settings → Calendar, which is the same switch. Nothing changes about what is
+*sent*: an edited shift is still marked out of date and still goes with the next
+**Send invites**, you're simply not interrupted about it.
+
+### Dragging an invited shift onto a collision
+
+Drag an invited shift onto a day where it lands on top of another shift — or on
+a busy block from a [calendar you subscribe to](/help/calendar-overlay/) — and
+the same dialog leads with a **collision warning** listing what it now runs into.
+Above the invite question you get two ways out:
+
+- **Cancel move** puts the shift back on the day it came from.
+- **Edit shift** keeps the new day and opens the editor so you can fix the times.
+  Cancelling *that* editor undoes the move as well, so you end up back where you
+  started rather than with a moved shift and no edits.
+
+A shift with no invite out is just moved — no dialog. The clash still shows the
+usual way: both chips turn amber on the grid.
+
 Only changes the recipient can see count — date, times, break, shift type, and
 the resulting title or location. Editing a shift's **notes** never asks. Changing
 a contract's event title or location marks its future shifts out of date too.
 
 | You do this | What happens |
 |---|---|
-| **Edit** a planned shift | You're asked whether to re-send; declining marks it out of date. |
+| **Edit** or **move** a planned shift | You're asked whether to re-send; declining (or switching the asking off) marks it out of date. |
 | **Approve** a planned shift | The same event carries over — not re-sent, not duplicated. From then on the shift records hours worked, so later edits never ask. |
 | **Delete** a shift | A cancellation is sent and the event is withdrawn. |
 

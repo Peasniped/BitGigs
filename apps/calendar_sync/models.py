@@ -146,6 +146,14 @@ class CalendarInviteSettings(models.Model):
         help_text="Your own address for that personal-calendar copy. Leave blank "
                   "to use your account email.",
     )
+    ask_before_resend = models.BooleanField(
+        default=True,
+        help_text="When you change a shift that already has an invite out and "
+                  "about, offer to send the update there and then. While off, the "
+                  "shift is simply marked out of date and the update goes with the "
+                  "next Send invites — nothing is ever mailed without a press "
+                  "either way.",
+    )
 
     # ── operator-level defaults every contract inherits unless it overrides ──
     default_title_onsite = models.CharField(

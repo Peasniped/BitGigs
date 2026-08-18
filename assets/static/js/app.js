@@ -1448,15 +1448,53 @@ function whenModalsClosed(cb, onBlocked) {
     }, { once: true });
 }
 
-function offerInviteResend(shift, done) {
+/* Off for the rest of this page once "No, and stop asking me" is pressed — the
+   POST that stores it can't reach the shifts already on screen. */
+var inviteAskOff = false;
+
+/** Ask the owner about a change they just made.
+ *
+ *  Two questions share one dialog because they arrive together (a drag that
+ *  lands on another shift's hours *and* leaves the invite showing the old day),
+ *  and asking them in two stacked modals is exactly what Bootstrap can't do:
+ *
+ *    opts.clashes      [{label, kind, start, end}] — what the shift now sits on
+ *                      top of; renders the banner and its Cancel move / Edit
+ *                      shift buttons.
+ *    opts.onCancelMove callback for "Cancel move" (the caller knows the old date)
+ *    opts.onEdit       callback for "Edit shift"
+ *
+ *  Either callback *takes over*: it — not `done` — decides what happens next, so
+ *  a caller that reloads in `done` doesn't reload out from under the editor it
+ *  was just asked to open. Otherwise `done` runs exactly once, whichever way the
+ *  dialog ends (button, X, Esc, backdrop).
+ *
+ *  Lives here, not in planning.js / edit_shift_modal.js, because both drive it
+ *  and both had their own copy. */
+function offerInviteResend(shift, done, opts) {
     done = done || function () {};
+    opts = opts || {};
+    var clashes = opts.clashes || [];
     var el = document.getElementById('inviteResendModal');
     var url = (document.getElementById('shiftModal') || {}).dataset;
     url = url ? url.shiftInviteUrl : '';
-    if (!shift || !shift.invite_stale || !url) { done(); return; }
+    // The offer is the owner's to switch off (Settings → Calendar). Silence loses
+    // nothing: the shift keeps its out-of-date marker and Send invites still
+    // picks it up, so no invite ever leaves without a press.
+    //
+    // No invite question → no dialog, clash or not: the grid already flags an
+    // overlap in amber, and a modal that only says so is a click to dismiss.
+    var askInvite = !!(shift && shift.invite_stale) && shift.invite_ask !== false &&
+        !inviteAskOff && !!url;
+    if (!askInvite) { done(); return; }
 
     var CONFIRM_TEXT = 'A calendar invite is already out for this shift, and ' +
         'your change affects what it says.\n\nRe-send the updated invite now?';
+
+    function clashLine(c) {
+        var when = c.start && c.end ? ' ' + c.start + '–' + c.end : '';
+        return c.label + (c.kind ? ' (' + c.kind + ')' : '') + when;
+    }
 
     function send(after) {
         fetch(url.replace('/0/', '/' + shift.id + '/'), {
@@ -1469,16 +1507,22 @@ function offerInviteResend(shift, done) {
     }
 
     var finished = false;  // done() is called exactly once, whichever way this ends
+    var takeover = false;  // …unless Cancel move / Edit shift claimed what follows
 
     function finish() {
         if (finished) return;
         finished = true;
-        done();
+        if (!takeover) done();
     }
 
-    // No modal on the page (or it can't be shown) → the prompt still has to happen.
+    // No modal on the page (or it can't be shown) → the invite question still has
+    // to happen. A clash on its own falls through: the grid marks it in amber.
     function fallback() {
-        if (!window.confirm(CONFIRM_TEXT)) { finish(); return; }
+        var text = clashes.length
+            ? 'This shift now clashes with: ' + clashes.map(clashLine).join('; ') +
+              '\n\n' + CONFIRM_TEXT
+            : CONFIRM_TEXT;
+        if (!window.confirm(text)) { finish(); return; }
         send(finish);
     }
     if (!el) { fallback(); return; }
@@ -1488,8 +1532,39 @@ function offerInviteResend(shift, done) {
     var label = document.getElementById('resendConfirmLabel');
     var errors = document.getElementById('resendError');
     var toRow = document.getElementById('resendToRow');
+    var neverBtn = document.getElementById('resendNeverBtn');
+    var cancelMoveBtn = document.getElementById('resendCancelMoveBtn');
+    var editBtn = document.getElementById('resendEditBtn');
 
-    // ----- fill in what is about to be re-sent -----
+    function show(id, on) {
+        var node = document.getElementById(id);
+        if (node) node.classList.toggle('d-none', !on);
+    }
+
+    // ----- the clash banner: what this shift now sits on top of -----
+    show('resendClashBox', clashes.length > 0);
+    show('resendMoveActions', clashes.length > 0 && !!(opts.onCancelMove || opts.onEdit));
+    show('resendCancelMoveBtn', !!opts.onCancelMove);
+    show('resendEditBtn', !!opts.onEdit);
+    if (clashes.length) {
+        document.getElementById('resendClashLead').textContent =
+            'Moving the shift will result in a collision with the following ' +
+            (clashes.length === 1 ? 'event:' : 'events:');
+        var list = document.getElementById('resendClashList');
+        list.replaceChildren.apply(list, clashes.map(function (c) {
+            var li = document.createElement('li');
+            li.textContent = clashLine(c);   // a calendar summary is never HTML
+            return li;
+        }));
+    }
+
+    document.getElementById('resendTitle').textContent =
+        clashes.length ? 'Moving this shift causes a collision' : 'Re-send calendar invite?';
+    document.getElementById('resendTitleIcon').className =
+        (clashes.length ? 'bi bi-exclamation-triangle' : 'bi bi-envelope-exclamation') +
+        ' me-2';
+
+    // ----- what is about to be re-sent (and useful context for a clash too) ----
     window.renderWorkplaceAvatar(document.getElementById('resendAvatar'), {
         color: shift.workplace_color,
         icon_url: shift.workplace_custom_icon_url,
@@ -1532,6 +1607,48 @@ function offerInviteResend(shift, done) {
         });
     };
 
+    // "No, and stop asking me" answers for this shift *and* turns the setting
+    // off, through the same endpoint the settings pane posts to (its scope is
+    // the allowlist — see core.settings_fields).
+    if (neverBtn) {
+        neverBtn.onclick = function () {
+            inviteAskOff = true;
+            var endpoint = el.dataset.settingsFieldUrl;
+            if (endpoint) {
+                var body = new URLSearchParams();
+                body.set('scope', 'calendar');
+                body.set('field', 'ask_before_resend');  // unchecked → posts no value
+                fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken(),
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: body.toString(),
+                }).catch(function () {});
+            }
+            modal.hide();
+        };
+    }
+
+    if (cancelMoveBtn) {
+        cancelMoveBtn.onclick = function () {
+            takeover = true;
+            modal.hide();
+            opts.onCancelMove();
+        };
+    }
+    if (editBtn) {
+        editBtn.onclick = function () {
+            takeover = true;
+            // After the close, or the editor opens behind our own backdrop.
+            el.addEventListener('hidden.bs.modal', function () { opts.onEdit(); },
+                                { once: true });
+            modal.hide();
+        };
+    }
+
     whenModalsClosed(function () {
         // Registered only once we're actually showing it — a listener attached on
         // a path that never opens the dialog would sit there and fire (resolving
@@ -1539,11 +1656,15 @@ function offerInviteResend(shift, done) {
         // Any way out — button, X, Esc, backdrop — resolves the caller.
         el.addEventListener('hidden.bs.modal', function () {
             btn.onclick = null;
+            if (neverBtn) neverBtn.onclick = null;
+            if (cancelMoveBtn) cancelMoveBtn.onclick = null;
+            if (editBtn) editBtn.onclick = null;
             finish();
         }, { once: true });
         modal.show();
     }, fallback);
 }
+
 window.offerInviteResend = offerInviteResend;
 
 

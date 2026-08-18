@@ -346,7 +346,7 @@
             var chip = buildShiftChip(data.shift, wp);
             insertChipSorted(container, chip);
             updateDayHourBadge(td);
-            noteInvitePending(data.shift);
+            refreshInviteButton();
             recheckOverlaps();
           }
         }
@@ -388,7 +388,10 @@
     enqueueDelete(function() {
       return fetch(url, { method: 'DELETE', headers: { 'X-CSRFToken': CSRF } })
         .then(function(r) { return r.json(); })
-        .then(function(data) { if (!data.ok) throw new Error('delete failed'); })
+        .then(function(data) {
+          if (!data.ok) throw new Error('delete failed');
+          refreshInviteButton();   // one fewer shift waiting for an invite
+        })
         .catch(function() {
           // Roll back: re-insert the chip where it was; it keeps its handlers.
           if (container) {
@@ -491,6 +494,9 @@
         type: 'move-shift',
         shift_id: parseInt(chip.dataset.shiftId),
         workplace_id: wpId,
+        // Read live, not from the closure: a chip that was already moved once
+        // (without a reload) sits in a different cell than it was wired in.
+        from_date: (chip.closest('td[data-date]') || { dataset: {} }).dataset.date || '',
       }));
       e.dataTransfer.effectAllowed = 'move';
       highlightPeriodDays(wpId);
@@ -708,7 +714,7 @@
             insertChipSorted(container, chip);
             updateDayHourBadge(td);
             updateWpCardProgress(workplaceId);
-            noteInvitePending(data.shift);
+            refreshInviteButton();
             recheckOverlaps();
           }
         }
@@ -1052,7 +1058,7 @@
           showContractWarning(moveWpId, targetDate);
           return;
         }
-        moveShift(data.shift_id, targetDate);
+        moveShift(data.shift_id, targetDate, data.from_date || '');
       }
     });
 
@@ -1280,6 +1286,8 @@
   var offerInviteResend = window.offerInviteResend;
 
   document.getElementById('shiftModal').addEventListener('hidden.bs.modal', function () {
+    // Closed without saving after "Edit shift" → the move goes back with it.
+    if (undoPendingMove()) { inviteReloadOnClose = false; return; }
     if (inviteReloadOnClose) { inviteReloadOnClose = false; location.reload(); }
   });
 
@@ -1528,6 +1536,7 @@
         document.getElementById('shiftModalErrors').classList.remove('d-none');
         return;
       }
+      pendingMoveUndo = null;   // saving the edit is agreeing to the move
       shiftModal.hide();
       // New planned shift: insert chip via JS instead of reloading
       if (!shiftId && !sessionId && data.shift) {
@@ -1543,7 +1552,7 @@
             if (newWp) updateWpCardProgress(data.shift.workplace_id);
           }
         }
-        noteInvitePending(data.shift);
+        refreshInviteButton();
         recheckOverlaps();
       } else {
         offerInviteResend(data.shift, function() { location.reload(); });
@@ -1567,27 +1576,124 @@
       method: 'DELETE',
       headers: { 'X-CSRFToken': CSRF },
     }).then(function(r) { return r.json(); }).then(function(data) {
-      if (data.ok) { shiftModal.hide(); location.reload(); }
+      if (data.ok) { pendingMoveUndo = null; shiftModal.hide(); location.reload(); }
     });
   });
 
   // ----- Move shift (drag to new date) -----
-  function moveShift(shiftId, newDate) {
-    var url = cfg.shiftUpdateUrl.replace('/0/', '/' + shiftId + '/');
-    fetch(url, {
+  // What the shift landed on top of: the server's own overlap check (other
+  // planned shifts and approved sessions) plus, when the personal-calendar
+  // overlay is on, its busy blocks — those live only in the DOM, so the server
+  // can't see them, and they are exactly the clash the old flow hid until after
+  // the invite prompt had been answered and the page had reloaded.
+  function collectClashes(targetDate, shift, serverOverlaps) {
+    var clashes = (serverOverlaps || []).map(function(o) {
+      return {
+        label: o.workplace,
+        kind: o.type === 'session' ? 'approved shift' : 'planned shift',
+        start: o.start,
+        end: o.end,
+      };
+    });
+
+    var start = toMinutes(shift.start_time);
+    var end = toMinutes(shift.end_time);
+    var container = document.querySelector(
+      '.planning-calendar .planned-shifts-container[data-date="' + targetDate + '"]'
+    );
+    if (container) {
+      container.querySelectorAll('.busy-chip').forEach(function(chip) {
+        var timeEl = chip.querySelector('.shift-chip__time');
+        var parts = timeEl ? timeEl.textContent.trim().split('-') : [];
+        // An all-day block carries no HH:MM pair — recheckOverlaps skips those
+        // for the same reason, they'd flag every shift on the day.
+        if (parts.length !== 2) return;
+        var bStart = toMinutes(parts[0]);
+        var bEnd = toMinutes(parts[1]);
+        if (start >= bEnd || bStart >= end) return;
+        var labelEl = chip.querySelector('.busy-chip__label');
+        clashes.push({
+          label: labelEl ? labelEl.textContent.trim() : 'Busy',
+          kind: 'calendar event',
+          start: parts[0],
+          end: parts[1],
+        });
+      });
+    }
+    return clashes;
+  }
+
+  // Put the chip on its new day straight away. The reload at the end of the flow
+  // would do it, but the dialog below stands in front of the grid for as long as
+  // it takes to answer — and "Edit shift" leaves the page up with no reload at
+  // all, so without this the chip sits on the day it was dragged off.
+  function moveChipInDom(shiftId, targetDate) {
+    var chip = document.querySelector('[data-shift-id="' + shiftId + '"]');
+    var container = document.querySelector(
+      '.planning-calendar .planned-shifts-container[data-date="' + targetDate + '"]'
+    );
+    if (!chip || !container || chip.parentNode === container) return;
+    var oldTd = chip.closest('td[data-date]');
+    insertChipSorted(container, chip);
+    if (oldTd) updateDayHourBadge(oldTd);
+    var newTd = container.closest('td[data-date]');
+    if (newTd) updateDayHourBadge(newTd);
+    recheckOverlaps();
+  }
+
+  function postShiftDate(shiftId, date) {
+    return fetch(cfg.shiftUpdateUrl.replace('/0/', '/' + shiftId + '/'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-      body: JSON.stringify({ date: newDate }),
-    }).then(function(r) { return r.json(); }).then(function(data) {
-      if (data.ok) {
-        if (data.overlaps && data.overlaps.length > 0) {
-          // Time conflict on the target date . open editor so user can adjust
-          // (the invite prompt waits for that save — the shift isn't settled yet).
+      body: JSON.stringify({ date: date }),
+    }).then(function(r) { return r.json(); });
+  }
+
+  // The move is applied *before* the clash dialog can ask about it — the server
+  // is what spots the clash — so "Edit shift" hands over an already-moved shift.
+  // Closing that editor without saving therefore has to undo the move as well,
+  // or Cancel would only discard the edits made on top of a move you never
+  // agreed to. Cleared by a save or a delete: both mean "keep the new day".
+  var pendingMoveUndo = null;
+
+  function undoPendingMove() {
+    var pending = pendingMoveUndo;
+    pendingMoveUndo = null;
+    if (!pending) return false;
+    postShiftDate(pending.shiftId, pending.fromDate)
+      .then(function() { location.reload(); })
+      .catch(function() { location.reload(); });
+    return true;
+  }
+
+  function moveShift(shiftId, newDate, fromDate) {
+    postShiftDate(shiftId, newDate).then(function(data) {
+      if (!data.ok) return;
+      // One dialog for both questions the move raises — the clash it landed on
+      // and the invite it left out of date. It used to ask them one after the
+      // other (prompt first, editor second), which meant the clash only became
+      // visible once the invite question had already been answered.
+      var clashes = collectClashes(newDate, data.shift, data.overlaps);
+      moveChipInDom(shiftId, newDate);
+      offerInviteResend(data.shift, function() { location.reload(); }, {
+        clashes: clashes,
+        // Undo: put the shift back where it came from. Restoring the original
+        // date restores the details the invite already carries, so what looked
+        // like an out-of-date invite simply stops being one.
+        onCancelMove: fromDate ? function() {
+          postShiftDate(shiftId, fromDate)
+            .then(function() { location.reload(); })
+            .catch(function() { location.reload(); });
+        } : null,
+        // Keep the move but fix the times — the editor re-asks about the invite
+        // on its own save, so nothing is lost by leaving the question here. Its
+        // Cancel undoes the move too (see pendingMoveUndo).
+        onEdit: function() {
+          if (fromDate) pendingMoveUndo = { shiftId: shiftId, fromDate: fromDate };
           openEditShiftModal(shiftId);
-        } else {
-          offerInviteResend(data.shift, function() { location.reload(); });
-        }
-      }
+          refreshInviteButton();
+        },
+      });
     });
   }
 
@@ -1987,33 +2093,49 @@
   var SEND_INVITES_URL = cfg.sendInvitesUrl;
   var sendInvitesBtn = document.getElementById('sendInvitesBtn');
 
+  // Scoped server-side by each workplace's payroll period for this month — not
+  // the padded visible grid — so every call names the viewed month, not a span.
+  var inviteUrl = function() {
+    return SEND_INVITES_URL + '?year=' + CURRENT_YEAR + '&month=' + CURRENT_MONTH;
+  };
+
+  function setInviteButton(total) {
+    var has = total > 0;
+    sendInvitesBtn.disabled = !has;
+    sendInvitesBtn.classList.toggle('btn-outline-primary', has);
+    sendInvitesBtn.classList.toggle('btn-outline-secondary', !has);
+    sendInvitesBtn.classList.toggle('disabled', !has);
+    sendInvitesBtn.title = has
+      ? "Email calendar invites for the planned shifts shown, to each " +
+        "workplace's recipients and your own calendar"
+      : 'Every eligible planned shift shown already has an invite out.';
+    sendInvitesBtn.innerHTML = has
+      ? '<i class="bi bi-envelope-paper me-1"></i>Send invites'
+      : '<i class="bi bi-check2-all me-1"></i>All invites sent';
+  }
+
   // Whether the button offers a send is a *count*, computed server-side when the
-  // page rendered — so planning a new shift left it stuck on the disabled "All
-  // invites sent" until a reload, offering nothing for work that plainly needed
-  // an invite. Chips are inserted without a reload, so the button has to follow.
+  // page rendered — and the page is not always reloaded after a change, so it
+  // used to sit on the disabled "All invites sent" while a shift plainly needed
+  // one: a chip inserted without a reload, a deleted one, or a shift edited into
+  // needing an *update* (that last one no client-side rule caught at all).
   //
-  // The condition mirrors what the server counts (PlanningCalendarView): the
-  // shift is invite-eligible, has no invite yet, and falls inside its workplace's
-  // payroll period for the month on screen — the padded grid reaches into the
-  // next period, and those shifts are not this month's to send.
-  function noteInvitePending(shift) {
-    if (!sendInvitesBtn || !SEND_INVITES_URL || !sendInvitesBtn.disabled) return;
-    if (!shift || !shift.invite_eligible || shift.has_active_invite) return;
-    if (!isInPeriod(shift.workplace_id, shift.date)) return;
-    sendInvitesBtn.disabled = false;
-    sendInvitesBtn.classList.remove('btn-outline-secondary', 'disabled');
-    sendInvitesBtn.classList.add('btn-outline-primary');
-    sendInvitesBtn.title = "Email calendar invites for the planned shifts shown, " +
-      "to each workplace's recipients and your own calendar";
-    sendInvitesBtn.innerHTML = '<i class="bi bi-envelope-paper me-1"></i>Send invites';
+  // So don't re-derive it here — ask the endpoint that answers the same question
+  // for the confirm dialog (invites.month_sweep, new + updates). Debounced,
+  // because a Power-Edit run fires this once per stamped shift.
+  var inviteBtnTimer = null;
+  function refreshInviteButton() {
+    if (!sendInvitesBtn || !SEND_INVITES_URL) return;
+    clearTimeout(inviteBtnTimer);
+    inviteBtnTimer = setTimeout(function() {
+      fetch(inviteUrl(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(data) { if (data) setInviteButton(data.total); })
+        .catch(function() {});   // a stale button beats a broken page
+    }, 300);
   }
 
   if (sendInvitesBtn && SEND_INVITES_URL) {
-    // Scoped server-side by each workplace's payroll period for this month — not
-    // the padded visible grid — so both calls name the viewed month, not a span.
-    var inviteUrl = function() {
-      return SEND_INVITES_URL + '?year=' + CURRENT_YEAR + '&month=' + CURRENT_MONTH;
-    };
     var sendModalEl = document.getElementById('sendInvitesModal');
     var sendModal = sendModalEl ? new bootstrap.Modal(sendModalEl) : null;
     var confirmBtn = document.getElementById('sendInvitesConfirmBtn');

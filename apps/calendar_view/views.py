@@ -673,7 +673,7 @@ def _shift_invite_flags(shift):
     is the harder state — the send was *rejected*, so nobody holds anything.
     """
     from calendar_sync import invites
-    from calendar_sync.models import ShiftInvite
+    from calendar_sync.models import CalendarInviteSettings, ShiftInvite
 
     uid = getattr(shift, "invite_uid", None)
     invite = ShiftInvite.objects.filter(
@@ -695,6 +695,10 @@ def _shift_invite_flags(shift):
         "invite_delivered": invite is not None and invite.ever_delivered,
         # Named in the re-send prompt, so it says who is about to be mailed.
         "invite_recipients": invites.recipients_for(shift) if invite is not None else [],
+        # Whether the owner wants asking at all (Settings → Calendar). The prompt
+        # is client-side, so the answer has to travel with the shift; off means
+        # the edit lands silently and the out-of-date marker carries it instead.
+        "invite_ask": CalendarInviteSettings.load().ask_before_resend,
     }
 
 

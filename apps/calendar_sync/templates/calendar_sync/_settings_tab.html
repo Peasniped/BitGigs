@@ -209,6 +209,11 @@
       </div>
       {% endif %}
 
+      {# The post-edit offer. Off is a quiet mode, not a silent-send mode: the #}
+      {# shift still wears its out-of-date marker and Send invites still picks #}
+      {# it up, so nothing is ever mailed without a press. #}
+      {% include "_switch_field.html" with field=cal_invite_form.ask_before_resend autosave="calendar" help_outside=True %}
+
       {# Operator-level defaults (plain fields) #}
       {{ cal_invite_form.default_title_onsite|as_crispy_field }}
       {{ cal_invite_form.default_title_remote|as_crispy_field }}
