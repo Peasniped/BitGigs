@@ -38,7 +38,7 @@ BitGigs is an open-source Django web application for tracking work hours, estima
   </tr>
 </table>
 
-BitGigs ships light and dark themes &mdash; the top row is light, the bottom row dark. Click any shot for full size.
+BitGigs ships with both light and dark themes. Click any shot for full size.
 
 ## Features
 
