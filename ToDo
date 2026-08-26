@@ -133,3 +133,37 @@ A page that lets me configure studieaktivitet for each month in the year, and th
 -- 2 (SU fravalgt eller Orlov/Lønnet praktik/studieinaktiv)
 -- 3 (Ikke er indskrevet, ikke flere SU klip).
 - The amounts for each level are changed every year and should thus be easily configurable like with ATP. The current rates are 1: 20.749 kr. per måned, 2: 23.598 kr. per måned, 3: 45.420 kr. per måned. If you have kids under 18, the yearly limit is increased by 34.129 kr. per child in 2026. -- so amount of children should also be configurable on the SU page. 
+
+
+*** Platform-kandidater fundet under BitLedger-arbejdet (2026-08-26) ***
+Noteret herfra fordi de hører til "Platform creation" ovenfor: alle tre er ting
+BitLedger gør anderledes, hvor forskellen ser ud til at være en forbedring frem
+for bare en forskel.
+
+- Vendor frontend-bibliotekerne i stedet for CDN. BitGigs henter Bootstrap,
+  Bootstrap Icons, cropperjs, air-datepicker og Inter fra jsdelivr og Google
+  Fonts. BitLedger lægger dem i assets/static/vendor/ og serverer dem selv
+  (whitenoise, intet build-step) — se docs/adr/0007-vendored-frontend-assets.md
+  i BitLedger. Gevinsten: appen renderer korrekt uden internet, et CDN-udfald
+  kan ikke gøre den til ustylet HTML, og der ryger ingen request ud af huset
+  ved hvert sidevisning. Prisen: ~1 MB minified kode i repoet, og en version
+  bumpes manuelt i stedet for i en URL. Scriptet der genskaber font-mappen er
+  BitLedger/scripts/vendor_inter.py — kun latin + latin-ext hentes.
+
+- Format-modulet mangler dato-nøgler. bitgigs/formats/en/formats.py sætter kun
+  DECIMAL_SEPARATOR, THOUSAND_SEPARATOR og NUMBER_GROUPING; alle dato-nøgler
+  falder igennem til Djangos indbyggede en-locale. Så alt hvad Django selv
+  renderer server-side står som "Aug. 26, 2026", mens JS-pickerne viser dansk —
+  to formater i samme UI. Fire linjer i det eksisterende modul retter det:
+      DATE_FORMAT / SHORT_DATE_FORMAT / DATETIME_FORMAT / DATE_INPUT_FORMATS
+  Se BitLedger/bitledger/formats/da/formats.py for et gennemført sæt.
+
+- psycopg2-binary -> psycopg 3. Django 6 understøtter begge; psycopg 3 er den
+  der stadig får wheels (bl.a. til Python 3.14, hvor psycopg2-binary halter).
+  Ren dependency-udskiftning, ingen kodeændring — men den skal testes mod en
+  rigtig database inden den kommer ud.
+
+- IKKE relevant for BitGigs: LANGUAGE_CODE = da-dk. BitLedger skiftede til det,
+  så Djangos egne strenge (formularfejl, password-validatorer, admin) kommer på
+  dansk gratis. BitGigs' UI er engelsk med vilje, så det ville gøre skade her.
+  Kun dato-nøglerne ovenfor er den del der overføres.
