@@ -29,22 +29,6 @@ urlpatterns = [
     path("onboarding/import/", views.OnboardingImportView.as_view(), name="onboarding-import"),
     path("onboarding/import/confirm/", views.OnboardingImportConfirmView.as_view(),
          name="onboarding-import-confirm"),
-    path("tax-profiles/", views.TaxProfileListView.as_view(), name="taxprofile-list"),
-    path(
-        "tax-profiles/new/",
-        views.TaxProfileCreateView.as_view(),
-        name="taxprofile-create",
-    ),
-    path(
-        "tax-profiles/<int:pk>/edit/",
-        views.TaxProfileUpdateView.as_view(),
-        name="taxprofile-update",
-    ),
-    path(
-        "tax-profiles/<int:pk>/delete/",
-        views.TaxProfileDeleteView.as_view(),
-        name="taxprofile-delete",
-    ),
     path("settings/", views.UserSettingsView.as_view(), name="settings"),
     path("settings/theme/", views.SetThemeView.as_view(), name="set-theme"),
     # One control, saved on change — the settings panes carry no Save button.

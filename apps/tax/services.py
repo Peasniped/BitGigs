@@ -24,7 +24,9 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.utils import timezone
 
 from .models import TaxProfile, ATPConfiguration
-from .utils import active_dated_row
+# active_dated_row is platform machinery (pick the row effective on a date),
+# so it stays in core — this app is only its Danish caller.
+from core.utils import active_dated_row
 
 
 TWO_PLACES = Decimal("0.01")

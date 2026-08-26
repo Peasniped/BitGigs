@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from api.models import ApiKey, SCOPE_ALL, hash_key
 from api.services import PeriodError, resolve_income_period
-from core.models import TaxProfile
+from tax.models import TaxProfile
 from core.testing import LoggedInTestCase
 from workplaces.models import Workplace, WorkplaceContract, ContractTermSet
 from shifts.models import Shift

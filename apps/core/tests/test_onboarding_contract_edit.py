@@ -8,7 +8,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from calendar_sync.models import ContractCalendarConfig
-from core.models import OnboardingDraft, TaxProfile
+from core.models import OnboardingDraft
+from tax.models import TaxProfile
 from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
 
 

@@ -8,7 +8,7 @@ from django.views import View
 from .models import Shift
 from .forms import ShiftForm
 from .services import ShiftSummaryService
-from core.services import TaxCalculationService
+from tax.services import TaxCalculationService
 from core.utils import prev_next_month
 
 

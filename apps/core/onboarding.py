@@ -25,7 +25,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.urls import reverse
 
-from .forms import TaxProfileForm
+from tax.forms import TaxProfileForm
 
 # The wizard in order. Everything numbered — the step indicator, navigation and
 # resume — derives from this one list, so a step can't be numbered inconsistently
@@ -60,7 +60,7 @@ def is_setup_complete():
     A pure data check. It is *not* the same question as "has the owner finished
     the wizard" (see ``setup_finished``), because an import satisfies this the
     moment it lands, well before the user reaches Finish."""
-    from core.models import TaxProfile
+    from tax.models import TaxProfile
     from workplaces.models import ContractTermSet
     return TaxProfile.objects.exists() and ContractTermSet.objects.exists()
 
@@ -428,7 +428,7 @@ def _workplace_review_info(wp, stub_names):
 
 
 def coverage(request):
-    from core.models import TaxProfile
+    from tax.models import TaxProfile
     from shifts.models import PlannedShift, Shift
     from workplaces.models import ContractTermSet, Workplace
 

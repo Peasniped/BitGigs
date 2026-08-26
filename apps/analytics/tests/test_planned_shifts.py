@@ -12,7 +12,7 @@ from decimal import Decimal
 from django.test import TestCase
 
 from workplaces.models import Workplace, WorkplaceContract, ContractTermSet
-from core.models import TaxProfile
+from tax.models import TaxProfile
 from shifts.models import Shift, PlannedShift
 from analytics.services import AnalyticsService
 

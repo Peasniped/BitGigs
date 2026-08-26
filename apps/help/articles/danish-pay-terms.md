@@ -7,7 +7,7 @@ audience: everyone
 order: 65
 published: true
 keywords: [danish, glossary, tax card, hovedkort, bikort, frikort, trækprocent, personfradrag, am-bidrag, atp, feriepenge, feriekonto, ferietillæg, fritvalgskonto, pension, befordringsfradrag, forskudsopgørelse, skat]
-pages: [core:taxprofile-list, payroll:vacation-overview, payroll:period-list, core:onboarding-tax, core:onboarding-terms]
+pages: [tax:taxprofile-list, payroll:vacation-overview, payroll:period-list, core:onboarding-tax, core:onboarding-terms]
 ---
 BitGigs models a Danish payslip, so its forms use Danish payroll terms. Here's
 what they mean. The authoritative sources are

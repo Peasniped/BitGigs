@@ -8,7 +8,7 @@ from django.shortcuts import render, get_object_or_404
 from django.views import View
 from django.utils import timezone
 
-from core.services import TaxCalculationService
+from tax.services import TaxCalculationService
 from workplaces.models import Workplace
 from workplaces.services import workplaces_active_in_period, hidden_workplace_count
 from shifts.models import PlannedShift, Shift

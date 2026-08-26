@@ -99,7 +99,7 @@
               {% if features.payroll %}<li data-feature-nav="payroll"><a class="dropdown-item" href="{% url 'payroll:period-list' %}"><i class="bi bi-cash-stack me-2"></i>Payroll</a></li>{% endif %}
               {% if features.vacation %}<li data-feature-nav="vacation"><a class="dropdown-item" href="{% url 'payroll:vacation-overview' %}"><i class="bi bi-sun me-2"></i>Vacation</a></li>{% endif %}
               {% if features.commuting %}<li data-feature-nav="commuting"><a class="dropdown-item" href="{% url 'payroll:commuting-list' %}"><i class="bi bi-bus-front me-2"></i>Commuting</a></li>{% endif %}
-              <li><a class="dropdown-item" href="{% url 'core:taxprofile-list' %}"><i class="bi bi-percent me-2"></i>Tax Profiles</a></li>
+              <li><a class="dropdown-item" href="{% url 'tax:taxprofile-list' %}"><i class="bi bi-percent me-2"></i>Tax Profiles</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="{% url 'core:settings' %}"><i class="bi bi-gear me-2"></i>Settings</a></li>
               <li><a class="dropdown-item" href="{% url 'data_io:main' %}"><i class="bi bi-arrow-left-right me-2"></i>Import / Export</a></li>

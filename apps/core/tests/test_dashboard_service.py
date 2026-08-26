@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.test import TestCase
 
 from core.dashboard_service import DashboardDataService
-from core.models import TaxProfile
+from tax.models import TaxProfile
 from payroll.services import SalaryEstimateService
 from workplaces.models import Workplace, WorkplaceContract, ContractTermSet
 

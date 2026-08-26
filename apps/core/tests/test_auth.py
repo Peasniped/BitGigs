@@ -9,7 +9,8 @@ from django.core.exceptions import ValidationError
 
 from core import setup_key
 from core.utils import dk_slugify
-from core.models import TaxProfile, OnboardingDraft
+from core.models import OnboardingDraft
+from tax.models import TaxProfile
 from core.validators import (
     CharacterClassesPasswordValidator,
     NoSequencesPasswordValidator,

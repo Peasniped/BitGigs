@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 from django.apps import AppConfig
-from django.db.models.signals import post_migrate
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +14,6 @@ _RELOADING_COMMANDS = ("runserver", "run_scheduler")
 # process there will be. --once is run_scheduler's: it does its work and returns
 # before the reloader branch is ever reached.
 _NO_RELOAD_FLAGS = ("--noreload", "--no-reload", "--once")
-
-
-def _seed_atp_rates(sender, **kwargs):
-    """Seed ATP rates from data/atp_rates.csv after migrations (create-if-missing)."""
-    from core.rate_loaders import load_atp_rates
-    load_atp_rates()
 
 
 def _is_reloader_parent() -> bool:
@@ -92,7 +85,6 @@ class CoreConfig(AppConfig):
     verbose_name = "Core Settings"
 
     def ready(self):
-        post_migrate.connect(_seed_atp_rates, sender=self)
         # Django configures logging before it populates the app registry, so a
         # handler is in place by the time ready() runs.
         if not _is_reloader_parent():

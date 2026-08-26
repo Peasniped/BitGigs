@@ -24,7 +24,7 @@
               {% for err in tax_form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
             </div>
           {% endif %}
-          {% include "core/_taxprofile_form_fields.html" with form=tax_form %}
+          {% include "tax/_taxprofile_form_fields.html" with form=tax_form %}
           <div class="d-flex justify-content-end mt-4">
             <button type="submit" class="btn btn-primary px-5">
               Continue <i class="bi bi-arrow-right ms-1"></i>

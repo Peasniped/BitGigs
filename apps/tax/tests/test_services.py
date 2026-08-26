@@ -8,8 +8,8 @@ from decimal import Decimal
 
 from django.test import TestCase
 
-from core.models import TaxProfile, ATPConfiguration, ATPBracket
-from core.services import TaxCalculationService, ATPService
+from tax.models import TaxProfile, ATPConfiguration, ATPBracket
+from tax.services import TaxCalculationService, ATPService
 
 
 class TaxCalculationServiceTest(TestCase):

@@ -10,7 +10,7 @@ from payroll.services import (
     SalaryEstimateService,
     FlexTimeService,
 )
-from core.models import TaxProfile
+from tax.models import TaxProfile
 
 
 def _make_workplace(name, **termset_kwargs):

@@ -14,8 +14,8 @@ from decimal import Decimal
 
 from django.test import TestCase
 
-from core.models import TaxProfile
-from core.services import TaxCalculationService
+from tax.models import TaxProfile
+from tax.services import TaxCalculationService
 from payroll.services import SalaryEstimateService
 from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
 

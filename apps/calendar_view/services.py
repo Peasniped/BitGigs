@@ -16,7 +16,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from core.models import UserSettings
-from core.services import TaxCalculationService
+from tax.services import TaxCalculationService
 from core.utils import month_bounds, parse_int_param, parse_iso_time_param
 from shifts.models import Shift, PlannedShift
 

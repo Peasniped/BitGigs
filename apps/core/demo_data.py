@@ -254,7 +254,8 @@ def build_demo_data(
     """
     from django.contrib.auth.models import User
 
-    from core.models import ATPBracket, ATPConfiguration, TaxProfile, UserSettings
+    from core.models import UserSettings
+    from tax.models import ATPBracket, ATPConfiguration, TaxProfile
     from payroll.models import (
         CommutingRecord, PayrollPeriod, PayslipLine, VacationBalance,
     )

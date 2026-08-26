@@ -8,7 +8,7 @@ from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 
-from core.models import TaxProfile
+from tax.models import TaxProfile
 from core.testing import LoggedInTestCase
 from data_io import services
 from shifts.models import PlannedShift, Shift

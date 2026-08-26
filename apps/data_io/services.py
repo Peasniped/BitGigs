@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from shifts.models import Shift, PlannedShift
 from workplaces.models import Workplace
-from core.models import TaxProfile
+from tax.models import TaxProfile
 from core.utils import date_spans_overlap
 
 

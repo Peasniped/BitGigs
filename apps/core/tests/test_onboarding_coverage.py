@@ -12,7 +12,8 @@ from django.contrib.auth.models import User
 from django.test import RequestFactory, TestCase
 
 from core import onboarding as ob
-from core.models import OnboardingDraft, TaxProfile
+from core.models import OnboardingDraft
+from tax.models import TaxProfile
 from workplaces.models import ContractTermSet, Workplace, WorkplaceContract
 
 TAX_DRAFT = {

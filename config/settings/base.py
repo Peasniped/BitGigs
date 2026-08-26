@@ -115,6 +115,7 @@ TRUST_PROXY_IP = os.environ.get("DJANGO_TRUST_PROXY_IP", "").lower() in ("1", "t
 # covered by the log configuration without a second edit.
 LOCAL_APPS = [
     "core.apps.CoreConfig",
+    "tax.apps.TaxConfig",
     "workplaces.apps.WorkplacesConfig",
     "shifts.apps.ShiftsConfig",
     "payroll.apps.PayrollConfig",

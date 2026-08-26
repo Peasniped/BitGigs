@@ -14,8 +14,12 @@ from django.views import View
 from django.utils import timezone
 
 from .constants import APP_ACCENT_CHOICES, DEFAULT_ACCENT, DEFAULT_SECONDARY
-from .models import EmailLog, EmailSettings, MailConnection, TaxProfile, UserSettings
-from .forms import EmailSettingsForm, TaxProfileForm, UserSettingsForm
+from .models import EmailLog, EmailSettings, MailConnection, UserSettings
+from .forms import EmailSettingsForm, UserSettingsForm
+# The wizard's Tax step is domain (see platform_creation.md §9.1) and moves
+# out with the rest of the step list in Phase B; until then it borrows the
+# form from the app that now owns the model.
+from tax.forms import TaxProfileForm
 from .utils import client_ip, parse_int_param, prev_next_month
 from .dashboard_service import DashboardDataService, get_pending_shifts, get_todays_banner
 from . import onboarding as ob
@@ -156,51 +160,6 @@ class DashboardStatsAPIView(View):
             "goal_approved_pct": stats.goal_approved_pct,
             "goal_planned_pct": stats.goal_planned_pct,
         })
-
-
-class TaxProfileListView(View):
-    def get(self, request):
-        profiles = TaxProfile.objects.all()
-        return render(request, "core/taxprofile_list.html", {"profiles": profiles})
-
-
-class TaxProfileCreateView(View):
-    def get(self, request):
-        form = TaxProfileForm()
-        return render(request, "core/taxprofile_form.html", {"form": form})
-
-    def post(self, request):
-        form = TaxProfileForm(request.POST)
-        if form.is_valid():
-            form.save()
-            return redirect("core:taxprofile-list")
-        return render(request, "core/taxprofile_form.html", {"form": form})
-
-
-class TaxProfileUpdateView(View):
-    def get(self, request, pk):
-        profile = get_object_or_404(TaxProfile, pk=pk)
-        form = TaxProfileForm(instance=profile)
-        return render(
-            request, "core/taxprofile_form.html", {"form": form, "profile": profile}
-        )
-
-    def post(self, request, pk):
-        profile = get_object_or_404(TaxProfile, pk=pk)
-        form = TaxProfileForm(request.POST, instance=profile)
-        if form.is_valid():
-            form.save()
-            return redirect("core:taxprofile-list")
-        return render(
-            request, "core/taxprofile_form.html", {"form": form, "profile": profile}
-        )
-
-
-class TaxProfileDeleteView(View):
-    def post(self, request, pk):
-        profile = get_object_or_404(TaxProfile, pk=pk)
-        profile.delete()
-        return redirect("core:taxprofile-list")
 
 
 class UserSettingsView(View):
@@ -1466,7 +1425,8 @@ class OnboardingResetView(View):
     def post(self, request):
         from django.contrib import messages
         from django.db import transaction as db_transaction
-        from core.models import EmailSettings, TaxProfile
+        from core.models import EmailSettings
+        from tax.models import TaxProfile
         from shifts.models import PlannedShift, Shift
         from workplaces.models import Workplace
 

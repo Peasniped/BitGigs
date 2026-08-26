@@ -13,7 +13,7 @@ from django.db import transaction
 
 from workplaces.models import Workplace, ContractTermSet
 from shifts.models import Shift
-from core.services import TaxCalculationService, TaxBreakdown, ATPService
+from tax.services import TaxCalculationService, TaxBreakdown, ATPService
 from core.utils import month_bounds, weekly_to_monthly_hours
 
 TWO_PLACES = Decimal("0.01")

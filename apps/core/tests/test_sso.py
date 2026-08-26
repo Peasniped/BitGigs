@@ -19,7 +19,7 @@ from core.adapters import (
     NoSignupAccountAdapter,
     OwnerOnlySocialAccountAdapter,
 )
-from core.models import TaxProfile
+from tax.models import TaxProfile
 from core.tests.test_auth import SetupKeyMixin
 from workplaces.models import Workplace, WorkplaceContract, ContractTermSet
 

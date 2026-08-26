@@ -11,12 +11,12 @@
       <div class="card-body">
         <form method="post">
           {% csrf_token %}
-          {% include "core/_taxprofile_form_fields.html" with form=form %}
+          {% include "tax/_taxprofile_form_fields.html" with form=form %}
           <div class="d-flex gap-2 mt-3">
             <button type="submit" class="btn btn-primary flex-fill">
               <i class="bi bi-check-lg me-1"></i>Save
             </button>
-            <a href="{% url 'core:taxprofile-list' %}" class="btn btn-outline-secondary">Cancel</a>
+            <a href="{% url 'tax:taxprofile-list' %}" class="btn btn-outline-secondary">Cancel</a>
           </div>
         </form>
       </div>

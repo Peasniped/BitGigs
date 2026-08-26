@@ -51,7 +51,7 @@ HELP_PAGE_CONTEXTS = [
     ("payroll:vacation-overview", "Vacation"),
     ("analytics:overview", "Analytics"),
     ("analytics:rate-history", "Rate history"),
-    ("core:taxprofile-list", "Tax profiles"),
+    ("tax:taxprofile-list", "Tax profiles"),
     ("core:settings", "Settings"),
     ("data_io:main", "Import / Export"),
     # Onboarding steps. The account pages run before login exists, so they only

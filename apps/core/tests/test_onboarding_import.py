@@ -14,7 +14,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
-from core.models import OnboardingDraft, TaxProfile
+from core.models import OnboardingDraft
+from tax.models import TaxProfile
 from core.tests.test_auth import TERMS_POST
 from data_io import services
 from shifts.models import Shift

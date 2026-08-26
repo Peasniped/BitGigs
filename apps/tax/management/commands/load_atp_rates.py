@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from core.rate_loaders import load_atp_rates
+from tax.rate_loaders import load_atp_rates
 
 
 class Command(BaseCommand):

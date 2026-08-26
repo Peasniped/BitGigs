@@ -26,6 +26,8 @@ urlpatterns = [
     path("accounts/", include("django.contrib.auth.urls")),
     path("accounts/", include("allauth.urls")),
     path("", include("core.urls")),
+    # Same /tax-profiles/… paths as when these lived in core.
+    path("", include("tax.urls")),
     path("workplaces/", include("workplaces.urls")),
     path("shifts/", include("shifts.urls")),
     path("payroll/", include("payroll.urls")),

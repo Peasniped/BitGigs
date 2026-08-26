@@ -1,4 +1,4 @@
-"""Tests for the CSV-backed rate loader (core.rate_loaders)."""
+"""Tests for the CSV-backed rate loader (tax.rate_loaders)."""
 import tempfile
 from decimal import Decimal
 from datetime import date
@@ -6,8 +6,8 @@ from pathlib import Path
 
 from django.test import TestCase
 
-from core.models import ATPConfiguration, ATPBracket
-from core.rate_loaders import load_atp_rates, read_rate_csv
+from tax.models import ATPConfiguration, ATPBracket
+from tax.rate_loaders import load_atp_rates, read_rate_csv
 
 
 _HEADER = "effective_from,hours_min,hours_max,employee_amount,employer_amount\n"

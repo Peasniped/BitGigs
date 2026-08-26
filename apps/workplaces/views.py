@@ -38,7 +38,7 @@ MONTH_CHOICES = [(str(i), _cal_mod.month_abbr[i]) for i in range(1, 13)]
 
 
 def _tax_profile_json():
-    from core.services import TaxCalculationService
+    from tax.services import TaxCalculationService
     profile = TaxCalculationService.get_active_profile()
     if profile:
         return json.dumps({
@@ -73,7 +73,7 @@ class WorkplaceDetailView(View):
     def get(self, request, slug):
         from calendar_view.services import CalendarService
         from payroll.services import PayrollPeriodService, SalaryEstimateService
-        from core.services import TaxCalculationService
+        from tax.services import TaxCalculationService
         from shifts.models import Shift, PlannedShift
 
         workplace = get_object_or_404(Workplace, slug=slug)
