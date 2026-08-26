@@ -20,7 +20,7 @@ import django
 from django.conf import settings
 from django.utils import timezone
 
-import bitgigs
+import config
 
 
 # Subtitles shown under the app name on the About hero — one picked at random per
@@ -65,7 +65,7 @@ def _git(*args):
 
 
 def app_version():
-    return getattr(bitgigs, "__version__", "unknown")
+    return getattr(config, "__version__", "unknown")
 
 
 def build_commit():

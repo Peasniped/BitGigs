@@ -654,7 +654,7 @@ class EmailProbeView(View):
 # Password reset
 #
 # Django already routes /accounts/password_reset/ (contrib.auth.urls is included
-# in bitgigs/urls.py), so these subclasses exist for three reasons the stock
+# in config/urls.py), so these subclasses exist for three reasons the stock
 # views can't cover: the flow must disappear entirely when mail isn't configured,
 # the From header comes from EmailSettings rather than DEFAULT_FROM_EMAIL, and
 # the request form is unauthenticated and therefore needs a rate limit.

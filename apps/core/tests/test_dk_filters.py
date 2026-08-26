@@ -12,7 +12,7 @@ class DkFilterTest(SimpleTestCase):
 
     def setUp(self):
         # The format module is keyed to the active locale; en resolves to the
-        # bitgigs/formats/en override (comma decimals, period thousands).
+        # config/formats/en override (comma decimals, period thousands).
         cm = translation.override("en-us")
         cm.__enter__()
         self.addCleanup(cm.__exit__, None, None, None)

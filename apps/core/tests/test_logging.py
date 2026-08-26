@@ -21,7 +21,7 @@ from core.utils import client_ip
 
 
 class LoggingConfigTests(TestCase):
-    """The dictConfig in bitgigs/settings/base.py, as actually applied."""
+    """The dictConfig in config/settings/base.py, as actually applied."""
 
     def test_app_loggers_reach_a_handler(self):
         """Every app in LOCAL_APPS gets a logger that propagates to root's
@@ -139,7 +139,7 @@ class LoggingConfigTests(TestCase):
             ("manage.py", "runserver"): "runserver",
             ("manage.py", "run_scheduler", "--no-reload"): "run_scheduler",
             ("manage.py", "--settings=x", "migrate"): "migrate",
-            ("gunicorn", "bitgigs.wsgi:application"): "bitgigs.wsgi:application",
+            ("gunicorn", "config.wsgi:application"): "config.wsgi:application",
         }
         for argv, expected in cases.items():
             with self.subTest(argv=argv):
@@ -203,11 +203,11 @@ class ReloaderParentTests(TestCase):
 
 
 class ConfigSourceTests(TestCase):
-    """`_config_source` in bitgigs/settings/base.py — which of .env, the real
+    """`_config_source` in config/settings/base.py — which of .env, the real
     environment, or the built-in default supplied a value."""
 
     def _patched(self, env_file_keys=(), shadowed=(), environ=None):
-        from bitgigs.settings import base
+        from config.settings import base
 
         return (
             mock.patch.object(base, "_ENV_FILE_KEYS", set(env_file_keys)),
@@ -216,7 +216,7 @@ class ConfigSourceTests(TestCase):
         )
 
     def test_each_origin_is_named(self):
-        from bitgigs.settings import base
+        from config.settings import base
 
         patches = self._patched(
             env_file_keys={"FROM_FILE"},
@@ -237,7 +237,7 @@ class ConfigSourceTests(TestCase):
     def test_precedence_order_decides_which_name_answers(self):
         """A renamed variable passes both names, so the source reported has to be
         the one that actually won — not whichever is set at all."""
-        from bitgigs.settings import base
+        from config.settings import base
 
         patches = self._patched(
             env_file_keys={"OLD_NAME"}, environ={"NEW_NAME": "x"}

@@ -5,7 +5,7 @@ profiles and user accounts in whichever database settings point at. It prints
 that database and asks before touching anything, because "which settings module
 am I on" is exactly the mistake this would make expensive.
 
-    python manage.py seed_demo_data --settings=bitgigs.settings.local
+    python manage.py seed_demo_data --settings=config.settings.local
 """
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection

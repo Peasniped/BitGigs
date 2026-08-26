@@ -11,7 +11,7 @@ text, or every line would carry escape sequences that only a terminal can read
 and every grep would have to account for them.
 
 This module is imported by the ``LOGGING`` dictConfig in
-``bitgigs/settings/base.py``, which Django applies during ``django.setup()``
+``config/settings/base.py``, which Django applies during ``django.setup()``
 *before* the app registry is populated. So it must stay import-light: stdlib
 only, plus one guarded Django import that is not needed for it to work.
 """

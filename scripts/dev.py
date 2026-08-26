@@ -5,7 +5,7 @@
 
 Starts ``manage.py runserver`` and ``manage.py run_scheduler`` as child
 processes that share this console — output interleaves (ANSI colours intact, no
-prefixing) and Ctrl+C stops both. It forces ``--settings=bitgigs.settings.local``
+prefixing) and Ctrl+C stops both. It forces ``--settings=config.settings.local``
 on each, so a dev run can never accidentally boot production settings.
 
 Only **one** dev stack may run at a time (see ``_take_lock``): a second one means
@@ -26,7 +26,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 MANAGE = REPO / "manage.py"
-SETTINGS = "bitgigs.settings.local"
+SETTINGS = "config.settings.local"
 GRACE_SECONDS = 8
 LOCK_PATH = REPO / "instance" / "dev.lock"
 

@@ -5,7 +5,7 @@ FROM python:3.13-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DJANGO_SETTINGS_MODULE=bitgigs.settings.production
+    DJANGO_SETTINGS_MODULE=config.settings.production
 
 # Build metadata for Settings → About. .git is excluded from the build context,
 # so the app can't read it at runtime — pass these in at build time instead:

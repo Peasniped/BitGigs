@@ -7,7 +7,7 @@ Usage:
     {{ value|dk:0 }}      →  1.235
     {{ value|dk:1 }}      →  1.234,6
 
-Separators come from the active locale (see bitgigs/formats). This filter only
+Separators come from the active locale (see config/formats). This filter only
 adds thousands grouping on top of that automatic localization and swaps in the
 project's Unicode minus; bare ``{{ value }}`` already renders Danish decimals.
 """

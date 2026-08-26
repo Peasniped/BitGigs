@@ -10,7 +10,7 @@ from core.testing import LoggedInTestCase
 
 class AboutModuleTest(TestCase):
     def test_version_comes_from_package(self):
-        self.assertEqual(about.app_version(), __import__("bitgigs").__version__)
+        self.assertEqual(about.app_version(), __import__("config").__version__)
 
     def test_env_vars_win_over_git(self):
         with mock.patch.dict(

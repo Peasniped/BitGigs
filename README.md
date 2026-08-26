@@ -92,9 +92,9 @@ pip install -r requirements.txt
 The default local settings use SQLite . no database setup required.
 
 ```bash
-python manage.py migrate --settings=bitgigs.settings.local
-python manage.py createsuperuser --settings=bitgigs.settings.local
-python manage.py runserver --settings=bitgigs.settings.local
+python manage.py migrate --settings=config.settings.local
+python manage.py createsuperuser --settings=config.settings.local
+python manage.py runserver --settings=config.settings.local
 ```
 
 Visit `http://127.0.0.1:8000/` in your browser.
@@ -105,7 +105,7 @@ To see the app with something in it . the screenshots above are this dataset .
 fill the database with a generated two-year working life:
 
 ```bash
-python manage.py seed_demo_data --settings=bitgigs.settings.local
+python manage.py seed_demo_data --settings=config.settings.local
 ```
 
 Six workplaces, hourly and salaried, contracts that start, end and hand over,
@@ -126,7 +126,7 @@ container and flip the dev database switch:
 ```bash
 cp .env.example .env       # set POSTGRES_PASSWORD, uncomment DJANGO_DB=postgres
 docker compose up db
-python manage.py migrate --settings=bitgigs.settings.local
+python manage.py migrate --settings=config.settings.local
 ```
 
 ## Running with Docker
@@ -163,7 +163,7 @@ the `instance` volume, the database in `pgdata`.
 
 ## Settings
 
-The project ships with three settings modules under `bitgigs/settings/`:
+The project ships with three settings modules under `config/settings/`:
 
 | Module | Purpose |
 |---|---|
@@ -223,7 +223,7 @@ failures, and calendar feeds that could not be parsed.
 ## Project Structure
 
 ```
-bitgigs/              # Project settings (base/local/production) and root URL config
+config/               # Project settings (base/local/production) and root URL config
 apps/                 # Feature apps . a plain directory on sys.path, not a package
   core/               # Tax profiles, ATP configuration, settings page, dashboard
   workplaces/         # Workplaces, contracts and date-versioned pay terms
@@ -243,7 +243,7 @@ instance/             # Runtime state . database, uploaded media, setup key
 ## Running Tests
 
 ```bash
-python manage.py test apps --settings=bitgigs.settings.local
+python manage.py test apps --settings=config.settings.local
 ```
 
 The `apps` label is required: `apps/` is a plain directory on `sys.path` rather

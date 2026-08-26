@@ -171,7 +171,7 @@ MIDDLEWARE = [
     "allauth.account.middleware.AccountMiddleware",
 ]
 
-ROOT_URLCONF = "bitgigs.urls"
+ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
     {
@@ -193,7 +193,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "bitgigs.wsgi.application"
+WSGI_APPLICATION = "config.wsgi.application"
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "core.validators.EmailSimilarityValidator"},
@@ -209,9 +209,9 @@ USE_I18N = True
 USE_TZ = True
 
 # Danish number formatting ("en-DK"): English UI text, Danish decimals.
-# The en override in bitgigs/formats sets comma decimals + period thousands,
+# The en override in config/formats sets comma decimals + period thousands,
 # so bare {{ number }} output localizes automatically.
-FORMAT_MODULE_PATH = "bitgigs.formats"
+FORMAT_MODULE_PATH = "config.formats"
 # Intentionally OFF: Django's thousands grouping is magnitude-based and cannot
 # distinguish money from a year or a database id, so enabling it globally would
 # render e.g. 2026 -> "2.026" and pk 1500 -> "1.500" and break JS parseInt.

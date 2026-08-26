@@ -86,7 +86,7 @@ python manage.py changepassword your@email.address
 ```
 
 Run it in the BitGigs project directory with the virtualenv active (in
-development, add `--settings=bitgigs.settings.local`).
+development, add `--settings=config.settings.local`).
 
 If you sign in with single sign-on and have no password set, there's nothing to
 reset — recover through your identity provider instead. See

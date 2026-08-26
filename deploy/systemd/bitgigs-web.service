@@ -18,8 +18,8 @@ User=bitgigs
 Group=bitgigs
 WorkingDirectory=/opt/bitgigs
 EnvironmentFile=/opt/bitgigs/.env
-Environment=DJANGO_SETTINGS_MODULE=bitgigs.settings.production
-ExecStart=/opt/bitgigs/.venv/bin/gunicorn bitgigs.wsgi:application --bind 127.0.0.1:8000 --workers 3
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/opt/bitgigs/.venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8000 --workers 3
 Restart=on-failure
 RestartSec=5
 

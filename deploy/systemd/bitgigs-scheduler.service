@@ -16,7 +16,7 @@ User=bitgigs
 Group=bitgigs
 WorkingDirectory=/opt/bitgigs
 EnvironmentFile=/opt/bitgigs/.env
-Environment=DJANGO_SETTINGS_MODULE=bitgigs.settings.production
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
 ExecStart=/opt/bitgigs/.venv/bin/python manage.py run_scheduler
 # The loop stops cleanly on SIGTERM (systemd's default stop signal).
 Restart=on-failure
