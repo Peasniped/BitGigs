@@ -1,6 +1,12 @@
 
 # NU     --------------------------------------------------------
 
+- On the planning calendar, when you drag a shift from one day to anohter, it shows the prompt if you want to re-sent the invite, but if you drag the shift onto a day where it will collide, it should be shown in the modal.
+- On the planning calendar "all invites sent" is shown if a shift needs to send an update. I think I would like it to both send new invites and send updates for shifts with pending changes.
+- Add a toggle on the settings page for users to disable the nag prompting them to send an update. maybe also add a "no and do not show again" button to the modal.
+
+- When adding a read calendar that has an error, the status chip shows "Error (i)", but clicking the i does nothing.
+- Can you check why this calendar fails: https://www.moodle.aau.dk/calendar/export_execute.php?userid=135833&authtoken=b9fdf523fede67c752d375b940e1cbfcb252e998&preset_what=all&preset_time=custom -- I know it does not end i ics like it should, but opening the link on my machine starts a download of the calendar in ics.
 
 ## Platform creation
 
@@ -8,6 +14,9 @@
 - Save it to D:\Github\BitBase\
 - The idea is that any platform upgrade made in the individual apps would also be made as a pull request to the base repository, so that all apps may benefit from them. 
 - Make sure to note this down in readme and in CLAUDE.md so that Claude automatically will think about if what we are doing now could be considered a platform upgrade, and if I would like them to draft up a pull request and send it off to the base platform repo.
+
+This is a big one. My plan is to clone the entirety of BitGigs into BitBase, and then
+I tried the thing with creating the next app and asking it to copy over things from BitGigs that would be useful, but it kept on trying to make things from scratch or hallucinating features to implement.
 
 
 # SENERE --------------------------------------------------------
@@ -133,37 +142,3 @@ A page that lets me configure studieaktivitet for each month in the year, and th
 -- 2 (SU fravalgt eller Orlov/Lønnet praktik/studieinaktiv)
 -- 3 (Ikke er indskrevet, ikke flere SU klip).
 - The amounts for each level are changed every year and should thus be easily configurable like with ATP. The current rates are 1: 20.749 kr. per måned, 2: 23.598 kr. per måned, 3: 45.420 kr. per måned. If you have kids under 18, the yearly limit is increased by 34.129 kr. per child in 2026. -- so amount of children should also be configurable on the SU page. 
-
-
-*** Platform-kandidater fundet under BitLedger-arbejdet (2026-08-26) ***
-Noteret herfra fordi de hører til "Platform creation" ovenfor: alle tre er ting
-BitLedger gør anderledes, hvor forskellen ser ud til at være en forbedring frem
-for bare en forskel.
-
-- Vendor frontend-bibliotekerne i stedet for CDN. BitGigs henter Bootstrap,
-  Bootstrap Icons, cropperjs, air-datepicker og Inter fra jsdelivr og Google
-  Fonts. BitLedger lægger dem i assets/static/vendor/ og serverer dem selv
-  (whitenoise, intet build-step) — se docs/adr/0007-vendored-frontend-assets.md
-  i BitLedger. Gevinsten: appen renderer korrekt uden internet, et CDN-udfald
-  kan ikke gøre den til ustylet HTML, og der ryger ingen request ud af huset
-  ved hvert sidevisning. Prisen: ~1 MB minified kode i repoet, og en version
-  bumpes manuelt i stedet for i en URL. Scriptet der genskaber font-mappen er
-  BitLedger/scripts/vendor_inter.py — kun latin + latin-ext hentes.
-
-- Format-modulet mangler dato-nøgler. bitgigs/formats/en/formats.py sætter kun
-  DECIMAL_SEPARATOR, THOUSAND_SEPARATOR og NUMBER_GROUPING; alle dato-nøgler
-  falder igennem til Djangos indbyggede en-locale. Så alt hvad Django selv
-  renderer server-side står som "Aug. 26, 2026", mens JS-pickerne viser dansk —
-  to formater i samme UI. Fire linjer i det eksisterende modul retter det:
-      DATE_FORMAT / SHORT_DATE_FORMAT / DATETIME_FORMAT / DATE_INPUT_FORMATS
-  Se BitLedger/bitledger/formats/da/formats.py for et gennemført sæt.
-
-- psycopg2-binary -> psycopg 3. Django 6 understøtter begge; psycopg 3 er den
-  der stadig får wheels (bl.a. til Python 3.14, hvor psycopg2-binary halter).
-  Ren dependency-udskiftning, ingen kodeændring — men den skal testes mod en
-  rigtig database inden den kommer ud.
-
-- IKKE relevant for BitGigs: LANGUAGE_CODE = da-dk. BitLedger skiftede til det,
-  så Djangos egne strenge (formularfejl, password-validatorer, admin) kommer på
-  dansk gratis. BitGigs' UI er engelsk med vilje, så det ville gøre skade her.
-  Kun dato-nøglerne ovenfor er den del der overføres.
